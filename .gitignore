@@ -1,0 +1,7 @@
+echo .env > .gitignore
+echo users_local.py >> .gitignore
+echo __pycache__/ >> .gitignore
+echo *.pyc >> .gitignore
+echo uploads/ >> .gitignore
+echo backup/ >> .gitignore
+echo *.pem >> .gitignore

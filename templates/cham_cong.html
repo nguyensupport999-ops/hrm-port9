@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Chấm công HRM-Port</title>
+    <style>
+        body { font-family: Arial; text-align: center; margin-top: 50px; }
+        button { padding: 15px 40px; font-size: 20px; margin: 10px; border: none; border-radius: 8px; cursor: pointer; }
+        .vao-ca { background: #4CAF50; color: white; }
+        .tan-ca { background: #f44336; color: white; }
+        #thong-bao { margin-top: 20px; font-size: 18px; }
+    </style>
+</head>
+<body>
+    <h1>🇻🇳 Chấm công HRM-Port</h1>
+    <h2 id="ngay-gio"></h2>
+    <button class="vao-ca" onclick="chamCong('check-in')">🟢 VÀO CA</button>
+    <button class="tan-ca" onclick="chamCong('check-out')">🔴 TAN CA</button>
+    <div id="thong-bao"></div>
+
+    <script>
+        function chamCong(type) {
+            const url = type === 'check-in' ? '/check-in' : '/check-out';
+            fetch(url, { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('thong-bao').innerHTML = '✅ ' + data.message;
+                    document.getElementById('thong-bao').style.color = 'green';
+                })
+                .catch(err => {
+                    document.getElementById('thong-bao').innerHTML = '❌ Lỗi kết nối!';
+                    document.getElementById('thong-bao').style.color = 'red';
+                });
+        }
+        setInterval(() => {
+            document.getElementById('ngay-gio').innerHTML = new Date().toLocaleString('vi-VN');
+        }, 1000);
+    </script>
+</body>
+</html>

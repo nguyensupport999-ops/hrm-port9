@@ -1,0 +1,44 @@
+Id,Ten_vi_tri,So_luong_can_tuyen,Phu_cap_tang_ca,Phu_cap_ca_dem,Ghi_chu
+1,"Phó chánh văn phòng",1,0,0,NULL
+2,"Tp Kinh doanh",0,0,0,
+3,"Hành chính",0,0,0,
+4,"Kế toán",0,0,0,
+5,"Kinh doanh",0,0,0,
+6,"Lái cẩu Liebherr",0,0,0,
+7,"Lái xúc lật",0,0,0,
+8,"Tổ trưởng nhân công",0,0,0,
+9,"Điều độ",0,0,0,
+10,"Vận hành băng tải",0,0,0,
+11,"Tạp vụ",0,0,0,
+12,"Quản lý cơ giới",0,0,0,
+13,"Lao động phổ thông",0,0,0,
+14,"Sửa chữa",0,0,0,
+15,"Lái máy đào",0,0,0,
+16,"Lái máy ủi",0,0,0,
+17,"Điều độ - x",0,0,0,NULL
+18,"Cơ điện - x",0,0,0,NULL
+19,"Cơ điện",0,0,0,NULL
+20,"Bảo vệ",0,0,0,NULL
+21,"Bảo vệ - x",0,0,0,NULL
+22,"Kế toán - x",0,0,0,NULL
+23,"Kinh doanh - x",0,0,0,NULL
+24,"Lái cẩu bánh xích - x",0,0,0,NULL
+25,"Lái cẩu Liebherr - x",0,0,0,NULL
+26,"Lái máy đào - x",0,0,0,NULL
+27,"Lái máy ủi - x",0,0,0,NULL
+28,"Lái xe ben - x",0,0,0,NULL
+29,"Lái xe ben",0,0,0,NULL
+30,"Lái xe đầu kéo",0,0,0,NULL
+31,"Lái xe đầu kéo - x",0,0,0,NULL
+32,"Lái xe nâng",0,0,0,NULL
+33,"Lái xúc lật - x",0,0,0,NULL
+34,"Làm hành chính - x",0,0,0,NULL
+35,"Làm hành chính",0,0,0,NULL
+36,"Lao động phổ thông - x",0,0,0,NULL
+37,"Phòng Y tế",0,0,0,NULL
+38,"Phụ trách kho bãi",0,0,0,NULL
+39,"Phụ trách kho bãi - x",0,0,0,NULL
+40,"Tạp vụ - x",0,0,0,NULL
+41,"Thợ vận hành băng tải",0,0,0,NULL
+42,"Trạm cân",0,0,0,NULL
+43,"Trạm cân - x",0,0,0,NULL

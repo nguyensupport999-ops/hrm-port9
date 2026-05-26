@@ -19,3 +19,31 @@ uploads/
 # File cache Python
 __pycache__/
 *.pyc
+
+# Excel files
+*.xlsx
+*.xls
+
+# Images
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Backup and temp
+backup/
+uploads/
+export_csv/
+
+# SQL and certificates
+*.sql
+*.pem
+*.crt
+
+# Logs
+*.log

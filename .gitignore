@@ -5,3 +5,17 @@ echo *.pyc >> .gitignore
 echo uploads/ >> .gitignore
 echo backup/ >> .gitignore
 echo *.pem >> .gitignore.env 
+
+# File cấu hình bí mật
+.env
+ca.pem
+
+# File backup và upload
+backup/
+uploads/
+*.sql
+*.xlsx
+
+# File cache Python
+__pycache__/
+*.pyc

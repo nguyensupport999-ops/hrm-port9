@@ -4,4 +4,4 @@ echo __pycache__/ >> .gitignore
 echo *.pyc >> .gitignore
 echo uploads/ >> .gitignore
 echo backup/ >> .gitignore
-echo *.pem >> .gitignore
+echo *.pem >> .gitignore.env 

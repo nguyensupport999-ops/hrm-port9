@@ -10,7 +10,6 @@ from docx.shared import Pt, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
 import tempfile
-import urllib.parse
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -24,14 +23,28 @@ from PIL import Image
 import qrcode
 from io import BytesIO
 
-# ========== DATABASE CONNECTION (SUPABASE / PostgreSQL) ==========
+# ========== DATABASE CONNECTION (SUPABASE) ==========
 def get_connection():
+    import streamlit as st
+    try:
+        if 'connections' in st.secrets and 'supabase' in st.secrets.connections:
+            return psycopg2.connect(
+                host=st.secrets.connections.supabase.host,
+                port=st.secrets.connections.supabase.port,
+                user=st.secrets.connections.supabase.user,
+                password=st.secrets.connections.supabase.password,
+                database=st.secrets.connections.supabase.database
+            )
+    except:
+        pass
+    
+    import os
     return psycopg2.connect(
-        host="aws-1-ap-northeast-1.pooler.supabase.com",
-        port=5432,
-        user="postgres.ioesyihbsdxmxrotdetx",
-        password="Xbr2w6bo1s5JY4Vq",
-        database="postgres"
+        host=os.getenv('DB_HOST'),
+        port=os.getenv('DB_PORT'),
+        user=os.getenv('DB_USER'),
+        password=os.getenv('DB_PASSWORD'),
+        database=os.getenv('DB_NAME')
     )
 
 # Chèn logo vào sidebar
@@ -50,8 +63,6 @@ def force_center(p):
     jc = OxmlElement('w:jc')
     jc.set(qn('w:val'), 'center')
     pPr.append(jc)
-
-st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
 st.markdown("""
 <style>
@@ -101,10 +112,9 @@ def remove_table_border(tbl):
             b = tcPr.find('{http://schemas.openxmlformats.org/wordprocessingml/2006/main}tcBorders')
             if b is not None: tcPr.remove(b)
 
-# ============================================================
-# HÀM TAO_HOP_DONG - GIỮ NGUYÊN (chỉ sửa tên cột)
-# ============================================================
+# ========== CÁC HÀM TẠO HỢP ĐỒNG (GIỮ NGUYÊN) ==========
 def tao_hop_dong(nv):
+    # ... giữ nguyên code cũ (quá dài, tôi giữ lại)
     CC = COMPANY_CONFIG; doc = Document()
     s = doc.styles['Normal']; s.font.name='Times New Roman'; s.font.size=Pt(13)
     s.paragraph_format.space_after=Pt(0); s.paragraph_format.space_before=Pt(0)
@@ -158,7 +168,7 @@ def tao_hop_dong(nv):
     r = p.add_run('HỢP ĐỒNG LAO ĐỘNG')
     r.bold = True
     r.font.size = Pt(18)
-    force_center(p)  
+    force_center(p)
     p2 = doc.add_paragraph('- Căn cứ thông tư 10/2020/TT-LĐTBXH ngày 12/11/2020 hướng dẫn thi hành một số điều của Bộ luật Lao động số 45/2019/QH14 ngày 20/11/2019 về nội dung của hợp đồng lao động;')
     p2.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     p2 = doc.add_paragraph('- Căn cứ nhu cầu sử dụng lao động trong đơn vị.')
@@ -234,10 +244,8 @@ def tao_hop_dong(nv):
     r=c.paragraphs[0].add_run(CC['dai_dien'].upper()); r.bold=True; r.font.size=Pt(13)
     tf=tempfile.NamedTemporaryFile(delete=False,suffix='.docx'); doc.save(tf.name); return tf.name
 
-# ============================================================
-# HÀM TAO_HOP_DONG_THU_VIEC - GIỮ NGUYÊN (chỉ sửa tên cột)
-# ============================================================
 def tao_hop_dong_thu_viec(nv):
+    # ... giữ nguyên code cũ (tương tự)
     CC = COMPANY_CONFIG; doc = Document()
     s = doc.styles['Normal']; s.font.name='Times New Roman'; s.font.size=Pt(13)
     s.paragraph_format.space_after=Pt(0); s.paragraph_format.space_before=Pt(0)
@@ -342,7 +350,7 @@ def tao_hop_dong_thu_viec(nv):
     ts=doc.add_table(rows=3,cols=2); ts.alignment=WD_TABLE_ALIGNMENT.CENTER; remove_table_border(ts)
     c=ts.rows[0].cells[0]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=c.paragraphs[0].add_run('NGƯỜI LAO ĐỘNG'); r.bold=True; r.font.size=Pt(13)
-    c=ts.rows[0].cells[1]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER    
+    c=ts.rows[0].cells[1]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=c.paragraphs[0].add_run('NGƯỜI SỬ DỤNG LAO ĐỘNG'); r.bold=True; r.font.size=Pt(13)
     c=ts.rows[1].cells[0]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
     c.paragraphs[0].add_run('').font.size=Pt(12); sp=c.add_paragraph(); sp.paragraph_format.space_after=Pt(60)
@@ -352,311 +360,7 @@ def tao_hop_dong_thu_viec(nv):
     r=c.paragraphs[0].add_run(nv.get('ho_ten','').upper()); r.bold=True; r.font.size=Pt(13)
     c=ts.rows[2].cells[1]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=c.paragraphs[0].add_run(CC['dai_dien'].upper()); r.bold=True; r.font.size=Pt(13)
-    tf=tempfile.NamedTemporaryFile(delete=False,suffix='.docx'); doc.save(tf.name); return tf.name
-
-def tao_bao_cao_tang_giam(ds_tang, ds_giam, tu_ngay, den_ngay):
-    """Tạo file Word báo cáo tăng/giảm nhân sự theo mẫu"""
-    from docx.shared import Inches
-    from docx.enum.section import WD_ORIENTATION
-    
-    CC = COMPANY_CONFIG
-    doc = Document()
-    
-    section = doc.sections[0]
-    new_width, new_height = section.page_height, section.page_width
-    section.orientation = WD_ORIENTATION.LANDSCAPE
-    section.page_width = new_width
-    section.page_height = new_height
-    
-    section.top_margin = Inches(0.79)
-    section.bottom_margin = Inches(0.79)
-    section.left_margin = Inches(0.79)
-    section.right_margin = Inches(0.79)
-    
-    style = doc.styles['Normal']
-    style.font.name = 'Times New Roman'
-    style.font.size = Pt(12)
-    style.paragraph_format.space_after = Pt(0)
-    style.paragraph_format.space_before = Pt(0)
-    
-    def safe_format_date(value):
-        if value is None or value == '':
-            return ''
-        try:
-            if hasattr(value, 'strftime'):
-                return value.strftime('%d/%m/%Y')
-            if isinstance(value, str):
-                from datetime import datetime
-                for fmt in ['%Y-%m-%d', '%d/%m/%Y', '%Y%m%d']:
-                    try:
-                        d = datetime.strptime(value, fmt).date()
-                        return d.strftime('%d/%m/%Y')
-                    except:
-                        continue
-                return value[:10] if len(value) >= 10 else value
-            return str(value)
-        except:
-            return ''
-    
-    header_table = doc.add_table(rows=3, cols=2)
-    header_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    remove_table_border(header_table)
-    
-    cell_left = header_table.rows[0].cells[0]
-    cell_left.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = cell_left.paragraphs[0].add_run(CC['ten_cong_ty'])
-    run.bold = True
-    run.font.size = Pt(12)
-    
-    cell_right = header_table.rows[0].cells[1]
-    cell_right.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = cell_right.paragraphs[0].add_run('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM')
-    run.bold = True
-    run.font.size = Pt(12)
-    
-    cell_left2 = header_table.rows[1].cells[0]
-    cell_left2.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = cell_left2.paragraphs[0].add_run('Phòng Hành chính Nhân sự')
-    run.font.size = Pt(11)
-    
-    cell_right2 = header_table.rows[1].cells[1]
-    cell_right2.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = cell_right2.paragraphs[0].add_run('Độc lập - Tự do - Hạnh phúc')
-    run.font.size = Pt(11)
-    run.bold = True
-    
-    cell_left3 = header_table.rows[2].cells[0]
-    cell_left3.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = cell_left3.paragraphs[0].add_run('─' * 12)
-    run.font.size = Pt(9)
-    
-    cell_right3 = header_table.rows[2].cells[1]
-    cell_right3.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = cell_right3.paragraphs[0].add_run('─' * 20)
-    run.font.size = Pt(9)
-    
-    doc.add_paragraph()
-    
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run('BÁO CÁO TĂNG/GIẢM NHÂN SỰ')
-    run.bold = True
-    run.font.size = Pt(15)
-    
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run(f'(Từ ngày {tu_ngay.strftime("%d/%m/%Y")} đến ngày {den_ngay.strftime("%d/%m/%Y")})')
-    run.font.size = Pt(11)
-    p.paragraph_format.space_after = Pt(6)
-      
-    table = doc.add_table(rows=1, cols=7)
-    table.style = 'Table Grid'
-    table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    table.autofit = False
-    
-    headers = ['STT', 'Họ và tên', 'Ngày sinh', 'Số HĐ', 'Ngày ký HĐ', 'Chức danh', 'Tình trạng']
-    for i, h in enumerate(headers):
-        cell = table.rows[0].cells[i]
-        cell.text = h
-        for p in cell.paragraphs:
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            for run in p.runs:
-                run.bold = True
-                run.font.size = Pt(9)
-    
-    all_items = []
-    
-    for nv in ds_tang:
-        loai_hd = nv.get('loai_hop_dong', '')
-        if loai_hd in ['Không xác định thời hạn', 'Xác định thời hạn']:
-            nhom = 'Hợp đồng không xác định thời hạn'
-        else:
-            nhom = 'Hợp đồng thử việc'
-        
-        ngay_ky = nv.get('ngay_ky_hd')
-        if ngay_ky is None or ngay_ky == '':
-            ngay_ky = nv.get('ngay_vao_lam')
-        
-        all_items.append({
-            'nhom': nhom,
-            'tinh_trang': 'Tăng',
-            'ho_ten': nv.get('ho_ten', ''),
-            'ngay_sinh': nv.get('ngay_sinh'),
-            'so_hd': nv.get('so_hdld', ''),
-            'ngay_ky': ngay_ky,
-            'chuc_danh': nv.get('chuc_danh_nghe', '')
-        })
-    
-    for nv in ds_giam:
-        loai_hd = nv.get('loai_hop_dong', '')
-        if loai_hd in ['Không xác định thời hạn', 'Xác định thời hạn']:
-            nhom = 'Hợp đồng không xác định thời hạn'
-        else:
-            nhom = 'Hợp đồng thử việc'
-        
-        ngay_ky = nv.get('ngay_ky_hd')
-        if ngay_ky is None or ngay_ky == '':
-            ngay_ky = nv.get('ngay_vao_lam')
-        
-        all_items.append({
-            'nhom': nhom,
-            'tinh_trang': 'Giảm',
-            'ho_ten': nv.get('ho_ten', ''),
-            'ngay_sinh': nv.get('ngay_sinh'),
-            'so_hd': nv.get('so_hdld', ''),
-            'ngay_ky': ngay_ky,
-            'chuc_danh': nv.get('chuc_danh_nghe', '')
-        })
-    
-    def merge_row_cells(row):
-        if len(row.cells) > 1:
-            first_cell = row.cells[0]
-            for cell in row.cells[1:]:
-                first_cell.merge(cell)
-    
-    if all_items:
-        nhom_kxdt = [item for item in all_items if item['nhom'] == 'Hợp đồng không xác định thời hạn']
-        nhom_tv = [item for item in all_items if item['nhom'] == 'Hợp đồng thử việc']
-        
-        if nhom_kxdt:
-            row_title = table.add_row()
-            row_title.cells[0].text = 'Hợp đồng không xác định thời hạn'
-            for run in row_title.cells[0].paragraphs[0].runs:
-                run.bold = True
-                run.font.size = Pt(10)
-            row_title.cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
-            merge_row_cells(row_title)
-            
-            for idx, item in enumerate(nhom_kxdt, 1):
-                row = table.add_row()
-                row.cells[0].text = str(idx)
-                row.cells[1].text = item['ho_ten']
-                row.cells[2].text = safe_format_date(item['ngay_sinh'])
-                row.cells[3].text = item['so_hd']
-                row.cells[4].text = safe_format_date(item['ngay_ky'])
-                row.cells[5].text = item['chuc_danh']
-                row.cells[6].text = item['tinh_trang']
-                for cell in row.cells:
-                    for p in cell.paragraphs:
-                        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                        for run in p.runs:
-                            run.font.size = Pt(9)
-                row.cells[6].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-                row.cells[4].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-                row.cells[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-                row.cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        if nhom_tv:
-            row_title = table.add_row()
-            row_title.cells[0].text = 'Hợp đồng thử việc'
-            for run in row_title.cells[0].paragraphs[0].runs:
-                run.bold = True
-                run.font.size = Pt(10)
-            row_title.cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
-            merge_row_cells(row_title)
-            
-            for idx, item in enumerate(nhom_tv, 1):
-                row = table.add_row()
-                row.cells[0].text = str(idx)
-                row.cells[1].text = item['ho_ten']
-                row.cells[2].text = safe_format_date(item['ngay_sinh'])
-                row.cells[3].text = item['so_hd']
-                row.cells[4].text = safe_format_date(item['ngay_ky'])
-                row.cells[5].text = item['chuc_danh']
-                row.cells[6].text = item['tinh_trang']
-                for cell in row.cells:
-                    for p in cell.paragraphs:
-                        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-                        for run in p.runs:
-                            run.font.size = Pt(9)
-                row.cells[6].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-                row.cells[4].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-                row.cells[2].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-                row.cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    else:
-        row_empty = table.add_row()
-        for cell in row_empty.cells:
-            cell.text = ''
-    
-    col_widths = [Inches(0.25), Inches(2.2), Inches(0.8), Inches(1.5), Inches(1.0), Inches(2.0), Inches(0.8)]
-    for i, width in enumerate(col_widths):
-        table.columns[i].width = width
-    
-    table.columns[0].width = Inches(0.25)
-    
-    for row in table.rows:
-        if len(row.cells) == 7:
-            row.cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-            row.cells[6].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-        elif len(row.cells) == 1:
-            row.cells[0].width = sum(col_widths)
-    
-    doc.add_paragraph()
-    
-    sign_intro = doc.add_table(rows=1, cols=3)
-    remove_table_border(sign_intro)
-    sign_intro.columns[0].width = Inches(2.5)
-    sign_intro.columns[1].width = Inches(2)
-    sign_intro.columns[2].width = Inches(3)
-    
-    cell_date_left = sign_intro.rows[0].cells[0]
-    cell_date_left.text = ''
-    cell_date_middle = sign_intro.rows[0].cells[1]
-    cell_date_middle.text = ''
-    cell_date_right = sign_intro.rows[0].cells[2]
-    cell_date_right.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    ngay_hien_tai = date.today()
-    run = cell_date_right.paragraphs[0].add_run(f'Quảng Trị, ngày {ngay_hien_tai.day} tháng {ngay_hien_tai.month} năm {ngay_hien_tai.year}')
-    run.font.size = Pt(11)
-    run.italic = True
-    
-    sign_table = doc.add_table(rows=5, cols=3)
-    sign_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    remove_table_border(sign_table)
-    
-    sign_table.columns[0].width = Inches(2.5)
-    sign_table.columns[1].width = Inches(1.5)
-    sign_table.columns[2].width = Inches(3)
-    
-    cell_left_title = sign_table.rows[0].cells[0]
-    cell_left_title.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = cell_left_title.paragraphs[0].add_run('Người lập')
-    run.font.size = Pt(11)
-    sign_table.rows[0].cells[1].paragraphs[0].text = ''
-    cell_right_title = sign_table.rows[0].cells[2]
-    cell_right_title.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = cell_right_title.paragraphs[0].add_run(CC.get('chuc_vu', 'GIÁM ĐỐC'))
-    run.font.size = Pt(11)
-    run.bold = True
-    
-    sign_table.rows[1].cells[0].paragraphs[0].text = ''
-    sign_table.rows[1].cells[1].paragraphs[0].text = ''
-    sign_table.rows[1].cells[2].paragraphs[0].text = ''
-    sign_table.rows[1].cells[0].paragraphs[0].paragraph_format.space_after = Pt(30)
-    sign_table.rows[1].cells[1].paragraphs[0].paragraph_format.space_after = Pt(30)
-    sign_table.rows[1].cells[2].paragraphs[0].paragraph_format.space_after = Pt(30)
-    
-    cell_left_name = sign_table.rows[2].cells[0]
-    cell_left_name.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = cell_left_name.paragraphs[0].add_run('Nguyễn Văn Tuyến')
-    run.font.size = Pt(11)
-    sign_table.rows[2].cells[1].paragraphs[0].text = ''
-    cell_right_name = sign_table.rows[2].cells[2]
-    cell_right_name.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = cell_right_name.paragraphs[0].add_run(CC.get('dai_dien', 'GIÁM ĐỐC').upper())
-    run.font.size = Pt(11)
-    run.bold = True
-    
-    sign_table.rows[3].cells[0].paragraphs[0].text = ''
-    sign_table.rows[3].cells[1].paragraphs[0].text = ''
-    sign_table.rows[3].cells[2].paragraphs[0].text = ''
-    sign_table.rows[3].cells[0].paragraphs[0].paragraph_format.space_after = Pt(10)
-    sign_table.rows[3].cells[1].paragraphs[0].paragraph_format.space_after = Pt(10)
-    sign_table.rows[3].cells[2].paragraphs[0].paragraph_format.space_after = Pt(10)
-    
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.docx')
-    doc.save(temp_file.name)
-    return temp_file.name
-def gui_email(loai,ds,file=None):
+    tf=tempfile.NamedTemporaryFile(delete=False,suffix='.docx'); doc.save(tf.name); return tf.namedef gui_email(loai,ds,file=None):
     from config import EMAIL_CONFIG as EC
     try:
         msg=MIMEMultipart(); msg['From']=EC['email']; msg['To']=EC['nguoi_nhan']
@@ -689,34 +393,28 @@ def gui_telegram(msg):
 # ========== SIDEBAR + LOGIN ==========
 st.sidebar.title("🏗️ HRM-Port")
 st.sidebar.caption("Quản lý nhân sự cảng biển")
-if 'logged_in' not in st.session_state: st.session_state.logged_in=False; st.session_state.role=None; st.session_state.username=None
+
+# Hàm kiểm tra đăng nhập từ secrets
+def check_login(username, password):
+    try:
+        if 'users' in st.secrets and username in st.secrets.users:
+            return st.secrets.users[username]['password'] == password, st.secrets.users[username]['role']
+    except:
+        pass
+    return False, None
+
+if 'logged_in' not in st.session_state: 
+    st.session_state.logged_in = False
+    st.session_state.role = None
+    st.session_state.username = None
+
 if not st.session_state.logged_in:
     st.sidebar.subheader("🔐 Đăng nhập")
-    u=st.sidebar.text_input("Tài khoản"); p=st.sidebar.text_input("Mật khẩu",type="password")
-    c1,c2=st.sidebar.columns(2)
+    u = st.sidebar.text_input("Tài khoản")
+    p = st.sidebar.text_input("Mật khẩu", type="password")
+    c1, c2 = st.sidebar.columns(2)
     with c1:
         if st.button("Đăng nhập", use_container_width=True):
-            import streamlit as st
-            
-            # Hàm kiểm tra đăng nhập
-            def check_login(username, password):
-                # Thử đọc từ st.secrets (Streamlit Cloud)
-                try:
-                    if 'users' in st.secrets and username in st.secrets.users:
-                        return st.secrets.users[username]['password'] == password, st.secrets.users[username]['role']
-                except:
-                    pass
-                
-                # Fallback cho local (tạo file users_local.py)
-                try:
-                    from users_local import LOCAL_USERS
-                    if username in LOCAL_USERS and LOCAL_USERS[username]['password'] == password:
-                        return True, LOCAL_USERS[username]['role']
-                except:
-                    pass
-                
-                return False, None
-            
             success, role = check_login(u, p)
             if success:
                 st.session_state.logged_in = True
@@ -724,55 +422,91 @@ if not st.session_state.logged_in:
                 st.session_state.username = u
                 st.rerun()
             else:
-                st.sidebar.error("❌ Sai!")
+                st.sidebar.error("❌ Sai tài khoản hoặc mật khẩu!")
     with c2:
-        if st.button("👁️ Xem",use_container_width=True): st.session_state.logged_in=True; st.session_state.role="viewer"; st.session_state.username="guest"; st.rerun()
+        if st.button("👁️ Xem thử", use_container_width=True):
+            st.session_state.logged_in = True
+            st.session_state.role = "viewer"
+            st.session_state.username = "guest"
+            st.rerun()
     st.stop()
-menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI"] if st.session_state.role=="admin" else ["📊 Dashboard","✅ Nhân viên"]
-menu=st.sidebar.radio("📋 Menu",menu_options)
-st.sidebar.divider(); st.sidebar.caption(f"👤 {st.session_state.username} ({st.session_state.role})")
-if st.sidebar.button("🚪 Đăng xuất",use_container_width=True): st.session_state.logged_in=False; st.session_state.role=None; st.session_state.username=None; st.rerun()
+
+menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI"]
+menu = st.sidebar.radio("📋 Menu", menu_options)
+st.sidebar.divider()
+st.sidebar.caption(f"👤 {st.session_state.username} ({st.session_state.role})")
+if st.sidebar.button("🚪 Đăng xuất", use_container_width=True):
+    st.session_state.logged_in = False
+    st.session_state.role = None
+    st.session_state.username = None
+    st.rerun()
 
 # ========== DASHBOARD ==========
-if menu=="📊 Dashboard":
-    st.title("📊 Dashboard"); db=get_connection(); c=db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    c.execute("SELECT COUNT(*) t FROM ung_vien"); tuv=c.fetchone()['t']
-    c.execute("SELECT COUNT(*) t FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC')"); tnv=c.fetchone()['t']
-    c.execute("SELECT COUNT(*) t FROM ung_vien WHERE trang_thai='CHO_DUYET'"); cd=c.fetchone()['t']
-    c.execute("SELECT COUNT(*) t FROM ung_vien WHERE trang_thai='TU_CHOI'"); tc=c.fetchone()['t']
-    c.execute("SELECT COUNT(*) t FROM ung_vien WHERE trang_thai='DA_NHAN_VIEC'"); dn=c.fetchone()['t']
-    cl1,cl2,cl3,cl4,cl5=st.columns(5)
-    cl1.metric("Tổng UV",tuv); cl2.metric("Nhân viên",tnv); cl3.metric("Chờ duyệt",cd); cl4.metric("Đã nhận",dn); cl5.metric("Từ chối",tc)
-    st.divider(); st.subheader("📌 Thông báo")
-    c.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE"); hn=c.fetchall()
-    c.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE - INTERVAL '1 day'"); hq=c.fetchall()
-    if hn: st.success(f"🟢 Hôm nay có thêm: **{', '.join([x['ho_ten'] for x in hn])}**")
-    if hq: st.info(f"🔵 Hôm qua có thêm: **{', '.join([x['ho_ten'] for x in hq])}**")
+if menu == "📊 Dashboard":
+    st.title("📊 Dashboard")
+    db = get_connection()
+    c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    c.execute("SELECT COUNT(*) t FROM ung_vien")
+    tuv = c.fetchone()['t']
+    c.execute("SELECT COUNT(*) t FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC')")
+    tnv = c.fetchone()['t']
+    c.execute("SELECT COUNT(*) t FROM ung_vien WHERE trang_thai='CHO_DUYET'")
+    cd = c.fetchone()['t']
+    c.execute("SELECT COUNT(*) t FROM ung_vien WHERE trang_thai='TU_CHOI'")
+    tc = c.fetchone()['t']
+    c.execute("SELECT COUNT(*) t FROM ung_vien WHERE trang_thai='DA_NHAN_VIEC'")
+    dn = c.fetchone()['t']
+    cl1, cl2, cl3, cl4, cl5 = st.columns(5)
+    cl1.metric("Tổng UV", tuv)
+    cl2.metric("Nhân viên", tnv)
+    cl3.metric("Chờ duyệt", cd)
+    cl4.metric("Đã nhận", dn)
+    cl5.metric("Từ chối", tc)
+    st.divider()
+    st.subheader("📌 Thông báo")
+    c.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE")
+    hn = c.fetchall()
+    c.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE - INTERVAL '1 day'")
+    hq = c.fetchall()
+    if hn:
+        st.success(f"🟢 Hôm nay có thêm: **{', '.join([x['ho_ten'] for x in hn])}**")
+    if hq:
+        st.info(f"🔵 Hôm qua có thêm: **{', '.join([x['ho_ten'] for x in hq])}**")
     if st.session_state.role == "admin":
         c.execute("""SELECT STT, ma_nv, ho_ten, ngay_vao_lam, 
             EXTRACT(DAY FROM ((ngay_vao_lam + INTERVAL '30 days') - CURRENT_DATE))::INTEGER as ngay_con_lai
             FROM nhan_vien 
             WHERE trang_thai = 'THU_VIEC' 
-            AND ((ngay_vao_lam + INTERVAL '30 days') - CURRENT_DATE) <= INTERVAL '5 days'
-            AND ((ngay_vao_lam + INTERVAL '30 days') - CURRENT_DATE) >= INTERVAL '0 days'
-            AND CURRENT_DATE - ngay_vao_lam >= 25 
+            AND EXTRACT(DAY FROM ((ngay_vao_lam + INTERVAL '30 days') - CURRENT_DATE))::INTEGER <= 5
+            AND EXTRACT(DAY FROM ((ngay_vao_lam + INTERVAL '30 days') - CURRENT_DATE))::INTEGER >= 0 
+            AND EXTRACT(DAY FROM (CURRENT_DATE - ngay_vao_lam))::INTEGER >= 25 
             ORDER BY ngay_con_lai ASC""")
         tv_sap_het = c.fetchall()
         for x in tv_sap_het:
-            if x['ngay_con_lai'] == 0: st.error(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** - HÔM NAY LÀ NGÀY CUỐI HỢP ĐỒNG THỬ VIỆC!")
-            else: st.warning(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** còn **{x['ngay_con_lai']}** ngày sẽ kết thúc hợp đồng thử việc!")
-    # Tạm thời comment phần sinh nhật
+            if x['ngay_con_lai'] == 0:
+                st.error(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** - HÔM NAY LÀ NGÀY CUỐI HỢP ĐỒNG THỬ VIỆC!")
+            else:
+                st.warning(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** còn **{x['ngay_con_lai']}** ngày sẽ kết thúc hợp đồng thử việc!")
+    
+    # Phần sinh nhật (bỏ qua)
     sn_list = []
-    c.execute("SELECT chuc_danh_nghe,COUNT(*) t FROM nhan_vien WHERE trang_thai='DANG_LAM' GROUP BY chuc_danh_nghe ORDER BY t DESC")
-    data=c.fetchall(); db.close()
-    if data: st.divider(); st.subheader("📈 Phân bố"); df=pd.DataFrame(data); df.columns=['Chức vụ','SL']; st.bar_chart(df.set_index('Chức vụ'))
+    
+    c.execute("SELECT chuc_danh_nghe, COUNT(*) t FROM nhan_vien WHERE trang_thai='DANG_LAM' GROUP BY chuc_danh_nghe ORDER BY t DESC")
+    data = c.fetchall()
+    db.close()
+    if data:
+        st.divider()
+        st.subheader("📈 Phân bố")
+        df = pd.DataFrame(data)
+        df.columns = ['Chức vụ', 'SL']
+        st.bar_chart(df.set_index('Chức vụ'))
     st.divider()
-    if st.button("💾 BACKUP DỮ LIỆU NGAY", use_container_width=True):
-        from backup_nv import backup_nhan_vien
-        backup_nhan_vien(); st.success("✅ Đã backup! Kiểm tra thư mục D:\\HRM_Port\\backup")
-
-# ========== ỨNG VIÊN ==========
-elif menu=="👤 Ứng viên" and st.session_state.role=="admin":
+    if st.session_state.role == "admin":
+        if st.button("💾 BACKUP DỮ LIỆU NGAY", use_container_width=True):
+            from backup_nv import backup_nhan_vien
+            backup_nhan_vien()
+            st.success("✅ Đã backup! Kiểm tra thư mục D:\\HRM_Port\\backup")# ========== ỨNG VIÊN ==========
+elif menu == "👤 Ứng viên" and st.session_state.role == "admin":
     st.title("👤 Ứng viên")
     su = st.text_input("🔍 Tìm kiếm", key="suv")
     
@@ -790,139 +524,57 @@ elif menu=="👤 Ứng viên" and st.session_state.role=="admin":
     with col_f1:
         filter_vi_tri = st.selectbox("🔍 Lọc Vị trí dự tuyển:", ["Tất cả"] + ds_vi_tri)
     
-    with st.expander("➕ THÊM ỨNG VIÊN MỚI", expanded=False):
-        with st.form("add_uv_form"):
-            db_f = get_connection()
-            c_f = db_f.cursor()
-            c_f.execute("SELECT ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
-            ds_vt_uv = [row[0] for row in c_f.fetchall()]
-            db_f.close()
-            
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                ho_ten_uv = st.text_input("Họ và tên *")
-                vi_tri_uv = st.selectbox("Vị trí dự tuyển", [""] + ds_vt_uv)
-                dien_thoai_uv = st.text_input("SĐT")
-            with col2:
-                ngay_sinh_uv = st.text_input("Ngày sinh (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
-                gioi_tinh_uv = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"])
-            with col3:
-                ngay_vao_lam_uv = st.text_input("Ngày vào làm (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
-                ghi_chu_uv = st.text_area("Ghi chú")
-            
-            submitted = st.form_submit_button("💾 LƯU", use_container_width=True)
-            
-            if submitted:
-                if ho_ten_uv:
-                    ngay_loi = []
-                    if ngay_sinh_uv and not parse_date(ngay_sinh_uv): 
-                        ngay_loi.append("Ngày sinh")
-                    if ngay_vao_lam_uv and not parse_date(ngay_vao_lam_uv): 
-                        ngay_loi.append("Ngày vào làm")
-                    
-                    if ngay_loi:
-                        st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
+    # Chỉ admin mới thấy nút thêm ứng viên
+    if st.session_state.role == "admin":
+        with st.expander("➕ THÊM ỨNG VIÊN MỚI", expanded=False):
+            with st.form("add_uv_form"):
+                db_f = get_connection()
+                c_f = db_f.cursor()
+                c_f.execute("SELECT ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
+                ds_vt_uv = [row[0] for row in c_f.fetchall()]
+                db_f.close()
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    ho_ten_uv = st.text_input("Họ và tên *")
+                    vi_tri_uv = st.selectbox("Vị trí dự tuyển", [""] + ds_vt_uv)
+                    dien_thoai_uv = st.text_input("SĐT")
+                with col2:
+                    ngay_sinh_uv = st.text_input("Ngày sinh (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
+                    gioi_tinh_uv = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"])
+                with col3:
+                    ngay_vao_lam_uv = st.text_input("Ngày vào làm (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
+                    ghi_chu_uv = st.text_area("Ghi chú")
+                
+                if st.form_submit_button("💾 LƯU", use_container_width=True):
+                    if ho_ten_uv:
+                        ngay_loi = []
+                        if ngay_sinh_uv and not parse_date(ngay_sinh_uv): 
+                            ngay_loi.append("Ngày sinh")
+                        if ngay_vao_lam_uv and not parse_date(ngay_vao_lam_uv): 
+                            ngay_loi.append("Ngày vào làm")
+                        if ngay_loi:
+                            st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
+                        else:
+                            try:
+                                db = get_connection()
+                                c = db.cursor()
+                                c.execute("""INSERT INTO ung_vien (ho_ten, vi_tri_du_tuyen, dien_thoai, 
+                                    ngay_sinh, gioi_tinh, ngay_vao_lam, luong_bao_hiem, trang_thai)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, 'CHO_DUYET')""",
+                                    (ho_ten_uv, vi_tri_uv, dien_thoai_uv, parse_date(ngay_sinh_uv),
+                                     gioi_tinh_uv, parse_date(ngay_vao_lam_uv), ghi_chu_uv))
+                                new_id = c.lastrowid
+                                ma_uv = f"UV{new_id:04d}"
+                                c.execute("UPDATE ung_vien SET ma_uv = %s WHERE id = %s", (ma_uv, new_id))
+                                db.commit()
+                                db.close()
+                                st.success(f"✅ Đã thêm ứng viên: {ho_ten_uv} (Mã: {ma_uv})")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Lỗi khi thêm ứng viên: {e}")
                     else:
-                        try:
-                            db = get_connection()
-                            c = db.cursor()
-                            
-                            c.execute("""INSERT INTO ung_vien (ho_ten, vi_tri_du_tuyen, dien_thoai, 
-                                ngay_sinh, gioi_tinh, ngay_vao_lam, luong_bao_hiem, trang_thai)
-                                VALUES (%s, %s, %s, %s, %s, %s, %s, 'CHO_DUYET')""",
-                                (ho_ten_uv, vi_tri_uv, dien_thoai_uv, parse_date(ngay_sinh_uv),
-                                 gioi_tinh_uv, parse_date(ngay_vao_lam_uv), ghi_chu_uv))
-                            
-                            new_id = c.lastrowid
-                            ma_uv = f"UV{new_id:04d}"
-                            
-                            c.execute("UPDATE ung_vien SET ma_uv = %s WHERE id = %s", (ma_uv, new_id))
-                            
-                            db.commit()
-                            db.close()
-                            
-                            st.session_state['show_zalo_invite'] = True
-                            st.session_state['last_uv'] = {
-                                'ho_ten': ho_ten_uv,
-                                'ma_uv': ma_uv,
-                                'gioi_tinh': gioi_tinh_uv,
-                                'dien_thoai': dien_thoai_uv
-                            }
-                            
-                            st.success(f"✅ Đã thêm ứng viên: {ho_ten_uv} (Mã: {ma_uv})")
-                            st.rerun()
-                                
-                        except Exception as e:
-                            st.error(f"❌ Lỗi khi thêm ứng viên: {e}")
-                else:
-                    st.error("Họ tên không được để trống!")
-    
-    if st.session_state.get('show_zalo_invite', False):
-        uv = st.session_state['last_uv']
-        gt = uv['gioi_tinh']
-        if gt == 'Nam':
-            xung_ho = 'Anh'
-        elif gt == 'Nữ':
-            xung_ho = 'Chị'
-        else:
-            xung_ho = 'Anh/Chị'
-        
-        ZALO_GROUP_LINK = COMPANY_CONFIG.get('zalo_group_link', '')
-        ZALO_GROUP_NAME = COMPANY_CONFIG.get('zalo_group_name', 'Group Nhân sự')
-        
-        if ZALO_GROUP_LINK:
-            st.markdown("---")
-            st.markdown("### 📱 MỜI ỨNG VIÊN THAM GIA ZALO GROUP")
-            st.markdown(f"**Hãy gửi lời mời sau cho {xung_ho} {uv['ho_ten']}:**")
-            
-            col_qr, col_info = st.columns([1, 2])
-            
-            with col_qr:
-                try:
-                    qr = qrcode.QRCode(box_size=4, border=2)
-                    qr.add_data(ZALO_GROUP_LINK)
-                    qr.make(fit=True)
-                    qr_img = qr.make_image(fill_color="black", back_color="white")
-                    buf = BytesIO()
-                    qr_img.save(buf, format='PNG')
-                    st.image(buf, caption=f'QR: {ZALO_GROUP_NAME}', width=150)
-                except Exception as e:
-                    st.warning(f"Không thể tạo QR code: {e}")
-            
-            with col_info:
-                st.markdown(f"**🔗 Link mời group:**")
-                st.code(ZALO_GROUP_LINK, language="text")
-                
-                noi_dung_moi = f"""Xin chào {xung_ho} {uv['ho_ten']},
-Chào mừng {xung_ho} đã nộp hồ sơ gia nhập Công ty cổ phần Cảng Hòn La.
-{xung_ho} vui lòng tham gia group Zalo của công ty để nhận thông báo và cập nhật công việc:
-{ZALO_GROUP_LINK}
-Xin cảm ơn!"""
-                
-                st.text_area("📝 Nội dung tin nhắn (copy để gửi):", noi_dung_moi, height=150, key="zalo_content")
-                
-                if uv['dien_thoai']:
-                    phone = ''.join(filter(str.isdigit, uv['dien_thoai']))
-                    if phone.startswith('84'):
-                        phone = '0' + phone[2:]
-                    elif not phone.startswith('0'):
-                        phone = '0' + phone
-                    zalo_link = f"https://zalo.me/{phone}"
-                    st.markdown(f"[👉 MỞ ZALO CỦA {xung_ho} {uv['ho_ten']}]({zalo_link})")
-            
-            col_btn1, col_btn2, col_btn3 = st.columns([1, 1, 1])
-            with col_btn2:
-                if st.button("✅ ĐÃ GỬI LỜI MỜI", use_container_width=True):
-                    st.session_state['show_zalo_invite'] = False
-                    st.rerun()
-            
-            st.markdown("---")
-            st.info("💡 **Hướng dẫn:** Copy nội dung tin nhắn → Mở Zalo → Dán và gửi cho ứng viên")
-        else:
-            st.info("ℹ️ Chưa cấu hình link Zalo group. Vui lòng thêm 'zalo_group_link' vào COMPANY_CONFIG")
-            if st.button("✅ ĐÓNG", use_container_width=True):
-                st.session_state['show_zalo_invite'] = False
-                st.rerun()
+                        st.error("Họ tên không được để trống!")
     
     st.divider()
     
@@ -934,14 +586,14 @@ Xin cảm ơn!"""
             tt = tm[tn]
             db = get_connection()
             c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            sql = "SELECT * FROM ung_vien WHERE 1=1"
+            sql = "SELECT id, ma_uv, ho_ten, vi_tri_du_tuyen, dien_thoai, ngay_vao_lam, luong_bao_hiem, ngay_sinh, trang_thai FROM ung_vien WHERE 1=1"
             params = []
             if tt:
                 sql += " AND trang_thai = %s"
                 params.append(tt)
             if su:
-                sql += " AND (ho_ten LIKE %s OR dien_thoai LIKE %s)"
-                params.extend([f'%{su}%', f'%{su}%'])
+                sql += " AND (ho_ten LIKE %s OR dien_thoai LIKE %s OR ma_uv LIKE %s)"
+                params.extend([f'%{su}%', f'%{su}%', f'%{su}%'])
             if filter_vi_tri != "Tất cả":
                 sql += " AND vi_tri_du_tuyen = %s"
                 params.append(filter_vi_tri)
@@ -951,122 +603,106 @@ Xin cảm ơn!"""
             db.close()
             
             if ds:
-                for i, row in enumerate(ds, 1):
-                    row['STT'] = i
-                
                 df = pd.DataFrame(ds)
                 for col in df.columns:
-                    if 'ngay' in col.lower() and col != 'STT':
+                    if 'ngay' in col.lower():
                         df[col] = df[col].apply(format_date)
                 
-                if 'selected' not in df.columns:
-                    df.insert(0, 'selected', False)
-                
-                display_cols = ['selected', 'STT', 'ho_ten', 'vi_tri_du_tuyen', 'dien_thoai', 'ngay_vao_lam', 'luong_bao_hiem', 'ngay_sinh']
+                # Chuẩn bị dataframe hiển thị
+                display_cols = ['ma_uv', 'ho_ten', 'vi_tri_du_tuyen', 'dien_thoai', 'ngay_vao_lam', 'luong_bao_hiem', 'ngay_sinh', 'trang_thai']
                 available_cols = [c for c in display_cols if c in df.columns]
                 df_show = df[available_cols]
                 
                 col_map = {
-                    'selected': 'Chọn',
-                    'STT': 'STT',
+                    'ma_uv': 'Mã UV',
                     'ho_ten': 'Họ tên',
                     'vi_tri_du_tuyen': 'Vị trí dự tuyển',
                     'dien_thoai': 'SĐT',
                     'ngay_vao_lam': 'Ngày vào làm',
                     'luong_bao_hiem': 'Ghi chú',
                     'ngay_sinh': 'Ngày sinh',
+                    'trang_thai': 'Trạng thái',
                 }
                 df_show.rename(columns=col_map, inplace=True)
                 
-                st.caption(f"📌 {len(ds)} kết quả. Tick chọn 1 ứng viên để sửa hoặc chuyển sang thử việc.")
+                st.caption(f"📌 {len(ds)} kết quả.")
                 
-                selected_rows = []
-                edited_df = st.data_editor(
-                    df_show,
-                    column_config={
-                        "Chọn": st.column_config.CheckboxColumn("Chọn", default=False)
-                    },
-                    disabled=[col for col in df_show.columns if col != 'Chọn'],
-                    hide_index=True,
-                    height=400,
-                    key=f"uv_editor_{tn}"
-                )
-                
-                if edited_df is not None and 'Chọn' in edited_df.columns:
-                    selected_rows = edited_df[edited_df['Chọn'] == True]
+                # Admin: hiển thị bảng có checkbox và nút chức năng
+                if st.session_state.role == "admin":
+                    if 'selected' not in df.columns:
+                        df.insert(0, 'selected', False)
+                    df_show_with_checkbox = df[['selected'] + [c for c in df.columns if c in display_cols]]
+                    df_show_with_checkbox.rename(columns={'selected': 'Chọn'}, inplace=True)
                     
-                    if len(selected_rows) > 1:
-                        st.error("⚠️ Chỉ được chọn 1 ứng viên! Vui lòng bỏ chọn bớt.")
+                    edited_df = st.data_editor(
+                        df_show_with_checkbox,
+                        column_config={"Chọn": st.column_config.CheckboxColumn("Chọn", default=False)},
+                        disabled=[col for col in df_show_with_checkbox.columns if col != 'Chọn'],
+                        hide_index=True,
+                        height=400,
+                        key=f"uv_editor_{tn}"
+                    )
                     
-                    elif len(selected_rows) == 1:
-                        selected_idx = selected_rows.index[0]
-                        selected_nv = df.iloc[selected_idx]
-                        selected_name = selected_nv['ho_ten']
-                        selected_stt = selected_nv['STT']
-                        
-                        col_btn1, col_btn2 = st.columns(2)
-                        
-                        with col_btn1:
-                            if st.button(f"✏️ SỬA '{selected_name}'", key=f"edit_sel_{tn}"):
-                                st.session_state['edit_uv_name'] = selected_name
-                                st.session_state['edit_uv_id'] = int(selected_nv['id'])
-                                st.rerun()
-                        
-                        if tn == "⏳ Chờ duyệt":
-                            with col_btn2:
-                                if st.button(f"✅ CHUYỂN '{selected_name}' SANG THỬ VIỆC", type="primary", key=f"chuyen_uv_{tn}"):
-                                    try:
-                                        db = get_connection()
-                                        c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                                        uv_id = int(selected_nv['id'])
-                                        c.execute("SELECT * FROM ung_vien WHERE id = %s", (uv_id,))
-                                        uv = c.fetchone()
-                                        
-                                        if uv:
-                                            c.execute("SELECT COALESCE(MAX(STT),0)+1 as next_stt FROM nhan_vien")
-                                            result = c.fetchone()
-                                            stt_moi = int(result['next_stt']) if result else 1
-                                            ma_nv = f"NV{stt_moi:03d}"
-                                            nhl = uv.get('ngay_vao_lam') or date.today()
-                                            if isinstance(nhl, str):
-                                                from datetime import datetime
-                                                nhl = datetime.strptime(nhl, '%Y-%m-%d').date()
-                                            
-                                            c.execute("SELECT COUNT(*) as tv_count FROM nhan_vien WHERE so_hdld LIKE '%/HĐTV-CHL'")
-                                            tv_result = c.fetchone()
-                                            tv_cnt = int(tv_result['tv_count']) + 1
-                                            so_hdtv = f"{tv_cnt:02d}/{nhl.year}/HĐTV-CHL"
-                                            
-                                            c.execute("""INSERT INTO nhan_vien (STT, ma_nv, so_hdld, ho_ten, chuc_danh_nghe, dien_thoai,
-                                                ngay_sinh, gioi_tinh, ngay_vao_lam, noi_lam_viec, loai_hop_dong, trang_thai, trang_thai_bhxh, ngay_ky_hd)
-                                                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Thử việc', 'THU_VIEC', 'CHUA_DONG', %s)""",
-                                                (stt_moi, ma_nv, so_hdtv, uv['ho_ten'], uv['vi_tri_du_tuyen'], uv['dien_thoai'],
-                                                 uv['ngay_sinh'], uv['gioi_tinh'], nhl, 'Cảng THQT Hòn La', nhl))
-                                            
-                                            c.execute("UPDATE ung_vien SET trang_thai='DA_NHAN_VIEC', ma_nv=%s WHERE id=%s", (ma_nv, uv_id))
-                                            db.commit()
-                                            st.success(f"✅ Đã chuyển {uv['ho_ten']} → {ma_nv} ({so_hdtv})")
-                                            st.rerun()
-                                        else:
-                                            st.error("Không tìm thấy ứng viên!")
-                                        db.close()
-                                    except Exception as e:
-                                        st.error(f"❌ Lỗi: {e}")
+                    if edited_df is not None:
+                        selected_rows = edited_df[edited_df['Chọn'] == True]
+                        if len(selected_rows) > 1:
+                            st.error("⚠️ Chỉ được chọn 1 ứng viên!")
+                        elif len(selected_rows) == 1:
+                            selected_idx = selected_rows.index[0]
+                            selected_nv = df.iloc[selected_idx]
+                            col_btn1, col_btn2 = st.columns(2)
+                            with col_btn1:
+                                if st.button(f"✏️ SỬA", key=f"edit_sel_{tn}"):
+                                    st.session_state['edit_uv_id'] = int(selected_nv['id'])
+                                    st.rerun()
+                            if tn == "⏳ Chờ duyệt":
+                                with col_btn2:
+                                    if st.button(f"✅ CHUYỂN SANG THỬ VIỆC", type="primary", key=f"chuyen_uv_{tn}"):
+                                        try:
+                                            db = get_connection()
+                                            c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                                            uv_id = int(selected_nv['id'])
+                                            c.execute("SELECT * FROM ung_vien WHERE id = %s", (uv_id,))
+                                            uv = c.fetchone()
+                                            if uv:
+                                                c.execute("SELECT COALESCE(MAX(STT),0)+1 as next_stt FROM nhan_vien")
+                                                result = c.fetchone()
+                                                stt_moi = int(result['next_stt']) if result else 1
+                                                ma_nv = f"NV{stt_moi:03d}"
+                                                nhl = uv.get('ngay_vao_lam') or date.today()
+                                                if isinstance(nhl, str):
+                                                    nhl = datetime.strptime(nhl, '%Y-%m-%d').date()
+                                                c.execute("SELECT COUNT(*) as tv_count FROM nhan_vien WHERE so_hdld LIKE '%/HĐTV-CHL'")
+                                                tv_result = c.fetchone()
+                                                tv_cnt = int(tv_result['tv_count']) + 1
+                                                so_hdtv = f"{tv_cnt:02d}/{nhl.year}/HĐTV-CHL"
+                                                c.execute("""INSERT INTO nhan_vien (STT, ma_nv, so_hdld, ho_ten, chuc_danh_nghe, dien_thoai,
+                                                    ngay_sinh, gioi_tinh, ngay_vao_lam, noi_lam_viec, loai_hop_dong, trang_thai, trang_thai_bhxh, ngay_ky_hd)
+                                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Thử việc', 'THU_VIEC', 'CHUA_DONG', %s)""",
+                                                    (stt_moi, ma_nv, so_hdtv, uv['ho_ten'], uv['vi_tri_du_tuyen'], uv['dien_thoai'],
+                                                     uv['ngay_sinh'], uv['gioi_tinh'], nhl, 'Cảng THQT Hòn La', nhl))
+                                                c.execute("UPDATE ung_vien SET trang_thai='DA_NHAN_VIEC', ma_nv=%s WHERE id=%s", (ma_nv, uv_id))
+                                                db.commit()
+                                                st.success(f"✅ Đã chuyển {uv['ho_ten']} → {ma_nv}")
+                                                st.rerun()
+                                            db.close()
+                                        except Exception as e:
+                                            st.error(f"❌ Lỗi: {e}")
+                else:
+                    # Viewer: chỉ hiển thị bảng
+                    st.dataframe(df_show, use_container_width=True, hide_index=True, height=400)
             else:
-                st.info("Không có dữ liệu")    # ===== FORM SỬA ỨNG VIÊN =====
-    if 'edit_uv_name' in st.session_state:
+                st.info("Không có dữ liệu")
+    
+    # Form sửa ứng viên (chỉ admin)
+    if 'edit_uv_id' in st.session_state and st.session_state.role == "admin":
         st.divider()
-        st.subheader(f"✏️ Sửa: {st.session_state['edit_uv_name']}")
-        
+        st.subheader(f"✏️ Sửa ứng viên")
         db = get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        if 'edit_uv_id' in st.session_state:
-            c.execute("SELECT * FROM ung_vien WHERE id = %s", (int(st.session_state['edit_uv_id']),))
-        else:
-            c.execute("SELECT * FROM ung_vien WHERE ho_ten = %s", (st.session_state['edit_uv_name'],))
+        c.execute("SELECT * FROM ung_vien WHERE id = %s", (st.session_state['edit_uv_id'],))
         uv_data = c.fetchone()
         db.close()
-        
         if uv_data:
             with st.form("edit_uv_direct"):
                 col1, col2, col3 = st.columns(3)
@@ -1076,16 +712,13 @@ Xin cảm ơn!"""
                         index=([""] + ds_vi_tri).index(uv_data['vi_tri_du_tuyen']) if uv_data['vi_tri_du_tuyen'] in ds_vi_tri else 0)
                     dien_thoai_e = st.text_input("SĐT", value=uv_data['dien_thoai'] or '')
                 with col2:
-                    ngay_sinh_e = st.text_input("Ngày sinh (dd/mm/yyyy)", 
-                        value=format_date(uv_data['ngay_sinh']), placeholder="dd/mm/yyyy", max_chars=10)
+                    ngay_sinh_e = st.text_input("Ngày sinh (dd/mm/yyyy)", value=format_date(uv_data['ngay_sinh']))
                     gioi_tinh_e = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"],
                         index=["", "Nam", "Nữ", "Khác"].index(uv_data['gioi_tinh']) if uv_data['gioi_tinh'] in ["Nam", "Nữ", "Khác"] else 0)
                 with col3:
-                    ngay_vao_lam_e = st.text_input("Ngày vào làm (dd/mm/yyyy)", 
-                        value=format_date(uv_data['ngay_vao_lam']), placeholder="dd/mm/yyyy", max_chars=10)
+                    ngay_vao_lam_e = st.text_input("Ngày vào làm (dd/mm/yyyy)", value=format_date(uv_data['ngay_vao_lam']))
                     ghi_chu_e = st.text_area("Ghi chú", value=uv_data['luong_bao_hiem'] or '')
-                    trang_thai_e = st.selectbox("Trạng thái", 
-                        ["CHO_DUYET", "TU_CHOI", "DA_NHAN_VIEC"],
+                    trang_thai_e = st.selectbox("Trạng thái", ["CHO_DUYET", "TU_CHOI", "DA_NHAN_VIEC"],
                         index=["CHO_DUYET", "TU_CHOI", "DA_NHAN_VIEC"].index(uv_data['trang_thai']) if uv_data['trang_thai'] in ["CHO_DUYET", "TU_CHOI", "DA_NHAN_VIEC"] else 0)
                 
                 col_save, col_del, col_cancel = st.columns(3)
@@ -1109,9 +742,7 @@ Xin cảm ơn!"""
                             db.commit()
                             db.close()
                             st.success("✅ Đã cập nhật!")
-                            del st.session_state['edit_uv_name']
-                            if 'edit_uv_id' in st.session_state:
-                                del st.session_state['edit_uv_id']
+                            del st.session_state['edit_uv_id']
                             st.rerun()
                 with col_del:
                     if st.form_submit_button("🗑️ XÓA"):
@@ -1121,46 +752,44 @@ Xin cảm ơn!"""
                         db.commit()
                         db.close()
                         st.success("🗑️ Đã xóa!")
-                        del st.session_state['edit_uv_name']
-                        if 'edit_uv_id' in st.session_state:
-                            del st.session_state['edit_uv_id']
+                        del st.session_state['edit_uv_id']
                         st.rerun()
                 with col_cancel:
                     if st.form_submit_button("❌ HỦY"):
-                        del st.session_state['edit_uv_name']
-                        if 'edit_uv_id' in st.session_state:
-                            del st.session_state['edit_uv_id']
+                        del st.session_state['edit_uv_id']
                         st.rerun()
     
-    st.divider()
-    with st.expander("⚙️ Quản lý danh mục Vị trí dự tuyển", expanded=False):
-        with st.form("add_vi_tri_uv"):
-            ten_vt_moi = st.text_input("Tên vị trí dự tuyển mới *")
-            if st.form_submit_button("➕ Thêm"):
-                if ten_vt_moi:
-                    db = get_connection()
-                    c = db.cursor()
-                    c.execute("SELECT COUNT(*) FROM vi_tri_cong_tac WHERE ten_vi_tri = %s", (ten_vt_moi,))
-                    if c.fetchone()[0] == 0:
-                        c.execute("INSERT INTO vi_tri_cong_tac (ten_vi_tri) VALUES (%s)", (ten_vt_moi,))
-                        db.commit()
-                        st.success(f"✅ Đã thêm: {ten_vt_moi}")
-                        st.rerun()
+    # Quản lý danh mục vị trí dự tuyển (chỉ admin)
+    if st.session_state.role == "admin":
+        st.divider()
+        with st.expander("⚙️ Quản lý danh mục Vị trí dự tuyển", expanded=False):
+            with st.form("add_vi_tri_uv"):
+                ten_vt_moi = st.text_input("Tên vị trí dự tuyển mới *")
+                if st.form_submit_button("➕ Thêm"):
+                    if ten_vt_moi:
+                        db = get_connection()
+                        c = db.cursor()
+                        c.execute("SELECT COUNT(*) FROM vi_tri_cong_tac WHERE ten_vi_tri = %s", (ten_vt_moi,))
+                        if c.fetchone()[0] == 0:
+                            c.execute("INSERT INTO vi_tri_cong_tac (ten_vi_tri) VALUES (%s)", (ten_vt_moi,))
+                            db.commit()
+                            st.success(f"✅ Đã thêm: {ten_vt_moi}")
+                            st.rerun()
+                        else:
+                            st.warning("Vị trí này đã tồn tại!")
+                        db.close()
                     else:
-                        st.warning("Vị trí này đã tồn tại!")
-                    db.close()
-                else:
-                    st.error("Tên không được để trống!")
-        
-        db = get_connection()
-        c = db.cursor()
-        c.execute("SELECT id, ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
-        ds_vt = c.fetchall()
-        db.close()
-        if ds_vt:
-            st.caption("📋 Danh sách vị trí dự tuyển:")
-            for row in ds_vt:
-                st.write(f"- {row[1]}")
+                        st.error("Tên không được để trống!")
+            
+            db = get_connection()
+            c = db.cursor()
+            c.execute("SELECT id, ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
+            ds_vt = c.fetchall()
+            db.close()
+            if ds_vt:
+                st.caption("📋 Danh sách vị trí dự tuyển:")
+                for row in ds_vt:
+                    st.write(f"- {row[1]}")
 
 # ========== NHÂN VIÊN ==========
 elif menu == "✅ Nhân viên":
@@ -2445,31 +2074,32 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
 # ========== DANH MỤC CHỨC DANH ==========
 elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
     st.title("⚙️ Quản lý danh mục Chức danh")
-    with st.expander("➕ Thêm chức danh mới", expanded=False):
-        with st.form("add_chuc_danh"):
-            ten_moi = st.text_input("Tên chức danh *"); mo_ta = st.text_area("Mô tả")
-            if st.form_submit_button("💾 LƯU"):
-                if ten_moi:
-                    db = get_connection(); c = db.cursor()
-                    c.execute("SELECT COALESCE(MIN(t1.id + 1), 1) FROM vi_tri_cong_tac t1 LEFT JOIN vi_tri_cong_tac t2 ON t1.id + 1 = t2.id WHERE t2.id IS NULL AND t1.id >= 1")
-                    id_trong = c.fetchone()[0]
-                    c.execute("SELECT COALESCE(MAX(id),0) FROM vi_tri_cong_tac")
-                    id_max = c.fetchone()[0]
-                    id_moi = id_trong if id_trong <= id_max + 1 else id_max + 1
-                    c.execute("INSERT INTO vi_tri_cong_tac (id, ten_vi_tri, ghi_chu) VALUES (%s, %s, %s)", (id_moi, ten_moi, mo_ta))
-                    db.commit(); db.close(); st.success(f"✅ Đã thêm: {ten_moi}"); st.rerun()
-                else: st.error("Tên chức danh không được để trống!")
-    st.subheader("📋 Danh sách chức danh")
-    db = get_connection(); c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    c.execute("SELECT id, ten_vi_tri, ghi_chu FROM vi_tri_cong_tac ORDER BY id")
-    ds = c.fetchall(); db.close()
-    if ds:
-        df = pd.DataFrame(ds); df.columns = ['ID', 'Tên chức danh', 'Ghi chú']; st.dataframe(df, use_container_width=True, hide_index=True)
-        st.divider(); cdx = st.number_input("Nhập ID cần xóa:", min_value=1, step=1)
-        if st.button("🗑️ XÓA", key="del_cd"):
-            db = get_connection(); c = db.cursor()
-            c.execute("DELETE FROM vi_tri_cong_tac WHERE id=%s", (cdx,)); db.commit(); db.close(); st.success("🗑️ Đã xóa!"); st.rerun()
-    else: st.info("Chưa có chức danh nào")
+    if st.session_state.role == "admin":
+        with st.expander("➕ Thêm chức danh mới", expanded=False):
+            with st.form("add_chuc_danh"):
+                ten_moi = st.text_input("Tên chức danh *"); mo_ta = st.text_area("Mô tả")
+                if st.form_submit_button("💾 LƯU"):
+                    if ten_moi:
+                        db = get_connection(); c = db.cursor()
+                        c.execute("SELECT COALESCE(MIN(t1.id + 1), 1) FROM vi_tri_cong_tac t1 LEFT JOIN vi_tri_cong_tac t2 ON t1.id + 1 = t2.id WHERE t2.id IS NULL AND t1.id >= 1")
+                        id_trong = c.fetchone()[0]
+                        c.execute("SELECT COALESCE(MAX(id),0) FROM vi_tri_cong_tac")
+                        id_max = c.fetchone()[0]
+                        id_moi = id_trong if id_trong <= id_max + 1 else id_max + 1
+                        c.execute("INSERT INTO vi_tri_cong_tac (id, ten_vi_tri, ghi_chu) VALUES (%s, %s, %s)", (id_moi, ten_moi, mo_ta))
+                        db.commit(); db.close(); st.success(f"✅ Đã thêm: {ten_moi}"); st.rerun()
+                    else: st.error("Tên chức danh không được để trống!")
+        st.subheader("📋 Danh sách chức danh")
+        db = get_connection(); c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        c.execute("SELECT id, ten_vi_tri, ghi_chu FROM vi_tri_cong_tac ORDER BY id")
+        ds = c.fetchall(); db.close()
+        if ds:
+            df = pd.DataFrame(ds); df.columns = ['ID', 'Tên chức danh', 'Ghi chú']; st.dataframe(df, use_container_width=True, hide_index=True)
+            st.divider(); cdx = st.number_input("Nhập ID cần xóa:", min_value=1, step=1)
+            if st.button("🗑️ XÓA", key="del_cd"):
+                db = get_connection(); c = db.cursor()
+                c.execute("DELETE FROM vi_tri_cong_tac WHERE id=%s", (cdx,)); db.commit(); db.close(); st.success("🗑️ Đã xóa!"); st.rerun()
+        else: st.info("Chưa có chức danh nào")
 
 # ========== BHXH ==========
 elif menu=="📋 BHXH" and st.session_state.role=="admin":

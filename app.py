@@ -29,33 +29,33 @@ try:
 except ImportError:
     from config_template import COMPANY_CONFIG, BHXH_CONFIG, EMAIL_CONFIG, TELEGRAM_CONFIG, USERS
     print("Using config_template.py")
+    
+def to_float_or_none(val):
+    """Chuyển đổi giá trị sang float hoặc None, tránh lỗi numeric"""
+    if val is None or str(val).strip() == '':
+        return None
+    try:
+        return float(val)
+    except:
+        return None
 
 # ========== DATABASE CONNECTION (SUPABASE) ==========
-# ========== DATABASE CONNECTION (SUPABASE) ==========
 def get_connection():
-    import os
-    import psycopg2
+    # Đọc từ st.secrets (không có DB_)
+    if 'connections' in st.secrets and 'supabase' in st.secrets.connections:
+        return psycopg2.connect(
+            host=st.secrets.connections.supabase.host,  # không có DB_
+            port=st.secrets.connections.supabase.port,
+            user=st.secrets.connections.supabase.user,
+            password=st.secrets.connections.supabase.password,
+            database=st.secrets.connections.supabase.database
+        )
     
-    # Thử đọc từ st.secrets trước (Streamlit Cloud)
-    try:
-        import streamlit as st
-        if 'connections' in st.secrets and 'supabase' in st.secrets.connections:
-            return psycopg2.connect(
-                host=st.secrets.connections.supabase.host,
-                port=st.secrets.connections.supabase.port,
-                user=st.secrets.connections.supabase.user,
-                password=st.secrets.connections.supabase.password,
-                database=st.secrets.connections.supabase.database
-            )
-    except:
-        pass
-    
-    # Fallback: đọc từ file .env (local)
+    # Fallback: đọc từ .env (có DB_)
     from dotenv import load_dotenv
     load_dotenv()
-    
     return psycopg2.connect(
-        host=os.getenv('DB_HOST'),
+        host=os.getenv('DB_HOST'),      # có DB_
         port=os.getenv('DB_PORT'),
         user=os.getenv('DB_USER'),
         password=os.getenv('DB_PASSWORD'),
@@ -103,6 +103,33 @@ def parse_date(s):
     if not s or s.strip()=='': return None
     try: return datetime.strptime(s.strip(),'%d/%m/%Y').date()
     except: return None
+
+def to_float_or_none(val):
+    """Chuyển đổi giá trị sang float hoặc None, tránh lỗi numeric"""
+    if val is None or str(val).strip() == '':
+        return None
+    try:
+        return float(val)
+    except:
+        return None
+
+def to_int_or_none(val):
+    """Chuyển đổi giá trị sang int hoặc None"""
+    if val is None or str(val).strip() == '':
+        return None
+    try:
+        return int(float(val))
+    except:
+        return None
+        
+def to_float_or_none(val):
+    """Chuyển đổi giá trị sang float hoặc None, tránh lỗi numeric"""
+    if val is None or str(val).strip() == '':
+        return None
+    try:
+        return float(val)
+    except:
+        return None
 
 def tao_noi_dung_zalo(nv):
     ZC = COMPANY_CONFIG
@@ -951,20 +978,27 @@ elif menu == "✅ Nhân viên":
                                         c.execute("SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)),0)+1 FROM nhan_vien WHERE so_hdld LIKE '%/HĐLĐ-CHL'")
                                         so_hd = f"{int(c.fetchone()[0]):02d}/{nhl.year}/HĐLĐ-CHL"
                                     c.execute("""INSERT INTO nhan_vien (STT, ma_nv, so_hdld, ho_ten, chuc_danh_nghe, ngay_sinh, gioi_tinh,
-                                        so_cccd, ngay_cap_cccd, noi_cap_cccd, nguyen_quan, thuong_tru,
-                                        dien_thoai, email, email_lien_he, ho_so, luong_bao_hiem, ma_so_bhxh, ngay_vao_lam,
-                                        noi_lam_viec, so_tai_khoan_nh, chi_nhanh_nh, ngay_ky_hd, loai_hop_dong,
-                                        nhom_bhxh, thang_bat_dau_bh, thang_ket_thuc_bh, trang_thai, trang_thai_bhxh,
-                                        phong_ban_lam_viec, ngay_ket_thuc, quoc_tich, dan_toc, he_so_luong, phu_cap_chuc_vu,
-                                        phu_cap_tnvk, phu_cap_tnn, muc_huong_bhyt, ty_le_dong, muc_tien_dong, phuong_thuc_dong,
-                                        tinh_nhan_hs, phuong_nhan_hs, dia_chi_nhan_hs, tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so)
-                                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                        %s, %s, %s, %s, %s, %s)""",
-                                          (stt_moi, ma_nv, so_hd, htn, cdn, parse_date(nsn), gtn, scc, parse_date(ncc), ncc2, nqn, ttn,
-                                           dtn2, emn, emn, '', lbh, mbh, parse_date(nvl), nlv, stk, cnh, parse_date(nvl), lhd,
-                                           nbh, tbd_val, None, ttnv, ttbh, pbn, parse_date(nkt), qtn, dtn, hsl, pcv, ptv, ptn,
-                                           mhb, tld, mtd, ptd, ths, phs, dhs, tkb, nkb, dks))
+                                    so_cccd, ngay_cap_cccd, noi_cap_cccd, nguyen_quan, thuong_tru,
+                                    dien_thoai, email, email_lien_he, ho_so, luong_bao_hiem, ma_so_bhxh, ngay_vao_lam,
+                                    noi_lam_viec, so_tai_khoan_nh, chi_nhanh_nh, ngay_ky_hd, loai_hop_dong,
+                                    nhom_bhxh, thang_bat_dau_bh, thang_ket_thuc_bh, trang_thai, trang_thai_bhxh,
+                                    phong_ban_lam_viec, ngay_ket_thuc, quoc_tich, dan_toc, he_so_luong, phu_cap_chuc_vu,
+                                    phu_cap_tnvk, phu_cap_tnn, muc_huong_bhyt, ty_le_dong, muc_tien_dong, phuong_thuc_dong,
+                                    tinh_nhan_hs, phuong_nhan_hs, dia_chi_nhan_hs, tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                    %s, %s, %s, %s, %s, %s)""",
+                                      (stt_moi, ma_nv, so_hd, htn, cdn, parse_date(nsn), gtn, scc, parse_date(ncc), ncc2, nqn, ttn,
+                                       dtn2, emn, emn, '', lbh, mbh, parse_date(nvl), nlv, stk, cnh, parse_date(nvl), lhd,
+                                       nbh, tbd_val, None, ttnv, ttbh, pbn, parse_date(nkt), qtn, dtn, 
+                                       to_float_or_none(hsl),   # he_so_luong
+                                       to_float_or_none(pcv),   # phu_cap_chuc_vu
+                                       to_float_or_none(ptv),   # phu_cap_tnvk
+                                       to_float_or_none(ptn),   # phu_cap_tnn
+                                       mhb, 
+                                       to_float_or_none(tld),   # ty_le_dong
+                                       to_float_or_none(mtd),   # muc_tien_dong
+                                       ptd, ths, phs, dhs, tkb, nkb, dks))
                                     db.commit()
                                     db.close()
                                     st.success(f"✅ Đã lưu nhân viên mới thành công! {htn} - {ma_nv}")

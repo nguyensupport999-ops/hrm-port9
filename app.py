@@ -1,7 +1,7 @@
 import streamlit as st
 import psycopg2
 import psycopg2.extras
-from config import COMPANY_CONFIG
+from config_template import COMPANY_CONFIG
 from datetime import datetime, date, timedelta
 import os
 import pandas as pd

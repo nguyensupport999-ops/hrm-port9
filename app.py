@@ -429,17 +429,18 @@ st.sidebar.caption("Quản lý nhân sự cảng biển")
 
 # Hàm kiểm tra đăng nhập từ secrets
 def check_login(username, password):
-    # Import USERS đã được ở đầu file, không cần import lại
-    # from config import USERS  <-- XÓA DÒNG NÀY
-    
-    # Kiểm tra từ USERS đã import
-    if username in USERS:
-        return USERS[username]['password'] == password, USERS[username]['role']
-    
-    # Fallback: kiểm tra từ st.secrets (nếu có)
+    # Ưu tiên kiểm tra từ st.secrets trước (Streamlit Cloud)
     try:
         if 'users' in st.secrets and username in st.secrets.users:
-            return st.secrets.users[username]['password'] == password, st.secrets.users[username]['role']
+            if st.secrets.users[username]['password'] == password:
+                return True, st.secrets.users[username]['role']
+    except:
+        pass
+    
+    # Fallback: kiểm tra từ USERS trong config (local)
+    try:
+        if username in USERS:
+            return USERS[username]['password'] == password, USERS[username]['role']
     except:
         pass
     

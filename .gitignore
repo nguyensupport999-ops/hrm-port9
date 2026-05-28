@@ -47,3 +47,32 @@ export_csv/
 
 # Logs
 *.log
+"config.py" 
+"backup_nv.py" 
+
+# Config files with sensitive data
+config.py
+backup_nv.py
+
+# Database
+*.db
+*.sqlite
+
+# Environment variables
+.env
+*.env
+
+# IDE
+.vscode/
+.idea/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Uploaded files
+uploads/
+backup/
+
+# Streamlit
+.streamlit/

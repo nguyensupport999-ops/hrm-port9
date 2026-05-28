@@ -39,6 +39,38 @@ def to_float_or_none(val):
     except:
         return None
 
+def da_chuyen_doi_chinh_thuc(nv_id):
+    """Kiểm tra xem nhân viên đã có quyết định chuyển từ thử việc sang chính thức chưa"""
+    try:
+        db = get_connection()
+        c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        c.execute("""
+            SELECT * FROM quyet_dinh_nhan_su 
+            WHERE nhan_vien_id = %s AND loai_quyet_dinh = 'CHINH_THUC'
+            ORDER BY ngay_quyet_dinh DESC LIMIT 1
+        """, (nv_id,))
+        result = c.fetchone()
+        db.close()
+        return result is not None, result
+    except:
+        return False, None
+
+def lay_thong_tin_truoc_chuyen_doi(nv_id):
+    """Lấy thông tin nhân viên trước khi chuyển đổi (từ lich_su_cong_tac)"""
+    try:
+        db = get_connection()
+        c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        # Lấy lịch sử công tác cũ nhất (thời gian thử việc)
+        c.execute("""
+            SELECT * FROM lich_su_cong_tac 
+            WHERE nhan_vien_id = %s 
+            ORDER BY tu_ngay ASC LIMIT 1
+        """, (nv_id,))
+        result = c.fetchone()
+        db.close()
+        return result
+    except:
+        return None
 # ========== DATABASE CONNECTION (SUPABASE) ==========
 def get_connection():
     # Đọc từ st.secrets (không có DB_)
@@ -1259,6 +1291,13 @@ elif menu == "✅ Nhân viên":
                                                     db = get_connection()
                                                     c = db.cursor()
                                                     
+                                                    # Lưu số HĐ cũ (HĐTV) vào biến để sau này rollback
+                                                    so_hd_cu = selected_nv.get('so_hdld', '')
+                                                    ngay_vao_lam_cu = selected_nv.get('ngay_vao_lam')
+                                                    if isinstance(ngay_vao_lam_cu, str):
+                                                        ngay_vao_lam_cu = datetime.strptime(ngay_vao_lam_cu, '%Y-%m-%d').date()
+                                                    
+                                                    # Cập nhật nhân viên sang HĐLĐ không xác định thời hạn
                                                     c.execute("""
                                                         UPDATE nhan_vien SET 
                                                             trang_thai = 'DANG_LAM',
@@ -1272,6 +1311,7 @@ elif menu == "✅ Nhân viên":
                                                         WHERE id = %s
                                                     """, (so_hd_moi, ngay_quyet_dinh, ngay_hieu_luc, ngay_bat_dau_bh, int(selected_nv['id'])))
                                                     
+                                                    # Lưu quyết định chuyển đổi vào bảng quyet_dinh_nhan_su
                                                     c.execute("""
                                                         INSERT INTO quyet_dinh_nhan_su (
                                                             nhan_vien_id, loai_quyet_dinh, ngay_quyet_dinh, ngay_hieu_luc,
@@ -1291,17 +1331,20 @@ elif menu == "✅ Nhân viên":
                                                         nv_data.get('he_so_luong', 0)
                                                     ))
                                                     
+                                                    # Cập nhật lịch sử công tác: kết thúc giai đoạn thử việc
                                                     c.execute("""
                                                         UPDATE lich_su_cong_tac 
-                                                        SET den_ngay = %s 
+                                                        SET den_ngay = %s,
+                                                            so_hop_dong = %s
                                                         WHERE nhan_vien_id = %s AND den_ngay IS NULL
-                                                    """, (ngay_hieu_luc - timedelta(days=1), int(selected_nv['id'])))
+                                                    """, (ngay_hieu_luc - timedelta(days=1), so_hd_cu, int(selected_nv['id'])))
                                                     
+                                                    # Thêm lịch sử công tác mới cho giai đoạn chính thức
                                                     c.execute("""
                                                         INSERT INTO lich_su_cong_tac (
                                                             nhan_vien_id, tu_ngay, chuc_danh, phong_ban, 
-                                                            noi_lam_viec, loai_hop_dong, he_so_luong
-                                                        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                                            noi_lam_viec, loai_hop_dong, he_so_luong, so_hop_dong
+                                                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                                                     """, (
                                                         int(selected_nv['id']),
                                                         ngay_hieu_luc,
@@ -1309,7 +1352,8 @@ elif menu == "✅ Nhân viên":
                                                         nv_data.get('phong_ban_lam_viec', ''),
                                                         nv_data.get('noi_lam_viec', 'Cảng THQT Hòn La'),
                                                         'Không xác định thời hạn',
-                                                        nv_data.get('he_so_luong', 0)
+                                                        nv_data.get('he_so_luong', 0),
+                                                        so_hd_moi
                                                     ))
                                                     
                                                     db.commit()
@@ -1323,8 +1367,10 @@ elif menu == "✅ Nhân viên":
                                                     st.session_state[f'convert_open_{nv_id_key}'] = False
                                                     st.rerun()
                                                 except Exception as e:
+                                                    db.rollback()
+                                                    db.close()
                                                     st.error(f"❌ Lỗi: {str(e)}")
-                                        
+
                                         if st.button("❌ HỦY", key=f"cancel_convert_{nv_id_key}", use_container_width=True):
                                             st.session_state[f'convert_open_{nv_id_key}'] = False
                                             st.rerun()
@@ -1524,16 +1570,81 @@ elif menu == "✅ Nhân viên":
                                         st.session_state[f'nghi_viec_open_{nid}'] = False
                                         st.rerun()                          
                         with col_delete:
-                            if st.form_submit_button("🗑️ XÓA"):
-                                db = get_connection()
-                                c = db.cursor()
-                                c.execute("DELETE FROM ho_so_nhan_vien WHERE nhan_vien_id=%s", (nid,))
-                                c.execute("DELETE FROM nhan_vien WHERE id=%s", (nid,))
-                                db.commit()
-                                db.close()
-                                st.success("🗑️ Đã xóa!")
-                                del st.session_state['selected_nv_id']
-                                st.rerun()
+                            # Kiểm tra xem nhân viên đã được chuyển đổi chưa
+                            da_chuyen_doi, quyet_dinh = da_chuyen_doi_chinh_thuc(nid)
+                            
+                            if da_chuyen_doi:
+                                if st.form_submit_button("🔄 XÓA QUYẾT ĐỊNH CHUYỂN ĐỔI", use_container_width=True, type="secondary"):
+                                    try:
+                                        db = get_connection()
+                                        c = db.cursor()
+                                        
+                                        # Lấy thông tin HĐTV cũ từ lịch sử
+                                        c.execute("""
+                                            SELECT so_hop_dong, tu_ngay FROM lich_su_cong_tac 
+                                            WHERE nhan_vien_id = %s AND loai_hop_dong = 'Thử việc'
+                                            ORDER BY tu_ngay ASC LIMIT 1
+                                        """, (nid,))
+                                        lich_su_cu = c.fetchone()
+                                        
+                                        if lich_su_cu:
+                                            so_hd_cu = lich_su_cu[0]
+                                            ngay_bat_dau_tv = lich_su_cu[1]
+                                            
+                                            # Cập nhật lại nhân viên về trạng thái Thử việc
+                                            c.execute("""
+                                                UPDATE nhan_vien SET 
+                                                    trang_thai = 'THU_VIEC',
+                                                    loai_hop_dong = 'Thử việc',
+                                                    so_hdld = %s,
+                                                    trang_thai_bhxh = 'CHUA_DONG',
+                                                    ngay_chinh_thuc = NULL,
+                                                    thang_bat_dau_bh = NULL,
+                                                    ngay_ky_hd = %s
+                                                WHERE id = %s
+                                            """, (so_hd_cu, ngay_bat_dau_tv, nid))
+                                            
+                                            # Xóa quyết định chuyển đổi
+                                            c.execute("DELETE FROM quyet_dinh_nhan_su WHERE id = %s", (quyet_dinh['id'],))
+                                            
+                                            # Xóa lịch sử HĐLĐ mới (giữ lại lịch sử thử việc)
+                                            c.execute("""
+                                                DELETE FROM lich_su_cong_tac 
+                                                WHERE nhan_vien_id = %s AND loai_hop_dong = 'Không xác định thời hạn'
+                                            """, (nid,))
+                                            
+                                            # Cập nhật lại lịch sử thử việc: đánh dấu đang làm (den_ngay = NULL)
+                                            c.execute("""
+                                                UPDATE lich_su_cong_tac 
+                                                SET den_ngay = NULL 
+                                                WHERE nhan_vien_id = %s AND loai_hop_dong = 'Thử việc'
+                                            """, (nid,))
+                                            
+                                            db.commit()
+                                            db.close()
+                                            
+                                            st.success("✅ Đã xóa quyết định chuyển đổi! Nhân viên trở lại trạng thái Thử việc.")
+                                            st.rerun()
+                                        else:
+                                            st.error("❌ Không tìm thấy thông tin lịch sử để khôi phục!")
+                                            
+                                    except Exception as e:
+                                        db.rollback()
+                                        db.close()
+                                        st.error(f"❌ Lỗi khi xóa quyết định chuyển đổi: {e}")
+                            else:
+                                if st.form_submit_button("🗑️ XÓA NHÂN VIÊN", use_container_width=True, type="secondary"):
+                                    db = get_connection()
+                                    c = db.cursor()
+                                    c.execute("DELETE FROM ho_so_nhan_vien WHERE nhan_vien_id=%s", (nid,))
+                                    c.execute("DELETE FROM quyet_dinh_nhan_su WHERE nhan_vien_id=%s", (nid,))
+                                    c.execute("DELETE FROM lich_su_cong_tac WHERE nhan_vien_id=%s", (nid,))
+                                    c.execute("DELETE FROM nhan_vien WHERE id=%s", (nid,))
+                                    db.commit()
+                                    db.close()
+                                    st.success("🗑️ Đã xóa nhân viên!")
+                                    del st.session_state['selected_nv_id']
+                                    st.rerun()
                     
                     if st.button("❌ HỦY SỬA", use_container_width=True):
                         del st.session_state['selected_nv_id']

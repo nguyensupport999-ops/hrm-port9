@@ -51,8 +51,15 @@ def da_chuyen_doi_chinh_thuc(nv_id):
         """, (nv_id,))
         result = c.fetchone()
         db.close()
+        
+        # Debug: in ra log để kiểm tra
+        print(f"Checking nv_id={nv_id}, found={result is not None}")
+        if result:
+            print(f"Quyet dinh: {result}")
+        
         return result is not None, result
-    except:
+    except Exception as e:
+        print(f"Error in da_chuyen_doi_chinh_thuc: {e}")
         return False, None
 
 def lay_thong_tin_truoc_chuyen_doi(nv_id):
@@ -1336,7 +1343,9 @@ elif menu == "✅ Nhân viên":
                                                         UPDATE lich_su_cong_tac 
                                                         SET den_ngay = %s,
                                                             so_hop_dong = %s
-                                                        WHERE nhan_vien_id = %s AND den_ngay IS NULL
+                                                        WHERE nhan_vien_id = %s 
+                                                        AND loai_hop_dong = 'Thử việc'
+                                                        AND den_ngay IS NULL
                                                     """, (ngay_hieu_luc - timedelta(days=1), so_hd_cu, int(selected_nv['id'])))
                                                     
                                                     # Thêm lịch sử công tác mới cho giai đoạn chính thức
@@ -1579,13 +1588,21 @@ elif menu == "✅ Nhân viên":
                                         db = get_connection()
                                         c = db.cursor()
                                         
-                                        # Lấy thông tin HĐTV cũ từ lịch sử
+                                        # Lấy thông tin HĐTV cũ - thử nhiều cách
                                         c.execute("""
                                             SELECT so_hop_dong, tu_ngay FROM lich_su_cong_tac 
                                             WHERE nhan_vien_id = %s AND loai_hop_dong = 'Thử việc'
                                             ORDER BY tu_ngay ASC LIMIT 1
                                         """, (nid,))
                                         lich_su_cu = c.fetchone()
+                                        
+                                        # Nếu không tìm thấy trong lich_su_cong_tac, lấy từ chính nhân viên
+                                        if not lich_su_cu:
+                                            c.execute("""
+                                                SELECT so_hdld as so_hop_dong, ngay_vao_lam as tu_ngay 
+                                                FROM nhan_vien WHERE id = %s
+                                            """, (nid,))
+                                            lich_su_cu = c.fetchone()
                                         
                                         if lich_su_cu:
                                             so_hd_cu = lich_su_cu[0]
@@ -1605,20 +1622,30 @@ elif menu == "✅ Nhân viên":
                                             """, (so_hd_cu, ngay_bat_dau_tv, nid))
                                             
                                             # Xóa quyết định chuyển đổi
-                                            c.execute("DELETE FROM quyet_dinh_nhan_su WHERE id = %s", (quyet_dinh['id'],))
+                                            if quyet_dinh:
+                                                c.execute("DELETE FROM quyet_dinh_nhan_su WHERE id = %s", (quyet_dinh['id'],))
                                             
-                                            # Xóa lịch sử HĐLĐ mới (giữ lại lịch sử thử việc)
+                                            # Xóa lịch sử HĐLĐ mới
                                             c.execute("""
                                                 DELETE FROM lich_su_cong_tac 
                                                 WHERE nhan_vien_id = %s AND loai_hop_dong = 'Không xác định thời hạn'
                                             """, (nid,))
                                             
-                                            # Cập nhật lại lịch sử thử việc: đánh dấu đang làm (den_ngay = NULL)
+                                            # Cập nhật hoặc tạo lịch sử thử việc
                                             c.execute("""
                                                 UPDATE lich_su_cong_tac 
-                                                SET den_ngay = NULL 
+                                                SET den_ngay = NULL,
+                                                    so_hop_dong = %s
                                                 WHERE nhan_vien_id = %s AND loai_hop_dong = 'Thử việc'
-                                            """, (nid,))
+                                            """, (so_hd_cu, nid))
+                                            
+                                            # Nếu chưa có lịch sử thử việc, tạo mới
+                                            c.execute("SELECT COUNT(*) FROM lich_su_cong_tac WHERE nhan_vien_id = %s AND loai_hop_dong = 'Thử việc'", (nid,))
+                                            if c.fetchone()[0] == 0:
+                                                c.execute("""
+                                                    INSERT INTO lich_su_cong_tac (nhan_vien_id, tu_ngay, loai_hop_dong, so_hop_dong)
+                                                    VALUES (%s, %s, 'Thử việc', %s)
+                                                """, (nid, ngay_bat_dau_tv, so_hd_cu))
                                             
                                             db.commit()
                                             db.close()

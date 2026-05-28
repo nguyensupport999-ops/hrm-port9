@@ -1,7 +1,6 @@
 import streamlit as st
 import psycopg2
 import psycopg2.extras
-from config_template import COMPANY_CONFIG
 from datetime import datetime, date, timedelta
 import os
 import pandas as pd
@@ -22,7 +21,14 @@ from docx.oxml.ns import qn
 from PIL import Image
 import qrcode
 from io import BytesIO
-from config_template import COMPANY_CONFIG, BHXH_CONFIG, EMAIL_CONFIG, TELEGRAM_CONFIG, USERS
+
+# Import config - ưu tiên config.py (local), fallback to config_template (cloud)
+try:
+    from config import COMPANY_CONFIG, BHXH_CONFIG, EMAIL_CONFIG, TELEGRAM_CONFIG, USERS
+    print("Using local config.py")
+except ImportError:
+    from config_template import COMPANY_CONFIG, BHXH_CONFIG, EMAIL_CONFIG, TELEGRAM_CONFIG, USERS
+    print("Using config_template.py")
 
 # ========== DATABASE CONNECTION (SUPABASE) ==========
 # ========== DATABASE CONNECTION (SUPABASE) ==========
@@ -374,11 +380,13 @@ def tao_hop_dong_thu_viec(nv):
     return tf.name
 
 def gui_email(loai, ds, file=None):
-    from config import EMAIL_CONFIG as EC
+    # Không import trong hàm nữa, dùng EMAIL_CONFIG đã có sẵn
+    # from config import EMAIL_CONFIG as EC  <-- XÓA DÒNG NÀY
+    
     try:
         msg = MIMEMultipart()
-        msg['From'] = EC['email']
-        msg['To'] = EC['nguoi_nhan']
+        msg['From'] = EMAIL_CONFIG['email']
+        msg['To'] = EMAIL_CONFIG['nguoi_nhan']
         tn = f"{datetime.now().month:02d}/{datetime.now().year}"
         msg['Subject'] = f"[HRM-Port] Báo cáo {loai} lao động tháng {tn}"
         nd = f"<h3>BÁO CÁO {loai.upper()} LĐ</h3><p>Tháng: <b>{tn}</b></p><p>SL: <b>{len(ds)}</b></p><hr><ul>"
@@ -395,9 +403,9 @@ def gui_email(loai, ds, file=None):
                 encoders.encode_base64(part)
                 part.add_header('Content-Disposition', f'attachment; filename="{os.path.basename(file)}"')
                 msg.attach(part)
-        srv = smtplib.SMTP(EC['smtp_server'], EC['smtp_port'])
+        srv = smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port'])
         srv.starttls()
-        srv.login(EC['email'], EC['password'])
+        srv.login(EMAIL_CONFIG['email'], EMAIL_CONFIG['password'])
         srv.send_message(msg)
         srv.quit()
         return True
@@ -406,12 +414,14 @@ def gui_email(loai, ds, file=None):
         return False
 
 def gui_telegram(msg):
-    from config import TELEGRAM_CONFIG as TC
+    # from config import TELEGRAM_CONFIG as TC  <-- XÓA DÒNG NÀY
+    
     try:
-        url=f"https://api.telegram.org/bot{TC['bot_token']}/sendMessage"
-        r=requests.post(url,data={"chat_id":TC['chat_id'],"text":msg,"parse_mode":"HTML"},timeout=10)
-        return r.status_code==200
-    except: return False
+        url = f"https://api.telegram.org/bot{TELEGRAM_CONFIG['bot_token']}/sendMessage"
+        r = requests.post(url, data={"chat_id": TELEGRAM_CONFIG['chat_id'], "text": msg, "parse_mode": "HTML"}, timeout=10)
+        return r.status_code == 200
+    except:
+        return False
 
 # ========== SIDEBAR + LOGIN ==========
 st.sidebar.title("🏗️ HRM-Port")
@@ -419,9 +429,10 @@ st.sidebar.caption("Quản lý nhân sự cảng biển")
 
 # Hàm kiểm tra đăng nhập từ secrets
 def check_login(username, password):
-    from config import USERS
+    # Import USERS đã được ở đầu file, không cần import lại
+    # from config import USERS  <-- XÓA DÒNG NÀY
     
-    # Kiểm tra từ file config.py trước
+    # Kiểm tra từ USERS đã import
     if username in USERS:
         return USERS[username]['password'] == password, USERS[username]['role']
     
@@ -538,9 +549,12 @@ if menu == "📊 Dashboard":
     st.divider()
     if st.session_state.role == "admin":
         if st.button("💾 BACKUP DỮ LIỆU NGAY", use_container_width=True):
-            from backup_nv import backup_nhan_vien
-            backup_nhan_vien()
-            st.success("✅ Đã backup! Kiểm tra thư mục D:\\HRM_Port\\backup")
+            try:
+                from backup_nv import backup_nhan_vien
+                backup_nhan_vien()
+                st.success("✅ Đã backup! Kiểm tra thư mục D:\\HRM_Port\\backup")
+            except ImportError:
+                st.error("❌ Không tìm thấy module backup_nv. Backup chỉ hoạt động trên local.")
             
 # ========== ỨNG VIÊN ==========
 elif menu == "👤 Ứng viên":

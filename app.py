@@ -22,6 +22,7 @@ from docx.oxml.ns import qn
 from PIL import Image
 import qrcode
 from io import BytesIO
+from config_template import COMPANY_CONFIG, BHXH_CONFIG, EMAIL_CONFIG, TELEGRAM_CONFIG, USERS
 
 # ========== DATABASE CONNECTION (SUPABASE) ==========
 # ========== DATABASE CONNECTION (SUPABASE) ==========

@@ -110,16 +110,26 @@ if os.path.exists(logo_path):
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.role = None
+    st.session_state.username = None
+if 'selected_nv_id' not in st.session_state:
+    st.session_state.selected_nv_id = None
+if 'edit_uv_id' not in st.session_state:
+    st.session_state.edit_uv_id = None
+if 'bhxh_family_nv_id' not in st.session_state:
+    st.session_state.bhxh_family_nv_id = None
+if 'bhxh_family_nv_name' not in st.session_state:
+    st.session_state.bhxh_family_nv_name = None
+if 'bhxh_family_members' not in st.session_state:
+    st.session_state.bhxh_family_members = []
 if 'show_chuyen_nv_form' not in st.session_state:
     st.session_state.show_chuyen_nv_form = False
 if 'chuyen_uv_id' not in st.session_state:
     st.session_state.chuyen_uv_id = None
 if 'chuyen_uv_data' not in st.session_state:
     st.session_state.chuyen_uv_data = {}
-if 'selected_nv_id' not in st.session_state:
-    st.session_state.selected_nv_id = None
-if 'bhxh_family_nv_id' not in st.session_state:
-    st.session_state.bhxh_family_nv_id = None
 
 def force_center(p):
     pPr = p._p.get_or_add_pPr()
@@ -657,10 +667,7 @@ if menu == "📊 Dashboard":
         c.execute("""
             SELECT STT, ma_nv, ho_ten, ngay_vao_lam, 
                    (ngay_vao_lam + INTERVAL '30 days')::DATE as ngay_ket_thuc_tv,
-                   CASE 
-                       WHEN (ngay_vao_lam + INTERVAL '30 days')::DATE < CURRENT_DATE THEN 0
-                       ELSE EXTRACT(DAY FROM ((ngay_vao_lam + INTERVAL '30 days')::DATE - CURRENT_DATE))::INTEGER
-                   END as ngay_con_lai
+                   GREATEST(0, EXTRACT(DAY FROM ((ngay_vao_lam + INTERVAL '30 days')::DATE - CURRENT_DATE)))::INTEGER as ngay_con_lai
             FROM nhan_vien 
             WHERE trang_thai = 'THU_VIEC' 
             AND (ngay_vao_lam + INTERVAL '30 days')::DATE <= CURRENT_DATE + INTERVAL '5 days'
@@ -1643,15 +1650,16 @@ elif menu == "✅ Nhân viên":
                         st.divider()
             
             # Form sửa nhân viên (chỉ admin)
-            if 'selected_nv_id' in st.session_state and st.session_state.role == "admin":
-                nid = int(st.session_state['selected_nv_id'])
-                db = get_connection()
-                c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                c.execute("SELECT * FROM nhan_vien WHERE id=%s", (nid,))
-                nd = c.fetchone()
-                db.close()
-                
-                if nd:
+            if 'selected_nv_id' in st.session_state and st.session_state.selected_nv_id is not None and st.session_state.role == "admin":
+                try:
+                    nid = int(st.session_state['selected_nv_id'])
+                    db = get_connection()
+                    c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                    c.execute("SELECT * FROM nhan_vien WHERE id=%s", (nid,))
+                    nd = c.fetchone()
+                    db.close()
+                    
+                    if nd:
                     st.subheader(f"✏️ Cập nhật: {nd.get('ho_ten', '')} ({nd.get('ma_nv', '')})")
                     with st.form("edit_nv"):
                         col1, col2, col3 = st.columns(3)
@@ -1893,6 +1901,7 @@ elif menu == "✅ Nhân viên":
                                             db.close()
                                             
                                             st.success("✅ Đã xóa quyết định chuyển đổi! Nhân viên trở lại trạng thái Thử việc.")
+                                            del st.session_state['selected_nv_id'] 
                                             st.rerun()
                                         else:
                                             st.error("❌ Không tìm thấy thông tin lịch sử để khôi phục!")

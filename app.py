@@ -110,6 +110,17 @@ if os.path.exists(logo_path):
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
+if 'show_chuyen_nv_form' not in st.session_state:
+    st.session_state.show_chuyen_nv_form = False
+if 'chuyen_uv_id' not in st.session_state:
+    st.session_state.chuyen_uv_id = None
+if 'chuyen_uv_data' not in st.session_state:
+    st.session_state.chuyen_uv_data = {}
+if 'selected_nv_id' not in st.session_state:
+    st.session_state.selected_nv_id = None
+if 'bhxh_family_nv_id' not in st.session_state:
+    st.session_state.bhxh_family_nv_id = None
+
 def force_center(p):
     pPr = p._p.get_or_add_pPr()
     for jc in pPr.findall(qn('w:jc')):
@@ -143,15 +154,6 @@ def parse_date(s):
     try: return datetime.strptime(s.strip(),'%d/%m/%Y').date()
     except: return None
 
-def to_float_or_none(val):
-    """Chuyển đổi giá trị sang float hoặc None, tránh lỗi numeric"""
-    if val is None or str(val).strip() == '':
-        return None
-    try:
-        return float(val)
-    except:
-        return None
-
 def to_int_or_none(val):
     """Chuyển đổi giá trị sang int hoặc None"""
     if val is None or str(val).strip() == '':
@@ -161,15 +163,6 @@ def to_int_or_none(val):
     except:
         return None
         
-def to_float_or_none(val):
-    """Chuyển đổi giá trị sang float hoặc None, tránh lỗi numeric"""
-    if val is None or str(val).strip() == '':
-        return None
-    try:
-        return float(val)
-    except:
-        return None
-
 def tao_noi_dung_zalo(nv):
     ZC = COMPANY_CONFIG
     return f"""Gửi anh/chị: {nv.get('ho_ten','')},
@@ -489,6 +482,81 @@ def gui_telegram(msg):
     except:
         return False
 
+def tao_bao_cao_tang_giam(tang_list, giam_list, tu_ngay, den_ngay):
+    """Tạo báo cáo Word tăng/giảm nhân sự"""
+    from docx import Document
+    from docx.shared import Pt, Cm, Inches
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    
+    doc = Document()
+    
+    # Tiêu đề
+    title = doc.add_heading('BÁO CÁO TĂNG/GIẢM NHÂN SỰ', 0)
+    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    period = doc.add_paragraph(f'Thời gian: Từ {tu_ngay.strftime("%d/%m/%Y")} đến {den_ngay.strftime("%d/%m/%Y")}')
+    period.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    doc.add_paragraph()
+    
+    # Danh sách tăng
+    doc.add_heading('I. LAO ĐỘNG TĂNG MỚI', level=1)
+    if tang_list:
+        table = doc.add_table(rows=1 + len(tang_list), cols=5)
+        table.style = 'Table Grid'
+        # Header
+        headers = ['STT', 'Họ tên', 'Chức danh', 'Loại HĐ', 'Ngày vào làm']
+        for i, header in enumerate(headers):
+            table.rows[0].cells[i].text = header
+            table.rows[0].cells[i].paragraphs[0].runs[0].bold = True
+        
+        for idx, nv in enumerate(tang_list, 1):
+            row = table.rows[idx]
+            row.cells[0].text = str(idx)
+            row.cells[1].text = nv.get('ho_ten', '')
+            row.cells[2].text = nv.get('chuc_danh_nghe', '')
+            row.cells[3].text = nv.get('loai_hop_dong', '')
+            row.cells[4].text = format_date(nv.get('ngay_vao_lam'))
+    else:
+        doc.add_paragraph('Không có lao động tăng trong kỳ.')
+    
+    doc.add_paragraph()
+    
+    # Danh sách giảm
+    doc.add_heading('II. LAO ĐỘNG GIẢM (NGHỈ VIỆC)', level=1)
+    if giam_list:
+        table = doc.add_table(rows=1 + len(giam_list), cols=5)
+        table.style = 'Table Grid'
+        headers = ['STT', 'Họ tên', 'Chức danh', 'Loại HĐ', 'Ngày nghỉ việc']
+        for i, header in enumerate(headers):
+            table.rows[0].cells[i].text = header
+            table.rows[0].cells[i].paragraphs[0].runs[0].bold = True
+        
+        for idx, nv in enumerate(giam_list, 1):
+            row = table.rows[idx]
+            row.cells[0].text = str(idx)
+            row.cells[1].text = nv.get('ho_ten', '')
+            row.cells[2].text = nv.get('chuc_danh_nghe', '')
+            row.cells[3].text = nv.get('loai_hop_dong', '')
+            row.cells[4].text = format_date(nv.get('ngay_ket_thuc'))
+    else:
+        doc.add_paragraph('Không có lao động giảm trong kỳ.')
+    
+    # Footer
+    doc.add_paragraph()
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    p.add_run(f'Ngày {date.today().day} tháng {date.today().month} năm {date.today().year}')
+    
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    p.add_run('NGƯỜI LẬP BÁO CÁO')
+    
+    tf = tempfile.NamedTemporaryFile(delete=False, suffix='.docx')
+    doc.save(tf.name)
+    return tf.name
+    
 # ========== SIDEBAR + LOGIN ==========
 st.sidebar.title("🏗️ HRM-Port")
 st.sidebar.caption("Quản lý nhân sự cảng biển")
@@ -631,6 +699,194 @@ if menu == "📊 Dashboard":
 elif menu == "👤 Ứng viên":
     st.title("👤 Ứng viên")
     su = st.text_input("🔍 Tìm kiếm", key="suv")
+    
+    # Kiểm tra nếu đang chuyển từ ứng viên sang nhân viên
+    if 'show_chuyen_nv_form' in st.session_state and st.session_state.show_chuyen_nv_form:
+        st.subheader("📝 CHUYỂN ỨNG VIÊN THÀNH NHÂN VIÊN")
+        uv_data = st.session_state.get('chuyen_uv_data', {})
+        
+        # Lấy danh sách chức danh từ database
+        db_chuc = get_connection()
+        c_chuc = db_chuc.cursor()
+        c_chuc.execute("SELECT DISTINCT ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
+        dschucdanh = [row[0] for row in c_chuc.fetchall()]
+        db_chuc.close()
+        
+        with st.form("chuyen_uv_to_nv_form"):
+            st.markdown(f"**Ứng viên:** {uv_data.get('ho_ten', '')}")
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                ho_ten_nv = st.text_input("Họ và tên *", value=uv_data.get('ho_ten', ''))
+                ngay_sinh_nv = st.text_input("Ngày sinh (dd/mm/yyyy)", value=format_date(uv_data.get('ngay_sinh')), placeholder="dd/mm/yyyy", max_chars=10)
+                gioi_tinh_nv = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"], index=["", "Nam", "Nữ", "Khác"].index(uv_data.get('gioi_tinh', '')) if uv_data.get('gioi_tinh') in ["Nam", "Nữ", "Khác"] else 0)
+                quoc_tich_nv = st.text_input("Quốc tịch", value="Việt Nam")
+                dan_toc_nv = st.text_input("Dân tộc", value="Kinh")
+            with col2:
+                so_cccd_nv = st.text_input("CCCD")
+                ngay_cap_cccd_nv = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
+                noi_cap_cccd_nv = st.text_input("Nơi cấp CCCD")
+                nguyen_quan_nv = st.text_input("Nguyên quán")
+                thuong_tru_nv = st.text_area("Thường trú", value=uv_data.get('ghi_chu', ''), height=68)
+            with col3:
+                dien_thoai_nv = st.text_input("SĐT", value=uv_data.get('dien_thoai', ''))
+                email_nv = st.text_input("Email")
+                chuc_danh_nv = st.selectbox("Chức danh", [""] + dschucdanh, index=([""] + dschucdanh).index(uv_data.get('vi_tri', '')) if uv_data.get('vi_tri', '') in dschucdanh else 0)
+                phong_ban_nv = st.text_input("Phòng ban")
+                noi_lam_viec_nv = st.text_input("Nơi làm việc", value="Cảng THQT Hòn La")
+            
+            st.divider()
+            st.caption("💼 Hợp đồng & BHXH")
+            col4, col5, col6 = st.columns(3)
+            with col4:
+                loai_hd_chuyen = st.selectbox("Loại HĐ *", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"])
+                ngay_vao_lam_chuyen = st.date_input("Ngày vào làm", value=uv_data.get('ngay_vao_lam', date.today()))
+                ngay_ket_thuc_chuyen = st.text_input("Ngày kết thúc (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
+                ma_bhxh_chuyen = st.text_input("Mã BHXH")
+                bat_dau_bh_chuyen = st.text_input("Bắt đầu BH (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
+            with col5:
+                luong_bh_chuyen = st.text_input("Lương BH")
+                he_so_luong_chuyen = st.text_input("Hệ số lương")
+                pc_chuc_vu_chuyen = st.text_input("PC chức vụ")
+                pc_tnvk_chuyen = st.text_input("PC TNVK (%)")
+                pc_tnn_chuyen = st.text_input("PC TNN (%)")
+            with col6:
+                muc_huong_bhyt_chuyen = st.selectbox("Mức hưởng BHYT", ["80%", "95%", "100%"])
+                ty_le_dong_chuyen = st.text_input("Tỷ lệ đóng (%)")
+                muc_tien_dong_chuyen = st.text_input("Mức tiền đóng")
+                phuong_thuc_dong_chuyen = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"])
+                nhom_bhxh_chuyen = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"])
+            
+            st.divider()
+            st.caption("🏦 Ngân hàng & KCB")
+            col7, col8, col9 = st.columns(3)
+            with col7:
+                stk_chuyen = st.text_input("STK")
+                chi_nhanh_nh_chuyen = st.text_input("Chi nhánh NH")
+                tinh_kcb_chuyen = st.text_input("Tỉnh KCB")
+                noi_kcb_chuyen = st.text_input("Nơi KCB")
+            with col8:
+                tinh_nhan_hs_chuyen = st.text_input("Tỉnh/TP nhận HS")
+                phuong_nhan_hs_chuyen = st.text_input("Phường/Xã nhận HS")
+                dia_chi_nhan_hs_chuyen = st.text_area("Địa chỉ nhận HS", height=100)
+            with col9:
+                dk_nhan_so_chuyen = st.selectbox("ĐK nhận sổ", ["Có", "Không"])
+                ho_so_chuyen = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"])
+            
+            col_confirm1, col_confirm2 = st.columns(2)
+            with col_confirm1:
+                if st.form_submit_button("✅ XÁC NHẬN CHUYỂN", use_container_width=True, type="primary"):
+                    if ho_ten_nv:
+                        # Kiểm tra định dạng ngày
+                        ngay_loi = []
+                        if ngay_sinh_nv and not parse_date(ngay_sinh_nv): 
+                            ngay_loi.append("Ngày sinh")
+                        if ngay_cap_cccd_nv and not parse_date(ngay_cap_cccd_nv): 
+                            ngay_loi.append("Ngày cấp CCCD")
+                        if ngay_ket_thuc_chuyen and not parse_date(ngay_ket_thuc_chuyen): 
+                            ngay_loi.append("Ngày kết thúc")
+                        if bat_dau_bh_chuyen and not parse_date(bat_dau_bh_chuyen): 
+                            ngay_loi.append("Bắt đầu BH")
+                        if ngay_loi:
+                            st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
+                        else:
+                            try:
+                                db = get_connection()
+                                c = db.cursor()
+                                
+                                # Tạo STT và mã nhân viên mới
+                                c.execute("SELECT COALESCE(MAX(STT),0)+1 FROM nhan_vien")
+                                stt_moi = c.fetchone()[0]
+                                ma_nv = f"NV{stt_moi:03d}"
+                                
+                                nhl = ngay_vao_lam_chuyen
+                                tbd_val = parse_date(bat_dau_bh_chuyen) if bat_dau_bh_chuyen and bat_dau_bh_chuyen.strip() else None
+                                
+                                # Tạo số hợp đồng theo loại
+                                if loai_hd_chuyen == "Thử việc":
+                                    trang_thai_nv = 'THU_VIEC'
+                                    trang_thai_bhxh = 'CHUA_DONG'
+                                    c.execute("SELECT COUNT(*) FROM nhan_vien WHERE so_hdld LIKE '%/HĐTV-CHL'")
+                                    tv_cnt = c.fetchone()[0] + 1
+                                    so_hd = f"{tv_cnt:02d}/{nhl.year}/HĐTV-CHL"
+                                else:
+                                    trang_thai_nv = 'DANG_LAM'
+                                    trang_thai_bhxh = 'DANG_DONG'
+                                    if not tbd_val:
+                                        tbd_val = nhl
+                                    c.execute("SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)),0)+1 FROM nhan_vien WHERE so_hdld LIKE '%/HĐLĐ-CHL'")
+                                    so_hd_cnt = c.fetchone()[0] or 0
+                                    so_hd = f"{so_hd_cnt + 1:02d}/{nhl.year}/HĐLĐ-CHL"
+                                
+                                # Thêm nhân viên mới
+                                c.execute("""
+                                    INSERT INTO nhan_vien (STT, ma_nv, so_hdld, ho_ten, chuc_danh_nghe, 
+                                        ngay_sinh, gioi_tinh, so_cccd, ngay_cap_cccd, noi_cap_cccd,
+                                        nguyen_quan, thuong_tru, dien_thoai, email, email_lien_he, ho_so,
+                                        luong_bao_hiem, ma_so_bhxh, ngay_vao_lam, noi_lam_viec,
+                                        so_tai_khoan_nh, chi_nhanh_nh, ngay_ky_hd, loai_hop_dong,
+                                        nhom_bhxh, thang_bat_dau_bh, thang_ket_thuc_bh, trang_thai, trang_thai_bhxh,
+                                        phong_ban_lam_viec, ngay_ket_thuc, quoc_tich, dan_toc, 
+                                        he_so_luong, phu_cap_chuc_vu, phu_cap_tnvk, phu_cap_tnn,
+                                        muc_huong_bhyt, ty_le_dong, muc_tien_dong, phuong_thuc_dong,
+                                        tinh_nhan_hs, phuong_nhan_hs, dia_chi_nhan_hs, 
+                                        tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                """, (
+                                    stt_moi, ma_nv, so_hd, ho_ten_nv, chuc_danh_nv,
+                                    parse_date(ngay_sinh_nv), gioi_tinh_nv, so_cccd_nv, parse_date(ngay_cap_cccd_nv), noi_cap_cccd_nv,
+                                    nguyen_quan_nv, thuong_tru_nv, dien_thoai_nv, email_nv, email_nv, ho_so_chuyen,
+                                    luong_bh_chuyen, ma_bhxh_chuyen, ngay_vao_lam_chuyen, noi_lam_viec_nv,
+                                    stk_chuyen, chi_nhanh_nh_chuyen, ngay_vao_lam_chuyen, loai_hd_chuyen,
+                                    nhom_bhxh_chuyen, tbd_val, parse_date(ngay_ket_thuc_chuyen), trang_thai_nv, trang_thai_bhxh,
+                                    phong_ban_nv, parse_date(ngay_ket_thuc_chuyen), quoc_tich_nv, dan_toc_nv,
+                                    to_float_or_none(he_so_luong_chuyen), to_float_or_none(pc_chuc_vu_chuyen),
+                                    to_float_or_none(pc_tnvk_chuyen), to_float_or_none(pc_tnn_chuyen),
+                                    muc_huong_bhyt_chuyen, to_float_or_none(ty_le_dong_chuyen), to_float_or_none(muc_tien_dong_chuyen),
+                                    phuong_thuc_dong_chuyen, tinh_nhan_hs_chuyen, phuong_nhan_hs_chuyen, dia_chi_nhan_hs_chuyen,
+                                    tinh_kcb_chuyen, noi_kcb_chuyen, dk_nhan_so_chuyen
+                                ))
+                                
+                                # Cập nhật trạng thái ứng viên
+                                c.execute("UPDATE ung_vien SET trang_thai='DA_NHAN_VIEC', ma_nv=%s WHERE id=%s", 
+                                         (ma_nv, st.session_state['chuyen_uv_id']))
+                                
+                                # Thêm lịch sử công tác
+                                c.execute("""
+                                    INSERT INTO lich_su_cong_tac (nhan_vien_id, tu_ngay, chuc_danh, phong_ban, noi_lam_viec, loai_hop_dong, he_so_luong, so_hop_dong)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                                """, (stt_moi, ngay_vao_lam_chuyen, chuc_danh_nv, phong_ban_nv, noi_lam_viec_nv, loai_hd_chuyen, 
+                                      to_float_or_none(he_so_luong_chuyen), so_hd))
+                                
+                                db.commit()
+                                db.close()
+                                
+                                st.success(f"✅ Đã chuyển {ho_ten_nv} thành nhân viên! Mã NV: {ma_nv}")
+                                
+                                # Xóa session state
+                                del st.session_state['show_chuyen_nv_form']
+                                del st.session_state['chuyen_uv_id']
+                                del st.session_state['chuyen_uv_data']
+                                st.rerun()
+                                
+                            except Exception as e:
+                                db.rollback()
+                                db.close()
+                                st.error(f"❌ Lỗi khi chuyển: {e}")
+                    else:
+                        st.error("Họ tên không được để trống!")
+            
+            with col_confirm2:
+                if st.form_submit_button("❌ HỦY", use_container_width=True):
+                    del st.session_state['show_chuyen_nv_form']
+                    del st.session_state['chuyen_uv_id']
+                    del st.session_state['chuyen_uv_data']
+                    st.rerun()
+        
+        st.divider()
+        st.stop()  # Dừng lại để không hiển thị danh sách ứng viên phía dưới
     
     db_f = get_connection()
     c_f = db_f.cursor()
@@ -788,7 +1044,7 @@ elif menu == "👤 Ứng viên":
                                             db.close()
                                             
                                             if uv:
-                                                # Lưu thông tin ứng viên vào session_state để chuyển sang form thêm nhân viên
+                                                # Lưu thông tin ứng viên vào session_state
                                                 st.session_state['chuyen_uv_id'] = uv_id
                                                 st.session_state['chuyen_uv_data'] = {
                                                     'ho_ten': uv['ho_ten'],
@@ -799,7 +1055,7 @@ elif menu == "👤 Ứng viên":
                                                     'ngay_vao_lam': uv['ngay_vao_lam'] or date.today(),
                                                     'ghi_chu': uv['luong_bao_hiem']
                                                 }
-                                                st.session_state['show_add_nv_form'] = True
+                                                st.session_state['show_chuyen_nv_form'] = True
                                                 st.rerun()
                                         except Exception as e:
                                             st.error(f"❌ Lỗi: {e}")
@@ -1109,107 +1365,6 @@ elif menu == "✅ Nhân viên":
                 'thang_bat_dau_bh': 'Bắt đầu BH',
             }
             df_show.rename(columns=col_map, inplace=True)
-            
-            if 'show_add_nv_form' in st.session_state and st.session_state.show_add_nv_form:
-                st.subheader("📝 CHUYỂN ỨNG VIÊN THÀNH NHÂN VIÊN")
-                uv_data = st.session_state.get('chuyen_uv_data', {})
-                
-                with st.form("chuyen_uv_to_nv_form"):
-                    st.markdown(f"**Ứng viên:** {uv_data.get('ho_ten', '')}")
-                    st.markdown(f"**Vị trí dự tuyển:** {uv_data.get('vi_tri', '')}")
-                    
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        loai_hd_chuyen = st.selectbox("Loại hợp đồng *", ["Thử việc", "Không xác định thời hạn", "Xác định thời hạn"])
-                        ngay_vao_lam_chuyen = st.date_input("Ngày vào làm", value=uv_data.get('ngay_vao_lam', date.today()))
-                        ma_bhxh_chuyen = st.text_input("Mã BHXH (nếu có)")
-                    with col2:
-                        chuc_danh_chuyen = st.text_input("Chức danh *", value=uv_data.get('vi_tri', ''))
-                        phong_ban_chuyen = st.text_input("Phòng ban")
-                        luong_bh_chuyen = st.text_input("Lương BHXH")
-                    
-                    col3, col4 = st.columns(2)
-                    with col3:
-                        stk_chuyen = st.text_input("Số tài khoản ngân hàng")
-                        cnh_chuyen = st.text_input("Chi nhánh ngân hàng")
-                    with col4:
-                        thuong_tru_chuyen = st.text_area("Thường trú", value=uv_data.get('ghi_chu', ''), height=68)
-                    
-                    col_confirm1, col_confirm2 = st.columns(2)
-                    with col_confirm1:
-                        if st.form_submit_button("✅ XÁC NHẬN CHUYỂN", use_container_width=True, type="primary"):
-                            try:
-                                db = get_connection()
-                                c = db.cursor()
-                                
-                                # Tạo STT và mã nhân viên mới
-                                c.execute("SELECT COALESCE(MAX(STT),0)+1 FROM nhan_vien")
-                                stt_moi = c.fetchone()[0]
-                                ma_nv = f"NV{stt_moi:03d}"
-                                
-                                nhl = ngay_vao_lam_chuyen
-                                
-                                # Tạo số hợp đồng theo loại
-                                if loai_hd_chuyen == "Thử việc":
-                                    trang_thai_nv = 'THU_VIEC'
-                                    trang_thai_bhxh = 'CHUA_DONG'
-                                    tbd_val = None
-                                    c.execute("SELECT COUNT(*) FROM nhan_vien WHERE so_hdld LIKE '%/HĐTV-CHL'")
-                                    tv_cnt = c.fetchone()[0] + 1
-                                    so_hd = f"{tv_cnt:02d}/{nhl.year}/HĐTV-CHL"
-                                else:
-                                    trang_thai_nv = 'DANG_LAM'
-                                    trang_thai_bhxh = 'DANG_DONG'
-                                    tbd_val = ngay_vao_lam_chuyen
-                                    c.execute("SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)),0)+1 FROM nhan_vien WHERE so_hdld LIKE '%/HĐLĐ-CHL'")
-                                    so_hd_cnt = c.fetchone()[0] or 0
-                                    so_hd = f"{so_hd_cnt + 1:02d}/{nhl.year}/HĐLĐ-CHL"
-                                
-                                # Thêm nhân viên mới
-                                c.execute("""
-                                    INSERT INTO nhan_vien (STT, ma_nv, so_hdld, ho_ten, chuc_danh_nghe, 
-                                        ngay_sinh, gioi_tinh, dien_thoai, ngay_vao_lam, thuong_tru,
-                                        loai_hop_dong, trang_thai, trang_thai_bhxh, ngay_ky_hd,
-                                        ma_so_bhxh, luong_bao_hiem, phong_ban_lam_viec, so_tai_khoan_nh, chi_nhanh_nh)
-                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                                """, (stt_moi, ma_nv, so_hd, uv_data.get('ho_ten', ''), chuc_danh_chuyen,
-                                      uv_data.get('ngay_sinh'), uv_data.get('gioi_tinh', ''), uv_data.get('dien_thoai', ''),
-                                      ngay_vao_lam_chuyen, thuong_tru_chuyen, loai_hd_chuyen, trang_thai_nv, 
-                                      trang_thai_bhxh, ngay_vao_lam_chuyen, ma_bhxh_chuyen, luong_bh_chuyen,
-                                      phong_ban_chuyen, stk_chuyen, cnh_chuyen))
-                                
-                                # Cập nhật trạng thái ứng viên
-                                c.execute("UPDATE ung_vien SET trang_thai='DA_NHAN_VIEC', ma_nv=%s WHERE id=%s", 
-                                         (ma_nv, st.session_state['chuyen_uv_id']))
-                                
-                                # Thêm lịch sử công tác
-                                c.execute("""
-                                    INSERT INTO lich_su_cong_tac (nhan_vien_id, tu_ngay, chuc_danh, phong_ban, loai_hop_dong, so_hop_dong)
-                                    VALUES (%s, %s, %s, %s, %s, %s)
-                                """, (stt_moi, ngay_vao_lam_chuyen, chuc_danh_chuyen, phong_ban_chuyen, loai_hd_chuyen, so_hd))
-                                
-                                db.commit()
-                                db.close()
-                                
-                                st.success(f"✅ Đã chuyển {uv_data.get('ho_ten', '')} thành nhân viên! Mã NV: {ma_nv}")
-                                
-                                # Xóa session state
-                                del st.session_state['show_add_nv_form']
-                                del st.session_state['chuyen_uv_id']
-                                del st.session_state['chuyen_uv_data']
-                                st.rerun()
-                                
-                            except Exception as e:
-                                st.error(f"❌ Lỗi khi chuyển: {e}")
-                    
-                    with col_confirm2:
-                        if st.form_submit_button("❌ HỦY", use_container_width=True):
-                            del st.session_state['show_add_nv_form']
-                            del st.session_state['chuyen_uv_id']
-                            del st.session_state['chuyen_uv_data']
-                            st.rerun()
-                
-                st.divider()
             
             st.caption(f"📌 {len(ds)} kết quả. Tick chọn 1 nhân viên để thao tác.")
             

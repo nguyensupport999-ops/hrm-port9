@@ -664,15 +664,15 @@ if menu == "📊 Dashboard":
     if hq:
         st.info(f"🔵 Hôm qua có thêm: **{', '.join([x['ho_ten'] for x in hq])}**")
     if st.session_state.role == "admin":
-        c.execute("""
-            SELECT STT, ma_nv, ho_ten, ngay_vao_lam, 
-                   (ngay_vao_lam + INTERVAL '30 days')::DATE as ngay_ket_thuc_tv,
-                   GREATEST(0, EXTRACT(DAY FROM ((ngay_vao_lam + INTERVAL '30 days')::DATE - CURRENT_DATE)))::INTEGER as ngay_con_lai
-            FROM nhan_vien 
-            WHERE trang_thai = 'THU_VIEC' 
-            AND (ngay_vao_lam + INTERVAL '30 days')::DATE <= CURRENT_DATE + INTERVAL '5 days'
-            ORDER BY ngay_con_lai ASC
-        """)
+    c.execute("""
+        SELECT STT, ma_nv, ho_ten, ngay_vao_lam, 
+               (ngay_vao_lam + INTERVAL '30 days')::DATE as ngay_ket_thuc_tv,
+               GREATEST(0, ((ngay_vao_lam + INTERVAL '30 days')::DATE - CURRENT_DATE)) as ngay_con_lai
+        FROM nhan_vien 
+        WHERE trang_thai = 'THU_VIEC' 
+        AND (ngay_vao_lam + INTERVAL '30 days')::DATE <= CURRENT_DATE + INTERVAL '5 days'
+        ORDER BY ngay_con_lai ASC
+    """)
         tv_sap_het = c.fetchall()
         for x in tv_sap_het:
             if x['ngay_con_lai'] == 0:
@@ -1762,9 +1762,9 @@ elif menu == "✅ Nhân viên":
                                                     tinh_kcb=%s,noi_dang_ky_kcb=%s,dang_ky_nhan_so=%s WHERE id=%s""",
                                                       (hnv, cdnv, parse_date(nsnv), gtnv, sccv, parse_date(nccv), ncv, nqnv, ttnv, dtnv2,
                                                        emnv, emnv, hsov, lbhv, mbhv, parse_date(nvlv), nlv2, stkv, cnhv, parse_date(nvlv), lhdv,
-                                                       nbhv, tbd_val, tt_nv, tt_bh, pbnv, parse_date(nktv), qtnv, dtnv, 
+                                                       nbhv, tbd_val, tt_nv, tt_bh, pbnv, parse_date(nktv), qtnv, dtnv,
                                                        to_float_or_none(hslv), to_float_or_none(pcvv), to_float_or_none(ptvv), to_float_or_none(ptnv),
-                                                       mhbv, to_float_or_none(tldv), to_float_or_none(mtdv), ptdv, thsv, phsv, dhsv, 
+                                                       mhbv, to_float_or_none(tldv), to_float_or_none(mtdv), ptdv, thsv, phsv, dhsv,
                                                        tkbv, nkbv, dksv, nid))
                                                 db_upd.commit()
                                                 db_upd.close()

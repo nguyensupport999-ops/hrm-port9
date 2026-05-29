@@ -664,15 +664,15 @@ if menu == "📊 Dashboard":
     if hq:
         st.info(f"🔵 Hôm qua có thêm: **{', '.join([x['ho_ten'] for x in hq])}**")
     if st.session_state.role == "admin":
-    c.execute("""
-        SELECT STT, ma_nv, ho_ten, ngay_vao_lam, 
-               (ngay_vao_lam + INTERVAL '30 days')::DATE as ngay_ket_thuc_tv,
-               GREATEST(0, ((ngay_vao_lam + INTERVAL '30 days')::DATE - CURRENT_DATE)) as ngay_con_lai
-        FROM nhan_vien 
-        WHERE trang_thai = 'THU_VIEC' 
-        AND (ngay_vao_lam + INTERVAL '30 days')::DATE <= CURRENT_DATE + INTERVAL '5 days'
-        ORDER BY ngay_con_lai ASC
-    """)
+        c.execute("""
+            SELECT STT, ma_nv, ho_ten, ngay_vao_lam, 
+                   (ngay_vao_lam + INTERVAL '30 days')::DATE as ngay_ket_thuc_tv,
+                   GREATEST(0, ((ngay_vao_lam + INTERVAL '30 days')::DATE - CURRENT_DATE)) as ngay_con_lai
+            FROM nhan_vien 
+            WHERE trang_thai = 'THU_VIEC' 
+            AND (ngay_vao_lam + INTERVAL '30 days')::DATE <= CURRENT_DATE + INTERVAL '5 days'
+            ORDER BY ngay_con_lai ASC
+        """)
         tv_sap_het = c.fetchall()
         for x in tv_sap_het:
             if x['ngay_con_lai'] == 0:

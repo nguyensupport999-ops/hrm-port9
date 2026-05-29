@@ -1928,190 +1928,190 @@ elif menu == "✅ Nhân viên":
                             del st.session_state['selected_nv_id']
                             st.rerun()
             
-            # Form nhập thông tin hộ gia đình (chỉ admin)
-            if 'bhxh_family_nv_id' in st.session_state and st.session_state.role == "admin":
-                nv_id = st.session_state['bhxh_family_nv_id']
-                nv_name = st.session_state['bhxh_family_nv_name']
-                st.divider()
-                st.subheader(f"🏠 NHẬP THÔNG TIN HỘ GIA ĐÌNH CHO: {nv_name}")
-                st.caption("Vui lòng nhập đầy đủ thông tin chủ hộ và các thành viên trong hộ gia đình")
-                
-                db = get_connection()
-                c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                c.execute("SELECT * FROM nhan_vien WHERE id = %s", (nv_id,))
-                nv_data = c.fetchone()
-                db.close()
-                
-                if 'bhxh_family_members' not in st.session_state:
+                # Form nhập thông tin hộ gia đình (chỉ admin)
+                if 'bhxh_family_nv_id' in st.session_state and st.session_state.role == "admin":
+                    nv_id = st.session_state['bhxh_family_nv_id']
+                    nv_name = st.session_state['bhxh_family_nv_name']
+                    st.divider()
+                    st.subheader(f"🏠 NHẬP THÔNG TIN HỘ GIA ĐÌNH CHO: {nv_name}")
+                    st.caption("Vui lòng nhập đầy đủ thông tin chủ hộ và các thành viên trong hộ gia đình")
+                    
+                    db = get_connection()
+                    c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                    c.execute("SELECT * FROM nhan_vien WHERE id = %s", (nv_id,))
+                    nv_data = c.fetchone()
+                    db.close()
+                    
+                    if 'bhxh_family_members' not in st.session_state:
+                        db_temp = get_connection()
+                        c_temp = db_temp.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                        c_temp.execute("SELECT * FROM phu_luc_gia_dinh WHERE nhan_vien_id = %s", (nv_id,))
+                        existing_members = c_temp.fetchall()
+                        db_temp.close()
+                        st.session_state['bhxh_family_members'] = []
+                        for tv in existing_members:
+                            st.session_state['bhxh_family_members'].append({
+                                'ho_ten': tv['ho_ten'], 'ngay_sinh': tv['ngay_sinh'], 'gioi_tinh': tv['gioi_tinh'],
+                                'quoc_tich': tv['quoc_tich'], 'dan_toc': tv['dan_toc'], 'quan_he': tv['quan_he_voi_chu_ho'],
+                                'tinh': tv['tinh_thanh_pho'], 'phuong_xa': tv['phuong_xa']
+                            })
+                    
                     db_temp = get_connection()
-                    c_temp = db_temp.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                    c_temp.execute("SELECT * FROM phu_luc_gia_dinh WHERE nhan_vien_id = %s", (nv_id,))
-                    existing_members = c_temp.fetchall()
+                    c_temp = db_temp.cursor()
+                    c_temp.execute("SELECT ma_tinh, ten_tinh FROM danh_muc_tinh ORDER BY ten_tinh")
+                    ds_tinh = c_temp.fetchall()
                     db_temp.close()
-                    st.session_state['bhxh_family_members'] = []
-                    for tv in existing_members:
-                        st.session_state['bhxh_family_members'].append({
-                            'ho_ten': tv['ho_ten'], 'ngay_sinh': tv['ngay_sinh'], 'gioi_tinh': tv['gioi_tinh'],
-                            'quoc_tich': tv['quoc_tich'], 'dan_toc': tv['dan_toc'], 'quan_he': tv['quan_he_voi_chu_ho'],
-                            'tinh': tv['tinh_thanh_pho'], 'phuong_xa': tv['phuong_xa']
-                        })
-                
-                db_temp = get_connection()
-                c_temp = db_temp.cursor()
-                c_temp.execute("SELECT ma_tinh, ten_tinh FROM danh_muc_tinh ORDER BY ten_tinh")
-                ds_tinh = c_temp.fetchall()
-                db_temp.close()
-                tinh_options = {ten: ma for ma, ten in ds_tinh}
-                
-                if st.session_state.bhxh_family_members:
-                    st.markdown("**Danh sách thành viên đã thêm:**")
-                    tv_data = []
-                    for i, tv in enumerate(st.session_state.bhxh_family_members):
-                        tv_data.append({"STT": i+1, "Họ và tên": tv['ho_ten'], "Ngày sinh": format_date(tv['ngay_sinh']),
-                                        "Giới tính": tv['gioi_tinh'], "Quốc tịch": tv['quoc_tich'], "Dân tộc": tv['dan_toc'],
-                                        "Quan hệ chủ hộ": tv['quan_he'], "Tỉnh/TP": tv['tinh'], "Phường/Xã": tv['phuong_xa']})
-                    df_tv = pd.DataFrame(tv_data)
-                    st.dataframe(df_tv, use_container_width=True, hide_index=True)
-                    col_del1, col_del2, col_del3 = st.columns([1,1,1])
-                    with col_del2:
-                        tv_to_delete = st.number_input("Nhập STT thành viên cần xóa:", min_value=1, max_value=len(st.session_state.bhxh_family_members), step=1, key="tv_delete_family")
-                        if st.button("🗑️ Xóa thành viên", key="btn_del_tv_family"):
-                            st.session_state.bhxh_family_members.pop(tv_to_delete - 1)
-                            st.rerun()
-                
-                with st.form(key=f"bhxh_family_form_{nv_id}"):
-                    st.markdown("**I. THÔNG TIN CHỦ HỘ:**")
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        ho_ten_chu_ho = st.text_input("Họ và tên chủ hộ", value=nv_data.get('ho_ten_chu_ho', '') if nv_data else '')
-                        so_cccd_chu_ho = st.text_input("Số CCCD chủ hộ", value=nv_data.get('so_cccd_chu_ho', '') if nv_data else '')
-                        tinh_chu_ho_index = 0
-                        tinh_chu_ho_current = nv_data.get('tinh_thanh_pho_chu_ho', '') if nv_data else ''
-                        if tinh_chu_ho_current in tinh_options:
-                            tinh_chu_ho_index = list(tinh_options.keys()).index(tinh_chu_ho_current) + 1
-                        tinh_chu_ho = st.selectbox("Tỉnh/Thành phố (chủ hộ)", options=[""] + list(tinh_options.keys()), index=tinh_chu_ho_index)
-                    with col2:
-                        phuong_xa_options = []
-                        phuong_xa_current = nv_data.get('phuong_xa_chu_ho', '') if nv_data else ''
-                        if tinh_chu_ho and tinh_chu_ho != "":
-                            ma_tinh = tinh_options.get(tinh_chu_ho)
-                            db_temp2 = get_connection()
-                            c_temp2 = db_temp2.cursor()
-                            c_temp2.execute("SELECT ten_xa FROM danh_muc_phuong_xa WHERE ma_tinh = %s ORDER BY ten_xa", (ma_tinh,))
-                            phuong_xa_options = [row[0] for row in c_temp2.fetchall()]
-                            db_temp2.close()
-                        phuong_xa_index = 0
-                        if phuong_xa_current in phuong_xa_options:
-                            phuong_xa_index = phuong_xa_options.index(phuong_xa_current) + 1
-                        phuong_xa_chu_ho = st.selectbox("Phường/Xã (chủ hộ)", options=[""] + phuong_xa_options, index=phuong_xa_index)
+                    tinh_options = {ten: ma for ma, ten in ds_tinh}
                     
-                    st.markdown("**Thông tin thường trú:**")
-                    col_tt1, col_tt2 = st.columns(2)
-                    with col_tt1:
-                        tinh_thuong_tru_index = 0
-                        tinh_thuong_tru_current = nv_data.get('tinh_thanh_pho_thuong_tru', '') if nv_data else ''
-                        if tinh_thuong_tru_current in tinh_options:
-                            tinh_thuong_tru_index = list(tinh_options.keys()).index(tinh_thuong_tru_current) + 1
-                        tinh_thuong_tru = st.selectbox("Tỉnh/Thành phố thường trú", options=[""] + list(tinh_options.keys()), index=tinh_thuong_tru_index)
-                        ma_tinh_thuong_tru = tinh_options.get(tinh_thuong_tru, "") if tinh_thuong_tru else ""
-                    with col_tt2:
-                        phuong_xa_tt_options = []
-                        phuong_xa_tt_current = nv_data.get('phuong_xa_thuong_tru', '') if nv_data else ''
-                        if tinh_thuong_tru and tinh_thuong_tru != "":
-                            ma_tinh_tt = tinh_options.get(tinh_thuong_tru)
-                            db_temp3 = get_connection()
-                            c_temp3 = db_temp3.cursor()
-                            c_temp3.execute("SELECT ten_xa, ma_xa FROM danh_muc_phuong_xa WHERE ma_tinh = %s ORDER BY ten_xa", (ma_tinh_tt,))
-                            phuong_xa_tt_options = c_temp3.fetchall()
-                            db_temp3.close()
-                        phuong_xa_tt_index = 0
-                        ma_phuong_xa_thuong_tru = ""
-                        for i, px in enumerate(phuong_xa_tt_options):
-                            if px[0] == phuong_xa_tt_current:
-                                phuong_xa_tt_index = i + 1
-                                ma_phuong_xa_thuong_tru = px[1]
-                                break
-                        phuong_xa_display_list = [""] + [px[0] for px in phuong_xa_tt_options]
-                        phuong_xa_thuong_tru = st.selectbox("Phường/Xã thường trú", options=phuong_xa_display_list, index=phuong_xa_tt_index)
-                        for px in phuong_xa_tt_options:
-                            if px[0] == phuong_xa_thuong_tru:
-                                ma_phuong_xa_thuong_tru = px[1]
-                                break
-                    
-                    st.markdown("**II. THÊM THÀNH VIÊN MỚI:**")
-                    st.caption("Điền thông tin vào các cột bên dưới, sau đó bấm '➕ Thêm thành viên'")
-                    col_tv1, col_tv2, col_tv3, col_tv4, col_tv5, col_tv6, col_tv7, col_tv8 = st.columns([2,1.3,1,1,1,1.5,1.8,1.8])
-                    with col_tv1:
-                        ho_ten_tv = st.text_input("Họ và tên", key="tv_ho_ten_family", placeholder="Nguyễn Văn A")
-                    with col_tv2:
-                        ngay_sinh_tv = st.text_input("Ngày sinh", key="tv_ngay_sinh_family", placeholder="dd/mm/yyyy")
-                    with col_tv3:
-                        gioi_tinh_tv = st.selectbox("Giới tính", ["Nam", "Nữ"], key="tv_gioi_tinh_family")
-                    with col_tv4:
-                        quoc_tich_tv = st.text_input("Quốc tịch", value="Việt Nam", key="tv_quoc_tich_family")
-                    with col_tv5:
-                        dan_toc_tv = st.text_input("Dân tộc", value="Kinh", key="tv_dan_toc_family")
-                    with col_tv6:
-                        quan_he_tv = st.selectbox("Quan hệ chủ hộ", ["", "Vợ", "Chồng", "Con", "Bố", "Mẹ", "Anh", "Chị", "Em", "Ông", "Bà", "Khác"], key="tv_quan_he_family")
-                    with col_tv7:
-                        tinh_tv = st.selectbox("Tỉnh/Thành phố", options=[""] + list(tinh_options.keys()), key="tv_tinh_family")
-                    with col_tv8:
-                        phuong_xa_tv_options = []
-                        if tinh_tv and tinh_tv != "":
-                            ma_tinh_tv = tinh_options.get(tinh_tv)
-                            db_temp4 = get_connection()
-                            c_temp4 = db_temp4.cursor()
-                            c_temp4.execute("SELECT ten_xa FROM danh_muc_phuong_xa WHERE ma_tinh = %s ORDER BY ten_xa", (ma_tinh_tv,))
-                            phuong_xa_tv_options = [row[0] for row in c_temp4.fetchall()]
-                            db_temp4.close()
-                        phuong_xa_tv = st.selectbox("Phường/Xã", options=[""] + phuong_xa_tv_options, key="tv_phuong_xa_family")
-                    
-                    col_btn_add1, col_btn_add2, col_btn_add3 = st.columns([1,1,1])
-                    with col_btn_add2:
-                        if st.form_submit_button("➕ Thêm thành viên vào danh sách", use_container_width=True):
-                            if ho_ten_tv:
-                                st.session_state.bhxh_family_members.append({
-                                    'ho_ten': ho_ten_tv, 'ngay_sinh': parse_date(ngay_sinh_tv), 'gioi_tinh': gioi_tinh_tv,
-                                    'quoc_tich': quoc_tich_tv, 'dan_toc': dan_toc_tv, 'quan_he': quan_he_tv,
-                                    'tinh': tinh_tv, 'phuong_xa': phuong_xa_tv
-                                })
+                    if st.session_state.bhxh_family_members:
+                        st.markdown("**Danh sách thành viên đã thêm:**")
+                        tv_data = []
+                        for i, tv in enumerate(st.session_state.bhxh_family_members):
+                            tv_data.append({"STT": i+1, "Họ và tên": tv['ho_ten'], "Ngày sinh": format_date(tv['ngay_sinh']),
+                                            "Giới tính": tv['gioi_tinh'], "Quốc tịch": tv['quoc_tich'], "Dân tộc": tv['dan_toc'],
+                                            "Quan hệ chủ hộ": tv['quan_he'], "Tỉnh/TP": tv['tinh'], "Phường/Xã": tv['phuong_xa']})
+                        df_tv = pd.DataFrame(tv_data)
+                        st.dataframe(df_tv, use_container_width=True, hide_index=True)
+                        col_del1, col_del2, col_del3 = st.columns([1,1,1])
+                        with col_del2:
+                            tv_to_delete = st.number_input("Nhập STT thành viên cần xóa:", min_value=1, max_value=len(st.session_state.bhxh_family_members), step=1, key="tv_delete_family")
+                            if st.button("🗑️ Xóa thành viên", key="btn_del_tv_family"):
+                                st.session_state.bhxh_family_members.pop(tv_to_delete - 1)
                                 st.rerun()
-                            else:
-                                st.error("Vui lòng nhập họ tên thành viên")
                     
-                    st.markdown("---")
-                    col_save1, col_save2, col_save3 = st.columns([1,2,1])
-                    with col_save2:
-                        if st.form_submit_button("💾 LƯU THÔNG TIN CHỦ HỘ", use_container_width=True, type="primary"):
-                            try:
-                                db = get_connection()
-                                c = db.cursor()
-                                c.execute("""UPDATE nhan_vien SET ho_ten_chu_ho=%s, so_cccd_chu_ho=%s, tinh_thanh_pho_chu_ho=%s, phuong_xa_chu_ho=%s,
-                                    tinh_thanh_pho_thuong_tru=%s, ma_tinh_thuong_tru=%s, phuong_xa_thuong_tru=%s, ma_phuong_xa_thuong_tru=%s WHERE id=%s""",
-                                    (ho_ten_chu_ho, so_cccd_chu_ho, tinh_chu_ho, phuong_xa_chu_ho, tinh_thuong_tru, ma_tinh_thuong_tru, phuong_xa_thuong_tru, ma_phuong_xa_thuong_tru, nv_id))
-                                c.execute("DELETE FROM phu_luc_gia_dinh WHERE nhan_vien_id = %s", (nv_id,))
-                                for tv in st.session_state.bhxh_family_members:
-                                    c.execute("""INSERT INTO phu_luc_gia_dinh (nhan_vien_id, ho_ten, ngay_sinh, gioi_tinh, quoc_tich, dan_toc, quan_he_voi_chu_ho, tinh_thanh_pho, phuong_xa) 
-                                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                                        (nv_id, tv['ho_ten'], tv['ngay_sinh'], tv['gioi_tinh'], tv['quoc_tich'], tv['dan_toc'], tv['quan_he'], tv['tinh'], tv['phuong_xa']))
-                                db.commit()
-                                db.close()
-                                del st.session_state['bhxh_family_nv_id']
-                                del st.session_state['bhxh_family_nv_name']
+                    with st.form(key=f"bhxh_family_form_{nv_id}"):
+                        st.markdown("**I. THÔNG TIN CHỦ HỘ:**")
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            ho_ten_chu_ho = st.text_input("Họ và tên chủ hộ", value=nv_data.get('ho_ten_chu_ho', '') if nv_data else '')
+                            so_cccd_chu_ho = st.text_input("Số CCCD chủ hộ", value=nv_data.get('so_cccd_chu_ho', '') if nv_data else '')
+                            tinh_chu_ho_index = 0
+                            tinh_chu_ho_current = nv_data.get('tinh_thanh_pho_chu_ho', '') if nv_data else ''
+                            if tinh_chu_ho_current in tinh_options:
+                                tinh_chu_ho_index = list(tinh_options.keys()).index(tinh_chu_ho_current) + 1
+                            tinh_chu_ho = st.selectbox("Tỉnh/Thành phố (chủ hộ)", options=[""] + list(tinh_options.keys()), index=tinh_chu_ho_index)
+                        with col2:
+                            phuong_xa_options = []
+                            phuong_xa_current = nv_data.get('phuong_xa_chu_ho', '') if nv_data else ''
+                            if tinh_chu_ho and tinh_chu_ho != "":
+                                ma_tinh = tinh_options.get(tinh_chu_ho)
+                                db_temp2 = get_connection()
+                                c_temp2 = db_temp2.cursor()
+                                c_temp2.execute("SELECT ten_xa FROM danh_muc_phuong_xa WHERE ma_tinh = %s ORDER BY ten_xa", (ma_tinh,))
+                                phuong_xa_options = [row[0] for row in c_temp2.fetchall()]
+                                db_temp2.close()
+                            phuong_xa_index = 0
+                            if phuong_xa_current in phuong_xa_options:
+                                phuong_xa_index = phuong_xa_options.index(phuong_xa_current) + 1
+                            phuong_xa_chu_ho = st.selectbox("Phường/Xã (chủ hộ)", options=[""] + phuong_xa_options, index=phuong_xa_index)
+                        
+                        st.markdown("**Thông tin thường trú:**")
+                        col_tt1, col_tt2 = st.columns(2)
+                        with col_tt1:
+                            tinh_thuong_tru_index = 0
+                            tinh_thuong_tru_current = nv_data.get('tinh_thanh_pho_thuong_tru', '') if nv_data else ''
+                            if tinh_thuong_tru_current in tinh_options:
+                                tinh_thuong_tru_index = list(tinh_options.keys()).index(tinh_thuong_tru_current) + 1
+                            tinh_thuong_tru = st.selectbox("Tỉnh/Thành phố thường trú", options=[""] + list(tinh_options.keys()), index=tinh_thuong_tru_index)
+                            ma_tinh_thuong_tru = tinh_options.get(tinh_thuong_tru, "") if tinh_thuong_tru else ""
+                        with col_tt2:
+                            phuong_xa_tt_options = []
+                            phuong_xa_tt_current = nv_data.get('phuong_xa_thuong_tru', '') if nv_data else ''
+                            if tinh_thuong_tru and tinh_thuong_tru != "":
+                                ma_tinh_tt = tinh_options.get(tinh_thuong_tru)
+                                db_temp3 = get_connection()
+                                c_temp3 = db_temp3.cursor()
+                                c_temp3.execute("SELECT ten_xa, ma_xa FROM danh_muc_phuong_xa WHERE ma_tinh = %s ORDER BY ten_xa", (ma_tinh_tt,))
+                                phuong_xa_tt_options = c_temp3.fetchall()
+                                db_temp3.close()
+                            phuong_xa_tt_index = 0
+                            ma_phuong_xa_thuong_tru = ""
+                            for i, px in enumerate(phuong_xa_tt_options):
+                                if px[0] == phuong_xa_tt_current:
+                                    phuong_xa_tt_index = i + 1
+                                    ma_phuong_xa_thuong_tru = px[1]
+                                    break
+                            phuong_xa_display_list = [""] + [px[0] for px in phuong_xa_tt_options]
+                            phuong_xa_thuong_tru = st.selectbox("Phường/Xã thường trú", options=phuong_xa_display_list, index=phuong_xa_tt_index)
+                            for px in phuong_xa_tt_options:
+                                if px[0] == phuong_xa_thuong_tru:
+                                    ma_phuong_xa_thuong_tru = px[1]
+                                    break
+                        
+                        st.markdown("**II. THÊM THÀNH VIÊN MỚI:**")
+                        st.caption("Điền thông tin vào các cột bên dưới, sau đó bấm '➕ Thêm thành viên'")
+                        col_tv1, col_tv2, col_tv3, col_tv4, col_tv5, col_tv6, col_tv7, col_tv8 = st.columns([2,1.3,1,1,1,1.5,1.8,1.8])
+                        with col_tv1:
+                            ho_ten_tv = st.text_input("Họ và tên", key="tv_ho_ten_family", placeholder="Nguyễn Văn A")
+                        with col_tv2:
+                            ngay_sinh_tv = st.text_input("Ngày sinh", key="tv_ngay_sinh_family", placeholder="dd/mm/yyyy")
+                        with col_tv3:
+                            gioi_tinh_tv = st.selectbox("Giới tính", ["Nam", "Nữ"], key="tv_gioi_tinh_family")
+                        with col_tv4:
+                            quoc_tich_tv = st.text_input("Quốc tịch", value="Việt Nam", key="tv_quoc_tich_family")
+                        with col_tv5:
+                            dan_toc_tv = st.text_input("Dân tộc", value="Kinh", key="tv_dan_toc_family")
+                        with col_tv6:
+                            quan_he_tv = st.selectbox("Quan hệ chủ hộ", ["", "Vợ", "Chồng", "Con", "Bố", "Mẹ", "Anh", "Chị", "Em", "Ông", "Bà", "Khác"], key="tv_quan_he_family")
+                        with col_tv7:
+                            tinh_tv = st.selectbox("Tỉnh/Thành phố", options=[""] + list(tinh_options.keys()), key="tv_tinh_family")
+                        with col_tv8:
+                            phuong_xa_tv_options = []
+                            if tinh_tv and tinh_tv != "":
+                                ma_tinh_tv = tinh_options.get(tinh_tv)
+                                db_temp4 = get_connection()
+                                c_temp4 = db_temp4.cursor()
+                                c_temp4.execute("SELECT ten_xa FROM danh_muc_phuong_xa WHERE ma_tinh = %s ORDER BY ten_xa", (ma_tinh_tv,))
+                                phuong_xa_tv_options = [row[0] for row in c_temp4.fetchall()]
+                                db_temp4.close()
+                            phuong_xa_tv = st.selectbox("Phường/Xã", options=[""] + phuong_xa_tv_options, key="tv_phuong_xa_family")
+                        
+                        col_btn_add1, col_btn_add2, col_btn_add3 = st.columns([1,1,1])
+                        with col_btn_add2:
+                            if st.form_submit_button("➕ Thêm thành viên vào danh sách", use_container_width=True):
+                                if ho_ten_tv:
+                                    st.session_state.bhxh_family_members.append({
+                                        'ho_ten': ho_ten_tv, 'ngay_sinh': parse_date(ngay_sinh_tv), 'gioi_tinh': gioi_tinh_tv,
+                                        'quoc_tich': quoc_tich_tv, 'dan_toc': dan_toc_tv, 'quan_he': quan_he_tv,
+                                        'tinh': tinh_tv, 'phuong_xa': phuong_xa_tv
+                                    })
+                                    st.rerun()
+                                else:
+                                    st.error("Vui lòng nhập họ tên thành viên")
+                        
+                        st.markdown("---")
+                        col_save1, col_save2, col_save3 = st.columns([1,2,1])
+                        with col_save2:
+                            if st.form_submit_button("💾 LƯU THÔNG TIN CHỦ HỘ", use_container_width=True, type="primary"):
+                                try:
+                                    db = get_connection()
+                                    c = db.cursor()
+                                    c.execute("""UPDATE nhan_vien SET ho_ten_chu_ho=%s, so_cccd_chu_ho=%s, tinh_thanh_pho_chu_ho=%s, phuong_xa_chu_ho=%s,
+                                        tinh_thanh_pho_thuong_tru=%s, ma_tinh_thuong_tru=%s, phuong_xa_thuong_tru=%s, ma_phuong_xa_thuong_tru=%s WHERE id=%s""",
+                                        (ho_ten_chu_ho, so_cccd_chu_ho, tinh_chu_ho, phuong_xa_chu_ho, tinh_thuong_tru, ma_tinh_thuong_tru, phuong_xa_thuong_tru, ma_phuong_xa_thuong_tru, nv_id))
+                                    c.execute("DELETE FROM phu_luc_gia_dinh WHERE nhan_vien_id = %s", (nv_id,))
+                                    for tv in st.session_state.bhxh_family_members:
+                                        c.execute("""INSERT INTO phu_luc_gia_dinh (nhan_vien_id, ho_ten, ngay_sinh, gioi_tinh, quoc_tich, dan_toc, quan_he_voi_chu_ho, tinh_thanh_pho, phuong_xa) 
+                                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                                            (nv_id, tv['ho_ten'], tv['ngay_sinh'], tv['gioi_tinh'], tv['quoc_tich'], tv['dan_toc'], tv['quan_he'], tv['tinh'], tv['phuong_xa']))
+                                    db.commit()
+                                    db.close()
+                                    del st.session_state['bhxh_family_nv_id']
+                                    del st.session_state['bhxh_family_nv_name']
+                                    del st.session_state['bhxh_family_members']
+                                    st.success(f"✅ Đã lưu thông tin hộ gia đình cho nhân viên {nv_name}")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"❌ Lỗi khi lưu: {e}")
+                    
+                    col_cancel1, col_cancel2, col_cancel3 = st.columns([1,2,1])
+                    with col_cancel2:
+                        if st.button("❌ HỦY BỎ", use_container_width=True):
+                            del st.session_state['bhxh_family_nv_id']
+                            del st.session_state['bhxh_family_nv_name']
+                            if 'bhxh_family_members' in st.session_state:
                                 del st.session_state['bhxh_family_members']
-                                st.success(f"✅ Đã lưu thông tin hộ gia đình cho nhân viên {nv_name}")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"❌ Lỗi khi lưu: {e}")
-                
-                col_cancel1, col_cancel2, col_cancel3 = st.columns([1,2,1])
-                with col_cancel2:
-                    if st.button("❌ HỦY BỎ", use_container_width=True):
-                        del st.session_state['bhxh_family_nv_id']
-                        del st.session_state['bhxh_family_nv_name']
-                        if 'bhxh_family_members' in st.session_state:
-                            del st.session_state['bhxh_family_members']
-                        st.rerun()
+                            st.rerun()
         
         else:
             st.info("Không có nhân viên nào đang làm việc")

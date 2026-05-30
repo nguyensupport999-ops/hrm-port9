@@ -202,44 +202,22 @@ def get_connection():
         database=os.getenv('DB_NAME')
     )
 
-# ========== LOGO SIDEBAR ==========
-import os
-import pathlib
-
-# Lấy đường dẫn thư mục hiện tại
-CURRENT_DIR = pathlib.Path(__file__).parent.absolute()
-
-# Thử nhiều đường dẫn khác nhau
-logo_paths = [
-    os.path.join(CURRENT_DIR, "logo_cty.png"),
-    "logo_cty.png",
-    os.path.join(CURRENT_DIR, "assets", "logo_cty.png"),
-    os.path.join(CURRENT_DIR, "static", "logo_cty.png"),
-]
-
-logo_found = False
-for logo_path in logo_paths:
-    if os.path.exists(logo_path):
+## ========== LOGO SIDEBAR ==========
+try:
+    # Thử đọc trực tiếp từ file
+    if os.path.exists("logo_cty.png"):
         with st.sidebar:
-            st.image(str(logo_path), use_container_width=True)
+            st.image("logo_cty.png", use_container_width=True)
             st.divider()
-            logo_found = True
-            print(f"Logo found at: {logo_path}")  # Debug
-        break
-
-if not logo_found:
-    # In ra để debug
-    st.sidebar.write(f"Current directory: {CURRENT_DIR}")
-    st.sidebar.write(f"Files in dir: {os.listdir(CURRENT_DIR)}")
-    
-    # Thử đọc từ URL nếu có trong secrets
-    try:
-        if 'logo_url' in st.secrets:
-            with st.sidebar:
-                st.image(st.secrets.logo_url, use_container_width=True)
-                st.divider()
-    except:
-        pass
+    else:
+        # Thử đọc từ thư mục con
+        import glob
+        png_files = glob.glob("**/*.png", recursive=True)
+        with st.sidebar:
+            st.write(f"PNG files found: {png_files}")
+except Exception as e:
+    with st.sidebar:
+        st.write(f"Logo error: {e}")
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
@@ -802,7 +780,9 @@ if menu == "📊 Dashboard":
                 st.error(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** - HÔM NAY LÀ NGÀY CUỐI HỢP ĐỒNG THỬ VIỆC!")
             else:
                 st.warning(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** còn **{x['ngay_con_lai']}** ngày sẽ kết thúc hợp đồng thử việc!")
-        
+    
+    auto_check_birthday()  
+    
     # ========== PHẦN SINH NHẬT HOÀN CHỈNH ==========
     st.subheader("🎂 SINH NHẬT")
 

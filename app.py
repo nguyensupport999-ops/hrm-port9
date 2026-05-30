@@ -26,18 +26,6 @@ import pathlib
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
-# ===== DEBUG: KIỂM TRA FILE LOGO =====
-CURRENT_DIR = pathlib.Path(__file__).parent.absolute()
-st.sidebar.write(f"📁 Thư mục hiện tại: `{CURRENT_DIR}`")
-
-try:
-    all_files = os.listdir(CURRENT_DIR)
-    png_files = [f for f in all_files if f.endswith('.png')]
-    st.sidebar.write(f"🖼️ File PNG tìm thấy: {png_files if png_files else 'KHÔNG CÓ'}")
-except Exception as e:
-    st.sidebar.write(f"❌ Lỗi đọc file: {e}")
-# ===== END DEBUG =====
-
 def to_float_or_none(val):
     """Chuyển đổi giá trị sang float hoặc None, tránh lỗi numeric"""
     if val is None or str(val).strip() == '':
@@ -104,58 +92,50 @@ Trân trọng!
     return loi_chuc
 
 def auto_check_birthday():
-    if 'last_birthday_check' not in st.session_state:
-        st.session_state.last_birthday_check = None
-    
-    # Khởi tạo list lưu sinh nhật hôm nay (dùng để hiện banner cố định)
     if 'sinh_nhat_hom_nay_list' not in st.session_state:
         st.session_state.sinh_nhat_hom_nay_list = []
 
-    today = date.today()
+    today_str = date.today().strftime('%Y-%m-%d')
     
-    if st.session_state.last_birthday_check != today:
-        try:
-            db = get_connection()
-            c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            c.execute("""
-                SELECT id, ma_nv, ho_ten, ngay_sinh, gioi_tinh, dien_thoai, email_lien_he
-                FROM nhan_vien 
-                WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
-                AND ngay_sinh IS NOT NULL
-                AND EXTRACT(MONTH FROM ngay_sinh) = EXTRACT(MONTH FROM CURRENT_DATE)
-                AND EXTRACT(DAY FROM ngay_sinh) = EXTRACT(DAY FROM CURRENT_DATE)
-            """)
-            birthday_today = c.fetchall()
-            
-            if birthday_today and st.session_state.get('logged_in', False):
-                # 👇 Lưu vào session_state để hiện banner cố định
-                st.session_state.sinh_nhat_hom_nay_list = [
-                    {
-                        'ho_ten': nv['ho_ten'],
-                        'ma_nv': nv['ma_nv'],
-                        'xung_ho': get_xung_ho(nv.get('gioi_tinh'), nv['ho_ten'])
-                    }
-                    for nv in birthday_today
-                ]
-                
-                # Toast vẫn giữ để thông báo nhanh
-                for nv in birthday_today:
-                    xung_ho = get_xung_ho(nv.get('gioi_tinh'), nv['ho_ten'])
-                    st.toast(f"🎂 Sinh nhật {xung_ho} {nv['ho_ten']} hôm nay!", icon="🎂")
-                    
-                    try:
-                        tg_msg = f"🎂 SINH NHẬT HÔM NAY 🎂\n\n{xung_ho}: {nv['ho_ten']}\nMã NV: {nv['ma_nv']}"
-                        gui_telegram(tg_msg)
-                    except:
-                        pass
-            else:
-                st.session_state.sinh_nhat_hom_nay_list = []
-            
-            st.session_state.last_birthday_check = today
-            db.close()
-        except Exception as e:
-            # 👇 Hiện lỗi thay vì im lặng
-            st.warning(f"⚠️ Không thể kiểm tra sinh nhật: {e}")
+    # Key mới: gắn với cả ngày lẫn trạng thái login
+    # → mỗi lần login lại đều query DB, không bị cache nhầm
+    check_key = f"{today_str}_{st.session_state.get('username', 'guest')}"
+    
+    if st.session_state.get('last_birthday_check') == check_key:
+        return  # Đã check cho user này hôm nay rồi
+    
+    try:
+        db = get_connection()
+        c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        c.execute("""
+            SELECT id, ma_nv, ho_ten, ngay_sinh, gioi_tinh, dien_thoai, email_lien_he
+            FROM nhan_vien 
+            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            AND ngay_sinh IS NOT NULL
+            AND EXTRACT(MONTH FROM ngay_sinh) = EXTRACT(MONTH FROM CURRENT_DATE)
+            AND EXTRACT(DAY FROM ngay_sinh) = EXTRACT(DAY FROM CURRENT_DATE)
+        """)
+        birthday_today = c.fetchall()
+        db.close()
+        
+        st.session_state.sinh_nhat_hom_nay_list = [
+            {
+                'ho_ten': nv['ho_ten'],
+                'ma_nv': nv['ma_nv'],
+                'xung_ho': get_xung_ho(nv.get('gioi_tinh'), nv['ho_ten'])
+            }
+            for nv in birthday_today
+        ]
+        
+        for nv in birthday_today:
+            xung_ho = get_xung_ho(nv.get('gioi_tinh'), nv['ho_ten'])
+            st.toast(f"🎂 Sinh nhật {xung_ho} {nv['ho_ten']} hôm nay!", icon="🎂")
+        
+        # Đánh dấu đã check — dùng check_key gắn với username
+        st.session_state.last_birthday_check = check_key
+        
+    except Exception as e:
+        st.warning(f"⚠️ Không thể kiểm tra sinh nhật: {e}")
 
 # Import config - ưu tiên config.py (local), fallback to config_template (cloud)
 try:

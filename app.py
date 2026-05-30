@@ -620,9 +620,9 @@ if not st.session_state.logged_in:
 
 # Menu theo role
 if st.session_state.role == "admin":
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI"]
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI","👆 Chấm công (Face ID)","💰 Tính thu nhập"]
 else:  # viewer
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo 01/PLI"]
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo 01/PLI","👆 Chấm công (Face ID)","💰 Tính thu nhập"]
 menu = st.sidebar.radio("📋 Menu", menu_options)
 st.sidebar.divider()
 st.sidebar.caption(f"👤 {st.session_state.username} ({st.session_state.role})")
@@ -813,7 +813,12 @@ elif menu == "👤 Ứng viên":
                                 if loai_hd_chuyen == "Thử việc":
                                     trang_thai_nv = 'THU_VIEC'
                                     trang_thai_bhxh = 'CHUA_DONG'
-                                    c.execute("SELECT COUNT(*) FROM nhan_vien WHERE so_hdld LIKE '%/HĐTV-CHL'")
+                                    c.execute("""
+                                        SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) 
+                                        FROM nhan_vien 
+                                        WHERE so_hdld LIKE '%/HĐTV-CHL' 
+                                        AND trang_thai IN ('THU_VIEC', 'DANG_LAM')
+                                    """)
                                     tv_cnt = c.fetchone()[0] + 1
                                     so_hd = f"{tv_cnt:02d}/{nhl.year}/HĐTV-CHL"
                                 else:
@@ -821,7 +826,13 @@ elif menu == "👤 Ứng viên":
                                     trang_thai_bhxh = 'DANG_DONG'
                                     if not tbd_val:
                                         tbd_val = nhl
-                                    c.execute("SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)),0)+1 FROM nhan_vien WHERE so_hdld LIKE '%/HĐLĐ-CHL'")
+                                    c.execute("""
+                                        SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) 
+                                        FROM nhan_vien 
+                                        WHERE so_hdld LIKE '%/HĐLĐ-CHL' 
+                                        AND trang_thai = 'DANG_LAM'
+                                        AND loai_hop_dong != 'Thử việc'
+                                    """)
                                     so_hd_cnt = c.fetchone()[0] or 0
                                     so_hd = f"{so_hd_cnt + 1:02d}/{nhl.year}/HĐLĐ-CHL"
                                 
@@ -1269,14 +1280,26 @@ elif menu == "✅ Nhân viên":
                                     nhl = parse_date(nvl) or date.today()
                                     if lhd == "Thử việc":
                                         ttnv, ttbh, tbd_val = 'THU_VIEC', 'CHUA_DONG', None
-                                        c.execute("SELECT COUNT(*) FROM nhan_vien WHERE so_hdld LIKE '%/HĐTV-CHL'")
+                                        c.execute("""
+                                            SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) 
+                                            FROM nhan_vien 
+                                            WHERE so_hdld LIKE '%/HĐTV-CHL'
+                                            AND trang_thai IN ('THU_VIEC', 'DANG_LAM')
+                                        """)
                                         tv_cnt = c.fetchone()[0] + 1
                                         so_hd = f"{tv_cnt:02d}/{nhl.year}/HĐTV-CHL"
                                     else:
                                         ttnv, ttbh = 'DANG_LAM', 'DANG_DONG'
                                         tbd_val = parse_date(tbd) or parse_date(nvl)
-                                        c.execute("SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)),0)+1 FROM nhan_vien WHERE so_hdld LIKE '%/HĐLĐ-CHL'")
-                                        so_hd = f"{int(c.fetchone()[0]):02d}/{nhl.year}/HĐLĐ-CHL"
+                                        c.execute("""
+                                            SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) 
+                                            FROM nhan_vien 
+                                            WHERE so_hdld LIKE '%/HĐLĐ-CHL'
+                                            AND trang_thai = 'DANG_LAM'
+                                            AND loai_hop_dong != 'Thử việc'
+                                        """)
+                                        so_hd_cnt = c.fetchone()[0] or 0
+                                        so_hd = f"{so_hd_cnt + 1:02d}/{nhl.year}/HĐLĐ-CHL"
                                     c.execute("""INSERT INTO nhan_vien (STT, ma_nv, so_hdld, ho_ten, chuc_danh_nghe, ngay_sinh, gioi_tinh,
                                     so_cccd, ngay_cap_cccd, noi_cap_cccd, nguyen_quan, thuong_tru,
                                     dien_thoai, email, email_lien_he, ho_so, luong_bao_hiem, ma_so_bhxh, ngay_vao_lam,
@@ -1519,19 +1542,22 @@ elif menu == "✅ Nhân viên":
                                             key=f"ngay_hl_{nv_id_key}"
                                         )
                                         
+                                        # Trong phần chuyển đổi từ THU_VIEC sang DANG_LAM
                                         current_year = datetime.now().year
-                                        
+
                                         db_temp2 = get_connection()
                                         c_temp2 = db_temp2.cursor()
                                         c_temp2.execute("""
                                             SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) as max_stt
                                             FROM nhan_vien 
-                                            WHERE so_hdld LIKE %s AND trang_thai IN ('DANG_LAM', 'THU_VIEC')
+                                            WHERE so_hdld LIKE %s 
+                                            AND trang_thai = 'DANG_LAM'
+                                            AND loai_hop_dong != 'Thử việc'
                                         """, (f'%/{current_year}/HĐLĐ-CHL',))
                                         result = c_temp2.fetchone()
                                         max_stt = result[0] if result else 0
                                         db_temp2.close()
-                                        
+
                                         next_stt = max_stt + 1
                                         stt_str = str(next_stt).zfill(2)
                                         so_hd_moi = f"{stt_str}/{current_year}/HĐLĐ-CHL"
@@ -2426,6 +2452,91 @@ elif menu == "✅ Nhân viên":
         else:
             st.info("Không có biến động nhân sự trong kỳ.")
 
+# ========== CHẤM CÔNG (FACE ID) ==========
+elif menu == "👆 Chấm công (Face ID)":
+    st.title("👆 Chấm công bằng Face ID")
+    st.caption("Quản lý chấm công nhân viên bằng công nghệ nhận diện khuôn mặt")
+    
+    st.info("""
+    ### 🚧 Tính năng đang hoàn thiện
+    
+    Nội dung đang được phát triển. Các tính năng sắp ra mắt:
+    - ✅ Đăng ký khuôn mặt cho nhân viên
+    - ✅ Chấm công bằng camera
+    - ✅ Lịch sử chấm công theo thời gian thực
+    - ✅ Báo cáo đi muộn, về sớm
+    - ✅ Tổng hợp công theo tháng
+    - ✅ Tích hợp với tính lương tự động
+    
+    ⏳ **Dự kiến hoàn thành: Quý 4/2026**
+    """)
+    
+    # Hiển thị thống kê demo
+    with st.expander("📊 Thống kê chấm công hôm nay (Demo)"):
+        col_demo1, col_demo2, col_demo3 = st.columns(3)
+        col_demo1.metric("Đã chấm công", "0/0", "0%")
+        col_demo2.metric("Đi làm đúng giờ", "0", "---")
+        col_demo3.metric("Đi muộn", "0", "---")
+        
+        st.markdown("**Danh sách nhân viên chưa chấm công:**")
+        st.caption("Chưa có dữ liệu - Tính năng đang phát triển")
+
+# ========== TÍNH THU NHẬP ==========
+elif menu == "💰 Tính thu nhập":
+    st.title("💰 Tính thu nhập (Lương & Phụ cấp)")
+    st.caption("Tính toán lương, thưởng và các khoản phụ cấp cho nhân viên")
+    
+    st.info("""
+    ### 🚧 Tính năng đang hoàn thiện
+    
+    Nội dung đang được phát triển. Các tính năng sắp ra mắt:
+    - ✅ Tính lương cơ bản theo hệ số
+    - ✅ Tính các khoản phụ cấp (chức vụ, thâm niên, trách nhiệm...)
+    - ✅ Tính thuế TNCN
+    - ✅ Tính các khoản khấu trừ (BHXH, BHYT, BHTN, đoàn phí...)
+    - ✅ Tổng hợp bảng lương tháng
+    - ✅ Xuất bảng lương Excel/PDF
+    - ✅ Gửi bảng lương qua email/Zalo cho nhân viên
+    
+    ⏳ **Dự kiến hoàn thành: Quý 4/2026**
+    """)
+    
+    # Thêm form tính thử nghiệm demo
+    with st.expander("🧪 Thử nghiệm tính lương (Demo)"):
+        db_demo = get_connection()
+        c_demo = db_demo.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        c_demo.execute("SELECT id, ma_nv, ho_ten FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY ho_ten LIMIT 10")
+        nv_list = c_demo.fetchall()
+        db_demo.close()
+        
+        if nv_list:
+            nv_options = {f"{nv['ma_nv']} - {nv['ho_ten']}": nv['id'] for nv in nv_list}
+            selected_nv = st.selectbox("Chọn nhân viên để tính thử:", list(nv_options.keys()))
+            
+            col_luong1, col_luong2 = st.columns(2)
+            with col_luong1:
+                luong_co_ban = st.number_input("Lương cơ bản (VNĐ)", min_value=0, value=5000000, step=500000)
+                phu_cap_chuc_vu = st.number_input("Phụ cấp chức vụ (VNĐ)", min_value=0, value=0, step=100000)
+            with col_luong2:
+                phu_cap_tnvk = st.number_input("Phụ cấp thâm niên VK (%)", min_value=0.0, value=0.0, step=0.5)
+                phu_cap_tnn = st.number_input("Phụ cấp thâm niên nghề (%)", min_value=0.0, value=0.0, step=0.5)
+            
+            tong_luong = luong_co_ban + phu_cap_chuc_vu
+            tong_luong += luong_co_ban * phu_cap_tnvk / 100
+            tong_luong += luong_co_ban * phu_cap_tnn / 100
+            
+            st.markdown("---")
+            st.subheader("📊 Kết quả tính thử:")
+            
+            col_kq1, col_kq2, col_kq3 = st.columns(3)
+            col_kq1.metric("Lương cơ bản", f"{luong_co_ban:,.0f} VNĐ")
+            col_kq2.metric("Phụ cấp", f"{(tong_luong - luong_co_ban):,.0f} VNĐ")
+            col_kq3.metric("Tổng thu nhập", f"{tong_luong:,.0f} VNĐ")
+            
+            st.caption("⚠️ Đây chỉ là tính toán tham khảo. Tính năng chính thức sẽ tích hợp với dữ liệu nhân viên và chấm công.")
+        else:
+            st.warning("Chưa có nhân viên nào trong hệ thống để thử nghiệm!")
+
 # ========== UPLOAD ==========
 elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
     st.title("📁 Quản lý hồ sơ nhân viên")
@@ -2605,7 +2716,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
 elif menu == "📋 BHXH":
     st.title("📋 Quản lý BHXH")
     
-    t1, t2 = st.tabs(["📊 Tổng quan", "📝 Báo cáo tăng/giảm D02-LT"])
+    t1, t2, t3 = st.tabs(["📊 Tổng quan", "📝 Báo cáo tăng/giảm D02-LT", "💰 Dự toán đóng BHXH"])
     
     with t1:
         st.subheader("📊 Tổng quan tình hình đóng BHXH")
@@ -2902,7 +3013,68 @@ elif menu == "📋 BHXH":
                 st.info("📭 Không có biến động lao động trong kỳ để xuất báo cáo")
         else:
             st.info("🔒 Chỉ Admin mới có quyền xuất file Excel báo cáo BHXH. Bạn đang ở chế độ xem (Viewer).")
-
+    
+    with t3:
+    st.subheader("💰 DỰ TOÁN ĐÓNG BHXH")
+    st.caption("Tính toán các khoản phải nộp Bảo hiểm xã hội, Bảo hiểm y tế, Bảo hiểm thất nghiệp")
+    
+    st.info("""
+    ### 🚧 Tính năng đang hoàn thiện
+    
+    Nội dung đang được phát triển. Các tính năng sắp ra mắt:
+    - ✅ Tính toán mức đóng BHXH theo lương cơ sở
+    - ✅ Tính toán các khoản phụ cấp tính đóng BHXH
+    - ✅ Bảng kê chi tiết từng nhân viên
+    - ✅ Xuất báo cáo kê khai BHXH theo mẫu quy định
+    - ✅ Tổng hợp số tiền phải nộp theo tháng/quý/năm
+    
+    ⏳ **Dự kiến hoàn thành: Quý 3/2026**
+    """)
+    
+    # Thêm một số thông tin tham khảo
+    with st.expander("📌 Thông tin tham khảo về tỷ lệ đóng BHXH hiện hành"):
+        st.markdown("""
+        **Tỷ lệ trích BHXH, BHYT, BHTN theo quy định hiện hành:**
+        
+        | Loại | Doanh nghiệp | Người lao động | Tổng |
+        |------|-------------|----------------|------|
+        | BHXH | 17.5% | 8% | 25.5% |
+        | BHYT | 3% | 1.5% | 4.5% |
+        | BHTN | 1% | 1% | 2% |
+        | BHTNLĐ-BNN | 0.5% | 0% | 0.5% |
+        | **Tổng cộng** | **22%** | **10.5%** | **32.5%** |
+        
+        *Lưu ý: Tỷ lệ có thể thay đổi theo quy định mới của Nhà nước.*
+        """)
+    
+    # Thêm form nhập thử nghiệm (có thể comment lại sau)
+    with st.expander("🧪 Thử nghiệm tính toán (Demo)"):
+        col_demo1, col_demo2 = st.columns(2)
+        with col_demo1:
+            luong_demo = st.number_input("Lương tháng (VNĐ)", min_value=0, value=5000000, step=500000)
+        with col_demo2:
+            chon_ty_le = st.selectbox("Áp dụng tỷ lệ", ["Theo quy định", "Tùy chỉnh"])
+        
+        if chon_ty_le == "Theo quy định":
+            ty_le_nld = 10.5
+            ty_le_nsdl = 22.0
+        else:
+            col_ty1, col_ty2 = st.columns(2)
+            with col_ty1:
+                ty_le_nld = st.number_input("Tỷ lệ NLĐ (%)", min_value=0.0, max_value=50.0, value=10.5, step=0.5)
+            with col_ty2:
+                ty_le_nsdl = st.number_input("Tỷ lệ NSDLĐ (%)", min_value=0.0, max_value=50.0, value=22.0, step=0.5)
+        
+        tien_nld = luong_demo * ty_le_nld / 100
+        tien_nsdl = luong_demo * ty_le_nsdl / 100
+        tong_tien = tien_nld + tien_nsdl
+        
+        st.markdown("---")
+        col_kq1, col_kq2, col_kq3 = st.columns(3)
+        col_kq1.metric("NLĐ đóng", f"{tien_nld:,.0f} VNĐ", f"({ty_le_nld}%)")
+        col_kq2.metric("NSDLĐ đóng", f"{tien_nsdl:,.0f} VNĐ", f"({ty_le_nsdl}%)")
+        col_kq3.metric("Tổng tiền", f"{tong_tien:,.0f} VNĐ", "cả 2 bên")
+        
 # ========== BÁO CÁO TÌNH HÌNH SỬ DỤNG LAO ĐỘNG MẪU 01/PLI (EXCEL) ==========
 elif menu == "📋 Báo cáo 01/PLI":
     st.title("📋 Báo cáo tình hình sử dụng lao động")

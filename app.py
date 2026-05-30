@@ -3015,65 +3015,65 @@ elif menu == "📋 BHXH":
             st.info("🔒 Chỉ Admin mới có quyền xuất file Excel báo cáo BHXH. Bạn đang ở chế độ xem (Viewer).")
     
     with t3:
-    st.subheader("💰 DỰ TOÁN ĐÓNG BHXH")
-    st.caption("Tính toán các khoản phải nộp Bảo hiểm xã hội, Bảo hiểm y tế, Bảo hiểm thất nghiệp")
-    
-    st.info("""
-    ### 🚧 Tính năng đang hoàn thiện
-    
-    Nội dung đang được phát triển. Các tính năng sắp ra mắt:
-    - ✅ Tính toán mức đóng BHXH theo lương cơ sở
-    - ✅ Tính toán các khoản phụ cấp tính đóng BHXH
-    - ✅ Bảng kê chi tiết từng nhân viên
-    - ✅ Xuất báo cáo kê khai BHXH theo mẫu quy định
-    - ✅ Tổng hợp số tiền phải nộp theo tháng/quý/năm
-    
-    ⏳ **Dự kiến hoàn thành: Quý 3/2026**
-    """)
-    
-    # Thêm một số thông tin tham khảo
-    with st.expander("📌 Thông tin tham khảo về tỷ lệ đóng BHXH hiện hành"):
-        st.markdown("""
-        **Tỷ lệ trích BHXH, BHYT, BHTN theo quy định hiện hành:**
+        st.subheader("💰 DỰ TOÁN ĐÓNG BHXH")
+        st.caption("Tính toán các khoản phải nộp Bảo hiểm xã hội, Bảo hiểm y tế, Bảo hiểm thất nghiệp")
         
-        | Loại | Doanh nghiệp | Người lao động | Tổng |
-        |------|-------------|----------------|------|
-        | BHXH | 17.5% | 8% | 25.5% |
-        | BHYT | 3% | 1.5% | 4.5% |
-        | BHTN | 1% | 1% | 2% |
-        | BHTNLĐ-BNN | 0.5% | 0% | 0.5% |
-        | **Tổng cộng** | **22%** | **10.5%** | **32.5%** |
+        st.info("""
+        ### 🚧 Tính năng đang hoàn thiện
         
-        *Lưu ý: Tỷ lệ có thể thay đổi theo quy định mới của Nhà nước.*
+        Nội dung đang được phát triển. Các tính năng sắp ra mắt:
+        - ✅ Tính toán mức đóng BHXH theo lương cơ sở
+        - ✅ Tính toán các khoản phụ cấp tính đóng BHXH
+        - ✅ Bảng kê chi tiết từng nhân viên
+        - ✅ Xuất báo cáo kê khai BHXH theo mẫu quy định
+        - ✅ Tổng hợp số tiền phải nộp theo tháng/quý/năm
+        
+        ⏳ **Dự kiến hoàn thành: Quý 3/2026**
         """)
-    
-    # Thêm form nhập thử nghiệm (có thể comment lại sau)
-    with st.expander("🧪 Thử nghiệm tính toán (Demo)"):
-        col_demo1, col_demo2 = st.columns(2)
-        with col_demo1:
-            luong_demo = st.number_input("Lương tháng (VNĐ)", min_value=0, value=5000000, step=500000)
-        with col_demo2:
-            chon_ty_le = st.selectbox("Áp dụng tỷ lệ", ["Theo quy định", "Tùy chỉnh"])
         
-        if chon_ty_le == "Theo quy định":
-            ty_le_nld = 10.5
-            ty_le_nsdl = 22.0
-        else:
-            col_ty1, col_ty2 = st.columns(2)
-            with col_ty1:
-                ty_le_nld = st.number_input("Tỷ lệ NLĐ (%)", min_value=0.0, max_value=50.0, value=10.5, step=0.5)
-            with col_ty2:
-                ty_le_nsdl = st.number_input("Tỷ lệ NSDLĐ (%)", min_value=0.0, max_value=50.0, value=22.0, step=0.5)
+        # Thêm một số thông tin tham khảo
+        with st.expander("📌 Thông tin tham khảo về tỷ lệ đóng BHXH hiện hành"):
+            st.markdown("""
+            **Tỷ lệ trích BHXH, BHYT, BHTN theo quy định hiện hành:**
+            
+            | Loại | Doanh nghiệp | Người lao động | Tổng |
+            |------|-------------|----------------|------|
+            | BHXH | 17.5% | 8% | 25.5% |
+            | BHYT | 3% | 1.5% | 4.5% |
+            | BHTN | 1% | 1% | 2% |
+            | BHTNLĐ-BNN | 0.5% | 0% | 0.5% |
+            | **Tổng cộng** | **22%** | **10.5%** | **32.5%** |
+            
+            *Lưu ý: Tỷ lệ có thể thay đổi theo quy định mới của Nhà nước.*
+            """)
         
-        tien_nld = luong_demo * ty_le_nld / 100
-        tien_nsdl = luong_demo * ty_le_nsdl / 100
-        tong_tien = tien_nld + tien_nsdl
-        
-        st.markdown("---")
-        col_kq1, col_kq2, col_kq3 = st.columns(3)
-        col_kq1.metric("NLĐ đóng", f"{tien_nld:,.0f} VNĐ", f"({ty_le_nld}%)")
-        col_kq2.metric("NSDLĐ đóng", f"{tien_nsdl:,.0f} VNĐ", f"({ty_le_nsdl}%)")
-        col_kq3.metric("Tổng tiền", f"{tong_tien:,.0f} VNĐ", "cả 2 bên")
+        # Thêm form nhập thử nghiệm (có thể comment lại sau)
+        with st.expander("🧪 Thử nghiệm tính toán (Demo)"):
+            col_demo1, col_demo2 = st.columns(2)
+            with col_demo1:
+                luong_demo = st.number_input("Lương tháng (VNĐ)", min_value=0, value=5000000, step=500000)
+            with col_demo2:
+                chon_ty_le = st.selectbox("Áp dụng tỷ lệ", ["Theo quy định", "Tùy chỉnh"])
+            
+            if chon_ty_le == "Theo quy định":
+                ty_le_nld = 10.5
+                ty_le_nsdl = 22.0
+            else:
+                col_ty1, col_ty2 = st.columns(2)
+                with col_ty1:
+                    ty_le_nld = st.number_input("Tỷ lệ NLĐ (%)", min_value=0.0, max_value=50.0, value=10.5, step=0.5)
+                with col_ty2:
+                    ty_le_nsdl = st.number_input("Tỷ lệ NSDLĐ (%)", min_value=0.0, max_value=50.0, value=22.0, step=0.5)
+            
+            tien_nld = luong_demo * ty_le_nld / 100
+            tien_nsdl = luong_demo * ty_le_nsdl / 100
+            tong_tien = tien_nld + tien_nsdl
+            
+            st.markdown("---")
+            col_kq1, col_kq2, col_kq3 = st.columns(3)
+            col_kq1.metric("NLĐ đóng", f"{tien_nld:,.0f} VNĐ", f"({ty_le_nld}%)")
+            col_kq2.metric("NSDLĐ đóng", f"{tien_nsdl:,.0f} VNĐ", f"({ty_le_nsdl}%)")
+            col_kq3.metric("Tổng tiền", f"{tong_tien:,.0f} VNĐ", "cả 2 bên")
         
 # ========== BÁO CÁO TÌNH HÌNH SỬ DỤNG LAO ĐỘNG MẪU 01/PLI (EXCEL) ==========
 elif menu == "📋 Báo cáo 01/PLI":

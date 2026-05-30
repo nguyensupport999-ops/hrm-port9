@@ -22,6 +22,49 @@ from PIL import Image
 import qrcode
 from io import BytesIO
 
+def auto_check_birthday():
+    """Tự động kiểm tra và thông báo sinh nhật hàng ngày"""
+    if 'last_birthday_check' not in st.session_state:
+        st.session_state.last_birthday_check = None
+    
+    today = date.today()
+    
+    # Kiểm tra mỗi ngày 1 lần
+    if st.session_state.last_birthday_check != today:
+        try:
+            db = get_connection()
+            c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            
+            # Lấy sinh nhật hôm nay
+            c.execute("""
+                SELECT id, ma_nv, ho_ten, ngay_sinh, gioi_tinh, dien_thoai, email_lien_he
+                FROM nhan_vien 
+                WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+                AND ngay_sinh IS NOT NULL
+                AND EXTRACT(MONTH FROM ngay_sinh) = EXTRACT(MONTH FROM CURRENT_DATE)
+                AND EXTRACT(DAY FROM ngay_sinh) = EXTRACT(DAY FROM CURRENT_DATE)
+            """)
+            birthday_today = c.fetchall()
+            
+            if birthday_today and st.session_state.get('logged_in', False):
+                # Hiển thị notification trong session
+                for nv in birthday_today:
+                    xung_ho = get_xung_ho(nv.get('gioi_tinh'), nv['ho_ten'])
+                    msg = f"🎉 Hôm nay là sinh nhật {xung_ho} {nv['ho_ten']}! 🎂"
+                    st.toast(msg, icon="🎂")
+                    
+                    # Gửi Telegram notification nếu có cấu hình
+                    try:
+                        tg_msg = f"🎂 SINH NHẬT HÔM NAY 🎂\n\n{xung_ho}: {nv['ho_ten']}\nMã NV: {nv['ma_nv']}\nNgày sinh: {format_date(nv['ngay_sinh'])}"
+                        gui_telegram(tg_msg)
+                    except:
+                        pass
+            
+            st.session_state.last_birthday_check = today
+            db.close()
+        except Exception as e:
+            print(f"Lỗi auto check birthday: {e}")
+
 # Import config - ưu tiên config.py (local), fallback to config_template (cloud)
 try:
     from config import COMPANY_CONFIG, BHXH_CONFIG, EMAIL_CONFIG, TELEGRAM_CONFIG, USERS
@@ -38,6 +81,52 @@ def to_float_or_none(val):
         return float(val)
     except:
         return None
+
+def get_xung_ho(gioi_tinh, ho_ten=""):
+    """
+    Lấy cách xưng hô phù hợp dựa trên giới tính
+    - Nếu giới tính là Nam -> trả về "Anh"
+    - Nếu giới tính là Nữ -> trả về "Chị"
+    - Nếu giới tính là None hoặc rỗng -> trả về "Anh/Chị"
+    """
+    if gioi_tinh == "Nam":
+        return "Anh"
+    elif gioi_tinh == "Nữ":
+        return "Chị"
+    else:
+        return "Anh/Chị"
+
+def get_loi_chuc_sinh_nhat(ho_ten, gioi_tinh, tuoi=None):
+    """
+    Tạo lời chúc sinh nhật có xưng hô phù hợp
+    """
+    xung_ho = get_xung_ho(gioi_tinh, ho_ten)
+    
+    loi_chuc = f"""
+🎉🎂 CHÚC MỪNG SINH NHẬT {xung_ho.upper()} {ho_ten.upper()} 🎂🎉
+
+Thân gửi {xung_ho}: {ho_ten},
+
+Nhân dịp sinh nhật của {xung_ho}, thay mặt Ban Lãnh đạo Công ty CP Cảng Hòn La, 
+xin gửi đến {xung_ho} những lời chúc tốt đẹp nhất.
+
+Chúc {xung_ho} luôn mạnh khỏe, hạnh phúc và thành công trong công việc 
+cũng như trong cuộc sống.
+
+"""
+    
+    if tuoi:
+        loi_chuc += f"Chúc mừng {xung_ho} tròn {tuoi} tuổi! 🎂\n\n"
+    
+    loi_chuc += f"""
+Cảm ơn {xung_ho} đã luôn đồng hành và đóng góp cho sự phát triển của Công ty.
+
+Trân trọng!
+
+🏗️ CÔNG TY CP CẢNG HÒN LA
+    """
+    
+    return loi_chuc
 
 def da_chuyen_doi_chinh_thuc(nv_id):
     """Kiểm tra xem nhân viên đã có quyết định chuyển từ thử việc sang chính thức chưa"""
@@ -101,12 +190,27 @@ def get_connection():
         database=os.getenv('DB_NAME')
     )
 
-# Chèn logo vào sidebar
-logo_path = "logo_cty.png"
-if os.path.exists(logo_path):
-    with st.sidebar:
-        st.image(logo_path, use_container_width=True)
-        st.divider()
+# ========== LOGO SIDEBAR ==========
+# Thử nhiều đường dẫn khác nhau cho logo
+logo_paths = ["logo_cty.png", "assets/logo_cty.png", "static/logo_cty.png", "logo.png"]
+logo_found = False
+for logo_path in logo_paths:
+    if os.path.exists(logo_path):
+        with st.sidebar:
+            st.image(logo_path, use_container_width=True)
+            st.divider()
+            logo_found = True
+        break
+
+if not logo_found:
+    # Thử đọc từ URL nếu có trong secrets
+    try:
+        if 'logo_url' in st.secrets:
+            with st.sidebar:
+                st.image(st.secrets.logo_url, use_container_width=True)
+                st.divider()
+    except:
+        pass
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
@@ -679,9 +783,338 @@ if menu == "📊 Dashboard":
                 st.error(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** - HÔM NAY LÀ NGÀY CUỐI HỢP ĐỒNG THỬ VIỆC!")
             else:
                 st.warning(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** còn **{x['ngay_con_lai']}** ngày sẽ kết thúc hợp đồng thử việc!")
+    auto_check_birthday()
     
-    # Phần sinh nhật (bỏ qua)
-    sn_list = []
+    # ========== PHẦN SINH NHẬT HOÀN CHỈNH ==========
+    st.subheader("🎂 SINH NHẬT")
+
+    # Tạo tabs cho sinh nhật
+    tab_trong_thang, tab_hom_nay, tab_lich_su = st.tabs(["📅 Sinh nhật trong tháng", "🎉 Hôm nay", "📜 Lịch sử đã gửi"])
+
+    with tab_trong_thang:
+        # Lấy danh sách sinh nhật trong tháng
+        c.execute("""
+            SELECT id, ma_nv, ho_ten, ngay_sinh, gioi_tinh, dien_thoai, email_lien_he, chuc_danh_nghe
+            FROM nhan_vien 
+            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            AND ngay_sinh IS NOT NULL
+            AND EXTRACT(MONTH FROM ngay_sinh) = EXTRACT(MONTH FROM CURRENT_DATE)
+            ORDER BY EXTRACT(DAY FROM ngay_sinh) ASC
+        """)
+        sinh_nhat_trong_thang = c.fetchall()
+        
+        if sinh_nhat_trong_thang:
+            st.success(f"📅 Tháng {datetime.now().month} có **{len(sinh_nhat_trong_thang)}** nhân viên có sinh nhật:")
+            
+            # Hiển thị dạng grid
+            cols = st.columns(3)
+            for idx, sn in enumerate(sinh_nhat_trong_thang):
+                with cols[idx % 3]:
+                    ngay_sinh = sn.get('ngay_sinh')
+                    if ngay_sinh:
+                        # Tính tuổi
+                        today = date.today()
+                        tuoi = today.year - ngay_sinh.year
+                        if today.month < ngay_sinh.month or (today.month == ngay_sinh.month and today.day < ngay_sinh.day):
+                            tuoi -= 1
+                        
+                        # Tính ngày sinh nhật trong năm nay
+                        sinh_nhat_nam_nay = date(today.year, ngay_sinh.month, ngay_sinh.day)
+                        is_today = sinh_nhat_nam_nay == today
+                        da_qua = sinh_nhat_nam_nay < today
+                        
+                        xung_ho = get_xung_ho(sn.get('gioi_tinh'), sn['ho_ten'])
+                        
+                        if is_today:
+                            st.markdown(f"""
+                            <div style='background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%); 
+                                        padding: 15px; border-radius: 15px; margin: 10px 0; 
+                                        border: 2px solid #ff9800; box-shadow: 0 4px 8px rgba(0,0,0,0.1);'>
+                                <div style='font-size: 30px; text-align: center;'>🎉🎂</div>
+                                <h4 style='text-align: center; color: #d32f2f; margin: 5px 0;'>
+                                    <b>HÔM NAY LÀ SINH NHẬT!</b>
+                                </h4>
+                                <h3 style='text-align: center; color: #333; margin: 5px 0;'>
+                                    {xung_ho} <b>{sn['ho_ten']}</b>
+                                </h3>
+                                <p style='text-align: center; color: #666;'>
+                                    📅 {format_date(ngay_sinh)} (🎂 {tuoi} tuổi)<br>
+                                    💼 {sn.get('chuc_danh_nghe', 'Chưa cập nhật')}<br>
+                                    📞 {sn.get('dien_thoai', 'Chưa cập nhật')}
+                                </p>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        elif da_qua:
+                            st.markdown(f"""
+                            <div style='background-color: #e0e0e0; padding: 12px; border-radius: 10px; margin: 8px 0;'>
+                                <b>✅ {sn['ho_ten']}</b><br>
+                                🎂 Sinh ngày: {format_date(ngay_sinh)} (đã qua)<br>
+                                💼 {sn.get('chuc_danh_nghe', '')}
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            ngay_con_lai = (sinh_nhat_nam_nay - today).days
+                            st.markdown(f"""
+                            <div style='background-color: #e3f2fd; padding: 12px; border-radius: 10px; margin: 8px 0;'>
+                                <b>🎂 {sn['ho_ten']}</b><br>
+                                📅 Sinh ngày: {format_date(ngay_sinh)}<br>
+                                ⏰ Còn {ngay_con_lai} ngày nữa<br>
+                                💼 {sn.get('chuc_danh_nghe', '')}
+                            </div>
+                            """, unsafe_allow_html=True)
+        else:
+            st.info("📭 Tháng này không có ai sinh nhật.")
+            
+            # Hiển thị sinh nhật tháng sau
+            c.execute("""
+                SELECT id, ma_nv, ho_ten, ngay_sinh, gioi_tinh, chuc_danh_nghe
+                FROM nhan_vien 
+                WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+                AND ngay_sinh IS NOT NULL
+                AND EXTRACT(MONTH FROM ngay_sinh) = EXTRACT(MONTH FROM CURRENT_DATE + INTERVAL '1 month')
+                ORDER BY EXTRACT(DAY FROM ngay_sinh) ASC
+                LIMIT 10
+            """)
+            sinh_nhat_thang_sau = c.fetchall()
+            if sinh_nhat_thang_sau:
+                st.caption("📅 Sinh nhật tháng sau:")
+                for sn in sinh_nhat_thang_sau:
+                    xung_ho = get_xung_ho(sn.get('gioi_tinh'), sn['ho_ten'])
+                    st.caption(f"🎂 {xung_ho} **{sn['ho_ten']}** - {format_date(sn['ngay_sinh'])}")
+
+    with tab_hom_nay:
+        # Lấy danh sách sinh nhật hôm nay
+        c.execute("""
+            SELECT id, ma_nv, ho_ten, ngay_sinh, gioi_tinh, dien_thoai, email_lien_he, 
+                   chuc_danh_nghe, phong_ban_lam_viec
+            FROM nhan_vien 
+            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            AND ngay_sinh IS NOT NULL
+            AND EXTRACT(MONTH FROM ngay_sinh) = EXTRACT(MONTH FROM CURRENT_DATE)
+            AND EXTRACT(DAY FROM ngay_sinh) = EXTRACT(DAY FROM CURRENT_DATE)
+        """)
+        sinh_nhat_hom_nay = c.fetchall()
+        
+        if sinh_nhat_hom_nay:
+            st.balloons()
+            for sn in sinh_nhat_hom_nay:
+                ngay_sinh = sn.get('ngay_sinh')
+                today = date.today()
+                tuoi = today.year - ngay_sinh.year
+                
+                xung_ho = get_xung_ho(sn.get('gioi_tinh'), sn['ho_ten'])
+                
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%);
+                            padding: 25px; border-radius: 20px; margin: 15px 0;
+                            text-align: center; color: white;'>
+                    <div style='font-size: 50px;'>🎉🎂🎉</div>
+                    <h1 style='color: white; margin: 10px 0;'>CHÚC MỪNG SINH NHẬT!</h1>
+                    <h2 style='color: #fff3e0; margin: 10px 0;'>{xung_ho} {sn['ho_ten']}</h2>
+                    <p style='font-size: 18px;'>
+                        🎂 {tuoi} tuổi - Một tuổi mới thật nhiều niềm vui! 🎂
+                    </p>
+                    <p style='margin-top: 15px;'>
+                        📅 {format_date(ngay_sinh)} | 💼 {sn.get('chuc_danh_nghe', '')} | 
+                        🏢 {sn.get('phong_ban_lam_viec', '')}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Hiển thị thông tin liên hệ
+                col_phone, col_email = st.columns(2)
+                with col_phone:
+                    if sn.get('dien_thoai'):
+                        sdt = sn['dien_thoai'].replace('+84', '0').replace(' ', '').strip()
+                        st.markdown(f"📞 **SĐT:** {sn['dien_thoai']}")
+                        st.markdown(f"[👉 GỬI LỜI CHÚC QUA ZALO](https://zalo.me/{sdt})")
+                    else:
+                        st.warning("⚠️ Chưa cập nhật số điện thoại")
+                with col_email:
+                    if sn.get('email_lien_he'):
+                        st.markdown(f"📧 **Email:** {sn['email_lien_he']}")
+                    else:
+                        st.warning("⚠️ Chưa cập nhật email")
+        else:
+            st.info("🎉 Hôm nay không có ai sinh nhật.")
+            
+            # Gợi ý sinh nhật sắp tới
+            c.execute("""
+                SELECT id, ma_nv, ho_ten, ngay_sinh, gioi_tinh
+                FROM nhan_vien 
+                WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+                AND ngay_sinh IS NOT NULL
+                AND EXTRACT(MONTH FROM ngay_sinh) = EXTRACT(MONTH FROM CURRENT_DATE)
+                AND EXTRACT(DAY FROM ngay_sinh) > EXTRACT(DAY FROM CURRENT_DATE)
+                ORDER BY EXTRACT(DAY FROM ngay_sinh) ASC
+                LIMIT 3
+            """)
+            sinh_nhat_sap_toi = c.fetchall()
+            if sinh_nhat_sap_toi:
+                st.subheader("📅 Sinh nhật sắp tới trong tháng:")
+                for sn in sinh_nhat_sap_toi:
+                    xung_ho = get_xung_ho(sn.get('gioi_tinh'), sn['ho_ten'])
+                    st.info(f"🎂 {xung_ho} **{sn['ho_ten']}** - {format_date(sn['ngay_sinh'])}")
+
+    with tab_lich_su:
+        if st.session_state.role == "admin":
+            st.subheader("📜 Lịch sử đã gửi lời chúc sinh nhật")
+            
+            # Kiểm tra bảng lịch sử tồn tại chưa
+            try:
+                c.execute("""
+                    SELECT ls.*, nv.ho_ten, nv.ma_nv
+                    FROM lich_su_gui_loi_chuc ls
+                    JOIN nhan_vien nv ON ls.nhan_vien_id = nv.id
+                    WHERE ls.loai_chuc = 'SINH_NHAT'
+                    ORDER BY ls.ngay_gui DESC
+                    LIMIT 50
+                """)
+                lich_su = c.fetchall()
+                
+                if lich_su:
+                    ls_data = []
+                    for ls in lich_su:
+                        ls_data.append({
+                            "Ngày gửi": format_date(ls['ngay_gui']),
+                            "Mã NV": ls['ma_nv'],
+                            "Họ tên": ls['ho_ten'],
+                            "Kênh gửi": ls['kenh_gui'],
+                            "Trạng thái": "✅ Đã gửi" if ls['trang_thai'] == 'DA_GUI' else ls['trang_thai']
+                        })
+                    df_ls = pd.DataFrame(ls_data)
+                    st.dataframe(df_ls, use_container_width=True, hide_index=True)
+                else:
+                    st.info("📭 Chưa có lịch sử gửi lời chúc nào.")
+            except Exception as e:
+                st.info("📭 Chưa có dữ liệu lịch sử. Bảng lịch sử có thể chưa được tạo.")
+        else:
+            st.info("🔒 Chỉ Admin mới xem được lịch sử gửi lời chúc.")
+
+    st.divider()
+
+    # Nút gửi lời chúc sinh nhật (chỉ admin)
+    if st.session_state.role == "admin" and sinh_nhat_trong_thang:
+        with st.expander("💌 GỬI LỜI CHÚC SINH NHẬT", expanded=False):
+            st.subheader("Gửi lời chúc sinh nhật đến nhân viên")
+            
+            # Chọn nhân viên để gửi
+            sn_options = {}
+            for sn in sinh_nhat_trong_thang:
+                ngay_sinh = sn.get('ngay_sinh')
+                xung_ho = get_xung_ho(sn.get('gioi_tinh'), sn['ho_ten'])
+                label = f"{xung_ho} {sn['ho_ten']} - {format_date(ngay_sinh)}"
+                sn_options[label] = sn
+            
+            selected_label = st.selectbox("Chọn nhân viên:", list(sn_options.keys()), key="chon_sn_gui")
+            selected_sn = sn_options[selected_label]
+            
+            # Tính tuổi
+            if selected_sn.get('ngay_sinh'):
+                today = date.today()
+                tuoi = today.year - selected_sn['ngay_sinh'].year
+                if today.month < selected_sn['ngay_sinh'].month or (today.month == selected_sn['ngay_sinh'].month and today.day < selected_sn['ngay_sinh'].day):
+                    tuoi -= 1
+            else:
+                tuoi = None
+            
+            # Tạo lời chúc mặc định có xưng hô
+            default_chuc = get_loi_chuc_sinh_nhat(
+                selected_sn['ho_ten'], 
+                selected_sn.get('gioi_tinh'), 
+                tuoi
+            )
+            
+            loi_chuc = st.text_area("📝 Lời chúc sinh nhật:", value=default_chuc, height=250, key="loi_chuc_sn_gui")
+            
+            col_zalo, col_email, col_cancel = st.columns(3)
+            
+            with col_zalo:
+                if st.button("📱 GỬI QUA ZALO", use_container_width=True, type="primary"):
+                    sdt = selected_sn.get('dien_thoai', '')
+                    if sdt:
+                        sdt = sdt.replace('+84', '0').replace(' ', '').strip()
+                        st.code(loi_chuc)
+                        st.markdown(f"[👉 NHẤN VÀO ĐÂY ĐỂ GỬI QUA ZALO CHO {selected_sn['ho_ten']}](https://zalo.me/{sdt})")
+                        st.success(f"✅ Đã sao chép nội dung! Vui lòng nhấn link Zalo để gửi.")
+                        
+                        # Lưu lịch sử
+                        try:
+                            db_log = get_connection()
+                            cur_log = db_log.cursor()
+                            cur_log.execute("""
+                                INSERT INTO lich_su_gui_loi_chuc (nhan_vien_id, loai_chuc, noi_dung, kenh_gui, trang_thai)
+                                VALUES (%s, %s, %s, %s, %s)
+                            """, (selected_sn['id'], 'SINH_NHAT', loi_chuc[:500], 'ZALO', 'DA_GUI'))
+                            db_log.commit()
+                            db_log.close()
+                            st.toast("Đã lưu lịch sử gửi!", icon="✅")
+                        except:
+                            pass
+                    else:
+                        st.error("❌ Nhân viên chưa có số điện thoại! Vui lòng cập nhật SĐT trước.")
+            
+            with col_email:
+                if st.button("📧 GỬI QUA EMAIL", use_container_width=True):
+                    email = selected_sn.get('email_lien_he', '')
+                    if email:
+                        try:
+                            xung_ho = get_xung_ho(selected_sn.get('gioi_tinh'), selected_sn['ho_ten'])
+                            
+                            msg = MIMEMultipart()
+                            msg['From'] = EMAIL_CONFIG['email']
+                            msg['To'] = email
+                            msg['Subject'] = f"🎂 Chúc mừng sinh nhật {xung_ho} {selected_sn['ho_ten']} - Công ty CP Cảng Hòn La"
+                            
+                            html_content = f"""
+                            <html>
+                            <head>
+                                <meta charset="UTF-8">
+                            </head>
+                            <body style='font-family: "Times New Roman", Arial, sans-serif;'>
+                                <div style='background: linear-gradient(135deg, #ffd700 0%, #ff9800 100%); 
+                                            padding: 20px; text-align: center; border-radius: 10px;'>
+                                    <h1 style='color: white;'>🎂 CHÚC MỪNG SINH NHẬT 🎂</h1>
+                                </div>
+                                <div style='padding: 20px; line-height: 1.6;'>
+                                    {loi_chuc.replace(chr(10), '<br>')}
+                                </div>
+                                <hr>
+                                <p style='color: #999; font-size: 11px; text-align: center;'>
+                                    Email được gửi tự động từ hệ thống HRM-Port Công ty CP Cảng Hòn La<br>
+                                    Địa chỉ: {COMPANY_CONFIG.get('dia_chi', '')} | Điện thoại: {COMPANY_CONFIG.get('dien_thoai_cty', '')}
+                                </p>
+                            </body>
+                            </html>
+                            """
+                            msg.attach(MIMEText(html_content, 'html', 'utf-8'))
+                            
+                            server = smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port'])
+                            server.starttls()
+                            server.login(EMAIL_CONFIG['email'], EMAIL_CONFIG['password'])
+                            server.send_message(msg)
+                            server.quit()
+                            
+                            st.success(f"✅ Đã gửi lời chúc sinh nhật qua email cho {xung_ho} {selected_sn['ho_ten']}!")
+                            
+                            # Lưu lịch sử
+                            db_log = get_connection()
+                            cur_log = db_log.cursor()
+                            cur_log.execute("""
+                                INSERT INTO lich_su_gui_loi_chuc (nhan_vien_id, loai_chuc, noi_dung, kenh_gui, trang_thai)
+                                VALUES (%s, %s, %s, %s, %s)
+                            """, (selected_sn['id'], 'SINH_NHAT', loi_chuc[:500], 'EMAIL', 'DA_GUI'))
+                            db_log.commit()
+                            db_log.close()
+                        except Exception as e:
+                            st.error(f"❌ Lỗi gửi email: {e}")
+                    else:
+                        st.error("❌ Nhân viên chưa có email! Vui lòng cập nhật email trước.")
+            
+            with col_cancel:
+                st.write("")  # Placeholder
+
+    # ========== KẾT THÚC PHẦN SINH NHẬT ==========
     
     c.execute("SELECT chuc_danh_nghe, COUNT(*) t FROM nhan_vien WHERE trang_thai='DANG_LAM' GROUP BY chuc_danh_nghe ORDER BY t DESC")
     data = c.fetchall()

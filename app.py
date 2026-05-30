@@ -22,6 +22,21 @@ from PIL import Image
 import qrcode
 from io import BytesIO
 
+# ===== DEBUG: KIỂM TRA FILE LOGO =====
+import os
+import pathlib
+
+CURRENT_DIR = pathlib.Path(__file__).parent.absolute()
+st.sidebar.write(f"📁 Thư mục hiện tại: `{CURRENT_DIR}`")
+
+# Liệt kê tất cả file .png
+try:
+    all_files = os.listdir(CURRENT_DIR)
+    png_files = [f for f in all_files if f.endswith('.png')]
+    st.sidebar.write(f"🖼️ File PNG tìm thấy: {png_files if png_files else 'KHÔNG CÓ'}")
+except Exception as e:
+    st.sidebar.write(f"❌ Lỗi đọc file: {e}")
+# ===== END DEBUG =====
 
 def to_float_or_none(val):
     """Chuyển đổi giá trị sang float hoặc None, tránh lỗi numeric"""
@@ -203,21 +218,16 @@ def get_connection():
     )
 
 ## ========== LOGO SIDEBAR ==========
-try:
-    # Thử đọc trực tiếp từ file
-    if os.path.exists("logo_cty.png"):
-        with st.sidebar:
-            st.image("logo_cty.png", use_container_width=True)
-            st.divider()
-    else:
-        # Thử đọc từ thư mục con
-        import glob
-        png_files = glob.glob("**/*.png", recursive=True)
-        with st.sidebar:
-            st.write(f"PNG files found: {png_files}")
-except Exception as e:
-    with st.sidebar:
-        st.write(f"Logo error: {e}")
+# Cách 1: Dùng URL trực tiếp
+logo_url = "https://raw.githubusercontent.com/nguyensupport999-ops/hrm-port9/main/logo_cty.png"
+
+with st.sidebar:
+    try:
+        st.image(logo_url, use_container_width=True)
+        st.divider()
+        st.success("✅ Logo từ GitHub URL")
+    except:
+        st.error("❌ Không tải được logo từ URL")
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
@@ -780,8 +790,9 @@ if menu == "📊 Dashboard":
                 st.error(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** - HÔM NAY LÀ NGÀY CUỐI HỢP ĐỒNG THỬ VIỆC!")
             else:
                 st.warning(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** còn **{x['ngay_con_lai']}** ngày sẽ kết thúc hợp đồng thử việc!")
-    
+    st.write("🔍 DEBUG: auto_check_birthday đang chạy...")
     auto_check_birthday()  
+    st.write("✅ DEBUG: Đã chạy xong auto_check_birthday")
     
     # ========== PHẦN SINH NHẬT HOÀN CHỈNH ==========
     st.subheader("🎂 SINH NHẬT")

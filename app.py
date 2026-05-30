@@ -22,6 +22,72 @@ from PIL import Image
 import qrcode
 from io import BytesIO
 
+
+def to_float_or_none(val):
+    """Chuyển đổi giá trị sang float hoặc None, tránh lỗi numeric"""
+    if val is None or str(val).strip() == '':
+        return None
+    try:
+        return float(val)
+    except:
+        return None
+
+def format_date(d):
+    if d is None or pd.isna(d): return ''
+    try: return d.strftime('%d/%m/%Y') if hasattr(d,'strftime') else str(d)[:10]
+    except: return str(d)
+
+def parse_date(s):
+    if not s or s.strip()=='': return None
+    try: return datetime.strptime(s.strip(),'%d/%m/%Y').date()
+    except: return None
+
+def get_xung_ho(gioi_tinh, ho_ten=""):
+    """
+    Lấy cách xưng hô phù hợp dựa trên giới tính
+    - Nếu giới tính là Nam -> trả về "Anh"
+    - Nếu giới tính là Nữ -> trả về "Chị"
+    - Nếu giới tính là None hoặc rỗng -> trả về "Anh/Chị"
+    """
+    if gioi_tinh == "Nam":
+        return "Anh"
+    elif gioi_tinh == "Nữ":
+        return "Chị"
+    else:
+        return "Anh/Chị"
+
+def get_loi_chuc_sinh_nhat(ho_ten, gioi_tinh, tuoi=None):
+    """
+    Tạo lời chúc sinh nhật có xưng hô phù hợp
+    """
+    xung_ho = get_xung_ho(gioi_tinh, ho_ten)
+    
+    loi_chuc = f"""
+🎉🎂 CHÚC MỪNG SINH NHẬT {xung_ho.upper()} {ho_ten.upper()} 🎂🎉
+
+Thân gửi {xung_ho}: {ho_ten},
+
+Nhân dịp sinh nhật của {xung_ho}, thay mặt Ban Lãnh đạo Công ty CP Cảng Hòn La, 
+xin gửi đến {xung_ho} những lời chúc tốt đẹp nhất.
+
+Chúc {xung_ho} luôn mạnh khỏe, hạnh phúc và thành công trong công việc 
+cũng như trong cuộc sống.
+
+"""
+    
+    if tuoi:
+        loi_chuc += f"Chúc mừng {xung_ho} tròn {tuoi} tuổi! 🎂\n\n"
+    
+    loi_chuc += f"""
+Cảm ơn {xung_ho} đã luôn đồng hành và đóng góp cho sự phát triển của Công ty.
+
+Trân trọng!
+
+🏗️ CÔNG TY CP CẢNG HÒN LA
+    """
+    
+    return loi_chuc
+
 def auto_check_birthday():
     """Tự động kiểm tra và thông báo sinh nhật hàng ngày"""
     if 'last_birthday_check' not in st.session_state:
@@ -73,60 +139,6 @@ except ImportError:
     from config_template import COMPANY_CONFIG, BHXH_CONFIG, EMAIL_CONFIG, TELEGRAM_CONFIG, USERS
     print("Using config_template.py")
     
-def to_float_or_none(val):
-    """Chuyển đổi giá trị sang float hoặc None, tránh lỗi numeric"""
-    if val is None or str(val).strip() == '':
-        return None
-    try:
-        return float(val)
-    except:
-        return None
-
-def get_xung_ho(gioi_tinh, ho_ten=""):
-    """
-    Lấy cách xưng hô phù hợp dựa trên giới tính
-    - Nếu giới tính là Nam -> trả về "Anh"
-    - Nếu giới tính là Nữ -> trả về "Chị"
-    - Nếu giới tính là None hoặc rỗng -> trả về "Anh/Chị"
-    """
-    if gioi_tinh == "Nam":
-        return "Anh"
-    elif gioi_tinh == "Nữ":
-        return "Chị"
-    else:
-        return "Anh/Chị"
-
-def get_loi_chuc_sinh_nhat(ho_ten, gioi_tinh, tuoi=None):
-    """
-    Tạo lời chúc sinh nhật có xưng hô phù hợp
-    """
-    xung_ho = get_xung_ho(gioi_tinh, ho_ten)
-    
-    loi_chuc = f"""
-🎉🎂 CHÚC MỪNG SINH NHẬT {xung_ho.upper()} {ho_ten.upper()} 🎂🎉
-
-Thân gửi {xung_ho}: {ho_ten},
-
-Nhân dịp sinh nhật của {xung_ho}, thay mặt Ban Lãnh đạo Công ty CP Cảng Hòn La, 
-xin gửi đến {xung_ho} những lời chúc tốt đẹp nhất.
-
-Chúc {xung_ho} luôn mạnh khỏe, hạnh phúc và thành công trong công việc 
-cũng như trong cuộc sống.
-
-"""
-    
-    if tuoi:
-        loi_chuc += f"Chúc mừng {xung_ho} tròn {tuoi} tuổi! 🎂\n\n"
-    
-    loi_chuc += f"""
-Cảm ơn {xung_ho} đã luôn đồng hành và đóng góp cho sự phát triển của Công ty.
-
-Trân trọng!
-
-🏗️ CÔNG TY CP CẢNG HÒN LA
-    """
-    
-    return loi_chuc
 
 def da_chuyen_doi_chinh_thuc(nv_id):
     """Kiểm tra xem nhân viên đã có quyết định chuyển từ thử việc sang chính thức chưa"""
@@ -191,18 +203,35 @@ def get_connection():
     )
 
 # ========== LOGO SIDEBAR ==========
-# Thử nhiều đường dẫn khác nhau cho logo
-logo_paths = ["logo_cty.png", "assets/logo_cty.png", "static/logo_cty.png", "logo.png"]
+import os
+import pathlib
+
+# Lấy đường dẫn thư mục hiện tại
+CURRENT_DIR = pathlib.Path(__file__).parent.absolute()
+
+# Thử nhiều đường dẫn khác nhau
+logo_paths = [
+    os.path.join(CURRENT_DIR, "logo_cty.png"),
+    "logo_cty.png",
+    os.path.join(CURRENT_DIR, "assets", "logo_cty.png"),
+    os.path.join(CURRENT_DIR, "static", "logo_cty.png"),
+]
+
 logo_found = False
 for logo_path in logo_paths:
     if os.path.exists(logo_path):
         with st.sidebar:
-            st.image(logo_path, use_container_width=True)
+            st.image(str(logo_path), use_container_width=True)
             st.divider()
             logo_found = True
+            print(f"Logo found at: {logo_path}")  # Debug
         break
 
 if not logo_found:
+    # In ra để debug
+    st.sidebar.write(f"Current directory: {CURRENT_DIR}")
+    st.sidebar.write(f"Files in dir: {os.listdir(CURRENT_DIR)}")
+    
     # Thử đọc từ URL nếu có trong secrets
     try:
         if 'logo_url' in st.secrets:
@@ -257,16 +286,6 @@ st.markdown("""
 
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-def format_date(d):
-    if d is None or pd.isna(d): return ''
-    try: return d.strftime('%d/%m/%Y') if hasattr(d,'strftime') else str(d)[:10]
-    except: return str(d)
-
-def parse_date(s):
-    if not s or s.strip()=='': return None
-    try: return datetime.strptime(s.strip(),'%d/%m/%Y').date()
-    except: return None
 
 def to_int_or_none(val):
     """Chuyển đổi giá trị sang int hoặc None"""
@@ -783,8 +802,7 @@ if menu == "📊 Dashboard":
                 st.error(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** - HÔM NAY LÀ NGÀY CUỐI HỢP ĐỒNG THỬ VIỆC!")
             else:
                 st.warning(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** còn **{x['ngay_con_lai']}** ngày sẽ kết thúc hợp đồng thử việc!")
-    auto_check_birthday()
-    
+        
     # ========== PHẦN SINH NHẬT HOÀN CHỈNH ==========
     st.subheader("🎂 SINH NHẬT")
 

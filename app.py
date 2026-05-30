@@ -21,15 +21,15 @@ from docx.oxml.ns import qn
 from PIL import Image
 import qrcode
 from io import BytesIO
-
-# ===== DEBUG: KIỂM TRA FILE LOGO =====
 import os
 import pathlib
 
+st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
+
+# ===== DEBUG: KIỂM TRA FILE LOGO =====
 CURRENT_DIR = pathlib.Path(__file__).parent.absolute()
 st.sidebar.write(f"📁 Thư mục hiện tại: `{CURRENT_DIR}`")
 
-# Liệt kê tất cả file .png
 try:
     all_files = os.listdir(CURRENT_DIR)
     png_files = [f for f in all_files if f.endswith('.png')]
@@ -104,19 +104,19 @@ Trân trọng!
     return loi_chuc
 
 def auto_check_birthday():
-    """Tự động kiểm tra và thông báo sinh nhật hàng ngày"""
     if 'last_birthday_check' not in st.session_state:
         st.session_state.last_birthday_check = None
     
+    # Khởi tạo list lưu sinh nhật hôm nay (dùng để hiện banner cố định)
+    if 'sinh_nhat_hom_nay_list' not in st.session_state:
+        st.session_state.sinh_nhat_hom_nay_list = []
+
     today = date.today()
     
-    # Kiểm tra mỗi ngày 1 lần
     if st.session_state.last_birthday_check != today:
         try:
             db = get_connection()
             c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            
-            # Lấy sinh nhật hôm nay
             c.execute("""
                 SELECT id, ma_nv, ho_ten, ngay_sinh, gioi_tinh, dien_thoai, email_lien_he
                 FROM nhan_vien 
@@ -128,23 +128,34 @@ def auto_check_birthday():
             birthday_today = c.fetchall()
             
             if birthday_today and st.session_state.get('logged_in', False):
-                # Hiển thị notification trong session
+                # 👇 Lưu vào session_state để hiện banner cố định
+                st.session_state.sinh_nhat_hom_nay_list = [
+                    {
+                        'ho_ten': nv['ho_ten'],
+                        'ma_nv': nv['ma_nv'],
+                        'xung_ho': get_xung_ho(nv.get('gioi_tinh'), nv['ho_ten'])
+                    }
+                    for nv in birthday_today
+                ]
+                
+                # Toast vẫn giữ để thông báo nhanh
                 for nv in birthday_today:
                     xung_ho = get_xung_ho(nv.get('gioi_tinh'), nv['ho_ten'])
-                    msg = f"🎉 Hôm nay là sinh nhật {xung_ho} {nv['ho_ten']}! 🎂"
-                    st.toast(msg, icon="🎂")
+                    st.toast(f"🎂 Sinh nhật {xung_ho} {nv['ho_ten']} hôm nay!", icon="🎂")
                     
-                    # Gửi Telegram notification nếu có cấu hình
                     try:
-                        tg_msg = f"🎂 SINH NHẬT HÔM NAY 🎂\n\n{xung_ho}: {nv['ho_ten']}\nMã NV: {nv['ma_nv']}\nNgày sinh: {format_date(nv['ngay_sinh'])}"
+                        tg_msg = f"🎂 SINH NHẬT HÔM NAY 🎂\n\n{xung_ho}: {nv['ho_ten']}\nMã NV: {nv['ma_nv']}"
                         gui_telegram(tg_msg)
                     except:
                         pass
+            else:
+                st.session_state.sinh_nhat_hom_nay_list = []
             
             st.session_state.last_birthday_check = today
             db.close()
         except Exception as e:
-            print(f"Lỗi auto check birthday: {e}")
+            # 👇 Hiện lỗi thay vì im lặng
+            st.warning(f"⚠️ Không thể kiểm tra sinh nhật: {e}")
 
 # Import config - ưu tiên config.py (local), fallback to config_template (cloud)
 try:
@@ -218,18 +229,17 @@ def get_connection():
     )
 
 ## ========== LOGO SIDEBAR ==========
-# Cách 1: Dùng URL trực tiếp
-logo_url = "https://raw.githubusercontent.com/nguyensupport999-ops/hrm-port9/main/logo_cty.png"
-
 with st.sidebar:
     try:
-        st.image(logo_url, use_container_width=True)
+        # Dùng đường dẫn local — Streamlit Cloud tự đọc từ repo
+        logo_path = pathlib.Path(__file__).parent / "logo_cty.png"
+        if logo_path.exists():
+            st.image(str(logo_path), use_container_width=True)
+        else:
+            st.warning("⚠️ Không tìm thấy logo_cty.png")
         st.divider()
-        st.success("✅ Logo từ GitHub URL")
-    except:
-        st.error("❌ Không tải được logo từ URL")
-
-st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
+    except Exception as e:
+        st.error(f"❌ Lỗi hiển thị logo: {e}")
 
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
@@ -741,6 +751,9 @@ if st.sidebar.button("🚪 Đăng xuất", use_container_width=True):
     st.session_state.logged_in = False
     st.session_state.role = None
     st.session_state.username = None
+    # 👇 Xóa cache sinh nhật để lần đăng nhập sau kiểm tra lại
+    st.session_state.pop('last_birthday_check', None)
+    st.session_state.pop('sinh_nhat_hom_nay_list', None)
     st.rerun()
 
 # ========== DASHBOARD ==========
@@ -790,9 +803,18 @@ if menu == "📊 Dashboard":
                 st.error(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** - HÔM NAY LÀ NGÀY CUỐI HỢP ĐỒNG THỬ VIỆC!")
             else:
                 st.warning(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** còn **{x['ngay_con_lai']}** ngày sẽ kết thúc hợp đồng thử việc!")
-    st.write("🔍 DEBUG: auto_check_birthday đang chạy...")
-    auto_check_birthday()  
-    st.write("✅ DEBUG: Đã chạy xong auto_check_birthday")
+    
+    # Gọi kiểm tra sinh nhật (đã xóa 2 dòng debug)
+    auto_check_birthday()
+
+    # 👇 Hiển thị banner cố định nếu có sinh nhật hôm nay
+    sinh_nhat_list = st.session_state.get('sinh_nhat_hom_nay_list', [])
+    if sinh_nhat_list:
+        for sn in sinh_nhat_list:
+            st.success(
+                f"🎂 **Chúc mừng sinh nhật {sn['xung_ho']} {sn['ho_ten']} ({sn['ma_nv']})** — Hôm nay là sinh nhật của {sn['xung_ho']}! 🎉",
+                icon="🎂"
+            )
     
     # ========== PHẦN SINH NHẬT HOÀN CHỈNH ==========
     st.subheader("🎂 SINH NHẬT")

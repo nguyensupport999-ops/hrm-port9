@@ -99,6 +99,8 @@ def show_landing_page():
     slide1_src = load_img_b64("anh1.jpeg")
     slide2_src = load_img_b64("anh2.jpeg")
     slide3_src = load_img_b64("anh3.jpeg")
+    chu_tich_img = load_img_b64("321.png")      # Ảnh đại diện Chủ tịch
+    chu_ky_img = load_img_b64("123456.png")     # Ảnh chữ ký
     
     landing_html = f"""
     <!DOCTYPE html>
@@ -746,9 +748,39 @@ def show_landing_page():
                 margin-bottom: 12px;
                 font-size: 1.1rem;
             }}
-            .a4-signature {{
+            
+            /* Signature bên trái */
+            .a4-signature-left {{
                 margin-top: 40px;
-                text-align: right;
+                text-align: left;
+            }}
+            .sig-block-left {{
+                display: inline-block;
+                text-align: center;
+            }}
+            .sig-block-left .sig-title {{
+                font-size: 1rem;
+                color: #333;
+                margin-bottom: 5px;
+                font-weight: 500;
+            }}
+            .sig-block-left .sig-company {{
+                font-size: 1rem;
+                font-weight: 700;
+                color: #0f3b5c;
+                margin: 10px 0;
+            }}
+            .sig-block-left .sig-image {{
+                margin: 10px 0;
+            }}
+            .sig-block-left .sig-name {{
+                font-weight: 700;
+                font-size: 1rem;
+                margin-top: 5px;
+            }}
+            .sig-block-left .sig-role {{
+                font-size: 0.85rem;
+                color: #666;
             }}
             .sig-block {{
                 display: inline-block;
@@ -903,11 +935,11 @@ def show_landing_page():
                 <!-- Chairman -->
                 <div class="a4-chairman">
                     <div class="a4-chairman-avatar">
-                        <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%230f3b5c'/%3E%3Ctext x='50' y='67' font-size='45' text-anchor='middle' fill='white' font-weight='bold'%3EP%3C/text%3E%3C/svg%3E" alt="Chủ tịch HĐQT">
+                        <img src="{chu_tich_img}" alt="Chủ tịch HĐQT">
                     </div>
                     <div class="a4-chairman-info">
                         <h2>Ông Phùng Gia Phát</h2>
-                        <p class="title">Chủ tịch Hội đồng Quản trị</p>
+                        <p class="title">⭐ Chủ tịch Hội đồng Quản trị</p>
                         <p class="company">
                             Công ty Cổ phần Cảng Hòn La<br>
                             Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình
@@ -974,19 +1006,13 @@ def show_landing_page():
                     </p>
                 </div>
 
-                <!-- Signature -->
-                <div class="a4-signature">
-                    <div class="sig-block">
-                        <div class="sig-title">Trân trọng</div>
-                        <svg class="sig-svg" width="160" height="55" viewBox="0 0 160 55">
-                            <path d="M 15 40 C 25 10, 45 50, 60 30 S 90 5, 110 28 S 135 45, 155 20"
-                                  stroke="#0f3b5c" stroke-width="2.2" fill="none"
-                                  stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M 30 45 C 50 38, 80 48, 100 42"
-                                  stroke="#0f3b5c" stroke-width="1.2" fill="none" opacity="0.5"/>
-                        </svg>
-                        <div class="sig-seal">
-                            <span>CẢNG<br>QUỐC TẾ<br>HÒN LA<br>★</span>
+                <!-- Signature - Bên trái -->
+                <div class="a4-signature-left">
+                    <div class="sig-block-left">
+                        <div class="sig-title">Trân trọng,</div>
+                        <div class="sig-company">CẢNG QUỐC TẾ HÒN LA</div>
+                        <div class="sig-image">
+                            <img src="{chu_ky_img}" alt="Chữ ký Chủ tịch" style="max-width: 200px; height: auto;">
                         </div>
                         <div class="sig-name">Phùng Gia Phát</div>
                         <div class="sig-role">Chủ tịch Hội đồng Quản trị</div>

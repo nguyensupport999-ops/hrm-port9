@@ -617,15 +617,15 @@ def show_landing_page():
     
     <!-- Careers -->
     <section id="careers" class="careers-section">
-        <h2>Gia nhập đội ngũ Cảng Hòn La</h2>
+        <h2>GIA NHẬP ĐỘI NGŨ NHÂN SỰ CỦA CHÚNG TÔI</h2>
         <p>Chúng tôi luôn tìm kiếm những nhân tài</p>
-        <a href="#" class="btn-white" id="careerLink">📢 Xem cơ hội việc làm</a>
+        <a href="#" class="btn-white" id="careerLink">📢 Xem cơ hội việc làm tại đây</a>
     </section>
     
     <!-- Footer -->
     <footer id="contact" class="footer">
         <div class="footer-grid">
-            <div class="footer-col"><h4>CẢNG QUỐC TẾ HÒN LA</h4><p>Khu kinh tế Hòn La, Quảng Trạch, Quảng Bình</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
+            <div class="footer-col"><h4>CÔNG TY CỔ PHẦN CẢNG HÒN LA</h4><p>Khu kinh tế Hòn La, Xã Quảng Trạch, Tỉnh Quảng Trị</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
             <div class="footer-col"><h4>Liên kết nhanh</h4><a href="#about">Về chúng tôi</a><a href="#services">Dịch vụ</a><a href="#infrastructure">Hạ tầng</a></div>
             <div class="footer-col"><h4>Hỗ trợ</h4><a href="#">FAQ</a><a href="#">Biểu giá</a></div>
             <div class="footer-col"><h4>Giờ làm việc</h4><p>Bến cảng: 24/7</p><p>Văn phòng: 7:30 - 17:00</p></div>
@@ -697,11 +697,11 @@ def show_landing_page():
     </html>
     """
     
-    st.markdown(landing_html, unsafe_allow_html=True)
-    
-    if st.button("🔐 Staff Login", key="hidden_login", help="Đăng nhập vào hệ thống quản lý"):
-        st.session_state['show_landing'] = False
-        st.rerun()
+#    st.markdown(landing_html, unsafe_allow_html=True)
+#    
+#    if st.button("🔐 Staff Login", key="hidden_login", help="Đăng nhập vào hệ thống quản lý"):
+#        st.session_state['show_landing'] = False
+#        st.rerun()
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 

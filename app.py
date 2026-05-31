@@ -710,7 +710,7 @@ def show_landing_page():
                 margin-bottom: 8px;
             }}
             .a4-chairman-info .company {{
-                font-size: 1.3rem;
+                font-size: 1.0rem;
                 color: #666;
                 line-height: 1.4;
                 font-weight: 500;

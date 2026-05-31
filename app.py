@@ -913,7 +913,6 @@ def show_landing_page():
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
 # ========== KHỞI TẠO SESSION STATE ==========
-# Phải đặt NGAY sau set_page_config, trước mọi thao tác khác
 if 'show_login_form' not in st.session_state:
     st.session_state.show_login_form = False
 
@@ -922,26 +921,21 @@ if 'logged_in' not in st.session_state:
     st.session_state.role = None
     st.session_state.username = None
 
+# show_hrm: True = thoát landing, vào màn HRM (sidebar login hiện ra)
+# False = đang ở landing page
+if 'show_hrm' not in st.session_state:
+    st.session_state.show_hrm = False
+
 # ========== KIỂM TRA URL PARAMS (Từ nút Nhân viên trên Landing Page) ==========
 query_params = st.query_params
 if query_params.get('goto') == 'hrm':
-    st.session_state.logged_in = True          # Vào HRM trực tiếp, không cần đăng nhập
-    st.session_state.role = 'user'
-    st.session_state.username = 'guest'
+    st.session_state.show_hrm = True   # Chỉ thoát landing, KHÔNG tự đăng nhập
     st.query_params.clear()
     st.rerun()
 
-# Giữ tương thích nếu còn link cũ dùng ?login=true
-if query_params.get('login') == 'true':
-    st.session_state.logged_in = True
-    st.session_state.role = 'user'
-    st.session_state.username = 'guest'
-    st.query_params.clear()
-    st.rerun()
-
-# ========== HIỂN THỊ LANDING PAGE NẾU CHƯA ĐĂNG NHẬP ==========
-if not st.session_state.logged_in:
-    # Ẩn sidebar hoàn toàn
+# ========== HIỂN THỊ LANDING PAGE NẾU CHƯA VÀO HRM ==========
+if not st.session_state.logged_in and not st.session_state.show_hrm:
+    # Ẩn sidebar hoàn toàn khi ở landing
     st.markdown("""
         <style>
             [data-testid="stSidebar"] { display: none !important; }
@@ -955,6 +949,9 @@ if not st.session_state.logged_in:
     show_landing_page()
     
     st.stop()  # Dừng lại, không chạy phần HRM bên dưới
+
+# Nếu show_hrm=True hoặc logged_in=True → chạy tiếp phần HRM bên dưới
+# Sidebar với nút đăng nhập của HRM sẽ tự hiển thị bình thường
 
 # ========== PHẦN CODE HRM BẮT ĐẦU TỪ ĐÂY ==========
 

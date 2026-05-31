@@ -26,26 +26,71 @@ import pathlib
 import streamlit as st
 
 def show_landing_page():
-    """Hiển thị Landing Page công khai cho Guest - Phiên bản chuyên nghiệp theo phong cách MSC"""
+    """Hiển thị Landing Page - Không iframe, không scrollbar chồng, chuẩn MSC"""
     
-    # Ẩn hoàn toàn sidebar và header mặc định của Streamlit
+    # 1. Ẩn hoàn toàn sidebar, header, footer, padding mặc định của Streamlit
     st.markdown("""
         <style>
-            /* Ẩn sidebar mặc định */
-            [data-testid="stSidebar"] { display: none !important; }
-            [data-testid="collapsedControl"] { display: none !important; }
+            /* Ẩn mọi thành phần gây dư thừa không gian */
+            [data-testid="stSidebar"], 
+            [data-testid="collapsedControl"],
+            header, footer, 
+            .stAppDeployButton,
+            .stToolbar,
+            .stStatusWidget,
+            .main > div:first-child,
+            [data-testid="stDecoration"] {
+                display: none !important;
+            }
             
-            /* Ẩn header và footer mặc định */
-            header { display: none !important; }
-            footer { display: none !important; }
-            
-            /* Điều chỉnh main content chiếm toàn màn hình */
+            /* Xóa padding mặc định - chiếm toàn màn hình */
             .main .block-container {
                 padding: 0 !important;
                 max-width: 100% !important;
+                margin: 0 !important;
             }
             
-            /* Tùy chỉnh scrollbar */
+            /* Ẩn thanh cuộn của Streamlit (nếu có) */
+            .main {
+                overflow-y: visible !important;
+            }
+            
+            /* Đảm bảo body chiếm toàn bộ chiều cao */
+            html, body {
+                margin: 0;
+                padding: 0;
+                height: auto;
+                overflow-x: hidden;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # 2. Nhúng trực tiếp HTML/CSS/JS (không qua iframe) - KHÔNG scrollbar chồng
+    landing_html = """
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+        <title>Cảng Quốc tế Hòn La | Cảng tổng hợp quốc tế Miền Trung</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+        <style>
+            /* RESET & BASE - KHÔNG scrollbar thừa */
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                font-family: 'Inter', sans-serif;
+                background-color: #ffffff;
+                color: #1e293b;
+                line-height: 1.5;
+                overflow-x: hidden;
+                width: 100%;
+            }
+            /* Ẩn tất cả scrollbar không mong muốn (chỉ hiển thị scrollbar chính của trình duyệt) */
             ::-webkit-scrollbar {
                 width: 8px;
             }
@@ -56,42 +101,12 @@ def show_landing_page():
                 background: #0a3d62;
                 border-radius: 4px;
             }
-        </style>
-    """, unsafe_allow_html=True)
-    
-    # --- PHẦN HTML/CSS/JS MỚI ---
-    landing_html = """
-    <!DOCTYPE html>
-    <html lang="vi">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Cảng Quốc tế Hòn La | Cảng tổng hợp quốc tế Miền Trung</title>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-        <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-            
-            body {
-                font-family: 'Inter', sans-serif;
-                background-color: #ffffff;
-                color: #1e293b;
-                line-height: 1.5;
-                overflow-x: hidden;
-            }
-            
-            /* Custom Container */
             .container {
                 max-width: 1280px;
                 margin: 0 auto;
                 padding: 0 40px;
             }
-            
-            /* ========== NAVIGATION ========== */
+            /* ===== NAVIGATION ===== */
             .navbar {
                 position: fixed;
                 top: 0;
@@ -102,25 +117,21 @@ def show_landing_page():
                 transition: all 0.4s ease;
                 background: transparent;
             }
-            
             .navbar.scrolled {
                 background: rgba(10, 61, 98, 0.98);
                 backdrop-filter: blur(10px);
                 padding: 0.7rem 5%;
                 box-shadow: 0 4px 20px rgba(0,0,0,0.1);
             }
-            
             .navbar.scrolled .nav-links a,
             .navbar.scrolled .logo-text,
             .navbar.scrolled .logo-sub {
                 color: white;
             }
-            
             .navbar.scrolled .btn-login {
                 background: #f39c12;
                 color: #0a3d62;
             }
-            
             .nav-container {
                 display: flex;
                 justify-content: space-between;
@@ -128,19 +139,16 @@ def show_landing_page():
                 max-width: 1400px;
                 margin: 0 auto;
             }
-            
             .logo {
                 display: flex;
                 align-items: center;
                 gap: 12px;
                 cursor: pointer;
             }
-            
             .logo-icon {
                 height: 45px;
                 width: auto;
             }
-            
             .logo-text {
                 font-size: 1.4rem;
                 font-weight: 800;
@@ -148,37 +156,30 @@ def show_landing_page():
                 letter-spacing: -0.5px;
                 line-height: 1.2;
             }
-            
             .logo-sub {
                 font-size: 0.7rem;
                 color: #f39c12;
                 letter-spacing: 1px;
                 font-weight: 500;
             }
-            
             .nav-links {
                 display: flex;
                 gap: 2rem;
                 align-items: center;
             }
-            
             .nav-links a {
                 text-decoration: none;
                 color: white;
                 font-weight: 500;
                 font-size: 0.95rem;
                 transition: color 0.2s;
-                position: relative;
             }
-            
             .nav-links a:hover {
                 color: #f39c12;
             }
-            
             .dropdown {
                 position: relative;
             }
-            
             .dropdown-content {
                 display: none;
                 position: absolute;
@@ -191,23 +192,19 @@ def show_landing_page():
                 left: 0;
                 z-index: 1;
             }
-            
             .dropdown:hover .dropdown-content {
                 display: block;
             }
-            
             .dropdown-content a {
                 color: #333 !important;
                 padding: 8px 16px;
                 display: block;
                 font-size: 0.85rem;
             }
-            
             .dropdown-content a:hover {
                 background: #f8fafc;
                 color: #f39c12 !important;
             }
-            
             .btn-login {
                 background: #f39c12;
                 color: #0a3d62 !important;
@@ -216,20 +213,17 @@ def show_landing_page():
                 font-weight: 700 !important;
                 transition: all 0.3s;
             }
-            
             .btn-login:hover {
                 background: #e67e22;
                 transform: translateY(-2px);
                 color: white !important;
             }
-            
-            /* ========== HERO SLIDER ========== */
+            /* ===== HERO SLIDER (toàn màn hình, không scrollbar nội bộ) ===== */
             .hero-slider {
                 height: 100vh;
                 position: relative;
                 overflow: hidden;
             }
-            
             .slide {
                 position: absolute;
                 top: 0;
@@ -246,11 +240,9 @@ def show_landing_page():
                 text-align: center;
                 color: white;
             }
-            
             .slide.active {
                 opacity: 1;
             }
-            
             .slide::before {
                 content: '';
                 position: absolute;
@@ -261,7 +253,6 @@ def show_landing_page():
                 background: linear-gradient(135deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.3) 100%);
                 z-index: 1;
             }
-            
             .slide-content {
                 position: relative;
                 z-index: 2;
@@ -269,32 +260,20 @@ def show_landing_page():
                 padding: 20px;
                 animation: fadeInUp 1s ease;
             }
-            
             @keyframes fadeInUp {
-                from {
-                    opacity: 0;
-                    transform: translateY(30px);
-                }
-                to {
-                    opacity: 1;
-                    transform: translateY(0);
-                }
+                from { opacity: 0; transform: translateY(30px); }
+                to { opacity: 1; transform: translateY(0); }
             }
-            
             .slide-content h1 {
                 font-size: 4rem;
                 font-weight: 800;
                 margin-bottom: 1rem;
                 letter-spacing: -1px;
-                text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
             }
-            
             .slide-content p {
                 font-size: 1.3rem;
                 margin-bottom: 2rem;
-                opacity: 0.95;
             }
-            
             .btn-cta {
                 background: #f39c12;
                 color: #1e293b;
@@ -305,22 +284,16 @@ def show_landing_page():
                 display: inline-block;
                 margin: 0 10px;
                 transition: all 0.3s;
-                border: none;
-                cursor: pointer;
             }
-            
             .btn-cta-outline {
                 background: transparent;
                 border: 2px solid white;
                 color: white;
             }
-            
             .btn-cta:hover {
                 transform: translateY(-3px);
-                box-shadow: 0 10px 20px rgba(0,0,0,0.2);
                 background: #e67e22;
             }
-            
             .slider-nav {
                 position: absolute;
                 bottom: 30px;
@@ -330,30 +303,24 @@ def show_landing_page():
                 gap: 15px;
                 z-index: 10;
             }
-            
             .slider-dot {
                 width: 12px;
                 height: 12px;
                 border-radius: 50%;
                 background: rgba(255,255,255,0.5);
                 cursor: pointer;
-                transition: all 0.3s;
             }
-            
             .slider-dot.active {
                 background: #f39c12;
                 width: 30px;
                 border-radius: 10px;
             }
-            
-            /* ========== STATS SECTION ========== */
+            /* ===== STATS ===== */
             .stats-section {
                 padding: 60px 5%;
                 background: #0a3d62;
                 color: white;
-                margin-top: -5px;
             }
-            
             .stats-grid {
                 display: flex;
                 justify-content: space-between;
@@ -362,47 +329,30 @@ def show_landing_page():
                 gap: 30px;
                 flex-wrap: wrap;
             }
-            
             .stat-card {
                 text-align: center;
                 flex: 1;
                 padding: 20px;
                 border-right: 1px solid rgba(255,255,255,0.2);
             }
-            
-            .stat-card:last-child {
-                border-right: none;
-            }
-            
+            .stat-card:last-child { border-right: none; }
             .stat-number {
                 font-size: 2.8rem;
                 font-weight: 800;
                 color: #f39c12;
-                margin-bottom: 10px;
             }
-            
-            .stat-label {
-                font-size: 0.9rem;
-                text-transform: uppercase;
-                letter-spacing: 1px;
-                font-weight: 500;
-            }
-            
-            /* ========== ABOUT SECTION ========== */
+            /* ===== ABOUT ===== */
             .about-section {
                 padding: 80px 5%;
                 background: #f8fafc;
             }
-            
             .about-grid {
                 display: grid;
                 grid-template-columns: 1fr 1fr;
                 gap: 60px;
-                align-items: center;
                 max-width: 1280px;
                 margin: 0 auto;
             }
-            
             .about-tag {
                 color: #f39c12;
                 font-weight: 700;
@@ -410,63 +360,41 @@ def show_landing_page():
                 margin-bottom: 1rem;
                 font-size: 0.8rem;
             }
-            
             .about-title {
                 font-size: 2.5rem;
                 font-weight: 700;
                 color: #0a3d62;
                 margin-bottom: 1.5rem;
-                line-height: 1.2;
             }
-            
             .about-text {
                 color: #475569;
                 line-height: 1.7;
                 margin-bottom: 1.5rem;
             }
-            
             .about-highlight {
                 background: white;
                 padding: 20px;
                 border-radius: 16px;
-                margin-top: 20px;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.05);
                 border-left: 4px solid #f39c12;
             }
-            
             .about-img {
                 width: 100%;
                 border-radius: 24px;
                 box-shadow: 0 20px 30px -15px rgba(0,0,0,0.15);
-                transition: transform 0.3s;
             }
-            
-            .about-img:hover {
-                transform: scale(1.02);
-            }
-            
-            /* ========== SERVICES ========== */
+            /* ===== SERVICES ===== */
             .services-section {
                 padding: 80px 5%;
                 background: white;
             }
-            
             .section-header {
                 text-align: center;
                 margin-bottom: 50px;
             }
-            
             .section-header h2 {
                 font-size: 2.2rem;
                 color: #0a3d62;
-                margin-bottom: 10px;
             }
-            
-            .section-header p {
-                color: #64748b;
-                font-size: 1.1rem;
-            }
-            
             .services-grid {
                 display: grid;
                 grid-template-columns: repeat(4, 1fr);
@@ -474,154 +402,66 @@ def show_landing_page():
                 max-width: 1280px;
                 margin: 0 auto;
             }
-            
             .service-card {
                 background: white;
                 padding: 30px 20px;
                 border-radius: 20px;
                 text-align: center;
-                transition: all 0.3s;
                 box-shadow: 0 4px 15px rgba(0,0,0,0.05);
                 border: 1px solid #e2e8f0;
+                transition: all 0.3s;
             }
-            
             .service-card:hover {
                 transform: translateY(-8px);
-                box-shadow: 0 20px 30px -10px rgba(0,0,0,0.1);
                 border-color: #f39c12;
             }
-            
             .service-icon {
                 font-size: 3rem;
                 color: #f39c12;
                 margin-bottom: 20px;
             }
-            
-            .service-card h3 {
-                font-size: 1.3rem;
-                margin-bottom: 10px;
-                color: #0a3d62;
-            }
-            
-            /* ========== INFRASTRUCTURE ========== */
-            .infra-section {
-                padding: 80px 5%;
-                background: #f8fafc;
-            }
-            
-            .infra-grid {
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 50px;
-                max-width: 1280px;
-                margin: 0 auto;
-            }
-            
-            .infra-feature {
-                display: flex;
-                gap: 15px;
-                margin-bottom: 25px;
-                align-items: flex-start;
-            }
-            
-            .infra-feature i {
-                font-size: 1.8rem;
-                color: #f39c12;
-                min-width: 50px;
-            }
-            
-            .infra-img {
-                border-radius: 20px;
-                width: 100%;
-                box-shadow: 0 20px 25px -12px rgba(0,0,0,0.1);
-            }
-            
-            /* ========== CAREERS ========== */
-            .careers-section {
-                padding: 80px 5%;
-                background: linear-gradient(135deg, #0a3d62 0%, #1e5a7d 100%);
-                color: white;
-                text-align: center;
-            }
-            
-            .careers-section h2 {
-                font-size: 2rem;
-                margin-bottom: 20px;
-            }
-            
-            .btn-white {
-                background: white;
-                color: #0a3d62;
-                padding: 12px 35px;
-                border-radius: 40px;
-                font-weight: 700;
-                display: inline-block;
-                margin-top: 20px;
-                text-decoration: none;
-                transition: all 0.3s;
-            }
-            
-            /* ========== FOOTER ========== */
+            /* ===== FOOTER ===== */
             .footer {
                 background: #0f172a;
                 color: #cbd5e1;
                 padding: 50px 5% 30px;
             }
-            
             .footer-grid {
                 display: grid;
                 grid-template-columns: repeat(4, 1fr);
                 gap: 40px;
                 max-width: 1280px;
                 margin: 0 auto;
-                padding-bottom: 40px;
-                border-bottom: 1px solid #334155;
             }
-            
             .footer-col h4 {
                 color: white;
                 margin-bottom: 20px;
-                font-size: 1.1rem;
             }
-            
-            .footer-col p, .footer-col a {
+            .footer-col a {
                 color: #94a3b8;
                 text-decoration: none;
-                line-height: 1.8;
-                font-size: 0.9rem;
                 display: block;
+                line-height: 1.8;
             }
-            
-            .footer-col a:hover {
-                color: #f39c12;
-            }
-            
             .copyright {
                 text-align: center;
                 padding-top: 30px;
                 font-size: 0.8rem;
-                color: #64748b;
             }
-            
-            /* Responsive */
             @media (max-width: 768px) {
                 .nav-links { display: none; }
                 .slide-content h1 { font-size: 2rem; }
                 .stats-grid { flex-direction: column; }
-                .stat-card { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.2); }
-                .about-grid, .services-grid, .infra-grid, .footer-grid { grid-template-columns: 1fr; }
-                .services-grid { gap: 20px; }
+                .about-grid, .services-grid, .footer-grid { grid-template-columns: 1fr; }
                 .container { padding: 0 20px; }
             }
         </style>
     </head>
     <body>
-    
     <!-- Navigation -->
     <nav class="navbar" id="navbar">
         <div class="nav-container">
             <div class="logo">
-                <!-- Hiển thị logo từ file local (sẽ được Streamlit inject) -->
                 <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%230a3d62'/%3E%3Ctext x='50' y='55' font-size='40' text-anchor='middle' fill='%23f39c12' font-weight='bold'%3E⚓%3C/text%3E%3C/svg%3E" class="logo-icon" alt="Logo">
                 <div>
                     <div class="logo-text">CẢNG HÒN LA</div>
@@ -631,11 +471,10 @@ def show_landing_page():
             <div class="nav-links">
                 <a href="#home">Trang chủ</a>
                 <div class="dropdown">
-                    <a href="#about">Giới thiệu <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <a href="#about">Giới thiệu <i class="fas fa-chevron-down"></i></a>
                     <div class="dropdown-content">
                         <a href="#about">Về chúng tôi</a>
                         <a href="#vision">Tầm nhìn sứ mệnh</a>
-                        <a href="#infrastructure">Hạ tầng</a>
                     </div>
                 </div>
                 <a href="#services">Dịch vụ</a>
@@ -647,42 +486,30 @@ def show_landing_page():
         </div>
     </nav>
     
-    <!-- Hero Slider -->
+    <!-- Hero Slider (toàn màn hình) -->
     <section id="home" class="hero-slider">
-        <!-- Slide 1: Lễ khởi công (Hình ảnh từ file upload) -->
         <div class="slide active" style="background-image: url('https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070');">
             <div class="slide-content">
                 <h1>CẢNG TỔNG HỢP QUỐC TẾ HÒN LA</h1>
                 <p>Chính thức khởi công ngày 21 tháng 3 năm 2025 - Dự án trọng điểm Quốc gia</p>
-                <div>
-                    <a href="#contact" class="btn-cta">📞 LIÊN HỆ HỢP TÁC</a>
-                    <a href="#infrastructure" class="btn-cta btn-cta-outline">⚓ KHÁM PHÁ DỰ ÁN</a>
-                </div>
+                <a href="#contact" class="btn-cta">📞 LIÊN HỆ HỢP TÁC</a>
+                <a href="#infrastructure" class="btn-cta btn-cta-outline">⚓ KHÁM PHÁ DỰ ÁN</a>
             </div>
         </div>
-        <!-- Slide 2: Cảnh quan cảng -->
         <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070');">
             <div class="slide-content">
                 <h1>KẾT NỐI TOÀN CẦU</h1>
                 <p>Vị trí chiến lược trên tuyến hành lang kinh tế Đông - Tây (EWEC)</p>
-                <div>
-                    <a href="#services" class="btn-cta">🚢 DỊCH VỤ LOGISTICS</a>
-                    <a href="#contact" class="btn-cta btn-cta-outline">📞 LIÊN HỆ NGAY</a>
-                </div>
+                <a href="#services" class="btn-cta">🚢 DỊCH VỤ LOGISTICS</a>
             </div>
         </div>
-        <!-- Slide 3: Hạ tầng hiện đại -->
         <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1584622781564-1d987f7333c1?q=80&w=2070');">
             <div class="slide-content">
                 <h1>HẠ TẦNG ĐẲNG CẤP QUỐC TẾ</h1>
                 <p>04 bến cập tàu | Tổng chiều dài 970m | Tiếp nhận tàu 70.000 DWT</p>
-                <div>
-                    <a href="#infrastructure" class="btn-cta">🏗️ THÔNG SỐ KỸ THUẬT</a>
-                </div>
+                <a href="#infrastructure" class="btn-cta">🏗️ THÔNG SỐ KỸ THUẬT</a>
             </div>
         </div>
-        
-        <!-- Slider Navigation Dots -->
         <div class="slider-nav">
             <div class="slider-dot active" data-slide="0"></div>
             <div class="slider-dot" data-slide="1"></div>
@@ -690,228 +517,113 @@ def show_landing_page():
         </div>
     </section>
     
-    <!-- Statistics Section (Thông số nổi bật) -->
+    <!-- Stats -->
     <section class="stats-section">
         <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-number">39,22 ha</div>
-                <div class="stat-label">Tổng diện tích quy hoạch</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">70.000 DWT</div>
-                <div class="stat-label">Trọng tải tàu tối đa</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">970 m</div>
-                <div class="stat-label">Chiều dài cầu cảng</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">225.000 GT</div>
-                <div class="stat-label">Tàu du lịch quốc tế</div>
-            </div>
+            <div class="stat-card"><div class="stat-number">39,22 ha</div><div class="stat-label">Diện tích</div></div>
+            <div class="stat-card"><div class="stat-number">70.000 DWT</div><div class="stat-label">Trọng tải tối đa</div></div>
+            <div class="stat-card"><div class="stat-number">970 m</div><div class="stat-label">Cầu cảng</div></div>
+            <div class="stat-card"><div class="stat-number">225.000 GT</div><div class="stat-label">Tàu du lịch</div></div>
         </div>
     </section>
     
-    <!-- About Section -->
+    <!-- About -->
     <section id="about" class="about-section">
         <div class="about-grid">
             <div>
                 <div class="about-tag">CHÀO MỪNG ĐẾN VỚI HÒN LA</div>
-                <h2 class="about-title">Cửa ngõ hàng hải<br>Chiến lược của Miền Trung</h2>
+                <h2 class="about-title">Cửa ngõ hàng hải chiến lược của Miền Trung</h2>
                 <p class="about-text">Cảng tổng hợp Quốc tế Hòn La được đầu tư bài bản với hệ thống cơ sở hạ tầng đồng bộ, hiện đại, đáp ứng nhu cầu bốc xếp hàng hóa, trung chuyển container và đón tàu du lịch quốc tế.</p>
-                <p class="about-text">Với vị trí vàng nằm trong Khu kinh tế Hòn La, Quảng Trạch, Quảng Bình, cảng có lợi thế kết nối trực tiếp với Hành lang kinh tế Đông - Tây (EWEC), mở ra cánh cửa giao thương với các nước Lào, Thái Lan, Myanmar.</p>
                 <div class="about-highlight">
-                    <i class="fas fa-trophy" style="color: #f39c12; margin-right: 10px;"></i>
-                    <strong>Dự án trọng điểm Quốc gia</strong>
-                    <p style="margin-top: 8px; font-size: 0.9rem;">Được Thủ tướng Chính phủ phê duyệt quy hoạch, là một trong những cảng biển tổng hợp lớn nhất khu vực Bắc Trung Bộ.</p>
+                    <i class="fas fa-trophy" style="color:#f39c12"></i> <strong>Dự án trọng điểm Quốc gia</strong>
+                    <p style="margin-top:8px">Được Thủ tướng Chính phủ phê duyệt quy hoạch, là một trong những cảng biển tổng hợp lớn nhất khu vực Bắc Trung Bộ.</p>
                 </div>
             </div>
-            <div>
-                <img src="https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070" alt="Cảng Hòn La" class="about-img">
-            </div>
+            <div><img src="https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070" class="about-img"></div>
         </div>
     </section>
     
-    <!-- Services Section -->
+    <!-- Services -->
     <section id="services" class="services-section">
-        <div class="section-header">
-            <h2>Dịch vụ của chúng tôi</h2>
-            <p>Giải pháp logistics toàn diện, đáp ứng mọi nhu cầu vận tải biển</p>
-        </div>
+        <div class="section-header"><h2>Dịch vụ của chúng tôi</h2><p>Giải pháp logistics toàn diện</p></div>
         <div class="services-grid">
-            <div class="service-card">
-                <div class="service-icon"><i class="fas fa-ship"></i></div>
-                <h3>Hàng rời & Hàng khô</h3>
-                <p>Xếp dỡ hàng rời, hàng khối lượng lớn với hệ thống băng tải hiện đại</p>
-            </div>
-            <div class="service-card">
-                <div class="service-icon"><i class="fas fa-boxes"></i></div>
-                <h3>Hàng container</h3>
-                <p>Khai thác container nội địa và quốc tế, kết nối chuỗi cung ứng toàn cầu</p>
-            </div>
-            <div class="service-card">
-                <div class="service-icon"><i class="fas fa-umbrella-beach"></i></div>
-                <h3>Du lịch tàu biển</h3>
-                <p>Đón tàu du lịch quốc tế lên đến 225.000 GT, phát triển du lịch biển</p>
-            </div>
-            <div class="service-card">
-                <div class="service-icon"><i class="fas fa-warehouse"></i></div>
-                <h3>Logistics & Kho bãi</h3>
-                <p>Dịch vụ logistics trọn gói, kho bãi rộng 39ha đạt chuẩn quốc tế</p>
-            </div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-ship"></i></div><h3>Hàng rời & Hàng khô</h3></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-boxes"></i></div><h3>Hàng container</h3></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-umbrella-beach"></i></div><h3>Du lịch tàu biển</h3></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-warehouse"></i></div><h3>Logistics & Kho bãi</h3></div>
         </div>
     </section>
     
-    <!-- Infrastructure & Location -->
-    <section id="infrastructure" class="infra-section">
-        <div class="infra-grid">
+    <!-- Infrastructure -->
+    <section id="infrastructure" class="about-section" style="background:white">
+        <div class="about-grid">
+            <div><img src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070" class="about-img"></div>
             <div>
                 <div class="about-tag">HẠ TẦNG & VỊ TRÍ</div>
                 <h2 class="about-title">Vị thế vàng trên bản đồ logistics</h2>
-                <div class="infra-feature">
-                    <i class="fas fa-map-marker-alt"></i>
-                    <div><strong>Quảng Trạch, Quảng Bình</strong><br>Nằm trong Khu kinh tế Hòn La, cửa ngõ ra Biển Đông của các tỉnh Tây Nguyên và Lào</div>
-                </div>
-                <div class="infra-feature">
-                    <i class="fas fa-road"></i>
-                    <div><strong>Kết nối hành lang Đông - Tây (EWEC)</strong><br>Tuyến giao thông huyết mạch nối Việt Nam - Lào - Thái Lan - Myanmar</div>
-                </div>
-                <div class="infra-feature">
-                    <i class="fas fa-anchor"></i>
-                    <div><strong>04 bến cấp tàu</strong><br>Tổng chiều dài 970m, có khả năng mở rộng đón tàu trọng tải lớn hơn 100.000 DWT</div>
-                </div>
-                <div class="infra-feature">
-                    <i class="fas fa-cogs"></i>
-                    <div><strong>Trang thiết bị hiện đại</strong><br>Cần cẩu bờ, cần cẩu bánh lốp, xe nâng container, hệ thống quản lý tàu thông minh</div>
-                </div>
-            </div>
-            <div>
-                <img src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070" alt="Hạ tầng cảng" class="infra-img">
-                <div style="margin-top: 20px; background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
-                    <h4 style="color: #0a3d62;">⚡ Tiến độ đầu tư</h4>
-                    <p><strong>Giai đoạn 1 (2025 - 2027):</strong> Hoàn thiện 04 bến cảng, đưa vào khai thác 2 bến đầu tiên.</p>
-                    <p><strong>Giai đoạn 2 (2028 - 2030):</strong> Mở rộng nâng công suất lên 15 triệu tấn/năm.</p>
-                </div>
+                <div class="infra-feature"><i class="fas fa-map-marker-alt"></i> <strong>Quảng Trạch, Quảng Bình</strong> – Khu kinh tế Hòn La</div>
+                <div class="infra-feature"><i class="fas fa-road"></i> <strong>Kết nối hành lang Đông - Tây (EWEC)</strong></div>
+                <div class="infra-feature"><i class="fas fa-anchor"></i> <strong>04 bến cấp tàu</strong> – Tổng chiều dài 970m</div>
             </div>
         </div>
     </section>
     
-    <!-- Careers / Recruitment Banner -->
-    <section id="careers" class="careers-section">
-        <div class="container">
-            <h2>Gia nhập đội ngũ Cảng Hòn La</h2>
-            <p style="max-width: 600px; margin: 0 auto;">Chúng tôi luôn tìm kiếm những nhân tài đam mê với ngành hàng hải, logistics để cùng phát triển bền vững.</p>
-            <a href="#" class="btn-white" id="careerLink">📢 Xem cơ hội việc làm</a>
-        </div>
+    <!-- Careers -->
+    <section id="careers" class="services-section" style="background:#f8fafc; text-align:center">
+        <div class="section-header"><h2>Gia nhập đội ngũ Cảng Hòn La</h2><p>Chúng tôi luôn tìm kiếm những nhân tài</p></div>
+        <a href="#" class="btn-cta" id="careerLink" style="background:#0a3d62; color:white">📢 Xem cơ hội việc làm</a>
     </section>
     
     <!-- Footer -->
     <footer id="contact" class="footer">
         <div class="footer-grid">
-            <div class="footer-col">
-                <h4>CẢNG QUỐC TẾ HÒN LA</h4>
-                <p>Khu kinh tế Hòn La, xã Quảng Đông, huyện Quảng Trạch, tỉnh Quảng Bình</p>
-                <p>📞 0232.xxxx.xxx</p>
-                <p>📧 info@honlaport.com.vn</p>
-            </div>
-            <div class="footer-col">
-                <h4>Liên kết nhanh</h4>
-                <a href="#about">Về chúng tôi</a>
-                <a href="#services">Dịch vụ</a>
-                <a href="#infrastructure">Dự án & Hạ tầng</a>
-                <a href="#careers">Tuyển dụng</a>
-            </div>
-            <div class="footer-col">
-                <h4>Hỗ trợ khách hàng</h4>
-                <a href="#">Câu hỏi thường gặp</a>
-                <a href="#">Chính sách khai thác</a>
-                <a href="#">Biểu giá dịch vụ</a>
-                <a href="#">Liên hệ hợp tác</a>
-            </div>
-            <div class="footer-col">
-                <h4>Giờ làm việc</h4>
-                <p>🚢 Bến cảng: 24/7 (tất cả các ngày trong năm)</p>
-                <p>🏢 Văn phòng: Thứ 2 - Thứ 7 (7:30 - 17:00)</p>
-                <p>📅 Bộ phận Hành chính: 7:30 - 11:30, 13:30 - 16:30</p>
-            </div>
+            <div class="footer-col"><h4>CẢNG QUỐC TẾ HÒN LA</h4><p>Khu kinh tế Hòn La, Quảng Trạch, Quảng Bình</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
+            <div class="footer-col"><h4>Liên kết nhanh</h4><a href="#about">Về chúng tôi</a><a href="#services">Dịch vụ</a><a href="#infrastructure">Hạ tầng</a><a href="#careers">Tuyển dụng</a></div>
+            <div class="footer-col"><h4>Hỗ trợ</h4><a href="#">FAQ</a><a href="#">Biểu giá</a><a href="#">Liên hệ</a></div>
+            <div class="footer-col"><h4>Giờ làm việc</h4><p>Bến cảng: 24/7</p><p>Văn phòng: 7:30 - 17:00</p></div>
         </div>
-        <div class="copyright">
-            <p>© 2026 Cảng Quốc tế Hòn La - Tổng Công ty Cổ phần Cảng Hòn La. All rights reserved.</p>
-            <p style="margin-top: 10px;"><a href="#">Điều khoản sử dụng</a> | <a href="#">Chính sách bảo mật</a></p>
-        </div>
+        <div class="copyright"><p>© 2026 Cảng Quốc tế Hòn La - Tổng Công ty Cổ phần Cảng Hòn La.</p></div>
     </footer>
     
     <script>
-        // Slider tự động
+        // Slider
         let currentSlide = 0;
         const slides = document.querySelectorAll('.slide');
         const dots = document.querySelectorAll('.slider-dot');
-        const totalSlides = slides.length;
-        let autoSlideInterval;
-        
         function showSlide(index) {
-            slides.forEach((slide, i) => {
-                slide.classList.remove('active');
-                dots[i].classList.remove('active');
-            });
+            slides.forEach((s,i) => { s.classList.remove('active'); dots[i].classList.remove('active'); });
             slides[index].classList.add('active');
             dots[index].classList.add('active');
             currentSlide = index;
         }
-        
-        function nextSlide() {
-            let next = (currentSlide + 1) % totalSlides;
-            showSlide(next);
-        }
-        
-        function startAutoSlide() {
-            if (autoSlideInterval) clearInterval(autoSlideInterval);
-            autoSlideInterval = setInterval(nextSlide, 5000);
-        }
-        
-        dots.forEach((dot, idx) => {
-            dot.addEventListener('click', () => {
-                showSlide(idx);
-                startAutoSlide();
-            });
-        });
-        
-        startAutoSlide();
-        
-        // Navbar scroll effect
+        function nextSlide() { showSlide((currentSlide+1)%slides.length); }
+        setInterval(nextSlide, 5000);
+        dots.forEach((dot, idx) => dot.addEventListener('click', () => showSlide(idx)));
+        // Navbar scroll
         window.addEventListener('scroll', () => {
-            const navbar = document.getElementById('navbar');
-            if (window.scrollY > 50) {
-                navbar.classList.add('scrolled');
-            } else {
-                navbar.classList.remove('scrolled');
-            }
+            document.getElementById('navbar').classList.toggle('scrolled', window.scrollY > 50);
         });
-        
-        // Xử lý nút đăng nhập
-        document.getElementById('loginBtn')?.addEventListener('click', function(e) {
+        // Login
+        document.getElementById('loginBtn')?.addEventListener('click', (e) => {
             e.preventDefault();
             window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'login_clicked'}, '*');
         });
-        
-        document.getElementById('careerLink')?.addEventListener('click', function(e) {
+        document.getElementById('careerLink')?.addEventListener('click', (e) => {
             e.preventDefault();
-            alert('Chức năng đang được phát triển. Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
+            alert('Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
         });
     </script>
     </body>
     </html>
     """
     
-    # Hiển thị HTML
-    st.components.v1.html(landing_html, height=800, scrolling=True)
+    # Hiển thị trực tiếp bằng markdown (không iframe) để tránh scrollbar chồng
+    st.markdown(landing_html, unsafe_allow_html=True)
     
-    # Xử lý nút đăng nhập từ JavaScript
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🔐 Staff Login", key="hidden_login", help="Đăng nhập vào hệ thống quản lý", use_container_width=True):
-            st.session_state['show_landing'] = False
-            st.rerun()
+    # Xử lý nút đăng nhập dự phòng (khi nhấn từ Streamlit)
+    if st.button("🔐 Staff Login", key="hidden_login", help="Đăng nhập vào hệ thống quản lý"):
+        st.session_state['show_landing'] = False
+        st.rerun()
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 

@@ -863,13 +863,13 @@ def show_landing_page():
             
             // Login handler
             const loginBtn = document.getElementById('loginBtn');
-            if (loginBtn) {
-                loginBtn.addEventListener('click', function(e) {
+            if (loginBtn) {{
+                loginBtn.addEventListener('click', function(e) {{
                     e.preventDefault();
                     // Chuyển hướng với query parameter để kích hoạt form đăng nhập
                     window.location.href = window.location.pathname + '?login=true';
-                });
-            }
+                }});
+            }}
             
             // Career link handler
             const careerLink = document.getElementById('careerLink');

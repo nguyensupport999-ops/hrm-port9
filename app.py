@@ -26,7 +26,7 @@ import pathlib
 import streamlit as st
 
 def show_landing_page():
-    """Hiển thị Landing Page - Fix slider, logo góc trái, menu có nền"""
+    """Hiển thị Landing Page - Logo tròn 150px, slider đã fix"""
     
     # Ẩn hoàn toàn sidebar, header, footer
     st.markdown("""
@@ -104,7 +104,7 @@ def show_landing_page():
                 border-radius: 4px;
             }}
             
-            /* ===== NAVIGATION - CÓ NỀN GIỐNG BUTTON ===== */
+            /* ===== NAVIGATION ===== */
             .navbar {{
                 position: fixed;
                 top: 0;
@@ -124,27 +124,28 @@ def show_landing_page():
                 margin: 0 auto;
             }}
             
-            /* Logo góc trái */
-            .logo-area {{
+            /* Logo hình tròn 150px - KHÔNG có text */
+            .logo-circle {{
+                width: 150px;
+                height: 150px;
+                border-radius: 50%;
+                overflow: hidden;
+                box-shadow: 0 8px 25px rgba(0,0,0,0.25), 0 0 0 3px rgba(255,255,255,0.3);
+                background: white;
                 display: flex;
                 align-items: center;
-                gap: 15px;
+                justify-content: center;
+                transition: transform 0.3s, box-shadow 0.3s;
+                cursor: pointer;
             }}
-            .logo-img {{
-                height: 50px;
-                width: auto;
-                object-fit: contain;
+            .logo-circle:hover {{
+                transform: scale(1.02);
+                box-shadow: 0 12px 30px rgba(0,0,0,0.3);
             }}
-            .logo-text {{
-                font-size: 1.3rem;
-                font-weight: 800;
-                color: white;
-                letter-spacing: -0.5px;
-            }}
-            .logo-sub {{
-                font-size: 0.65rem;
-                color: #f59e0b;
-                letter-spacing: 1px;
+            .logo-circle img {{
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
             }}
             
             /* Menu có nền đậm */
@@ -152,7 +153,7 @@ def show_landing_page():
                 display: flex;
                 gap: 0.5rem;
                 align-items: center;
-                background: rgba(0,0,0,0.3);
+                background: rgba(0,0,0,0.35);
                 padding: 5px 15px;
                 border-radius: 50px;
                 backdrop-filter: blur(5px);
@@ -210,12 +211,18 @@ def show_landing_page():
                 color: white !important;
             }}
             
-            /* ===== HERO SLIDER ===== */
+            /* ===== HERO SLIDER - ĐÃ FIX ===== */
             .hero-slider {{
                 height: 100vh;
+                width: 100%;
                 position: relative;
                 overflow: hidden;
                 margin-top: 0;
+            }}
+            .slides-container {{
+                position: relative;
+                width: 100%;
+                height: 100%;
             }}
             .slide {{
                 position: absolute;
@@ -225,8 +232,9 @@ def show_landing_page():
                 height: 100%;
                 background-size: cover;
                 background-position: center;
+                background-repeat: no-repeat;
                 opacity: 0;
-                transition: opacity 1s ease-in-out;
+                transition: opacity 0.8s ease-in-out;
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -235,6 +243,7 @@ def show_landing_page():
             }}
             .slide.active {{
                 opacity: 1;
+                z-index: 2;
             }}
             .slide::before {{
                 content: '';
@@ -243,18 +252,18 @@ def show_landing_page():
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background: linear-gradient(135deg, rgba(15,59,92,0.8) 0%, rgba(15,59,92,0.5) 100%);
+                background: linear-gradient(135deg, rgba(15,59,92,0.75) 0%, rgba(15,59,92,0.45) 100%);
                 z-index: 1;
             }}
             .slide-content {{
                 position: relative;
-                z-index: 2;
+                z-index: 3;
                 max-width: 900px;
-                padding: 20px;
-                animation: fadeInUp 1s ease;
+                padding: 30px;
+                animation: fadeInUp 0.8s ease;
             }}
             @keyframes fadeInUp {{
-                from {{ opacity: 0; transform: translateY(30px); }}
+                from {{ opacity: 0; transform: translateY(40px); }}
                 to {{ opacity: 1; transform: translateY(0); }}
             }}
             .slide-content h1 {{
@@ -262,12 +271,13 @@ def show_landing_page():
                 font-weight: 800;
                 margin-bottom: 1rem;
                 letter-spacing: -1px;
-                text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+                text-shadow: 2px 2px 8px rgba(0,0,0,0.3);
             }}
             .slide-content p {{
                 font-size: 1.25rem;
                 margin-bottom: 2rem;
                 opacity: 0.95;
+                text-shadow: 1px 1px 4px rgba(0,0,0,0.3);
             }}
             .btn-cta {{
                 background: #f59e0b;
@@ -349,7 +359,7 @@ def show_landing_page():
                 font-weight: 500;
             }}
             
-            /* ===== ABOUT ===== */
+            /* ===== ABOUT & SERVICES ===== */
             .about-section {{
                 padding: 80px 5%;
                 background: #f8fafc;
@@ -373,7 +383,6 @@ def show_landing_page():
                 font-weight: 700;
                 color: #0f3b5c;
                 margin-bottom: 1.5rem;
-                line-height: 1.2;
             }}
             .about-text {{
                 color: #475569;
@@ -384,20 +393,13 @@ def show_landing_page():
                 background: white;
                 padding: 20px;
                 border-radius: 16px;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.05);
                 border-left: 4px solid #f59e0b;
             }}
             .about-img {{
                 width: 100%;
                 border-radius: 24px;
                 box-shadow: 0 20px 30px -15px rgba(0,0,0,0.15);
-                transition: transform 0.3s;
             }}
-            .about-img:hover {{
-                transform: scale(1.02);
-            }}
-            
-            /* ===== SERVICES ===== */
             .services-section {{
                 padding: 80px 5%;
                 background: white;
@@ -408,13 +410,7 @@ def show_landing_page():
             }}
             .section-header h2 {{
                 font-size: 2.2rem;
-                font-weight: 700;
-                margin-bottom: 10px;
                 color: #0f3b5c;
-            }}
-            .section-header p {{
-                color: #64748b;
-                font-size: 1.1rem;
             }}
             .services-grid {{
                 display: grid;
@@ -434,7 +430,6 @@ def show_landing_page():
             }}
             .service-card:hover {{
                 transform: translateY(-8px);
-                box-shadow: 0 20px 30px -10px rgba(0,0,0,0.1);
                 border-color: #f59e0b;
             }}
             .service-icon {{
@@ -442,17 +437,6 @@ def show_landing_page():
                 color: #f59e0b;
                 margin-bottom: 20px;
             }}
-            .service-card h3 {{
-                font-size: 1.3rem;
-                margin-bottom: 10px;
-                color: #0f3b5c;
-            }}
-            .service-card p {{
-                color: #64748b;
-                font-size: 0.85rem;
-            }}
-            
-            /* ===== INFRASTRUCTURE ===== */
             .infra-section {{
                 padding: 80px 5%;
                 background: #f8fafc;
@@ -468,29 +452,16 @@ def show_landing_page():
                 display: flex;
                 gap: 15px;
                 margin-bottom: 25px;
-                align-items: flex-start;
             }}
             .infra-feature i {{
                 font-size: 1.8rem;
                 color: #f59e0b;
-                min-width: 50px;
             }}
-            .infra-img {{
-                border-radius: 20px;
-                width: 100%;
-                box-shadow: 0 20px 25px -12px rgba(0,0,0,0.1);
-            }}
-            
-            /* ===== CAREERS ===== */
             .careers-section {{
                 padding: 80px 5%;
                 background: linear-gradient(135deg, #0f3b5c 0%, #1e4a76 100%);
                 color: white;
                 text-align: center;
-            }}
-            .careers-section h2 {{
-                font-size: 2rem;
-                margin-bottom: 20px;
             }}
             .btn-white {{
                 background: white;
@@ -501,14 +472,7 @@ def show_landing_page():
                 display: inline-block;
                 margin-top: 20px;
                 text-decoration: none;
-                transition: all 0.3s;
             }}
-            .btn-white:hover {{
-                transform: translateY(-3px);
-                box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-            }}
-            
-            /* ===== FOOTER ===== */
             .footer {{
                 background: #0f172a;
                 color: #cbd5e1;
@@ -520,54 +484,39 @@ def show_landing_page():
                 gap: 40px;
                 max-width: 1280px;
                 margin: 0 auto;
-                padding-bottom: 40px;
-                border-bottom: 1px solid #334155;
             }}
             .footer-col h4 {{
                 color: white;
                 margin-bottom: 20px;
-                font-size: 1.1rem;
             }}
-            .footer-col p, .footer-col a {{
+            .footer-col a {{
                 color: #94a3b8;
                 text-decoration: none;
-                line-height: 1.8;
-                font-size: 0.9rem;
                 display: block;
-            }}
-            .footer-col a:hover {{
-                color: #f59e0b;
+                line-height: 1.8;
             }}
             .copyright {{
                 text-align: center;
                 padding-top: 30px;
                 font-size: 0.8rem;
-                color: #64748b;
             }}
             
             @media (max-width: 768px) {{
                 .nav-links {{ display: none; }}
+                .logo-circle {{ width: 100px; height: 100px; }}
                 .slide-content h1 {{ font-size: 2rem; }}
-                .slide-content p {{ font-size: 1rem; }}
-                .stats-grid {{ flex-direction: column; }}
-                .stat-card {{ border-right: none; border-bottom: 1px solid rgba(255,255,255,0.2); }}
-                .about-grid, .services-grid, .infra-grid, .footer-grid {{ grid-template-columns: 1fr; }}
-                .services-grid {{ gap: 20px; }}
-                .logo-text {{ display: none; }}
+                .stats-grid, .about-grid, .services-grid, .infra-grid, .footer-grid {{ grid-template-columns: 1fr; }}
             }}
         </style>
     </head>
     <body>
     
-    <!-- Navigation - Logo góc trái, menu có nền -->
+    <!-- Navigation -->
     <nav class="navbar" id="navbar">
         <div class="nav-container">
-            <div class="logo-area">
-                <img src="data:image/png;base64,{logo_base64}" alt="Cảng Hòn La" class="logo-img">
-                <div>
-                    <div class="logo-text">CẢNG HÒN LA</div>
-                    <div class="logo-sub">INTERNATIONAL PORT</div>
-                </div>
+            <!-- Logo hình tròn 150px - KHÔNG text -->
+            <div class="logo-circle">
+                <img src="data:image/png;base64,{logo_base64}" alt="Cảng Hòn La">
             </div>
             <div class="nav-links">
                 <a href="#home">Trang chủ</a>
@@ -575,7 +524,6 @@ def show_landing_page():
                     <a href="#about">Giới thiệu <i class="fas fa-chevron-down"></i></a>
                     <div class="dropdown-content">
                         <a href="#about">Về chúng tôi</a>
-                        <a href="#vision">Tầm nhìn sứ mệnh</a>
                         <a href="#infrastructure">Hạ tầng</a>
                     </div>
                 </div>
@@ -588,39 +536,41 @@ def show_landing_page():
         </div>
     </nav>
     
-    <!-- Hero Slider - ĐÃ SỬA LỖI -->
+    <!-- Hero Slider - ĐÃ SỬA LỖI HOÀN TOÀN -->
     <section id="home" class="hero-slider">
-        <!-- Slide 1: Lễ khởi công -->
-        <div class="slide active" style="background-image: url('https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070');">
-            <div class="slide-content">
-                <h1>CẢNG TỔNG HỢP QUỐC TẾ HÒN LA</h1>
-                <p>Chính thức khởi công ngày 21 tháng 3 năm 2025 - Dự án trọng điểm Quốc gia</p>
-                <div>
-                    <a href="#contact" class="btn-cta">📞 LIÊN HỆ HỢP TÁC</a>
-                    <a href="#infrastructure" class="btn-cta btn-cta-outline">⚓ KHÁM PHÁ DỰ ÁN</a>
+        <div class="slides-container">
+            <!-- Slide 1 -->
+            <div class="slide active" style="background-image: url('https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070');">
+                <div class="slide-content">
+                    <h1>CẢNG TỔNG HỢP QUỐC TẾ HÒN LA</h1>
+                    <p>Chính thức khởi công ngày 21 tháng 3 năm 2025 - Dự án trọng điểm Quốc gia</p>
+                    <div>
+                        <a href="#contact" class="btn-cta">📞 LIÊN HỆ HỢP TÁC</a>
+                        <a href="#infrastructure" class="btn-cta btn-cta-outline">⚓ KHÁM PHÁ DỰ ÁN</a>
+                    </div>
                 </div>
             </div>
-        </div>
-        
-        <!-- Slide 2: Cảnh quan cảng -->
-        <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070');">
-            <div class="slide-content">
-                <h1>KẾT NỐI TOÀN CẦU</h1>
-                <p>Vị trí chiến lược trên tuyến hành lang kinh tế Đông - Tây (EWEC)</p>
-                <div>
-                    <a href="#services" class="btn-cta">🚢 DỊCH VỤ LOGISTICS</a>
-                    <a href="#contact" class="btn-cta btn-cta-outline">📞 LIÊN HỆ NGAY</a>
+            
+            <!-- Slide 2 -->
+            <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070');">
+                <div class="slide-content">
+                    <h1>KẾT NỐI TOÀN CẦU</h1>
+                    <p>Vị trí chiến lược trên tuyến hành lang kinh tế Đông - Tây (EWEC)</p>
+                    <div>
+                        <a href="#services" class="btn-cta">🚢 DỊCH VỤ LOGISTICS</a>
+                        <a href="#contact" class="btn-cta btn-cta-outline">📞 LIÊN HỆ</a>
+                    </div>
                 </div>
             </div>
-        </div>
-        
-        <!-- Slide 3: Hạ tầng hiện đại -->
-        <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1584622781564-1d987f7333c1?q=80&w=2070');">
-            <div class="slide-content">
-                <h1>HẠ TẦNG ĐẲNG CẤP QUỐC TẾ</h1>
-                <p>04 bến cập tàu | Tổng chiều dài 970m | Tiếp nhận tàu 70.000 DWT</p>
-                <div>
-                    <a href="#infrastructure" class="btn-cta">🏗️ THÔNG SỐ KỸ THUẬT</a>
+            
+            <!-- Slide 3 -->
+            <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1584622781564-1d987f7333c1?q=80&w=2070');">
+                <div class="slide-content">
+                    <h1>HẠ TẦNG ĐẲNG CẤP QUỐC TẾ</h1>
+                    <p>04 bến cấp tàu | Tổng chiều dài 970m | Tiếp nhận tàu 70.000 DWT</p>
+                    <div>
+                        <a href="#infrastructure" class="btn-cta">🏗️ THÔNG SỐ KỸ THUẬT</a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -633,7 +583,7 @@ def show_landing_page():
         </div>
     </section>
     
-    <!-- Statistics Section -->
+    <!-- Statistics -->
     <section class="stats-section">
         <div class="stats-grid">
             <div class="stat-card"><div class="stat-number">39,22 ha</div><div class="stat-label">Tổng diện tích</div></div>
@@ -643,30 +593,27 @@ def show_landing_page():
         </div>
     </section>
     
-    <!-- About Section -->
+    <!-- About -->
     <section id="about" class="about-section">
         <div class="about-grid">
             <div>
                 <div class="about-tag">CHÀO MỪNG ĐẾN VỚI HÒN LA</div>
                 <h2 class="about-title">Cửa ngõ hàng hải chiến lược của Miền Trung</h2>
                 <p class="about-text">Cảng tổng hợp Quốc tế Hòn La được đầu tư bài bản với hệ thống cơ sở hạ tầng đồng bộ, hiện đại, đáp ứng nhu cầu bốc xếp hàng hóa, trung chuyển container và đón tàu du lịch quốc tế.</p>
-                <div class="about-highlight">
-                    <i class="fas fa-trophy" style="color:#f59e0b"></i> <strong>Dự án trọng điểm Quốc gia</strong>
-                    <p style="margin-top:8px">Được Thủ tướng Chính phủ phê duyệt quy hoạch, là một trong những cảng biển tổng hợp lớn nhất khu vực Bắc Trung Bộ.</p>
-                </div>
+                <div class="about-highlight"><i class="fas fa-trophy" style="color:#f59e0b"></i> <strong>Dự án trọng điểm Quốc gia</strong></div>
             </div>
             <div><img src="https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070" class="about-img"></div>
         </div>
     </section>
     
-    <!-- Services Section -->
+    <!-- Services -->
     <section id="services" class="services-section">
-        <div class="section-header"><h2>Dịch vụ của chúng tôi</h2><p>Giải pháp logistics toàn diện</p></div>
+        <div class="section-header"><h2>Dịch vụ của chúng tôi</h2></div>
         <div class="services-grid">
-            <div class="service-card"><div class="service-icon"><i class="fas fa-ship"></i></div><h3>Hàng rời & Hàng khô</h3><p>Xếp dỡ hàng rời, hàng khối lượng lớn</p></div>
-            <div class="service-card"><div class="service-icon"><i class="fas fa-boxes"></i></div><h3>Hàng container</h3><p>Khai thác container nội địa và quốc tế</p></div>
-            <div class="service-card"><div class="service-icon"><i class="fas fa-umbrella-beach"></i></div><h3>Du lịch tàu biển</h3><p>Đón tàu du lịch quốc tế lên đến 225.000 GT</p></div>
-            <div class="service-card"><div class="service-icon"><i class="fas fa-warehouse"></i></div><h3>Logistics & Kho bãi</h3><p>Dịch vụ logistics trọn gói, kho bãi 39ha</p></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-ship"></i></div><h3>Hàng rời & Hàng khô</h3></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-boxes"></i></div><h3>Hàng container</h3></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-umbrella-beach"></i></div><h3>Du lịch tàu biển</h3></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-warehouse"></i></div><h3>Logistics & Kho bãi</h3></div>
         </div>
     </section>
     
@@ -677,32 +624,33 @@ def show_landing_page():
                 <div class="about-tag">HẠ TẦNG & VỊ TRÍ</div>
                 <h2 class="about-title">Vị thế vàng trên bản đồ logistics</h2>
                 <div class="infra-feature"><i class="fas fa-map-marker-alt"></i><div><strong>Quảng Trạch, Quảng Bình</strong><br>Khu kinh tế Hòn La</div></div>
-                <div class="infra-feature"><i class="fas fa-road"></i><div><strong>Kết nối hành lang Đông - Tây (EWEC)</strong><br>Nối Việt Nam - Lào - Thái Lan - Myanmar</div></div>
+                <div class="infra-feature"><i class="fas fa-road"></i><div><strong>Kết nối hành lang Đông - Tây (EWEC)</strong></div></div>
                 <div class="infra-feature"><i class="fas fa-anchor"></i><div><strong>04 bến cấp tàu</strong><br>Tổng chiều dài 970m</div></div>
             </div>
-            <div><img src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070" class="infra-img"></div>
+            <div><img src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070" class="about-img"></div>
         </div>
     </section>
     
     <!-- Careers -->
     <section id="careers" class="careers-section">
-        <div class="container"><h2>Gia nhập đội ngũ Cảng Hòn La</h2><p>Chúng tôi luôn tìm kiếm những nhân tài</p>
-        <a href="#" class="btn-white" id="careerLink">📢 Xem cơ hội việc làm</a></div>
+        <h2>Gia nhập đội ngũ Cảng Hòn La</h2>
+        <p>Chúng tôi luôn tìm kiếm những nhân tài</p>
+        <a href="#" class="btn-white" id="careerLink">📢 Xem cơ hội việc làm</a>
     </section>
     
     <!-- Footer -->
     <footer id="contact" class="footer">
         <div class="footer-grid">
             <div class="footer-col"><h4>CẢNG QUỐC TẾ HÒN LA</h4><p>Khu kinh tế Hòn La, Quảng Trạch, Quảng Bình</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
-            <div class="footer-col"><h4>Liên kết nhanh</h4><a href="#about">Về chúng tôi</a><a href="#services">Dịch vụ</a><a href="#infrastructure">Hạ tầng</a><a href="#careers">Tuyển dụng</a></div>
-            <div class="footer-col"><h4>Hỗ trợ</h4><a href="#">FAQ</a><a href="#">Biểu giá</a><a href="#">Liên hệ</a></div>
+            <div class="footer-col"><h4>Liên kết nhanh</h4><a href="#about">Về chúng tôi</a><a href="#services">Dịch vụ</a><a href="#infrastructure">Hạ tầng</a></div>
+            <div class="footer-col"><h4>Hỗ trợ</h4><a href="#">FAQ</a><a href="#">Biểu giá</a></div>
             <div class="footer-col"><h4>Giờ làm việc</h4><p>Bến cảng: 24/7</p><p>Văn phòng: 7:30 - 17:00</p></div>
         </div>
-        <div class="copyright"><p>© 2026 Cảng Quốc tế Hòn La. All rights reserved.</p></div>
+        <div class="copyright"><p>© 2026 Cảng Quốc tế Hòn La</p></div>
     </footer>
     
     <script>
-        // ===== SLIDER TỰ ĐỘNG =====
+        // ===== SLIDER TỰ ĐỘNG - ĐÃ FIX =====
         let currentSlide = 0;
         const slides = document.querySelectorAll('.slide');
         const dots = document.querySelectorAll('.slider-dot');
@@ -712,10 +660,10 @@ def show_landing_page():
         function showSlide(index) {{
             slides.forEach((slide, i) => {{
                 slide.classList.remove('active');
-                dots[i].classList.remove('active');
+                if (dots[i]) dots[i].classList.remove('active');
             }});
             slides[index].classList.add('active');
-            dots[index].classList.add('active');
+            if (dots[index]) dots[index].classList.add('active');
             currentSlide = index;
         }}
         
@@ -729,16 +677,18 @@ def show_landing_page():
             autoSlideInterval = setInterval(nextSlide, 5000);
         }}
         
-        dots.forEach((dot, idx) => {{
-            dot.addEventListener('click', () => {{
-                showSlide(idx);
-                startAutoSlide();
+        if (dots.length > 0) {{
+            dots.forEach((dot, idx) => {{
+                dot.addEventListener('click', () => {{
+                    showSlide(idx);
+                    startAutoSlide();
+                }});
             }});
-        }});
+        }}
         
         startAutoSlide();
         
-        // Navbar scroll effect
+        // Navbar scroll
         window.addEventListener('scroll', () => {{
             const navbar = document.getElementById('navbar');
             if (window.scrollY > 50) {{

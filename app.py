@@ -603,7 +603,7 @@ def show_landing_page():
     <!-- Hero Slider (toàn màn hình) - ĐÃ SỬA CẤU TRÚC -->
     <section id="home" class="hero-slider">
         <div class="slides-container">
-            <div class="slide active" style="background-image: url('https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070');">
+            <div class="slide active" style="background-image: url('./app/static/slide1.jpg');">
                 <div class="slide-content">
                     <h1>CẢNG TỔNG HỢP QUỐC TẾ HÒN LA</h1>
                     <p>Chính thức khởi công ngày 21 tháng 3 năm 2025 - Dự án trọng điểm Quốc gia</p>
@@ -611,7 +611,7 @@ def show_landing_page():
                     <a href="#infrastructure" class="btn-cta btn-cta-outline">⚓ KHÁM PHÁ DỰ ÁN</a>
                 </div>
             </div>
-            <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070');">
+            <div class="slide" style="background-image: url('./app/static/slide2.jpg');">
                 <div class="slide-content">
                     <h1>KẾT NỐI TOÀN CẦU</h1>
                     <p>Vị trí chiến lược trên tuyến hành lang kinh tế Đông - Tây (EWEC)</p>
@@ -619,7 +619,7 @@ def show_landing_page():
                     <a href="#contact" class="btn-cta btn-cta-outline">📞 LIÊN HỆ</a>
                 </div>
             </div>
-            <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1584622781564-1d987f7333c1?q=80&w=2070');">
+            <div class="slide" style="background-image: url('./app/static/slide3.jpg');">
                 <div class="slide-content">
                     <h1>HẠ TẦNG ĐẲNG CẤP QUỐC TẾ</h1>
                     <p>04 bến cấp tàu | Tổng chiều dài 970m | Tiếp nhận tàu 70.000 DWT</p>
@@ -861,7 +861,10 @@ def show_landing_page():
     </html>
     """
     
-    st.markdown(landing_html, unsafe_allow_html=True)
+    import streamlit.components.v1 as components
+    # Tính chiều cao đủ để hiển thị toàn bộ nội dung kể cả footer
+    # height=0 + scrolling=True cho phép nội dung tự mở rộng không bị cắt
+    components.html(landing_html, height=4200, scrolling=False)
     
     # Nút đăng nhập dự phòng (ẩn, chỉ để xử lý khi cần)
     # if st.button("🔐 Staff Login", key="hidden_login", help="Đăng nhập vào hệ thống quản lý"):

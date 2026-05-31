@@ -31,31 +31,50 @@ def show_landing_page():
     # Ẩn hoàn toàn sidebar, header, footer
     st.markdown("""
         <style>
-            [data-testid="stSidebar"], 
+            /* Ẩn hoàn toàn UI chrome của Streamlit */
+            [data-testid="stSidebar"],
             [data-testid="collapsedControl"],
-            header, footer, 
+            [data-testid="stDecoration"],
+            [data-testid="stHeader"],
+            header[data-testid],
+            footer[data-testid],
             .stAppDeployButton,
             .stToolbar,
-            .stStatusWidget,
-            .main > div:first-child,
-            [data-testid="stDecoration"] {
+            .stStatusWidget {
                 display: none !important;
+                height: 0 !important;
             }
-            
-            .main .block-container {
+
+            /* Xoá sạch mọi padding/margin của Streamlit wrapper */
+            .stApp, .stApp > div,
+            [data-testid="stAppViewContainer"],
+            [data-testid="stAppViewBlockContainer"],
+            [data-testid="stMain"],
+            .main, .main > div,
+            .block-container,
+            .stMainBlockContainer {
                 padding: 0 !important;
-                max-width: 100% !important;
                 margin: 0 !important;
+                max-width: 100% !important;
+                width: 100% !important;
             }
-            
-            .main {
-                overflow-y: visible !important;
+
+            /* Xoá padding top do header Streamlit để lại */
+            .stApp > div[data-testid="stAppViewContainer"] > section > div {
+                padding-top: 0 !important;
             }
-            
+
+            /* iframe của components.html: xoá border và margin */
+            iframe {
+                border: none !important;
+                display: block !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
             html, body {
-                margin: 0;
-                padding: 0;
-                height: auto;
+                margin: 0 !important;
+                padding: 0 !important;
                 overflow-x: hidden;
             }
         </style>
@@ -92,6 +111,7 @@ def show_landing_page():
                 line-height: 1.5;
                 overflow-x: hidden;
                 width: 100%;
+                padding-top: 0;
             }}
             ::-webkit-scrollbar {{
                 width: 8px;
@@ -211,7 +231,7 @@ def show_landing_page():
             
             /* ===== HERO SLIDER - NÂNG CẤP ===== */
             .hero-slider {{
-                height: 100vh;
+                height: 600px;
                 width: 100%;
                 position: relative;
                 overflow: hidden;
@@ -260,7 +280,7 @@ def show_landing_page():
                 position: relative;
                 z-index: 3;
                 max-width: 900px;
-                padding: 30px;
+                padding: 80px 30px 30px 30px;
                 animation: fadeInUp 0.9s ease;
             }}
             @keyframes fadeInUp {{
@@ -862,9 +882,9 @@ def show_landing_page():
     """
     
     import streamlit.components.v1 as components
-    # Tính chiều cao đủ để hiển thị toàn bộ nội dung kể cả footer
-    # height=0 + scrolling=True cho phép nội dung tự mở rộng không bị cắt
-    components.html(landing_html, height=4200, scrolling=False)
+    # scrolling=True để người dùng scroll trong iframe
+    # height đủ chứa toàn bộ nội dung landing page
+    components.html(landing_html, height=4000, scrolling=True)
     
     # Nút đăng nhập dự phòng (ẩn, chỉ để xử lý khi cần)
     # if st.button("🔐 Staff Login", key="hidden_login", help="Đăng nhập vào hệ thống quản lý"):

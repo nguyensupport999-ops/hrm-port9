@@ -209,7 +209,7 @@ def show_landing_page():
                 color: white !important;
             }}
             
-            /* ===== HERO SLIDER - ĐÃ SỬA ===== */
+            /* ===== HERO SLIDER - NÂNG CẤP ===== */
             .hero-slider {{
                 height: 100vh;
                 width: 100%;
@@ -232,7 +232,7 @@ def show_landing_page():
                 background-position: center;
                 background-repeat: no-repeat;
                 opacity: 0;
-                transition: opacity 0.8s ease-in-out;
+                transition: opacity 1s ease-in-out;
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -242,15 +242,18 @@ def show_landing_page():
             .slide.active {{
                 opacity: 1;
                 z-index: 2;
+                animation: kenBurns 8s ease-out forwards;
+            }}
+            @keyframes kenBurns {{
+                from {{ background-size: 110%; }}
+                to {{ background-size: 100%; }}
             }}
             .slide::before {{
                 content: '';
                 position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                background: linear-gradient(135deg, rgba(15,59,92,0.75) 0%, rgba(15,59,92,0.45) 100%);
+                top: 0; left: 0;
+                width: 100%; height: 100%;
+                background: linear-gradient(135deg, rgba(15,59,92,0.78) 0%, rgba(15,59,92,0.48) 100%);
                 z-index: 1;
             }}
             .slide-content {{
@@ -258,7 +261,7 @@ def show_landing_page():
                 z-index: 3;
                 max-width: 900px;
                 padding: 30px;
-                animation: fadeInUp 0.8s ease;
+                animation: fadeInUp 0.9s ease;
             }}
             @keyframes fadeInUp {{
                 from {{ opacity: 0; transform: translateY(40px); }}
@@ -300,6 +303,17 @@ def show_landing_page():
                 box-shadow: 0 10px 20px rgba(0,0,0,0.2);
                 background: #e67e22;
             }}
+            /* Progress bar slider */
+            .slider-progress {{
+                position: absolute;
+                bottom: 0;
+                left: 0;
+                height: 4px;
+                background: #f59e0b;
+                width: 0%;
+                z-index: 10;
+                transition: width 0.1s linear;
+            }}
             .slider-nav {{
                 position: absolute;
                 bottom: 30px;
@@ -322,6 +336,44 @@ def show_landing_page():
                 width: 30px;
                 border-radius: 10px;
             }}
+            /* Arrow navigation */
+            .slider-arrow {{
+                position: absolute;
+                top: 50%;
+                transform: translateY(-50%);
+                z-index: 10;
+                background: rgba(255,255,255,0.15);
+                border: 2px solid rgba(255,255,255,0.4);
+                color: white;
+                width: 50px;
+                height: 50px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                font-size: 1.2rem;
+                transition: all 0.3s;
+                backdrop-filter: blur(4px);
+            }}
+            .slider-arrow:hover {{
+                background: #f59e0b;
+                border-color: #f59e0b;
+                color: #1e293b;
+            }}
+            .slider-arrow.prev {{ left: 30px; }}
+            .slider-arrow.next {{ right: 30px; }}
+            
+            /* ===== SCROLL REVEAL ===== */
+            .reveal {{
+                opacity: 0;
+                transform: translateY(30px);
+                transition: opacity 0.7s ease, transform 0.7s ease;
+            }}
+            .reveal.visible {{
+                opacity: 1;
+                transform: translateY(0);
+            }}
             
             /* ===== STATS SECTION ===== */
             .stats-section {{
@@ -342,7 +394,9 @@ def show_landing_page():
                 flex: 1;
                 padding: 20px;
                 border-right: 1px solid rgba(255,255,255,0.2);
+                transition: transform 0.3s;
             }}
+            .stat-card:hover {{ transform: translateY(-5px); }}
             .stat-card:last-child {{ border-right: none; }}
             .stat-number {{
                 font-size: 2.8rem;
@@ -573,20 +627,23 @@ def show_landing_page():
                 </div>
             </div>
         </div>
+        <div class="slider-arrow prev" id="prevBtn">&#8592;</div>
+        <div class="slider-arrow next" id="nextBtn">&#8594;</div>
         <div class="slider-nav">
             <div class="slider-dot active" data-slide="0"></div>
             <div class="slider-dot" data-slide="1"></div>
             <div class="slider-dot" data-slide="2"></div>
         </div>
+        <div class="slider-progress" id="sliderProgress"></div>
     </section>
     
     <!-- Statistics -->
     <section class="stats-section">
         <div class="stats-grid">
-            <div class="stat-card"><div class="stat-number">39,22 ha</div><div class="stat-label">Tổng diện tích</div></div>
-            <div class="stat-card"><div class="stat-number">70.000 DWT</div><div class="stat-label">Trọng tải tàu tối đa</div></div>
-            <div class="stat-card"><div class="stat-number">970 m</div><div class="stat-label">Chiều dài cầu cảng</div></div>
-            <div class="stat-card"><div class="stat-number">225.000 GT</div><div class="stat-label">Tàu du lịch quốc tế</div></div>
+            <div class="stat-card reveal"><div class="stat-number">39,22 ha</div><div class="stat-label">Tổng diện tích</div></div>
+            <div class="stat-card reveal"><div class="stat-number">70.000 DWT</div><div class="stat-label">Trọng tải tàu tối đa</div></div>
+            <div class="stat-card reveal"><div class="stat-number">970 m</div><div class="stat-label">Chiều dài cầu cảng</div></div>
+            <div class="stat-card reveal"><div class="stat-number">225.000 GT</div><div class="stat-label">Tàu du lịch quốc tế</div></div>
         </div>
     </section>
     
@@ -650,87 +707,155 @@ def show_landing_page():
     </footer>
     
     <script>
-        // ===== SLIDER TỰ ĐỘNG - ĐÃ FIX =====
-        let currentSlide = 0;
-        const slides = document.querySelectorAll('.slide');
-        const dots = document.querySelectorAll('.slider-dot');
-        const totalSlides = slides.length;
-        let autoSlideInterval;
-        
-        function showSlide(index) {{
-            slides.forEach((slide, i) => {{
-                slide.classList.remove('active');
-                if (dots[i]) dots[i].classList.remove('active');
-            }});
-            slides[index].classList.add('active');
-            if (dots[index]) dots[index].classList.add('active');
-            currentSlide = index;
-        }}
-        
-        function nextSlide() {{
-            let next = (currentSlide + 1) % totalSlides;
-            showSlide(next);
-        }}
-        
-        function startAutoSlide() {{
-            if (autoSlideInterval) clearInterval(autoSlideInterval);
-            autoSlideInterval = setInterval(nextSlide, 5000);
-        }}
-        
-        // Kiểm tra tồn tại slider trước khi chạy
-        if (totalSlides > 0 && dots.length > 0) {{
-            dots.forEach((dot, idx) => {{
-                dot.addEventListener('click', () => {{
-                    showSlide(idx);
+        // ===== TOÀN BỘ JS bọc trong DOMContentLoaded để đảm bảo DOM sẵn sàng =====
+        document.addEventListener('DOMContentLoaded', function() {{
+
+            // ===== SLIDER TỰ ĐỘNG =====
+            let currentSlide = 0;
+            const slides = document.querySelectorAll('.slide');
+            const dots = document.querySelectorAll('.slider-dot');
+            const totalSlides = slides.length;
+            let autoSlideInterval;
+            let progressInterval;
+            let progressValue = 0;
+            const SLIDE_DURATION = 5000;
+            const progressBar = document.getElementById('sliderProgress');
+            
+            function showSlide(index) {{
+                slides.forEach((slide, i) => {{
+                    slide.classList.remove('active');
+                    if (dots[i]) dots[i].classList.remove('active');
+                }});
+                slides[index].classList.add('active');
+                if (dots[index]) dots[index].classList.add('active');
+                currentSlide = index;
+                resetProgress();
+            }}
+            
+            function nextSlide() {{
+                showSlide((currentSlide + 1) % totalSlides);
+            }}
+            
+            function prevSlide() {{
+                showSlide((currentSlide - 1 + totalSlides) % totalSlides);
+            }}
+            
+            function resetProgress() {{
+                progressValue = 0;
+                if (progressBar) progressBar.style.width = '0%';
+            }}
+            
+            function startProgress() {{
+                if (progressInterval) clearInterval(progressInterval);
+                progressValue = 0;
+                progressInterval = setInterval(() => {{
+                    progressValue += 100 / (SLIDE_DURATION / 100);
+                    if (progressBar) progressBar.style.width = progressValue + '%';
+                    if (progressValue >= 100) resetProgress();
+                }}, 100);
+            }}
+            
+            function startAutoSlide() {{
+                if (autoSlideInterval) clearInterval(autoSlideInterval);
+                autoSlideInterval = setInterval(nextSlide, SLIDE_DURATION);
+                startProgress();
+            }}
+            
+            if (totalSlides > 0) {{
+                // Dots click
+                dots.forEach((dot, idx) => {{
+                    dot.addEventListener('click', () => {{
+                        showSlide(idx);
+                        if (autoSlideInterval) clearInterval(autoSlideInterval);
+                        if (progressInterval) clearInterval(progressInterval);
+                        startAutoSlide();
+                    }});
+                }});
+                // Arrow buttons
+                const prevBtn = document.getElementById('prevBtn');
+                const nextBtn = document.getElementById('nextBtn');
+                if (prevBtn) prevBtn.addEventListener('click', () => {{
+                    prevSlide();
+                    if (autoSlideInterval) clearInterval(autoSlideInterval);
+                    if (progressInterval) clearInterval(progressInterval);
                     startAutoSlide();
                 }});
-            }});
-            startAutoSlide();
-        }}
-        
-        // Navbar scroll effect
-        window.addEventListener('scroll', () => {{
-            const navbar = document.getElementById('navbar');
-            if (window.scrollY > 50) {{
-                navbar.style.background = 'rgba(15, 59, 92, 0.98)';
-            }} else {{
-                navbar.style.background = 'rgba(15, 59, 92, 0.95)';
-            }}
-        }});
-        
-        // Login handler
-        const loginBtn = document.getElementById('loginBtn');
-        if (loginBtn) {{
-            loginBtn.addEventListener('click', (e) => {{
-                e.preventDefault();
-                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'login_clicked'}}, '*');
-            }});
-        }}
-        
-        // Career link handler
-        const careerLink = document.getElementById('careerLink');
-        if (careerLink) {{
-            careerLink.addEventListener('click', (e) => {{
-                e.preventDefault();
-                alert('Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
-            }});
-        }}
-        
-        // Smooth scroll cho các anchor link
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {{
-            anchor.addEventListener('click', function(e) {{
-                const targetId = this.getAttribute('href');
-                if (targetId === '#') return;
-                const targetElement = document.querySelector(targetId);
-                if (targetElement) {{
-                    e.preventDefault();
-                    targetElement.scrollIntoView({{
-                        behavior: 'smooth',
-                        block: 'start'
+                if (nextBtn) nextBtn.addEventListener('click', () => {{
+                    nextSlide();
+                    if (autoSlideInterval) clearInterval(autoSlideInterval);
+                    if (progressInterval) clearInterval(progressInterval);
+                    startAutoSlide();
+                }});
+                // Swipe support
+                let touchStartX = 0;
+                const heroSlider = document.querySelector('.hero-slider');
+                if (heroSlider) {{
+                    heroSlider.addEventListener('touchstart', e => {{ touchStartX = e.touches[0].clientX; }});
+                    heroSlider.addEventListener('touchend', e => {{
+                        const diff = touchStartX - e.changedTouches[0].clientX;
+                        if (Math.abs(diff) > 50) {{ diff > 0 ? nextSlide() : prevSlide(); startAutoSlide(); }}
                     }});
                 }}
+                startAutoSlide();
+            }}
+            
+            // ===== SCROLL REVEAL =====
+            const revealObserver = new IntersectionObserver((entries) => {{
+                entries.forEach(entry => {{
+                    if (entry.isIntersecting) {{
+                        entry.target.classList.add('visible');
+                        revealObserver.unobserve(entry.target);
+                    }}
+                }});
+            }}, {{ threshold: 0.15 }});
+            document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+            
+            // Navbar scroll effect
+            window.addEventListener('scroll', () => {{
+                const navbar = document.getElementById('navbar');
+                if (navbar) {{
+                    if (window.scrollY > 50) {{
+                        navbar.style.background = 'rgba(15, 59, 92, 0.98)';
+                        navbar.style.boxShadow = '0 4px 20px rgba(0,0,0,0.2)';
+                    }} else {{
+                        navbar.style.background = 'rgba(15, 59, 92, 0.95)';
+                        navbar.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+                    }}
+                }}
             }});
-        }});
+            
+            // Login handler
+            const loginBtn = document.getElementById('loginBtn');
+            if (loginBtn) {{
+                loginBtn.addEventListener('click', (e) => {{
+                    e.preventDefault();
+                    window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'login_clicked'}}, '*');
+                }});
+            }}
+            
+            // Career link handler
+            const careerLink = document.getElementById('careerLink');
+            if (careerLink) {{
+                careerLink.addEventListener('click', (e) => {{
+                    e.preventDefault();
+                    alert('Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
+                }});
+            }}
+            
+            // Smooth scroll
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {{
+                anchor.addEventListener('click', function(e) {{
+                    const targetId = this.getAttribute('href');
+                    if (targetId === '#') return;
+                    const targetElement = document.querySelector(targetId);
+                    if (targetElement) {{
+                        e.preventDefault();
+                        targetElement.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+                    }}
+                }});
+            }});
+
+        }}); // end DOMContentLoaded
     </script>
     </body>
     </html>
@@ -760,7 +885,7 @@ if not st.session_state.logged_in:
             [data-testid="stSidebar"] { display: none !important; }
             [data-testid="collapsedControl"] { display: none !important; }
             header { display: none !important; }
-            footer { display: none !important; }
+            footer[data-testid], #stDecoration { display: none !important; }
         </style>
     """, unsafe_allow_html=True)
     show_landing_page()
@@ -777,9 +902,7 @@ st.markdown("""
         [data-testid="stAppDeployButton"] { display: none !important; }
         .stDeployButton { display: none !important; }
         #MainMenu { display: none !important; }
-        footer { display: none !important; }
-        
-        /* Ẩn bằng position — nhắm vào vị trí góc dưới phải */
+        footer[data-testid] { display: none !important; }
         div[class*="toolbar"] { display: none !important; }
         div[class*="StatusWidget"] { display: none !important; }
         div[class*="viewerBadge"] { display: none !important; }

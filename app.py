@@ -124,10 +124,10 @@ def show_landing_page():
                 margin: 0 auto;
             }}
             
-            /* Logo hình tròn 150px - KHÔNG có text */
+            /* Logo hình tròn 80px - KHÔNG có text */
             .logo-circle {{
-                width: 150px;
-                height: 150px;
+                width: 80px;
+                height: 80px;
                 border-radius: 50%;
                 overflow: hidden;
                 box-shadow: 0 8px 25px rgba(0,0,0,0.25), 0 0 0 3px rgba(255,255,255,0.3);

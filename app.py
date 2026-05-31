@@ -598,7 +598,7 @@ def show_landing_page():
             }}
             
             /* ===== MODAL THƯ NGỎ - PHONG CÁCH A4 ===== */
-            .modal {{
+            .modal {
                 display: none;
                 position: fixed;
                 top: 0;
@@ -607,11 +607,11 @@ def show_landing_page():
                 height: 100vh;
                 z-index: 99999;
                 background: rgba(0,0,0,0.85);
-                align-items: center;
+                align-items: flex-start;
                 justify-content: center;
                 overflow-y: auto;
-                padding: 20px;
-            }}
+                padding: 80px 20px 20px 20px;  /* Top 80px, các cạnh còn lại 20px */
+            }
             .modal.active {{
                 display: flex;
             }}

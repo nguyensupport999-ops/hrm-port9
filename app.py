@@ -102,6 +102,7 @@ def show_landing_page():
     slide1_src = load_img_b64("anh1.jpeg")
     slide2_src = load_img_b64("anh2.jpeg")
     slide3_src = load_img_b64("anh3.jpeg")
+    thu_ngo_src = load_img_b64("Thu_ngo_chu_tich.png")
     
     landing_html = f"""
     <!DOCTYPE html>
@@ -629,7 +630,7 @@ def show_landing_page():
                     <a href="#about">Giới thiệu <i class="fas fa-chevron-down"></i></a>
                     <div class="dropdown-content">
                         <a href="#about">Về chúng tôi</a>
-                        <a href="#infrastructure">Thư ngỏ của Chủ tịch HĐQT</a>
+                        <a href="#" id="thuNgoBtn">Thư ngỏ của Chủ tịch HĐQT</a>
                     </div>
                 </div>
                 <a href="#services">Dịch vụ</a>
@@ -640,6 +641,36 @@ def show_landing_page():
             </div>
         </div>
     </nav>
+
+    <!-- Modal Thư ngỏ Chủ tịch HĐQT -->
+    <div id="thuNgoModal" style="
+        display:none; position:fixed; top:0; left:0;
+        width:100vw; height:100vh; z-index:99999;
+        background:rgba(10,30,50,0.88);
+        align-items:center; justify-content:center;
+        backdrop-filter:blur(6px);
+    ">
+        <!-- Nút đóng -->
+        <button onclick="document.getElementById('thuNgoModal').style.display='none'" style="
+            position:fixed; top:18px; right:28px;
+            background:rgba(255,255,255,0.15); border:2px solid rgba(255,255,255,0.4);
+            color:white; font-size:1.5rem; width:46px; height:46px;
+            border-radius:50%; cursor:pointer; z-index:100000;
+            display:flex; align-items:center; justify-content:center;
+            transition:all .3s;
+        " onmouseover="this.style.background='#f59e0b';this.style.borderColor='#f59e0b'"
+           onmouseout="this.style.background='rgba(255,255,255,0.15)';this.style.borderColor='rgba(255,255,255,0.4)'">
+            ✕
+        </button>
+        <!-- Ảnh full màn hình, giữ tỷ lệ -->
+        <img id="thuNgoImg" src="{thu_ngo_src}" alt="Thư ngỏ Chủ tịch HĐQT" style="
+            max-width:90vw; max-height:92vh;
+            border-radius:8px;
+            box-shadow:0 20px 60px rgba(0,0,0,0.5);
+            object-fit:contain;
+            display:block;
+        ">
+    </div>
     
     <!-- Hero Slider (toàn màn hình) - ĐÃ SỬA CẤU TRÚC -->
     <section id="home" class="hero-slider">
@@ -861,6 +892,24 @@ def show_landing_page():
                 }}
             }});
             
+            // Thư ngỏ Chủ tịch — mở modal full màn hình
+            const thuNgoBtn = document.getElementById('thuNgoBtn');
+            const thuNgoModal = document.getElementById('thuNgoModal');
+            if (thuNgoBtn && thuNgoModal) {{
+                thuNgoBtn.addEventListener('click', (e) => {{
+                    e.preventDefault();
+                    thuNgoModal.style.display = 'flex';
+                }});
+                // Click ngoài ảnh để đóng
+                thuNgoModal.addEventListener('click', (e) => {{
+                    if (e.target === thuNgoModal) thuNgoModal.style.display = 'none';
+                }});
+                // Phím ESC để đóng
+                document.addEventListener('keydown', (e) => {{
+                    if (e.key === 'Escape') thuNgoModal.style.display = 'none';
+                }});
+            }}
+
             // Login handler
             const loginBtn = document.getElementById('loginBtn');
             if (loginBtn) {{
@@ -1715,9 +1764,9 @@ if not st.session_state.logged_in:
 
 # Menu theo role
 if st.session_state.role == "admin":
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI","👆 Chấm công (Face ID)","💰 Tính thu nhập","📜 Thư ngỏ Chủ tịch"]
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI","👆 Chấm công (Face ID)","💰 Tính thu nhập"]
 else:  # viewer
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo 01/PLI","👆 Chấm công (Face ID)","💰 Tính thu nhập","📜 Thư ngỏ Chủ tịch"]
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo 01/PLI","👆 Chấm công (Face ID)","💰 Tính thu nhập"]
 menu = st.sidebar.radio("📋 Menu", menu_options)
 st.sidebar.divider()
 st.sidebar.caption(f"👤 {st.session_state.username} ({st.session_state.role})")
@@ -4973,406 +5022,6 @@ def main():
                         st.session_state['show_login_form'] = False
                         st.rerun()
         st.stop()
-
-if menu == "📜 Thư ngỏ Chủ tịch":
-    import base64, os, pathlib
-
-    # Đọc ảnh chủ tịch và logo → base64
-    def _b64(rel_path):
-        p = pathlib.Path(__file__).parent / rel_path
-        if p.exists():
-            ext = p.suffix.lower().replace('.','')
-            mime = 'jpeg' if ext in ('jpg','jpeg') else ext
-            return f"data:image/{mime};base64,{base64.b64encode(p.read_bytes()).decode()}"
-        return ""
-
-    avatar_src = _b64("static/anh_chu_tich.png")
-    logo_src   = _b64("logo_cty.png")
-
-    # Placeholder avatar nếu chưa có ảnh
-    avatar_html = (
-        f'<img src="{avatar_src}" alt="Chủ tịch HĐQT">'
-        if avatar_src else
-        '<div style="width:140px;height:140px;border-radius:50%;background:linear-gradient(135deg,#0f3b5c,#1a6fa8);display:flex;align-items:center;justify-content:center;font-size:3rem;">👤</div>'
-    )
-    watermark_html = (
-        f'<img src="{logo_src}" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(-30deg);width:340px;opacity:0.045;pointer-events:none;z-index:0;">'
-        if logo_src else ""
-    )
-
-    letter_html = f"""
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600&display=swap');
-        .a4-wrap {{
-            display: flex; justify-content: center;
-            padding: 20px 0 40px 0;
-            background: #f0f4f8;
-        }}
-        .a4 {{
-            width: 794px;
-            background: #ffffff;
-            box-shadow: 0 8px 40px rgba(15,59,92,0.18);
-            border-radius: 4px;
-            position: relative;
-            overflow: hidden;
-            font-family: 'Inter', sans-serif;
-            color: #1e293b;
-        }}
-        /* Header band */
-        .a4-header {{
-            background: linear-gradient(135deg, #0f3b5c 0%, #1a6fa8 100%);
-            padding: 36px 48px 28px 48px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            position: relative;
-            z-index: 1;
-        }}
-        .a4-header-left h1 {{
-            font-family: 'Playfair Display', serif;
-            color: #ffffff;
-            font-size: 1.05rem;
-            font-weight: 600;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            margin: 0 0 4px 0;
-        }}
-        .a4-header-left p {{
-            color: rgba(255,255,255,0.75);
-            font-size: 0.78rem;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            margin: 0;
-        }}
-        .a4-header-logo img {{
-            width: 70px; height: 70px;
-            border-radius: 50%;
-            border: 3px solid rgba(255,255,255,0.35);
-            object-fit: cover;
-        }}
-        /* Gold divider */
-        .gold-line {{
-            height: 4px;
-            background: linear-gradient(90deg, #f59e0b, #fcd34d, #f59e0b);
-        }}
-        /* Avatar + name section */
-        .a4-chairman {{
-            display: flex;
-            align-items: center;
-            gap: 28px;
-            padding: 32px 48px 24px 48px;
-            border-bottom: 1px solid #e2e8f0;
-            position: relative;
-            z-index: 1;
-        }}
-        .a4-chairman-avatar {{
-            flex-shrink: 0;
-        }}
-        .a4-chairman-avatar img,
-        .a4-chairman-avatar div {{
-            width: 140px; height: 140px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 4px solid #0f3b5c;
-            box-shadow: 0 4px 20px rgba(15,59,92,0.25);
-        }}
-        .a4-chairman-info h2 {{
-            font-family: 'Playfair Display', serif;
-            color: #0f3b5c;
-            font-size: 1.5rem;
-            margin: 0 0 4px 0;
-        }}
-        .a4-chairman-info .title {{
-            color: #f59e0b;
-            font-weight: 600;
-            font-size: 0.88rem;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            margin: 0 0 8px 0;
-        }}
-        .a4-chairman-info .company {{
-            color: #64748b;
-            font-size: 0.82rem;
-            margin: 0;
-            line-height: 1.6;
-        }}
-        /* Body */
-        .a4-body {{
-            padding: 32px 48px;
-            position: relative;
-            z-index: 1;
-        }}
-        .a4-date {{
-            text-align: right;
-            color: #64748b;
-            font-size: 0.85rem;
-            font-style: italic;
-            margin-bottom: 20px;
-        }}
-        .a4-greeting {{
-            font-family: 'Playfair Display', serif;
-            font-size: 1.1rem;
-            color: #0f3b5c;
-            margin-bottom: 16px;
-        }}
-        .a4-body p {{
-            font-size: 0.92rem;
-            line-height: 1.85;
-            color: #334155;
-            margin-bottom: 14px;
-            text-align: justify;
-        }}
-        /* Vision & Mission boxes */
-        .vision-box {{
-            background: linear-gradient(135deg, #0f3b5c 0%, #1a6fa8 100%);
-            border-radius: 10px;
-            padding: 22px 28px;
-            margin: 24px 0;
-            color: white;
-            position: relative;
-            overflow: hidden;
-        }}
-        .vision-box::before {{
-            content: '"';
-            position: absolute;
-            top: -10px; left: 16px;
-            font-size: 7rem;
-            color: rgba(255,255,255,0.08);
-            font-family: serif;
-            line-height: 1;
-        }}
-        .vision-box h3 {{
-            font-family: 'Playfair Display', serif;
-            font-size: 0.8rem;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            color: #fcd34d;
-            margin: 0 0 10px 0;
-        }}
-        .vision-box p {{
-            font-size: 0.95rem;
-            line-height: 1.75;
-            color: rgba(255,255,255,0.92);
-            margin: 0;
-            text-align: left;
-        }}
-        .mission-box {{
-            background: #f8fafc;
-            border-left: 5px solid #f59e0b;
-            border-radius: 0 10px 10px 0;
-            padding: 20px 24px;
-            margin: 20px 0;
-        }}
-        .mission-box h3 {{
-            font-family: 'Playfair Display', serif;
-            font-size: 0.8rem;
-            letter-spacing: 3px;
-            text-transform: uppercase;
-            color: #0f3b5c;
-            margin: 0 0 10px 0;
-        }}
-        .mission-box p {{
-            font-size: 0.92rem;
-            line-height: 1.8;
-            color: #334155;
-            margin: 0;
-            text-align: left;
-        }}
-        /* Signature area */
-        .a4-signature {{
-            display: flex;
-            justify-content: flex-end;
-            padding: 28px 48px 16px 48px;
-            position: relative;
-            z-index: 1;
-        }}
-        .sig-block {{
-            text-align: center;
-            min-width: 200px;
-        }}
-        .sig-block .sig-title {{
-            font-size: 0.78rem;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            margin-bottom: 8px;
-        }}
-        /* Chữ ký minh họa */
-        .sig-svg {{
-            margin: 8px auto;
-        }}
-        .sig-seal {{
-            width: 90px; height: 90px;
-            border-radius: 50%;
-            border: 3px double #0f3b5c;
-            display: flex; align-items: center; justify-content: center;
-            margin: -20px auto 8px auto;
-            background: rgba(15,59,92,0.04);
-            position: relative;
-        }}
-        .sig-seal span {{
-            font-size: 0.45rem;
-            color: #0f3b5c;
-            font-weight: 700;
-            text-align: center;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            line-height: 1.3;
-            padding: 6px;
-        }}
-        .sig-name {{
-            font-family: 'Playfair Display', serif;
-            font-size: 1rem;
-            font-weight: 700;
-            color: #0f3b5c;
-            margin-top: 4px;
-        }}
-        .sig-role {{
-            font-size: 0.78rem;
-            color: #64748b;
-        }}
-        /* Footer band */
-        .a4-footer {{
-            background: #0f3b5c;
-            padding: 14px 48px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 8px;
-        }}
-        .a4-footer span {{
-            color: rgba(255,255,255,0.6);
-            font-size: 0.72rem;
-            letter-spacing: 1px;
-        }}
-        .a4-footer .tagline {{
-            color: #fcd34d;
-            font-weight: 600;
-        }}
-    </style>
-
-    <div class="a4-wrap">
-      <div class="a4">
-        <!-- Watermark -->
-        {watermark_html}
-
-        <!-- Header -->
-        <div class="a4-header">
-          <div class="a4-header-left">
-            <h1>Cảng Quốc tế Hòn La</h1>
-            <p>Hon La International Port · Thư ngỏ của Chủ tịch HĐQT</p>
-          </div>
-          <div class="a4-header-logo">
-            {'<img src="' + logo_src + '">' if logo_src else '<div style="width:70px;height:70px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:2rem;">🚢</div>'}
-          </div>
-        </div>
-        <div class="gold-line"></div>
-
-        <!-- Chairman -->
-        <div class="a4-chairman">
-          <div class="a4-chairman-avatar">{avatar_html}</div>
-          <div class="a4-chairman-info">
-            <h2>Nguyễn Văn A</h2>
-            <p class="title">⭐ Chủ tịch Hội đồng Quản trị</p>
-            <p class="company">
-              Công ty Cổ phần Cảng Hòn La<br>
-              Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình
-            </p>
-          </div>
-        </div>
-
-        <!-- Body -->
-        <div class="a4-body">
-          <p class="a4-date">Quảng Bình, ngày 21 tháng 3 năm 2025</p>
-          <p class="a4-greeting">Kính gửi Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên,</p>
-
-          <p>
-            Với niềm tự hào sâu sắc, tôi xin thay mặt Hội đồng Quản trị Công ty Cổ phần Cảng Hòn La 
-            gửi lời chào trân trọng nhất đến Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên 
-            — những người đã và đang đồng hành cùng chúng tôi trên hành trình kiến tạo một cảng biển 
-            tầm cỡ quốc tế giữa lòng đất nước Việt Nam.
-          </p>
-
-          <p>
-            Ngày 21 tháng 3 năm 2025 là một mốc son lịch sử — ngày chính thức khởi công Dự án 
-            Cảng tổng hợp quốc tế Hòn La, dự án được Chính phủ công nhận là <strong>Dự án trọng điểm Quốc gia</strong>. 
-            Đây không chỉ là thành quả của nhiều năm nỗ lực không ngừng, mà còn là khởi đầu của 
-            một chương mới trong lịch sử phát triển kinh tế hàng hải miền Trung Việt Nam.
-          </p>
-
-          <div class="vision-box">
-            <h3>🔭 Tầm nhìn — Vision 2035</h3>
-            <p>
-              Trở thành cảng biển quốc tế hiện đại hàng đầu Đông Nam Á trên tuyến hành lang kinh tế 
-              Đông–Tây (EWEC) — nơi kết nối Việt Nam với thế giới, thúc đẩy thương mại, logistic và 
-              du lịch tàu biển, đóng góp thiết thực vào chiến lược phát triển kinh tế biển bền vững 
-              của Việt Nam đến năm 2035 và tầm nhìn 2045.
-            </p>
-          </div>
-
-          <p>
-            Với vị trí địa chiến lược độc đáo, hệ thống hạ tầng quy mô 39,22 ha, năng lực tiếp nhận 
-            tàu trọng tải lên đến 70.000 DWT và tàu du lịch quốc tế 225.000 GT, Cảng Hòn La sẽ là 
-            cửa ngõ hàng hải chiến lược, cầu nối giữa các nền kinh tế trong khu vực và toàn cầu.
-          </p>
-
-          <div class="mission-box">
-            <h3>🎯 Sứ mệnh — Nhắn gửi đến mỗi thành viên</h3>
-            <p>
-              Mỗi cán bộ nhân viên của Cảng Hòn La là một đại sứ của sự chuyên nghiệp và tận tâm. 
-              Sứ mệnh của chúng ta là <strong>xây dựng một môi trường làm việc đẳng cấp</strong>, 
-              nơi năng lực được trọng dụng, sáng tạo được khuyến khích và mỗi cá nhân đều tự hào 
-              khi đặt bàn tay mình vào công trình lịch sử này. Hãy làm việc với trái tim của người 
-              kiến tạo — bởi di sản chúng ta để lại không chỉ là những cầu bến vững chắc, 
-              mà còn là những thế hệ nhân lực xuất sắc của đất nước.
-            </p>
-          </div>
-
-          <p>
-            Chúng tôi hiểu rằng con đường phía trước còn không ít thách thức. Song tôi tin tưởng 
-            sâu sắc rằng với <strong>trí tuệ tập thể, khí phách dân tộc và khát vọng vươn ra biển lớn</strong>, 
-            Cảng Hòn La sẽ hoàn thành xuất sắc sứ mệnh lịch sử được giao phó.
-          </p>
-
-          <p>
-            Xin trân trọng cảm ơn sự tin tưởng, đồng hành và cống hiến của tất cả Quý vị.
-            Chúc Quý đối tác thịnh vượng, toàn thể cán bộ nhân viên sức khỏe và thành công!
-          </p>
-        </div>
-
-        <!-- Signature -->
-        <div class="a4-signature">
-          <div class="sig-block">
-            <div class="sig-title">Trân trọng</div>
-            <!-- Chữ ký minh họa SVG -->
-            <svg class="sig-svg" width="160" height="55" viewBox="0 0 160 55">
-              <path d="M 15 40 C 25 10, 45 50, 60 30 S 90 5, 110 28 S 135 45, 155 20"
-                    stroke="#0f3b5c" stroke-width="2.2" fill="none"
-                    stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M 30 45 C 50 38, 80 48, 100 42"
-                    stroke="#0f3b5c" stroke-width="1.2" fill="none" opacity="0.5"/>
-            </svg>
-            <!-- Con dấu minh họa -->
-            <div class="sig-seal">
-              <span>CẢNG<br>QUỐC TẾ<br>HÒN LA<br>★</span>
-            </div>
-            <div class="sig-name">Nguyễn Văn A</div>
-            <div class="sig-role">Chủ tịch Hội đồng Quản trị</div>
-          </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="a4-footer">
-          <span>🌐 honlaport.com.vn &nbsp;|&nbsp; ✉ info@honlaport.com.vn</span>
-          <span class="tagline">🏗️ Phát triển bền vững — Kết nối toàn cầu</span>
-          <span>📞 0232.xxxx.xxx</span>
-        </div>
-      </div>
-    </div>
-    """
-
-    st.markdown(letter_html, unsafe_allow_html=True)
-
 
 # Chạy ứng dụng
 if __name__ == "__main__":

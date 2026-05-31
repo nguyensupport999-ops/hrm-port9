@@ -928,7 +928,7 @@ def show_landing_page():
                     </div>
                     <div class="a4-header-logo">
                         <img src="data:image/png;base64,{logo_base64}" alt="Logo Cảng Hòn La">
-                    </div>
+#                    </div>
                 </div>
                 <div class="gold-line"></div>
 
@@ -941,7 +941,7 @@ def show_landing_page():
                         <h2>Ông Phùng Gia Phát</h2>
                         <p class="title">⭐ Chủ tịch Hội đồng Quản trị</p>
                         <p class="company">
-                            Công ty Cổ phần Cảng Hòn La<br>
+                            <h1>Công ty cổ phần Cảng Hòn La</h1>
                             Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình
                         </p>
                     </div>
@@ -1009,13 +1009,9 @@ def show_landing_page():
                 <!-- Signature - Bên trái -->
                 <div class="a4-signature-left">
                     <div class="sig-block-left">
-                        <div class="sig-title">Trân trọng,</div>
-                        <div class="sig-company">CẢNG QUỐC TẾ HÒN LA</div>
                         <div class="sig-image">
-                            <img src="{chu_ky_img}" alt="Chữ ký Chủ tịch" style="max-width: 200px; height: auto;">
+                            <img src="{chu_ky_img}" alt="Chữ ký Chủ tịch" style="max-width: 240px; height: auto;">
                         </div>
-                        <div class="sig-name">Phùng Gia Phát</div>
-                        <div class="sig-role">Chủ tịch Hội đồng Quản trị</div>
                     </div>
                 </div>
 

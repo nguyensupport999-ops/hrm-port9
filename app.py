@@ -867,7 +867,7 @@ def show_landing_page():
                 loginBtn.addEventListener('click', function(e) {{
                     e.preventDefault();
                     // Chuyển hướng với query parameter để kích hoạt form đăng nhập
-                    window.location.href = window.location.pathname + '?goto=hrm';
+                    window.location.href = window.location.pathname + '?login=true';
                 }});
             }}
             
@@ -913,6 +913,7 @@ def show_landing_page():
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
 # ========== KHỞI TẠO SESSION STATE ==========
+# Phải đặt NGAY sau set_page_config, trước mọi thao tác khác
 if 'show_login_form' not in st.session_state:
     st.session_state.show_login_form = False
 
@@ -921,21 +922,15 @@ if 'logged_in' not in st.session_state:
     st.session_state.role = None
     st.session_state.username = None
 
-# show_hrm: True = thoát landing, vào màn HRM (sidebar login hiện ra)
-# False = đang ở landing page
-if 'show_hrm' not in st.session_state:
-    st.session_state.show_hrm = False
-
 # ========== KIỂM TRA URL PARAMS (Từ nút Nhân viên trên Landing Page) ==========
 query_params = st.query_params
-if query_params.get('goto') == 'hrm':
-    st.session_state.show_hrm = True   # Chỉ thoát landing, KHÔNG tự đăng nhập
-    st.query_params.clear()
-    st.rerun()
+if query_params.get('login') == 'true':
+    st.session_state.show_login_form = True
+    st.query_params.clear()  # Xóa param sau khi đọc
 
-# ========== HIỂN THỊ LANDING PAGE NẾU CHƯA VÀO HRM ==========
-if not st.session_state.logged_in and not st.session_state.show_hrm:
-    # Ẩn sidebar hoàn toàn khi ở landing
+# ========== HIỂN THỊ LANDING PAGE NẾU CHƯA ĐĂNG NHẬP ==========
+if not st.session_state.logged_in:
+    # Ẩn sidebar hoàn toàn
     st.markdown("""
         <style>
             [data-testid="stSidebar"] { display: none !important; }
@@ -946,49 +941,116 @@ if not st.session_state.logged_in and not st.session_state.show_hrm:
     """, unsafe_allow_html=True)
     
     # Hiển thị Landing Page
-    show_landing_page()
+    show_landing_page()  # Hàm này bạn đã có
+    
+    # ===== HIỂN THỊ FORM ĐĂNG NHẬP (Modal) KHI NHẤN NÚT "NHÂN VIÊN" =====
+    if st.session_state.show_login_form:
+        # Tạo container ở giữa màn hình
+        with st.container():
+            st.markdown("""
+            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                        background: rgba(0,0,0,0.7); z-index: 9999; display: flex;
+                        align-items: center; justify-content: center;">
+                <div style="background: white; padding: 30px; border-radius: 15px; 
+                            width: 380px; box-shadow: 0 0 30px rgba(0,0,0,0.3);">
+                    <h3 style="color: #0f3b5c; text-align: center; margin-bottom: 20px;">
+                        🔐 ĐĂNG NHẬP HRM-PORT
+                    </h3>
+            """, unsafe_allow_html=True)
+            
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                username = st.text_input("👤 Tài khoản", key="landing_user", placeholder="Nhập tài khoản")
+                password = st.text_input("🔒 Mật khẩu", type="password", key="landing_pass", placeholder="Nhập mật khẩu")
+                
+                col_btn1, col_btn2 = st.columns(2)
+                with col_btn1:
+                    if st.button("✅ Đăng nhập", key="landing_login", use_container_width=True, type="primary"):
+                        success, role = check_login(username, password)
+                        if success:
+                            st.session_state.logged_in = True
+                            st.session_state.role = role
+                            st.session_state.username = username
+                            st.session_state.show_login_form = False
+                            st.rerun()
+                        else:
+                            st.error("❌ Sai tài khoản hoặc mật khẩu!")
+                with col_btn2:
+                    if st.button("❌ Hủy", key="landing_cancel", use_container_width=True):
+                        st.session_state.show_login_form = False
+                        st.rerun()
+            
+            st.markdown("""
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
     
     st.stop()  # Dừng lại, không chạy phần HRM bên dưới
 
-# Nếu show_hrm=True hoặc logged_in=True → chạy tiếp phần HRM bên dưới
-# Sidebar với nút đăng nhập của HRM sẽ tự hiển thị bình thường
-
 # ========== PHẦN CODE HRM BẮT ĐẦU TỪ ĐÂY ==========
 
-# ẩn nút Manage App
 st.markdown("""
     <style>
-        /* Ẩn toàn bộ toolbar bottom-right */
-        [data-testid="stToolbar"] { display: none !important; }
-        [data-testid="manage-app-button"] { display: none !important; }
-        [data-testid="stAppDeployButton"] { display: none !important; }
-        .stDeployButton { display: none !important; }
-        #MainMenu { display: none !important; }
+        /* ===== ẨN MANAGE APP - dùng mọi selector có thể ===== */
+        [data-testid="stToolbar"],
+        [data-testid="manage-app-button"],
+        [data-testid="stAppDeployButton"],
+        .stDeployButton,
+        #MainMenu,
+        div[class*="toolbar"],
+        div[class*="StatusWidget"],
+        div[class*="viewerBadge"],
+        div[class*="manage-app"],
+        button[kind="managedApp"],
+        [data-testid="stBottom"] > div:last-child { 
+            display: none !important; 
+            visibility: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
         footer[data-testid] { display: none !important; }
-        div[class*="toolbar"] { display: none !important; }
-        div[class*="StatusWidget"] { display: none !important; }
-        div[class*="viewerBadge"] { display: none !important; }
+
+        /* ===== PADDING TOP / BOTTOM = 5px ===== */
+        .stApp > div[data-testid="stAppViewContainer"] > section[data-testid="stMain"] > div {
+            padding-top: 5px !important;
+            padding-bottom: 5px !important;
+        }
+        .block-container {
+            padding-top: 5px !important;
+            padding-bottom: 5px !important;
+        }
+
+        /* ===== LOGO SIDEBAR: hình tròn đổ bóng 150px ===== */
+        [data-testid="stSidebar"] [data-testid="stImage"] img {
+            width: 150px !important;
+            height: 150px !important;
+            border-radius: 50% !important;
+            object-fit: cover !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.25) !important;
+            display: block !important;
+            margin: 12px auto !important;
+        }
     </style>
     <script>
-        // Dùng JS tìm và ẩn nút Manage App sau khi render xong
+        // MutationObserver: ẩn Manage App ngay khi DOM thay đổi
         function hideManageApp() {
             const selectors = [
                 '[data-testid="manage-app-button"]',
-                '[data-testid="stToolbar"]', 
+                '[data-testid="stToolbar"]',
                 '[data-testid="stAppDeployButton"]',
-                '.stDeployButton'
+                '.stDeployButton',
+                'button[kind="managedApp"]'
             ];
             selectors.forEach(sel => {
                 document.querySelectorAll(sel).forEach(el => {
-                    el.style.display = 'none';
+                    el.style.cssText = 'display:none!important;visibility:hidden!important';
                 });
             });
         }
-        // Chạy ngay và chạy lại sau 1s, 2s, 3s để chắc chắn
         hideManageApp();
-        setTimeout(hideManageApp, 1000);
-        setTimeout(hideManageApp, 2000);
-        setTimeout(hideManageApp, 3000);
+        // Quan sát DOM liên tục — bắt được dù Streamlit render trễ
+        const observer = new MutationObserver(hideManageApp);
+        observer.observe(document.body, { childList: true, subtree: true });
     </script>
 """, unsafe_allow_html=True)
 
@@ -1697,7 +1759,7 @@ if st.sidebar.button("🚪 Đăng xuất", use_container_width=True):
     st.session_state.logged_in = False
     st.session_state.role = None
     st.session_state.username = None
-    # 👇 Xóa cache sinh nhật để lần đăng nhập sau kiểm tra lại
+    st.session_state.show_hrm = False   # ← Quay về Landing page
     st.session_state.pop('last_birthday_check', None)
     st.session_state.pop('sinh_nhat_hom_nay_list', None)
     st.rerun()

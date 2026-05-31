@@ -26,7 +26,7 @@ import pathlib
 import streamlit as st
 
 def show_landing_page():
-    """Hiển thị Landing Page - Logo tròn 86px, slider đã fix"""
+    """Hiển thị Landing Page - Logo tròn 86px, slider đã fix, footer hiển thị đúng"""
     
     # Ẩn hoàn toàn sidebar, header, footer
     st.markdown("""
@@ -124,7 +124,6 @@ def show_landing_page():
                 margin: 0 auto;
             }}
             
-            /* Logo hình tròn 86px - KHÔNG có text */
             .logo-circle {{
                 width: 86px;
                 height: 86px;
@@ -148,7 +147,6 @@ def show_landing_page():
                 object-fit: cover;
             }}
             
-            /* Menu có nền đậm */
             .nav-links {{
                 display: flex;
                 gap: 0.5rem;
@@ -211,7 +209,7 @@ def show_landing_page():
                 color: white !important;
             }}
             
-            /* ===== HERO SLIDER - ĐÃ FIX ===== */
+            /* ===== HERO SLIDER - ĐÃ SỬA ===== */
             .hero-slider {{
                 height: 100vh;
                 width: 100%;
@@ -473,10 +471,14 @@ def show_landing_page():
                 margin-top: 20px;
                 text-decoration: none;
             }}
+            
+            /* ===== FOOTER ===== */
             .footer {{
                 background: #0f172a;
                 color: #cbd5e1;
                 padding: 50px 5% 30px;
+                width: 100%;
+                clear: both;
             }}
             .footer-grid {{
                 display: grid;
@@ -484,28 +486,37 @@ def show_landing_page():
                 gap: 40px;
                 max-width: 1280px;
                 margin: 0 auto;
+                padding-bottom: 40px;
+                border-bottom: 1px solid #334155;
             }}
             .footer-col h4 {{
                 color: white;
                 margin-bottom: 20px;
+                font-size: 1.1rem;
             }}
-            .footer-col a {{
+            .footer-col p, .footer-col a {{
                 color: #94a3b8;
                 text-decoration: none;
-                display: block;
                 line-height: 1.8;
+                font-size: 0.9rem;
+                display: block;
+            }}
+            .footer-col a:hover {{
+                color: #f59e0b;
             }}
             .copyright {{
                 text-align: center;
                 padding-top: 30px;
                 font-size: 0.8rem;
+                color: #64748b;
             }}
             
             @media (max-width: 768px) {{
                 .nav-links {{ display: none; }}
-                .logo-circle {{ width: 100px; height: 100px; }}
+                .logo-circle {{ width: 60px; height: 60px; }}
                 .slide-content h1 {{ font-size: 2rem; }}
                 .stats-grid, .about-grid, .services-grid, .infra-grid, .footer-grid {{ grid-template-columns: 1fr; }}
+                .stat-card {{ border-right: none; border-bottom: 1px solid rgba(255,255,255,0.2); }}
             }}
         </style>
     </head>
@@ -514,7 +525,6 @@ def show_landing_page():
     <!-- Navigation -->
     <nav class="navbar" id="navbar">
         <div class="nav-container">
-            <!-- Logo hình tròn 86px - KHÔNG text -->
             <div class="logo-circle">
                 <img src="data:image/png;base64,{logo_base64}" alt="Cảng Hòn La">
             </div>
@@ -536,28 +546,31 @@ def show_landing_page():
         </div>
     </nav>
     
-    <!-- Hero Slider (toàn màn hình) -->
+    <!-- Hero Slider (toàn màn hình) - ĐÃ SỬA CẤU TRÚC -->
     <section id="home" class="hero-slider">
-        <div class="slide active" style="background-image: url('https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070');">
-            <div class="slide-content">
-                <h1>CẢNG TỔNG HỢP QUỐC TẾ HÒN LA</h1>
-                <p>Chính thức khởi công ngày 21 tháng 3 năm 2025 - Dự án trọng điểm Quốc gia</p>
-                <a href="#contact" class="btn-cta">📞 LIÊN HỆ HỢP TÁC</a>
-                <a href="#infrastructure" class="btn-cta btn-cta-outline">⚓ KHÁM PHÁ DỰ ÁN</a>
+        <div class="slides-container">
+            <div class="slide active" style="background-image: url('https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070');">
+                <div class="slide-content">
+                    <h1>CẢNG TỔNG HỢP QUỐC TẾ HÒN LA</h1>
+                    <p>Chính thức khởi công ngày 21 tháng 3 năm 2025 - Dự án trọng điểm Quốc gia</p>
+                    <a href="#contact" class="btn-cta">📞 LIÊN HỆ HỢP TÁC</a>
+                    <a href="#infrastructure" class="btn-cta btn-cta-outline">⚓ KHÁM PHÁ DỰ ÁN</a>
+                </div>
             </div>
-        </div>
-        <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070');">
-            <div class="slide-content">
-                <h1>KẾT NỐI TOÀN CẦU</h1>
-                <p>Vị trí chiến lược trên tuyến hành lang kinh tế Đông - Tây (EWEC)</p>
-                <a href="#services" class="btn-cta">🚢 DỊCH VỤ LOGISTICS</a>
+            <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070');">
+                <div class="slide-content">
+                    <h1>KẾT NỐI TOÀN CẦU</h1>
+                    <p>Vị trí chiến lược trên tuyến hành lang kinh tế Đông - Tây (EWEC)</p>
+                    <a href="#services" class="btn-cta">🚢 DỊCH VỤ LOGISTICS</a>
+                    <a href="#contact" class="btn-cta btn-cta-outline">📞 LIÊN HỆ</a>
+                </div>
             </div>
-        </div>
-        <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1584622781564-1d987f7333c1?q=80&w=2070');">
-            <div class="slide-content">
-                <h1>HẠ TẦNG ĐẲNG CẤP QUỐC TẾ</h1>
-                <p>04 bến cập tàu | Tổng chiều dài 970m | Tiếp nhận tàu 70.000 DWT</p>
-                <a href="#infrastructure" class="btn-cta">🏗️ THÔNG SỐ KỸ THUẬT</a>
+            <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1584622781564-1d987f7333c1?q=80&w=2070');">
+                <div class="slide-content">
+                    <h1>HẠ TẦNG ĐẲNG CẤP QUỐC TẾ</h1>
+                    <p>04 bến cấp tàu | Tổng chiều dài 970m | Tiếp nhận tàu 70.000 DWT</p>
+                    <a href="#infrastructure" class="btn-cta">🏗️ THÔNG SỐ KỸ THUẬT</a>
+                </div>
             </div>
         </div>
         <div class="slider-nav">
@@ -625,12 +638,15 @@ def show_landing_page():
     <!-- Footer -->
     <footer id="contact" class="footer">
         <div class="footer-grid">
-            <div class="footer-col"><h4>CÔNG TY CỔ PHẦN CẢNG HÒN LA</h4><p>Khu kinh tế Hòn La, Xã Quảng Trạch, Tỉnh Quảng Trị</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
-            <div class="footer-col"><h4>Liên kết nhanh</h4><a href="#about">Về chúng tôi</a><a href="#services">Dịch vụ</a><a href="#infrastructure">Hạ tầng</a></div>
-            <div class="footer-col"><h4>Hỗ trợ</h4><a href="#">FAQ</a><a href="#">Biểu giá</a></div>
-            <div class="footer-col"><h4>Giờ làm việc</h4><p>Bến cảng: 24/7</p><p>Văn phòng: 7:30 - 17:00</p></div>
+            <div class="footer-col"><h4>CÔNG TY CỔ PHẦN CẢNG HÒN LA</h4><p>Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
+            <div class="footer-col"><h4>Liên kết nhanh</h4><a href="#home">Trang chủ</a><a href="#about">Về chúng tôi</a><a href="#services">Dịch vụ</a><a href="#infrastructure">Hạ tầng</a><a href="#careers">Tuyển dụng</a></div>
+            <div class="footer-col"><h4>Hỗ trợ</h4><a href="#">Câu hỏi thường gặp</a><a href="#">Chính sách bảo mật</a><a href="#">Điều khoản sử dụng</a></div>
+            <div class="footer-col"><h4>Giờ làm việc</h4><p>🚢 Bến cảng: 24/7</p><p>🏢 Văn phòng: 7:30 - 17:00</p><p>📅 Thứ 2 - Thứ 7</p></div>
         </div>
-        <div class="copyright"><p>© 2026 Cảng Quốc tế Hòn La</p></div>
+        <div class="copyright">
+            <p>© 2026 Cảng Quốc tế Hòn La - Tổng Công ty Cổ phần Cảng Hòn La. All rights reserved.</p>
+            <p style="margin-top: 10px;">🏗️ Phát triển bền vững - Kết nối toàn cầu</p>
+        </div>
     </footer>
     
     <script>
@@ -661,18 +677,18 @@ def show_landing_page():
             autoSlideInterval = setInterval(nextSlide, 5000);
         }}
         
-        if (dots.length > 0) {{
+        // Kiểm tra tồn tại slider trước khi chạy
+        if (totalSlides > 0 && dots.length > 0) {{
             dots.forEach((dot, idx) => {{
                 dot.addEventListener('click', () => {{
                     showSlide(idx);
                     startAutoSlide();
                 }});
             }});
+            startAutoSlide();
         }}
         
-        startAutoSlide();
-        
-        // Navbar scroll
+        // Navbar scroll effect
         window.addEventListener('scroll', () => {{
             const navbar = document.getElementById('navbar');
             if (window.scrollY > 50) {{
@@ -682,15 +698,38 @@ def show_landing_page():
             }}
         }});
         
-        // Login
-        document.getElementById('loginBtn')?.addEventListener('click', (e) => {{
-            e.preventDefault();
-            window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'login_clicked'}}, '*');
-        }});
+        // Login handler
+        const loginBtn = document.getElementById('loginBtn');
+        if (loginBtn) {{
+            loginBtn.addEventListener('click', (e) => {{
+                e.preventDefault();
+                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'login_clicked'}}, '*');
+            }});
+        }}
         
-        document.getElementById('careerLink')?.addEventListener('click', (e) => {{
-            e.preventDefault();
-            alert('Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
+        // Career link handler
+        const careerLink = document.getElementById('careerLink');
+        if (careerLink) {{
+            careerLink.addEventListener('click', (e) => {{
+                e.preventDefault();
+                alert('Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
+            }});
+        }}
+        
+        // Smooth scroll cho các anchor link
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {{
+            anchor.addEventListener('click', function(e) {{
+                const targetId = this.getAttribute('href');
+                if (targetId === '#') return;
+                const targetElement = document.querySelector(targetId);
+                if (targetElement) {{
+                    e.preventDefault();
+                    targetElement.scrollIntoView({{
+                        behavior: 'smooth',
+                        block: 'start'
+                    }});
+                }}
+            }});
         }});
     </script>
     </body>
@@ -698,10 +737,11 @@ def show_landing_page():
     """
     
     st.markdown(landing_html, unsafe_allow_html=True)
-  
-#    if st.button("🔐 Staff Login", key="hidden_login", help="Đăng nhập vào hệ thống quản lý"):
-#        st.session_state['show_landing'] = False
-#        st.rerun()
+    
+    # Nút đăng nhập dự phòng (ẩn, chỉ để xử lý khi cần)
+    # if st.button("🔐 Staff Login", key="hidden_login", help="Đăng nhập vào hệ thống quản lý"):
+    #     st.session_state['show_landing'] = False
+    #     st.rerun()
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 

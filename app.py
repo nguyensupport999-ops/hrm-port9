@@ -649,23 +649,18 @@ def show_landing_page():
                     <h1>CẢNG TỔNG HỢP QUỐC TẾ HÒN LA</h1>
                     <p>Chính thức khởi công ngày 21 tháng 3 năm 2025</p>
                     <p>Đưa vào khai thác từ Tháng 5 năm 2026</p>
-#                    <a href="#contact" class="btn-cta">📞 LIÊN HỆ HỢP TÁC</a>
-#                    <a href="#infrastructure" class="btn-cta btn-cta-outline">⚓ KHÁM PHÁ DỰ ÁN</a>
                 </div>
             </div>
             <div class="slide" style="background-image: url('{slide2_src}');">
                 <div class="slide-content">
                     <h1>KẾT NỐI TOÀN CẦU</h1>
                     <p>Vị trí chiến lược trên tuyến hành lang kinh tế Đông - Tây (EWEC)</p>
-#                    <a href="#services" class="btn-cta">🚢 DỊCH VỤ LOGISTICS</a>
-#                    <a href="#contact" class="btn-cta btn-cta-outline">📞 LIÊN HỆ</a>
                 </div>
             </div>
             <div class="slide" style="background-image: url('{slide3_src}');">
                 <div class="slide-content">
                     <h1>HẠ TẦNG ĐẲNG CẤP QUỐC TẾ</h1>
-                    <p>04 bến cấp tàu | Tổng chiều dài 970m | Tiếp nhận tàu 70.000 DWT</p>
-#                    <a href="#infrastructure" class="btn-cta">🏗️ THÔNG SỐ KỸ THUẬT</a>
+                    <p>04 Cầu Tàu | Tổng chiều dài 970m | Tiếp nhận tàu 70.000 DWT</p>
                 </div>
             </div>
         </div>
@@ -693,7 +688,7 @@ def show_landing_page():
     <section id="about" class="about-section">
         <div class="about-grid">
             <div>
-                <div class="about-tag">CHÀO MỪNG ĐẾN VỚI HÒN LA</div>
+                <div class="about-tag">CHÀO MỪNG ĐẾN VỚI CẢNG QUỐC TẾ HÒN LA</div>
                 <h2 class="about-title">Cửa ngõ hàng hải chiến lược của Miền Trung</h2>
                 <p class="about-text">Cảng tổng hợp Quốc tế Hòn La được đầu tư bài bản với hệ thống cơ sở hạ tầng đồng bộ, hiện đại, đáp ứng nhu cầu bốc xếp hàng hóa, trung chuyển container và đón tàu du lịch quốc tế.</p>
                 <div class="about-highlight"><i class="fas fa-trophy" style="color:#f59e0b"></i> <strong>Dự án trọng điểm Quốc gia</strong></div>

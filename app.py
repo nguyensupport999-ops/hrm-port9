@@ -629,7 +629,7 @@ def show_landing_page():
                     <a href="#about">Giới thiệu <i class="fas fa-chevron-down"></i></a>
                     <div class="dropdown-content">
                         <a href="#about">Về chúng tôi</a>
-                        <a href="#infrastructure">Hạ tầng</a>
+                        <a href="#infrastructure">Thư ngỏ của Chủ tịch HĐQT</a>
                     </div>
                 </div>
                 <a href="#services">Dịch vụ</a>
@@ -647,24 +647,25 @@ def show_landing_page():
             <div class="slide active" style="background-image: url('{slide1_src}');">
                 <div class="slide-content">
                     <h1>CẢNG TỔNG HỢP QUỐC TẾ HÒN LA</h1>
-                    <p>Chính thức khởi công ngày 21 tháng 3 năm 2025 - Dự án trọng điểm Quốc gia</p>
-                    <a href="#contact" class="btn-cta">📞 LIÊN HỆ HỢP TÁC</a>
-                    <a href="#infrastructure" class="btn-cta btn-cta-outline">⚓ KHÁM PHÁ DỰ ÁN</a>
+                    <p>Chính thức khởi công ngày 21 tháng 3 năm 2025</p>
+                    <p>Đưa vào khai thác từ Tháng 5 năm 2026</p>
+#                    <a href="#contact" class="btn-cta">📞 LIÊN HỆ HỢP TÁC</a>
+#                    <a href="#infrastructure" class="btn-cta btn-cta-outline">⚓ KHÁM PHÁ DỰ ÁN</a>
                 </div>
             </div>
             <div class="slide" style="background-image: url('{slide2_src}');">
                 <div class="slide-content">
                     <h1>KẾT NỐI TOÀN CẦU</h1>
                     <p>Vị trí chiến lược trên tuyến hành lang kinh tế Đông - Tây (EWEC)</p>
-                    <a href="#services" class="btn-cta">🚢 DỊCH VỤ LOGISTICS</a>
-                    <a href="#contact" class="btn-cta btn-cta-outline">📞 LIÊN HỆ</a>
+#                    <a href="#services" class="btn-cta">🚢 DỊCH VỤ LOGISTICS</a>
+#                    <a href="#contact" class="btn-cta btn-cta-outline">📞 LIÊN HỆ</a>
                 </div>
             </div>
             <div class="slide" style="background-image: url('{slide3_src}');">
                 <div class="slide-content">
                     <h1>HẠ TẦNG ĐẲNG CẤP QUỐC TẾ</h1>
                     <p>04 bến cấp tàu | Tổng chiều dài 970m | Tiếp nhận tàu 70.000 DWT</p>
-                    <a href="#infrastructure" class="btn-cta">🏗️ THÔNG SỐ KỸ THUẬT</a>
+#                    <a href="#infrastructure" class="btn-cta">🏗️ THÔNG SỐ KỸ THUẬT</a>
                 </div>
             </div>
         </div>
@@ -742,8 +743,8 @@ def show_landing_page():
             <div class="footer-col"><h4>Giờ làm việc</h4><p>🚢 Bến cảng: 24/7</p><p>🏢 Văn phòng: 7:30 - 17:00</p><p>📅 Thứ 2 - Thứ 7</p></div>
         </div>
         <div class="copyright">
-            <p>© 2026 Cảng Quốc tế Hòn La - Tổng Công ty Cổ phần Cảng Hòn La. All rights reserved.</p>
-            <p style="margin-top: 10px;">🏗️ Phát triển bền vững - Kết nối toàn cầu</p>
+            <p>© 2026 - Công ty Cổ phần Cảng Hòn La. All rights reserved.</p>
+            <p style="margin-top: 10px;">🏗️ PHÁT TRIỂN BỀN VỮNG - KẾT NỐI TOÀN CẦU</p>
         </div>
     </footer>
     

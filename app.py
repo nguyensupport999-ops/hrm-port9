@@ -26,7 +26,7 @@ import pathlib
 import streamlit as st
 
 def show_landing_page():
-    """Hiển thị Landing Page - Logo tròn 86px, slider mới (ảnh + text 2 cột), footer hiển thị đúng"""
+    """Hiển thị Landing Page - Logo tròn 86px, slider mới (ảnh + text 2 cột), thư ngỏ A4 với text justify"""
     
     # Ẩn hoàn toàn sidebar, header, footer
     st.markdown("""
@@ -286,48 +286,50 @@ def show_landing_page():
                 background-position: center center;
                 background-repeat: no-repeat;
             }}
+            /* ===== SLIDER CONTENT STYLES ===== */
             .slide-content {{
                 flex: 1;
-                padding: 60px 50px;
+                padding: 50px 40px;
                 color: white;
                 z-index: 3;
+                text-align: center;
             }}
             .slide-content h1 {{
-                font-size: 3rem;
+                font-size: 2.8rem;
                 font-weight: 800;
-                margin-bottom: 1rem;
-                letter-spacing: -1px;
-                text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                margin-bottom: 1.2rem;
+                letter-spacing: -0.5px;
+                text-shadow: 0 2px 5px rgba(0,0,0,0.4);
+                line-height: 1.3;
             }}
             .slide-content p {{
-                font-size: 1.2rem;
-                margin-bottom: 1rem;
-                line-height: 1.6;
-                text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+                font-size: 1.15rem;
+                margin-bottom: 0.8rem;
+                line-height: 1.5;
+                text-shadow: 0 1px 3px rgba(0,0,0,0.3);
             }}
             .slide-content .highlight {{
-                font-size: 1.3rem;
+                font-size: 1.2rem;
                 font-weight: 700;
                 color: #f59e0b;
-                margin-top: 1rem;
-            }}
-            .btn-cta {{
-                background: #f59e0b;
-                color: #1e293b;
-                padding: 12px 28px;
-                border-radius: 40px;
-                font-weight: 700;
-                text-decoration: none;
+                margin-top: 1.2rem;
                 display: inline-block;
-                margin-top: 1.5rem;
-                transition: all 0.3s;
-                border: none;
-                cursor: pointer;
+                background: rgba(0,0,0,0.25);
+                padding: 6px 18px;
+                border-radius: 40px;
+                backdrop-filter: blur(4px);
             }}
-            .btn-cta:hover {{
-                transform: translateY(-3px);
-                box-shadow: 0 10px 20px rgba(0,0,0,0.2);
-                background: #e67e22;
+            /* Tùy chỉnh riêng từng slide */
+            .slide:nth-child(1) .slide-content .highlight {{
+                background: linear-gradient(135deg, rgba(245,158,11,0.3), rgba(245,158,11,0.1));
+            }}
+            .slide:nth-child(2) .slide-content h1 {{
+                font-size: 3rem;
+                color: #ffd700;
+            }}
+            .slide:nth-child(3) .slide-content .highlight {{
+                background: #f59e0b;
+                color: #0f3b5c;
             }}
             /* Progress bar slider */
             .slider-progress {{
@@ -389,29 +391,6 @@ def show_landing_page():
             }}
             .slider-arrow.prev {{ left: 20px; }}
             .slider-arrow.next {{ right: 20px; }}
-            
-            @media (max-width: 768px) {{
-                .slide-layout {{
-                    flex-direction: column;
-                }}
-                .slide-image {{
-                    width: 100%;
-                    height: 50%;
-                    flex: none;
-                }}
-                .slide-content {{
-                    padding: 30px 20px;
-                }}
-                .slide-content h1 {{
-                    font-size: 1.8rem;
-                }}
-                .hero-slider {{
-                    height: auto;
-                    min-height: 500px;
-                }}
-                .nav-links {{ display: none; }}
-                .logo-circle {{ width: 60px; height: 60px; }}
-            }}
             
             /* ===== SCROLL REVEAL ===== */
             .reveal {{
@@ -618,11 +597,6 @@ def show_landing_page():
                 color: #64748b;
             }}
             
-            @media (max-width: 768px) {{
-                .stats-grid, .about-grid, .services-grid, .infra-grid, .footer-grid {{ grid-template-columns: 1fr; }}
-                .stat-card {{ border-right: none; border-bottom: 1px solid rgba(255,255,255,0.2); }}
-            }}
-            
             /* ===== MODAL THƯ NGỎ - PHONG CÁCH A4 ===== */
             .modal {{
                 display: none;
@@ -696,11 +670,14 @@ def show_landing_page():
                 color: #666;
                 font-size: 0.85rem;
             }}
+            /* Logo trong thư ngỏ - Tùy chỉnh kích thước */
             .a4-header-logo img {{
-                width: 70px;
-                height: 70px;
+                width: 80px;
+                height: 80px;
                 border-radius: 50%;
                 object-fit: cover;
+                border: 2px solid #f59e0b;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             }}
             .gold-line {{
                 height: 3px;
@@ -742,15 +719,23 @@ def show_landing_page():
                 line-height: 1.7;
                 color: #333;
             }}
-            .a4-date {{
-                text-align: right;
+            /* Modal Thư ngỏ - Text Justify */
+            .modal-body .a4-body p {{
+                text-align: justify;
+                text-justify: inter-ideograph;
+            }}
+            .modal-body .a4-body .vision-box p,
+            .modal-body .a4-body .mission-box p {{
+                text-align: justify;
+            }}
+            .modal-body .a4-greeting {{
+                text-align: left !important;
+            }}
+            .modal-body .a4-date {{
+                text-align: right !important;
                 font-style: italic;
                 margin-bottom: 20px;
                 color: #666;
-            }}
-            .a4-greeting {{
-                font-weight: 600;
-                margin-bottom: 15px;
             }}
             .vision-box, .mission-box {{
                 background: #f0f7ff;
@@ -815,6 +800,62 @@ def show_landing_page():
                 justify-content: space-between;
                 flex-wrap: wrap;
             }}
+            
+            @media (max-width: 768px) {{
+                .slide-layout {{
+                    flex-direction: column;
+                }}
+                .slide-image {{
+                    width: 100%;
+                    height: 35%;
+                    flex: none;
+                }}
+                .slide-content {{
+                    padding: 25px 20px;
+                }}
+                .slide-content h1 {{
+                    font-size: 1.6rem;
+                }}
+                .slide-content p {{
+                    font-size: 0.9rem;
+                }}
+                .slide-content .highlight {{
+                    font-size: 0.95rem;
+                    padding: 4px 12px;
+                }}
+                .slide:nth-child(2) .slide-content h1 {{
+                    font-size: 1.7rem;
+                }}
+                .hero-slider {{
+                    height: auto;
+                    min-height: 480px;
+                }}
+                .stats-grid, .about-grid, .services-grid, .infra-grid, .footer-grid {{
+                    grid-template-columns: 1fr;
+                }}
+                .stat-card {{
+                    border-right: none;
+                    border-bottom: 1px solid rgba(255,255,255,0.2);
+                }}
+                .nav-links {{
+                    display: none;
+                }}
+                .logo-circle {{
+                    width: 60px;
+                    height: 60px;
+                }}
+                .a4-header-logo img {{
+                    width: 55px;
+                    height: 55px;
+                }}
+                .a4-chairman-avatar img {{
+                    width: 55px;
+                    height: 55px;
+                }}
+                .modal-body {{
+                    padding: 20px;
+                }}
+            }}
         </style>
     </head>
     <body>
@@ -854,7 +895,7 @@ def show_landing_page():
                 <div class="a4-header">
                     <div class="a4-header-left">
                         <h1>Công ty cổ phần Cảng Hòn La</h1>
-                        <p>Hon La International Port · Thư ngỏ của Chủ tịch HĐQT</p>
+                        <p>HonLa International Port · Phát triển bền vững — Kết nối toàn cầu</p>
                     </div>
                     <div class="a4-header-logo">
                         <img src="data:image/png;base64,{logo_base64}" alt="Logo Cảng Hòn La">
@@ -869,7 +910,7 @@ def show_landing_page():
                     </div>
                     <div class="a4-chairman-info">
                         <h2>Ông Phùng Gia Phát</h2>
-                        <p class="title">⭐ Chủ tịch Hội đồng Quản trị</p>
+                        <p class="title">Chủ tịch Hội đồng Quản trị</p>
                         <p class="company">
                             Công ty Cổ phần Cảng Hòn La<br>
                             Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình
@@ -959,7 +1000,6 @@ def show_landing_page():
                 <div class="a4-footer">
                     <span>🌐 honlaport.com.vn</span>
                     <span>✉ info@honlaport.com.vn</span>
-                    <span>🏗️ Phát triển bền vững — Kết nối toàn cầu</span>
                     <span>📞 0232.xxxx.xxx</span>
                 </div>
             </div>
@@ -1262,8 +1302,7 @@ def show_landing_page():
     </script>
     </body>
     </html>
-    """
-    
+    """    
     import streamlit.components.v1 as components
     # Height tính từ padding CSS thực tế mỗi section:
     # navbar(80) + slider(600) + stats(200) + about(620) + services(420)

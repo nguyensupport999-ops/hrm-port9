@@ -26,7 +26,7 @@ import pathlib
 import streamlit as st
 
 def show_landing_page():
-    """Hiển thị Landing Page - Logo tròn 150px, slider đã fix"""
+    """Hiển thị Landing Page - Logo tròn 86px, slider đã fix"""
     
     # Ẩn hoàn toàn sidebar, header, footer
     st.markdown("""
@@ -124,10 +124,10 @@ def show_landing_page():
                 margin: 0 auto;
             }}
             
-            /* Logo hình tròn 80px - KHÔNG có text */
+            /* Logo hình tròn 86px - KHÔNG có text */
             .logo-circle {{
-                width: 80px;
-                height: 80px;
+                width: 86px;
+                height: 86px;
                 border-radius: 50%;
                 overflow: hidden;
                 box-shadow: 0 8px 25px rgba(0,0,0,0.25), 0 0 0 3px rgba(255,255,255,0.3);
@@ -514,7 +514,7 @@ def show_landing_page():
     <!-- Navigation -->
     <nav class="navbar" id="navbar">
         <div class="nav-container">
-            <!-- Logo hình tròn 150px - KHÔNG text -->
+            <!-- Logo hình tròn 86px - KHÔNG text -->
             <div class="logo-circle">
                 <img src="data:image/png;base64,{logo_base64}" alt="Cảng Hòn La">
             </div>
@@ -536,46 +536,30 @@ def show_landing_page():
         </div>
     </nav>
     
-    <!-- Hero Slider - ĐÃ SỬA LỖI HOÀN TOÀN -->
+    <!-- Hero Slider (toàn màn hình) -->
     <section id="home" class="hero-slider">
-        <div class="slides-container">
-            <!-- Slide 1 -->
-            <div class="slide active" style="background-image: url('https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070');">
-                <div class="slide-content">
-                    <h1>CẢNG TỔNG HỢP QUỐC TẾ HÒN LA</h1>
-                    <p>Chính thức khởi công ngày 21 tháng 3 năm 2025 - Dự án trọng điểm Quốc gia</p>
-                    <div>
-                        <a href="#contact" class="btn-cta">📞 LIÊN HỆ HỢP TÁC</a>
-                        <a href="#infrastructure" class="btn-cta btn-cta-outline">⚓ KHÁM PHÁ DỰ ÁN</a>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Slide 2 -->
-            <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070');">
-                <div class="slide-content">
-                    <h1>KẾT NỐI TOÀN CẦU</h1>
-                    <p>Vị trí chiến lược trên tuyến hành lang kinh tế Đông - Tây (EWEC)</p>
-                    <div>
-                        <a href="#services" class="btn-cta">🚢 DỊCH VỤ LOGISTICS</a>
-                        <a href="#contact" class="btn-cta btn-cta-outline">📞 LIÊN HỆ</a>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Slide 3 -->
-            <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1584622781564-1d987f7333c1?q=80&w=2070');">
-                <div class="slide-content">
-                    <h1>HẠ TẦNG ĐẲNG CẤP QUỐC TẾ</h1>
-                    <p>04 bến cấp tàu | Tổng chiều dài 970m | Tiếp nhận tàu 70.000 DWT</p>
-                    <div>
-                        <a href="#infrastructure" class="btn-cta">🏗️ THÔNG SỐ KỸ THUẬT</a>
-                    </div>
-                </div>
+        <div class="slide active" style="background-image: url('https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070');">
+            <div class="slide-content">
+                <h1>CẢNG TỔNG HỢP QUỐC TẾ HÒN LA</h1>
+                <p>Chính thức khởi công ngày 21 tháng 3 năm 2025 - Dự án trọng điểm Quốc gia</p>
+                <a href="#contact" class="btn-cta">📞 LIÊN HỆ HỢP TÁC</a>
+                <a href="#infrastructure" class="btn-cta btn-cta-outline">⚓ KHÁM PHÁ DỰ ÁN</a>
             </div>
         </div>
-        
-        <!-- Slider Navigation Dots -->
+        <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070');">
+            <div class="slide-content">
+                <h1>KẾT NỐI TOÀN CẦU</h1>
+                <p>Vị trí chiến lược trên tuyến hành lang kinh tế Đông - Tây (EWEC)</p>
+                <a href="#services" class="btn-cta">🚢 DỊCH VỤ LOGISTICS</a>
+            </div>
+        </div>
+        <div class="slide" style="background-image: url('https://images.unsplash.com/photo-1584622781564-1d987f7333c1?q=80&w=2070');">
+            <div class="slide-content">
+                <h1>HẠ TẦNG ĐẲNG CẤP QUỐC TẾ</h1>
+                <p>04 bến cập tàu | Tổng chiều dài 970m | Tiếp nhận tàu 70.000 DWT</p>
+                <a href="#infrastructure" class="btn-cta">🏗️ THÔNG SỐ KỸ THUẬT</a>
+            </div>
+        </div>
         <div class="slider-nav">
             <div class="slider-dot active" data-slide="0"></div>
             <div class="slider-dot" data-slide="1"></div>

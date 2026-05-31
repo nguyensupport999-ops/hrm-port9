@@ -23,10 +23,596 @@ import qrcode
 from io import BytesIO
 import os
 import pathlib
+import streamlit as st
+
+def show_landing_page():
+    """Hiển thị Landing Page công khai cho Guest"""
+    
+    # Ẩn hoàn toàn sidebar và header mặc định của Streamlit
+    st.markdown("""
+        <style>
+            /* Ẩn sidebar mặc định */
+            [data-testid="stSidebar"] { display: none !important; }
+            [data-testid="collapsedControl"] { display: none !important; }
+            
+            /* Ẩn header và footer mặc định */
+            header { display: none !important; }
+            footer { display: none !important; }
+            
+            /* Điều chỉnh main content chiếm toàn màn hình */
+            .main .block-container {
+                padding: 0 !important;
+                max-width: 100% !important;
+            }
+            
+            /* Tùy chỉnh scrollbar */
+            ::-webkit-scrollbar {
+                width: 8px;
+            }
+            ::-webkit-scrollbar-track {
+                background: #f1f1f1;
+            }
+            ::-webkit-scrollbar-thumb {
+                background: #0f3b5c;
+                border-radius: 4px;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    # Nội dung HTML của Landing Page
+    landing_html = """
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Cảng Quốc tế Hòn La - Cửa ngõ hàng hải miền Trung</title>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            
+            body {
+                font-family: 'Inter', system-ui, -apple-system, sans-serif;
+                background-color: #ffffff;
+                color: #1e293b;
+                line-height: 1.5;
+            }
+            
+            /* Navigation */
+            .nav {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 1rem 5%;
+                background: rgba(255, 255, 255, 0.98);
+                backdrop-filter: blur(10px);
+                position: sticky;
+                top: 0;
+                z-index: 1000;
+                border-bottom: 1px solid #e2e8f0;
+                box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            }
+            
+            .logo {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            
+            .logo-icon {
+                font-size: 2rem;
+            }
+            
+            .logo-text {
+                font-size: 1.25rem;
+                font-weight: 800;
+                color: #0f3b5c;
+                letter-spacing: -0.5px;
+            }
+            
+            .logo-sub {
+                font-size: 0.7rem;
+                color: #64748b;
+                letter-spacing: 1px;
+            }
+            
+            .nav-links {
+                display: flex;
+                gap: 2rem;
+                align-items: center;
+            }
+            
+            .nav-links a {
+                text-decoration: none;
+                color: #334155;
+                font-weight: 500;
+                transition: color 0.2s;
+                font-size: 0.95rem;
+            }
+            
+            .nav-links a:hover {
+                color: #0f3b5c;
+            }
+            
+            .btn-login {
+                background: #0f3b5c;
+                color: white !important;
+                padding: 8px 24px;
+                border-radius: 40px;
+                margin-left: 1rem;
+                transition: all 0.2s;
+            }
+            
+            .btn-login:hover {
+                background: #1e4a76;
+                transform: translateY(-1px);
+            }
+            
+            .lang-switch {
+                display: flex;
+                gap: 8px;
+                margin-left: 1rem;
+                padding-left: 1rem;
+                border-left: 1px solid #e2e8f0;
+            }
+            
+            .lang-btn {
+                background: none;
+                border: none;
+                cursor: pointer;
+                font-size: 0.9rem;
+                padding: 4px 8px;
+                border-radius: 20px;
+                transition: all 0.2s;
+            }
+            
+            .lang-btn.active {
+                background: #0f3b5c;
+                color: white;
+            }
+            
+            /* Hero Section */
+            .hero {
+                height: 85vh;
+                background: linear-gradient(135deg, rgba(15,59,92,0.85) 0%, rgba(15,59,92,0.7) 100%), 
+                            url('https://images.unsplash.com/photo-1584622781564-1d987f7333c1?q=80&w=2070');
+                background-size: cover;
+                background-position: center;
+                display: flex;
+                align-items: center;
+                text-align: center;
+                justify-content: center;
+                color: white;
+                position: relative;
+            }
+            
+            .hero-content {
+                max-width: 800px;
+                padding: 0 20px;
+            }
+            
+            .hero h1 {
+                font-size: 3.5rem;
+                font-weight: 800;
+                margin-bottom: 1rem;
+                letter-spacing: -1px;
+            }
+            
+            .hero p {
+                font-size: 1.25rem;
+                opacity: 0.95;
+                margin-bottom: 2rem;
+            }
+            
+            .btn-cta {
+                background: #f59e0b;
+                color: #1e293b;
+                padding: 14px 36px;
+                border-radius: 40px;
+                font-weight: 700;
+                text-decoration: none;
+                display: inline-block;
+                transition: all 0.2s;
+                margin: 0 8px;
+            }
+            
+            .btn-cta-outline {
+                background: transparent;
+                border: 2px solid white;
+                color: white;
+            }
+            
+            .btn-cta:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+            }
+            
+            /* Stats Section */
+            .stats {
+                display: flex;
+                justify-content: space-between;
+                padding: 4rem 10%;
+                background: #f8fafc;
+                border-bottom: 1px solid #e2e8f0;
+            }
+            
+            .stat-item {
+                text-align: center;
+                flex: 1;
+            }
+            
+            .stat-number {
+                font-size: 2.5rem;
+                font-weight: 800;
+                color: #0f3b5c;
+                margin-bottom: 0.5rem;
+            }
+            
+            .stat-label {
+                color: #64748b;
+                font-size: 0.9rem;
+                font-weight: 500;
+            }
+            
+            /* Common Sections */
+            .section {
+                padding: 5rem 10%;
+            }
+            
+            .section-dark {
+                background: #f8fafc;
+            }
+            
+            .section-title {
+                font-size: 2.2rem;
+                font-weight: 700;
+                margin-bottom: 1rem;
+                text-align: center;
+                color: #0f3b5c;
+            }
+            
+            .section-subtitle {
+                text-align: center;
+                color: #64748b;
+                margin-bottom: 3rem;
+                font-size: 1.1rem;
+            }
+            
+            /* Grid Layouts */
+            .grid-2 {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 4rem;
+                align-items: center;
+            }
+            
+            .grid-3 {
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 2rem;
+                margin-top: 2rem;
+            }
+            
+            .grid-4 {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 2rem;
+                margin-top: 2rem;
+            }
+            
+            /* Cards */
+            .card-service {
+                background: white;
+                padding: 2rem;
+                border-radius: 20px;
+                text-align: center;
+                transition: all 0.3s;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+                border: 1px solid #e2e8f0;
+            }
+            
+            .card-service:hover {
+                transform: translateY(-5px);
+                box-shadow: 0 20px 25px -12px rgba(0,0,0,0.1);
+            }
+            
+            .card-icon {
+                font-size: 3rem;
+                margin-bottom: 1rem;
+            }
+            
+            .card-service h3 {
+                font-size: 1.25rem;
+                margin-bottom: 0.5rem;
+                color: #0f3b5c;
+            }
+            
+            /* Value Items */
+            .value-item {
+                text-align: center;
+                padding: 2rem;
+            }
+            
+            .value-icon {
+                font-size: 2.5rem;
+                margin-bottom: 1rem;
+            }
+            
+            /* Infrastructure */
+            .infra-img {
+                width: 100%;
+                border-radius: 20px;
+                box-shadow: 0 20px 25px -12px rgba(0,0,0,0.1);
+            }
+            
+            /* Footer */
+            .footer {
+                background: #0f172a;
+                color: #cbd5e1;
+                padding: 3rem 10%;
+                text-align: center;
+            }
+            
+            .footer a {
+                color: #94a3b8;
+                text-decoration: none;
+            }
+            
+            .footer a:hover {
+                color: white;
+            }
+            
+            /* Responsive */
+            @media (max-width: 768px) {
+                .nav-links { display: none; }
+                .hero h1 { font-size: 2rem; }
+                .stats { flex-direction: column; gap: 2rem; }
+                .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+                .section { padding: 3rem 5%; }
+            }
+        </style>
+    </head>
+    <body>
+        <!-- Navigation -->
+        <nav class="nav">
+            <div class="logo">
+                <div class="logo-icon">🏗️</div>
+                <div>
+                    <div class="logo-text">HÒN LA</div>
+                    <div class="logo-sub">INTERNATIONAL PORT</div>
+                </div>
+            </div>
+            <div class="nav-links">
+                <a href="#">Trang chủ</a>
+                <a href="#about">Về chúng tôi</a>
+                <a href="#services">Dịch vụ</a>
+                <a href="#infrastructure">Hạ tầng</a>
+                <a href="#news">Tin tức</a>
+                <a href="#contact">Liên hệ</a>
+                <div class="lang-switch">
+                    <button class="lang-btn active" onclick="switchLang('vi')">🇻🇳 VI</button>
+                    <button class="lang-btn" onclick="switchLang('en')">🇬🇧 EN</button>
+                </div>
+                <a href="#" class="btn-login" id="loginBtn">🔐 Nhân viên</a>
+            </div>
+        </nav>
+        
+        <!-- Hero Section -->
+        <section class="hero">
+            <div class="hero-content">
+                <h1>CẢNG QUỐC TẾ HÒN LA</h1>
+                <p>Cửa ngõ hàng hải miền Trung - Kết nối toàn cầu</p>
+                <div>
+                    <a href="#contact" class="btn-cta">📞 LIÊN HỆ HỢP TÁC</a>
+                    <a href="#infrastructure" class="btn-cta btn-cta-outline">⚓ KHÁM PHÁ</a>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Stats Section -->
+        <section class="stats">
+            <div class="stat-item">
+                <div class="stat-number">39</div>
+                <div class="stat-label">Diện tích (ha)</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">70.000</div>
+                <div class="stat-label">DWT tàu tối đa</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">970</div>
+                <div class="stat-label">Chiều dài cầu cảng (m)</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">225.000</div>
+                <div class="stat-label">GT tàu du lịch</div>
+            </div>
+        </section>
+        
+        <!-- About Section -->
+        <section id="about" class="section">
+            <div class="grid-2">
+                <div>
+                    <div style="font-size: 0.9rem; color: #f59e0b; font-weight: 600; margin-bottom: 1rem;">TẦM NHÌN CHIẾN LƯỢC</div>
+                    <h2 class="section-title" style="text-align: left; margin-bottom: 1.5rem;">Thư ngỏ từ Chủ tịch HĐQT</h2>
+                    <p style="font-size: 1.05rem; line-height: 1.7; color: #334155; margin-bottom: 1.5rem;">
+                        Kính gửi Quý đối tác, Quý khách hàng và toàn thể cán bộ nhân viên,
+                    </p>
+                    <p style="font-size: 1rem; line-height: 1.7; color: #475569;">
+                        Với tầm nhìn trở thành cảng biển trung chuyển hàng đầu khu vực miền Trung và cả nước, 
+                        Cảng Quốc tế Hòn La không ngừng đầu tư cơ sở hạ tầng hiện đại, ứng dụng công nghệ 4.0 
+                        vào quản lý và khai thác. Chúng tôi cam kết mang đến dịch vụ logistics đẳng cấp quốc tế, 
+                        kết nối thông suốt với các thị trường trọng điểm trong khu vực và toàn cầu.
+                    </p>
+                </div>
+                <div>
+                    <img src="https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070" 
+                         style="width: 100%; border-radius: 24px; box-shadow: 0 20px 25px -12px rgba(0,0,0,0.15);" 
+                         alt="Lãnh đạo Cảng Hòn La">
+                </div>
+            </div>
+        </section>
+        
+        <!-- Value Section -->
+        <section class="section section-dark">
+            <h2 class="section-title">Giá trị cốt lõi</h2>
+            <p class="section-subtitle">Phương châm hoạt động của Cảng Quốc tế Hòn La</p>
+            <div class="grid-3">
+                <div class="value-item">
+                    <div class="value-icon">🎯</div>
+                    <h3>Tầm nhìn</h3>
+                    <p style="color: #64748b; font-size: 0.9rem;">Cảng biển trung chuyển hàng đầu khu vực miền Trung</p>
+                </div>
+                <div class="value-item">
+                    <div class="value-icon">⚡</div>
+                    <h3>Sứ mệnh</h3>
+                    <p style="color: #64748b; font-size: 0.9rem;">Kết nối toàn cầu - Phát triển bền vững</p>
+                </div>
+                <div class="value-item">
+                    <div class="value-icon">💎</div>
+                    <h3>Giá trị</h3>
+                    <p style="color: #64748b; font-size: 0.9rem;">Tin cậy - Chuyên nghiệp - Tận tâm</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Services Section -->
+        <section id="services" class="section">
+            <h2 class="section-title">Dịch vụ của chúng tôi</h2>
+            <p class="section-subtitle">Đa dạng giải pháp logistics đáp ứng mọi nhu cầu</p>
+            <div class="grid-4">
+                <div class="card-service">
+                    <div class="card-icon">🚢</div>
+                    <h3>Hàng rời & Hàng khô</h3>
+                    <p style="color: #64748b; font-size: 0.85rem;">Xếp dỡ hàng rời, hàng khô tổng hợp công suất lớn</p>
+                </div>
+                <div class="card-service">
+                    <div class="card-icon">📦</div>
+                    <h3>Hàng container</h3>
+                    <p style="color: #64748b; font-size: 0.85rem;">Khai thác container nội địa và quốc tế</p>
+                </div>
+                <div class="card-service">
+                    <div class="card-icon">🛳️</div>
+                    <h3>Du lịch tàu biển</h3>
+                    <p style="color: #64748b; font-size: 0.85rem;">Đón tàu du lịch quốc tế lên đến 225.000 GT</p>
+                </div>
+                <div class="card-service">
+                    <div class="card-icon">📊</div>
+                    <h3>Logistics & Kho bãi</h3>
+                    <p style="color: #64748b; font-size: 0.85rem;">Dịch vụ logistics trọn gói, kho bãi hiện đại</p>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Infrastructure Section -->
+        <section id="infrastructure" class="section section-dark">
+            <h2 class="section-title">Hạ tầng & Vị trí chiến lược</h2>
+            <p class="section-subtitle">Cảng tổng hợp quốc tế với 04 bến cảng hiện đại</p>
+            <div class="grid-2">
+                <div>
+                    <img src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070" 
+                         class="infra-img" alt="Cảng Hòn La">
+                </div>
+                <div>
+                    <h3 style="color: #0f3b5c; margin-bottom: 1rem;">Vị trí vàng trên bản đồ logistics</h3>
+                    <ul style="list-style: none; padding: 0;">
+                        <li style="margin-bottom: 0.75rem;">📍 <strong>Quảng Trạch, Quảng Bình</strong> - Trung tâm khu kinh tế Hòn La</li>
+                        <li style="margin-bottom: 0.75rem;">🛣️ Kết nối trực tiếp với <strong>hành lang kinh tế Đông - Tây (EWEC)</strong></li>
+                        <li style="margin-bottom: 0.75rem;">⚓ <strong>04 bến cấp tàu</strong> với tổng chiều dài 970m</li>
+                        <li style="margin-bottom: 0.75rem;">🚢 Tiếp nhận tàu trọng tải <strong>70.000 DWT</strong> (mở rộng lên 100.000+ DWT)</li>
+                        <li style="margin-bottom: 0.75rem;">🌍 Kết nối với các cảng lớn: Vũng Áng, Đà Nẵng, Cái Mép - Thị Vải</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Footer -->
+        <footer id="contact" class="footer">
+            <div class="logo" style="justify-content: center; margin-bottom: 2rem;">
+                <div class="logo-icon">🏗️</div>
+                <div>
+                    <div class="logo-text" style="color: white;">HÒN LA</div>
+                    <div class="logo-sub" style="color: #94a3b8;">INTERNATIONAL PORT</div>
+                </div>
+            </div>
+            <div class="grid-2" style="margin-bottom: 2rem; text-align: left;">
+                <div>
+                    <h4 style="color: white; margin-bottom: 1rem;">Thông tin liên hệ</h4>
+                    <p>📍 Địa chỉ: Khu kinh tế Hòn La, xã Quảng Đông, huyện Quảng Trạch, tỉnh Quảng Bình</p>
+                    <p>📞 Điện thoại: 0232.xxxx.xxx</p>
+                    <p>📧 Email: info@honlaport.com.vn</p>
+                </div>
+                <div>
+                    <h4 style="color: white; margin-bottom: 1rem;">Giờ làm việc</h4>
+                    <p>🚢 Bến cảng: 24/7 (tất cả các ngày trong năm)</p>
+                    <p>🏢 Văn phòng: Thứ 2 - Thứ 7 (7:30 - 17:00)</p>
+                </div>
+            </div>
+            <div style="border-top: 1px solid #334155; padding-top: 2rem; margin-top: 1rem;">
+                <p>© 2026 Cảng Quốc tế Hòn La. Tầm nhìn chiến lược - Phát triển bền vững.</p>
+                <p style="margin-top: 0.5rem; font-size: 0.8rem;">
+                    <a href="#">Điều khoản sử dụng</a> | <a href="#">Chính sách bảo mật</a>
+                </p>
+            </div>
+        </footer>
+        
+        <script>
+            // Xử lý chuyển đổi ngôn ngữ
+            function switchLang(lang) {
+                document.querySelectorAll('.lang-btn').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                event.target.classList.add('active');
+                alert('Đang phát triển tính năng đa ngôn ngữ!');
+            }
+            
+            // Xử lý nút đăng nhập
+            document.getElementById('loginBtn')?.addEventListener('click', function(e) {
+                e.preventDefault();
+                // Streamlit sẽ xử lý chuyển hướng
+                window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'login_clicked'}, '*');
+            });
+        </script>
+    </body>
+    </html>
+    """
+    
+    # Hiển thị HTML
+    st.components.v1.html(landing_html, height=800, scrolling=True)
+    
+    # Xử lý nút đăng nhập từ JavaScript
+    if st.button("🔐 Staff Login", key="hidden_login", help="Đăng nhập vào hệ thống quản lý"):
+        st.session_state['show_landing'] = False
+        st.rerun()
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
-st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
+# ========== THÊM ĐOẠN NÀY ĐỂ ĐIỀU KHIỂN LANDING PAGE ==========
+# Khởi tạo session state
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.role = None
+    st.session_state.username = None
+
+# Nếu chưa đăng nhập, hiển thị Landing Page và DỪNG lại
+if not st.session_state.logged_in:
+    # Ẩn sidebar hoàn toàn
+    st.markdown("""
+        <style>
+            [data-testid="stSidebar"] { display: none !important; }
+            [data-testid="collapsedControl"] { display: none !important; }
+            header { display: none !important; }
+            footer { display: none !important; }
+        </style>
+    """, unsafe_allow_html=True)
+    show_landing_page()
+    st.stop()  # Dừng hẳn, không chạy code HRM phía dưới
+
+# ========== PHẦN CODE HRM BẮT ĐẦU TỪ ĐÂY ==========
 
 # ẩn nút Manage App
 st.markdown("""
@@ -3960,3 +4546,36 @@ elif menu == "📋 Báo cáo 01/PLI":
             
 st.sidebar.divider()
 st.sidebar.caption("© 2026 HRM-Port | Cảng biển quốc tế Hòn La")
+
+# ========== ĐIỀU KHIỂN CHÍNH ==========
+def main():
+    """Hàm điều khiển chính - phân luồng Landing Page / HRM App"""
+    
+    # Khởi tạo session state cho landing page
+    if 'show_landing' not in st.session_state:
+        st.session_state['show_landing'] = True
+    
+    # Kiểm tra nếu đã đăng nhập (HRM mode)
+    if 'logged_in' in st.session_state and st.session_state.logged_in:
+        # Đã đăng nhập - HIỂN THỊ HRM APP
+        st.session_state['show_landing'] = False
+        # Code HRM đã chạy ở phía trên, không cần làm gì thêm
+        # Vì toàn bộ menu và các module đã được xử lý trong luồng chính
+        pass
+    else:
+        # Chưa đăng nhập - HIỂN THỊ LANDING PAGE
+        if st.session_state.get('show_landing', True):
+            # Ẩn sidebar cho landing page
+            st.markdown("""
+                <style>
+                    [data-testid="stSidebar"] { display: none !important; }
+                    [data-testid="collapsedControl"] { display: none !important; }
+                    header { display: none !important; }
+                </style>
+            """, unsafe_allow_html=True)
+            show_landing_page()
+            st.stop()  # Dừng không chạy phần code HRM phía dưới
+
+# Chạy ứng dụng
+if __name__ == "__main__":
+    main()

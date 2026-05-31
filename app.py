@@ -942,6 +942,9 @@ def show_landing_page():
                                 
                 <!-- Chairman với logo bên phải -->
                 <div class="a4-chairman">
+                    <div class="a4-chairman-avatar">
+                        <img src="{chu_tich_img}" alt="Chủ tịch HĐQT">
+                    </div>
                     <div class="a4-chairman-info">
                         <h2>Ông Phùng Gia Phát</h2>
                         <p class="title">🎤 Chủ tịch Hội đồng Quản trị</p>
@@ -949,10 +952,7 @@ def show_landing_page():
                             Công ty Cổ phần Cảng Hòn La<br>
                             Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình
                         </p>
-                    </div>
-                    <div class="a4-chairman-avatar">
-                        <img src="{chu_tich_img}" alt="Chủ tịch HĐQT">
-                    </div>
+                    </div>                    
                     <div class="a4-chairman-logo">
                         <img src="data:image/png;base64,{logo_base64}" alt="Logo Cảng Hòn La">
                     </div>

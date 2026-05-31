@@ -25,7 +25,6 @@ __pycache__/
 *.xls
 
 # Images
-*.png
 *.jpg
 *.jpeg
 *.gif

@@ -697,8 +697,8 @@ def show_landing_page():
     </html>
     """
     
-#    st.markdown(landing_html, unsafe_allow_html=True)
-#    
+    st.markdown(landing_html, unsafe_allow_html=True)
+  
 #    if st.button("🔐 Staff Login", key="hidden_login", help="Đăng nhập vào hệ thống quản lý"):
 #        st.session_state['show_landing'] = False
 #        st.rerun()

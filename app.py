@@ -26,17 +26,45 @@ import pathlib
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
+st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
+
+# ẩn nút Manage App
 st.markdown("""
     <style>
-        /* Ẩn nút Manage App góc dưới phải */
+        /* Ẩn toàn bộ toolbar bottom-right */
+        [data-testid="stToolbar"] { display: none !important; }
         [data-testid="manage-app-button"] { display: none !important; }
-        
-        /* Ẩn footer "Made with Streamlit" */
+        [data-testid="stAppDeployButton"] { display: none !important; }
+        .stDeployButton { display: none !important; }
+        #MainMenu { display: none !important; }
         footer { display: none !important; }
         
-        /* Ẩn header "Running..." khi app đang load */
-        [data-testid="stStatusWidget"] { display: none !important; }
+        /* Ẩn bằng position — nhắm vào vị trí góc dưới phải */
+        div[class*="toolbar"] { display: none !important; }
+        div[class*="StatusWidget"] { display: none !important; }
+        div[class*="viewerBadge"] { display: none !important; }
     </style>
+    <script>
+        // Dùng JS tìm và ẩn nút Manage App sau khi render xong
+        function hideManageApp() {
+            const selectors = [
+                '[data-testid="manage-app-button"]',
+                '[data-testid="stToolbar"]', 
+                '[data-testid="stAppDeployButton"]',
+                '.stDeployButton'
+            ];
+            selectors.forEach(sel => {
+                document.querySelectorAll(sel).forEach(el => {
+                    el.style.display = 'none';
+                });
+            });
+        }
+        // Chạy ngay và chạy lại sau 1s, 2s, 3s để chắc chắn
+        hideManageApp();
+        setTimeout(hideManageApp, 1000);
+        setTimeout(hideManageApp, 2000);
+        setTimeout(hideManageApp, 3000);
+    </script>
 """, unsafe_allow_html=True)
 
 def to_float_or_none(val):

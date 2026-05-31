@@ -709,11 +709,12 @@ def show_landing_page():
                 font-weight: 600;
                 margin-bottom: 8px;
             }}
-            .a4-chairman-info .company {{
-                font-size: 0.85rem;
+            .a4-chairman-info .company {
+                font-size: 1.3rem;  /* Bằng với font-size của h2 (Ông Phùng Gia Phát) */
                 color: #666;
                 line-height: 1.4;
-            }}
+                font-weight: 500;
+            }
             .a4-body {{
                 line-height: 1.7;
                 color: #333;
@@ -930,8 +931,7 @@ def show_landing_page():
                         <img src="data:image/png;base64,{logo_base64}" alt="Logo Cảng Hòn La">
                     </div>
                 </div>
-                <div class="gold-line"></div>
-
+                
                 <!-- Chairman -->
                 <div class="a4-chairman">
                     <div class="a4-chairman-avatar">
@@ -1010,7 +1010,7 @@ def show_landing_page():
                 <div class="a4-signature-left">
                     <div class="sig-block-left">
                         <div class="sig-image">
-                            <img src="{chu_ky_img}" alt="Chữ ký Chủ tịch" style="max-width: 286px; height: auto;">
+                            <img src="{chu_ky_img}" alt="Chữ ký Chủ tịch" style="max-width: 386px; height: auto;">
                         </div>
                     </div>
                 </div>

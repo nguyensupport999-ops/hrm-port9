@@ -2,7 +2,6 @@ import streamlit as st
 import psycopg2
 import psycopg2.extras
 from datetime import datetime, date, timedelta
-import os
 import pandas as pd
 from docx import Document
 from docx.shared import Pt, Cm
@@ -23,7 +22,6 @@ import qrcode
 from io import BytesIO
 import os
 import pathlib
-import streamlit as st
 
 def show_landing_page():
     """Hiển thị Landing Page - Logo tròn 86px, slider mới (ảnh + text 2 cột), thư ngỏ A4 với text justify"""
@@ -82,7 +80,6 @@ def show_landing_page():
     
     # Đọc file logo
     import base64
-    import os
     logo_path = os.path.join(os.path.dirname(__file__), "logo_cty.png")
     logo_base64 = ""
     if os.path.exists(logo_path):
@@ -598,7 +595,7 @@ def show_landing_page():
             }}
             
             /* ===== MODAL THƯ NGỎ - PHONG CÁCH A4 ===== */
-            .modal {
+            .modal {{
                 display: none;
                 position: fixed;
                 top: 0;
@@ -610,8 +607,8 @@ def show_landing_page():
                 align-items: flex-start;
                 justify-content: center;
                 overflow-y: auto;
-                padding: 80px 20px 20px 20px;  /* Top 80px, các cạnh còn lại 20px */
-            }
+                padding: 80px 20px 20px 20px;
+            }}
             .modal.active {{
                 display: flex;
             }}

@@ -26,12 +26,11 @@ import pathlib
 import streamlit as st
 
 def show_landing_page():
-    """Hiển thị Landing Page - Màu sắc phiên bản cũ + Slider chạy + Logo 200x200"""
+    """Hiển thị Landing Page - Fix slider, logo góc trái, menu có nền"""
     
-    # 1. Ẩn hoàn toàn sidebar, header, footer, padding mặc định của Streamlit
+    # Ẩn hoàn toàn sidebar, header, footer
     st.markdown("""
         <style>
-            /* Ẩn mọi thành phần gây dư thừa không gian */
             [data-testid="stSidebar"], 
             [data-testid="collapsedControl"],
             header, footer, 
@@ -43,19 +42,16 @@ def show_landing_page():
                 display: none !important;
             }
             
-            /* Xóa padding mặc định - chiếm toàn màn hình */
             .main .block-container {
                 padding: 0 !important;
                 max-width: 100% !important;
                 margin: 0 !important;
             }
             
-            /* Ẩn thanh cuộn của Streamlit (nếu có) */
             .main {
                 overflow-y: visible !important;
             }
             
-            /* Đảm bảo body chiếm toàn bộ chiều cao */
             html, body {
                 margin: 0;
                 padding: 0;
@@ -65,7 +61,7 @@ def show_landing_page():
         </style>
     """, unsafe_allow_html=True)
     
-    # Đọc file logo (cùng thư mục với app.py)
+    # Đọc file logo
     import base64
     import os
     logo_path = os.path.join(os.path.dirname(__file__), "logo_cty.png")
@@ -74,18 +70,16 @@ def show_landing_page():
         with open(logo_path, "rb") as f:
             logo_base64 = base64.b64encode(f.read()).decode()
     
-    # 2. Nhúng trực tiếp HTML/CSS/JS (không qua iframe)
     landing_html = f"""
     <!DOCTYPE html>
     <html lang="vi">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-        <title>Cảng Quốc tế Hòn La | Cảng tổng hợp quốc tế Miền Trung</title>
+        <title>Cảng Quốc tế Hòn La</title>
         <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
         <style>
-            /* RESET & BASE - KHÔNG scrollbar thừa */
             * {{
                 margin: 0;
                 padding: 0;
@@ -109,36 +103,18 @@ def show_landing_page():
                 background: #0f3b5c;
                 border-radius: 4px;
             }}
-            .container {{
-                max-width: 1280px;
-                margin: 0 auto;
-                padding: 0 40px;
-            }}
-            /* ===== NAVIGATION ===== */
+            
+            /* ===== NAVIGATION - CÓ NỀN GIỐNG BUTTON ===== */
             .navbar {{
                 position: fixed;
                 top: 0;
                 left: 0;
                 width: 100%;
                 z-index: 1000;
-                padding: 1rem 5%;
-                transition: all 0.4s ease;
-                background: transparent;
-            }}
-            .navbar.scrolled {{
-                background: rgba(15, 59, 92, 0.98);
+                padding: 0.8rem 5%;
+                background: rgba(15, 59, 92, 0.95);
                 backdrop-filter: blur(10px);
-                padding: 0.7rem 5%;
-                box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            }}
-            .navbar.scrolled .nav-links a,
-            .navbar.scrolled .logo-text,
-            .navbar.scrolled .logo-sub {{
-                color: white;
-            }}
-            .navbar.scrolled .btn-login {{
-                background: #f59e0b;
-                color: #0f3b5c;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             }}
             .nav-container {{
                 display: flex;
@@ -147,43 +123,52 @@ def show_landing_page():
                 max-width: 1400px;
                 margin: 0 auto;
             }}
-            .logo {{
+            
+            /* Logo góc trái */
+            .logo-area {{
                 display: flex;
                 align-items: center;
-                gap: 12px;
-                cursor: pointer;
+                gap: 15px;
             }}
-            .logo-icon {{
-                height: 45px;
+            .logo-img {{
+                height: 50px;
                 width: auto;
+                object-fit: contain;
             }}
             .logo-text {{
-                font-size: 1.4rem;
+                font-size: 1.3rem;
                 font-weight: 800;
                 color: white;
                 letter-spacing: -0.5px;
-                line-height: 1.2;
             }}
             .logo-sub {{
-                font-size: 0.7rem;
+                font-size: 0.65rem;
                 color: #f59e0b;
                 letter-spacing: 1px;
-                font-weight: 500;
             }}
+            
+            /* Menu có nền đậm */
             .nav-links {{
                 display: flex;
-                gap: 2rem;
+                gap: 0.5rem;
                 align-items: center;
+                background: rgba(0,0,0,0.3);
+                padding: 5px 15px;
+                border-radius: 50px;
+                backdrop-filter: blur(5px);
             }}
             .nav-links a {{
                 text-decoration: none;
                 color: white;
                 font-weight: 500;
-                font-size: 0.95rem;
-                transition: color 0.2s;
+                font-size: 0.9rem;
+                padding: 8px 16px;
+                border-radius: 40px;
+                transition: all 0.3s;
             }}
             .nav-links a:hover {{
-                color: #f59e0b;
+                background: #f59e0b;
+                color: #0f3b5c;
             }}
             .dropdown {{
                 position: relative;
@@ -208,57 +193,29 @@ def show_landing_page():
                 padding: 8px 16px;
                 display: block;
                 font-size: 0.85rem;
+                background: transparent;
             }}
             .dropdown-content a:hover {{
                 background: #f8fafc;
                 color: #f59e0b !important;
             }}
             .btn-login {{
-                background: #f59e0b;
+                background: #f59e0b !important;
                 color: #0f3b5c !important;
-                padding: 8px 24px;
-                border-radius: 40px;
+                padding: 8px 24px !important;
                 font-weight: 700 !important;
-                transition: all 0.3s;
             }}
             .btn-login:hover {{
-                background: #e67e22;
-                transform: translateY(-2px);
+                background: #e67e22 !important;
                 color: white !important;
             }}
-            /* ===== LOGO TRÊN HERO (200x200) ===== */
-            .hero-logo-wrapper {{
-                position: absolute;
-                top: 100px;
-                left: 50%;
-                transform: translateX(-50%);
-                z-index: 15;
-                text-align: center;
-                pointer-events: none;
-            }}
-            .hero-logo-img {{
-                width: 200px;
-                height: 200px;
-                object-fit: contain;
-                filter: drop-shadow(0 4px 12px rgba(0,0,0,0.2));
-                background: rgba(255,255,255,0.1);
-                border-radius: 50%;
-                padding: 10px;
-            }}
-            @media (max-width: 768px) {{
-                .hero-logo-img {{
-                    width: 120px;
-                    height: 120px;
-                }}
-                .hero-logo-wrapper {{
-                    top: 70px;
-                }}
-            }}
-            /* ===== HERO SLIDER (toàn màn hình) ===== */
+            
+            /* ===== HERO SLIDER ===== */
             .hero-slider {{
                 height: 100vh;
                 position: relative;
                 overflow: hidden;
+                margin-top: 0;
             }}
             .slide {{
                 position: absolute;
@@ -286,7 +243,7 @@ def show_landing_page():
                 left: 0;
                 width: 100%;
                 height: 100%;
-                background: linear-gradient(135deg, rgba(15,59,92,0.85) 0%, rgba(15,59,92,0.6) 100%);
+                background: linear-gradient(135deg, rgba(15,59,92,0.8) 0%, rgba(15,59,92,0.5) 100%);
                 z-index: 1;
             }}
             .slide-content {{
@@ -294,7 +251,6 @@ def show_landing_page():
                 z-index: 2;
                 max-width: 900px;
                 padding: 20px;
-                margin-top: 80px;
                 animation: fadeInUp 1s ease;
             }}
             @keyframes fadeInUp {{
@@ -316,12 +272,12 @@ def show_landing_page():
             .btn-cta {{
                 background: #f59e0b;
                 color: #1e293b;
-                padding: 12px 32px;
+                padding: 12px 28px;
                 border-radius: 40px;
                 font-weight: 700;
                 text-decoration: none;
                 display: inline-block;
-                margin: 0 10px;
+                margin: 0 8px;
                 transition: all 0.3s;
                 border: none;
                 cursor: pointer;
@@ -358,7 +314,8 @@ def show_landing_page():
                 width: 30px;
                 border-radius: 10px;
             }}
-            /* ===== STATS ===== */
+            
+            /* ===== STATS SECTION ===== */
             .stats-section {{
                 padding: 60px 5%;
                 background: #0f3b5c;
@@ -391,6 +348,7 @@ def show_landing_page():
                 letter-spacing: 1px;
                 font-weight: 500;
             }}
+            
             /* ===== ABOUT ===== */
             .about-section {{
                 padding: 80px 5%;
@@ -438,6 +396,7 @@ def show_landing_page():
             .about-img:hover {{
                 transform: scale(1.02);
             }}
+            
             /* ===== SERVICES ===== */
             .services-section {{
                 padding: 80px 5%;
@@ -492,6 +451,7 @@ def show_landing_page():
                 color: #64748b;
                 font-size: 0.85rem;
             }}
+            
             /* ===== INFRASTRUCTURE ===== */
             .infra-section {{
                 padding: 80px 5%;
@@ -520,6 +480,7 @@ def show_landing_page():
                 width: 100%;
                 box-shadow: 0 20px 25px -12px rgba(0,0,0,0.1);
             }}
+            
             /* ===== CAREERS ===== */
             .careers-section {{
                 padding: 80px 5%;
@@ -546,6 +507,7 @@ def show_landing_page():
                 transform: translateY(-3px);
                 box-shadow: 0 10px 20px rgba(0,0,0,0.2);
             }}
+            
             /* ===== FOOTER ===== */
             .footer {{
                 background: #0f172a;
@@ -582,6 +544,7 @@ def show_landing_page():
                 font-size: 0.8rem;
                 color: #64748b;
             }}
+            
             @media (max-width: 768px) {{
                 .nav-links {{ display: none; }}
                 .slide-content h1 {{ font-size: 2rem; }}
@@ -590,17 +553,17 @@ def show_landing_page():
                 .stat-card {{ border-right: none; border-bottom: 1px solid rgba(255,255,255,0.2); }}
                 .about-grid, .services-grid, .infra-grid, .footer-grid {{ grid-template-columns: 1fr; }}
                 .services-grid {{ gap: 20px; }}
-                .container {{ padding: 0 20px; }}
-                .slide-content {{ margin-top: 100px; }}
+                .logo-text {{ display: none; }}
             }}
         </style>
     </head>
     <body>
     
-    <!-- Navigation -->
+    <!-- Navigation - Logo góc trái, menu có nền -->
     <nav class="navbar" id="navbar">
         <div class="nav-container">
-            <div class="logo">
+            <div class="logo-area">
+                <img src="data:image/png;base64,{logo_base64}" alt="Cảng Hòn La" class="logo-img">
                 <div>
                     <div class="logo-text">CẢNG HÒN LA</div>
                     <div class="logo-sub">INTERNATIONAL PORT</div>
@@ -609,7 +572,7 @@ def show_landing_page():
             <div class="nav-links">
                 <a href="#home">Trang chủ</a>
                 <div class="dropdown">
-                    <a href="#about">Giới thiệu <i class="fas fa-chevron-down" style="font-size: 10px;"></i></a>
+                    <a href="#about">Giới thiệu <i class="fas fa-chevron-down"></i></a>
                     <div class="dropdown-content">
                         <a href="#about">Về chúng tôi</a>
                         <a href="#vision">Tầm nhìn sứ mệnh</a>
@@ -625,13 +588,8 @@ def show_landing_page():
         </div>
     </nav>
     
-    <!-- Hero Slider -->
+    <!-- Hero Slider - ĐÃ SỬA LỖI -->
     <section id="home" class="hero-slider">
-        <!-- Logo 200x200 phía trên slider -->
-        <div class="hero-logo-wrapper">
-            <img src="data:image/png;base64,{logo_base64}" alt="Cảng Hòn La" class="hero-logo-img">
-        </div>
-        
         <!-- Slide 1: Lễ khởi công -->
         <div class="slide active" style="background-image: url('https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070');">
             <div class="slide-content">
@@ -678,22 +636,10 @@ def show_landing_page():
     <!-- Statistics Section -->
     <section class="stats-section">
         <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-number">39,22 ha</div>
-                <div class="stat-label">Tổng diện tích quy hoạch</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">70.000 DWT</div>
-                <div class="stat-label">Trọng tải tàu tối đa</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">970 m</div>
-                <div class="stat-label">Chiều dài cầu cảng</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-number">225.000 GT</div>
-                <div class="stat-label">Tàu du lịch quốc tế</div>
-            </div>
+            <div class="stat-card"><div class="stat-number">39,22 ha</div><div class="stat-label">Tổng diện tích</div></div>
+            <div class="stat-card"><div class="stat-number">70.000 DWT</div><div class="stat-label">Trọng tải tàu tối đa</div></div>
+            <div class="stat-card"><div class="stat-number">970 m</div><div class="stat-label">Chiều dài cầu cảng</div></div>
+            <div class="stat-card"><div class="stat-number">225.000 GT</div><div class="stat-label">Tàu du lịch quốc tế</div></div>
         </div>
     </section>
     
@@ -704,130 +650,59 @@ def show_landing_page():
                 <div class="about-tag">CHÀO MỪNG ĐẾN VỚI HÒN LA</div>
                 <h2 class="about-title">Cửa ngõ hàng hải chiến lược của Miền Trung</h2>
                 <p class="about-text">Cảng tổng hợp Quốc tế Hòn La được đầu tư bài bản với hệ thống cơ sở hạ tầng đồng bộ, hiện đại, đáp ứng nhu cầu bốc xếp hàng hóa, trung chuyển container và đón tàu du lịch quốc tế.</p>
-                <p class="about-text">Với vị trí vàng nằm trong Khu kinh tế Hòn La, Quảng Trạch, Quảng Bình, cảng có lợi thế kết nối trực tiếp với Hành lang kinh tế Đông - Tây (EWEC), mở ra cánh cửa giao thương với các nước Lào, Thái Lan, Myanmar.</p>
                 <div class="about-highlight">
-                    <i class="fas fa-trophy" style="color: #f59e0b; margin-right: 10px;"></i>
-                    <strong>Dự án trọng điểm Quốc gia</strong>
-                    <p style="margin-top: 8px; font-size: 0.9rem;">Được Thủ tướng Chính phủ phê duyệt quy hoạch, là một trong những cảng biển tổng hợp lớn nhất khu vực Bắc Trung Bộ.</p>
+                    <i class="fas fa-trophy" style="color:#f59e0b"></i> <strong>Dự án trọng điểm Quốc gia</strong>
+                    <p style="margin-top:8px">Được Thủ tướng Chính phủ phê duyệt quy hoạch, là một trong những cảng biển tổng hợp lớn nhất khu vực Bắc Trung Bộ.</p>
                 </div>
             </div>
-            <div>
-                <img src="https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070" alt="Cảng Hòn La" class="about-img">
-            </div>
+            <div><img src="https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070" class="about-img"></div>
         </div>
     </section>
     
     <!-- Services Section -->
     <section id="services" class="services-section">
-        <div class="section-header">
-            <h2>Dịch vụ của chúng tôi</h2>
-            <p>Giải pháp logistics toàn diện, đáp ứng mọi nhu cầu vận tải biển</p>
-        </div>
+        <div class="section-header"><h2>Dịch vụ của chúng tôi</h2><p>Giải pháp logistics toàn diện</p></div>
         <div class="services-grid">
-            <div class="service-card">
-                <div class="service-icon"><i class="fas fa-ship"></i></div>
-                <h3>Hàng rời & Hàng khô</h3>
-                <p>Xếp dỡ hàng rời, hàng khối lượng lớn với hệ thống băng tải hiện đại</p>
-            </div>
-            <div class="service-card">
-                <div class="service-icon"><i class="fas fa-boxes"></i></div>
-                <h3>Hàng container</h3>
-                <p>Khai thác container nội địa và quốc tế, kết nối chuỗi cung ứng toàn cầu</p>
-            </div>
-            <div class="service-card">
-                <div class="service-icon"><i class="fas fa-umbrella-beach"></i></div>
-                <h3>Du lịch tàu biển</h3>
-                <p>Đón tàu du lịch quốc tế lên đến 225.000 GT, phát triển du lịch biển</p>
-            </div>
-            <div class="service-card">
-                <div class="service-icon"><i class="fas fa-warehouse"></i></div>
-                <h3>Logistics & Kho bãi</h3>
-                <p>Dịch vụ logistics trọn gói, kho bãi rộng 39ha đạt chuẩn quốc tế</p>
-            </div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-ship"></i></div><h3>Hàng rời & Hàng khô</h3><p>Xếp dỡ hàng rời, hàng khối lượng lớn</p></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-boxes"></i></div><h3>Hàng container</h3><p>Khai thác container nội địa và quốc tế</p></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-umbrella-beach"></i></div><h3>Du lịch tàu biển</h3><p>Đón tàu du lịch quốc tế lên đến 225.000 GT</p></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-warehouse"></i></div><h3>Logistics & Kho bãi</h3><p>Dịch vụ logistics trọn gói, kho bãi 39ha</p></div>
         </div>
     </section>
     
-    <!-- Infrastructure & Location -->
+    <!-- Infrastructure -->
     <section id="infrastructure" class="infra-section">
         <div class="infra-grid">
             <div>
                 <div class="about-tag">HẠ TẦNG & VỊ TRÍ</div>
                 <h2 class="about-title">Vị thế vàng trên bản đồ logistics</h2>
-                <div class="infra-feature">
-                    <i class="fas fa-map-marker-alt"></i>
-                    <div><strong>Quảng Trạch, Quảng Bình</strong><br>Nằm trong Khu kinh tế Hòn La, cửa ngõ ra Biển Đông của các tỉnh Tây Nguyên và Lào</div>
-                </div>
-                <div class="infra-feature">
-                    <i class="fas fa-road"></i>
-                    <div><strong>Kết nối hành lang Đông - Tây (EWEC)</strong><br>Tuyến giao thông huyết mạch nối Việt Nam - Lào - Thái Lan - Myanmar</div>
-                </div>
-                <div class="infra-feature">
-                    <i class="fas fa-anchor"></i>
-                    <div><strong>04 bến cấp tàu</strong><br>Tổng chiều dài 970m, có khả năng mở rộng đón tàu trọng tải lớn hơn 100.000 DWT</div>
-                </div>
-                <div class="infra-feature">
-                    <i class="fas fa-cogs"></i>
-                    <div><strong>Trang thiết bị hiện đại</strong><br>Cần cẩu bờ, cần cẩu bánh lốp, xe nâng container, hệ thống quản lý tàu thông minh</div>
-                </div>
+                <div class="infra-feature"><i class="fas fa-map-marker-alt"></i><div><strong>Quảng Trạch, Quảng Bình</strong><br>Khu kinh tế Hòn La</div></div>
+                <div class="infra-feature"><i class="fas fa-road"></i><div><strong>Kết nối hành lang Đông - Tây (EWEC)</strong><br>Nối Việt Nam - Lào - Thái Lan - Myanmar</div></div>
+                <div class="infra-feature"><i class="fas fa-anchor"></i><div><strong>04 bến cấp tàu</strong><br>Tổng chiều dài 970m</div></div>
             </div>
-            <div>
-                <img src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070" alt="Hạ tầng cảng" class="infra-img">
-                <div style="margin-top: 20px; background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
-                    <h4 style="color: #0f3b5c;">⚡ Tiến độ đầu tư</h4>
-                    <p><strong>Giai đoạn 1 (2025 - 2027):</strong> Hoàn thiện 04 bến cảng, đưa vào khai thác 2 bến đầu tiên.</p>
-                    <p><strong>Giai đoạn 2 (2028 - 2030):</strong> Mở rộng nâng công suất lên 15 triệu tấn/năm.</p>
-                </div>
-            </div>
+            <div><img src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070" class="infra-img"></div>
         </div>
     </section>
     
-    <!-- Careers / Recruitment Banner -->
+    <!-- Careers -->
     <section id="careers" class="careers-section">
-        <div class="container">
-            <h2>Gia nhập đội ngũ Cảng Hòn La</h2>
-            <p style="max-width: 600px; margin: 0 auto;">Chúng tôi luôn tìm kiếm những nhân tài đam mê với ngành hàng hải, logistics để cùng phát triển bền vững.</p>
-            <a href="#" class="btn-white" id="careerLink">📢 Xem cơ hội việc làm</a>
-        </div>
+        <div class="container"><h2>Gia nhập đội ngũ Cảng Hòn La</h2><p>Chúng tôi luôn tìm kiếm những nhân tài</p>
+        <a href="#" class="btn-white" id="careerLink">📢 Xem cơ hội việc làm</a></div>
     </section>
     
     <!-- Footer -->
     <footer id="contact" class="footer">
         <div class="footer-grid">
-            <div class="footer-col">
-                <h4>CẢNG QUỐC TẾ HÒN LA</h4>
-                <p>Khu kinh tế Hòn La, xã Quảng Đông, huyện Quảng Trạch, tỉnh Quảng Bình</p>
-                <p>📞 0232.xxxx.xxx</p>
-                <p>📧 info@honlaport.com.vn</p>
-            </div>
-            <div class="footer-col">
-                <h4>Liên kết nhanh</h4>
-                <a href="#about">Về chúng tôi</a>
-                <a href="#services">Dịch vụ</a>
-                <a href="#infrastructure">Dự án & Hạ tầng</a>
-                <a href="#careers">Tuyển dụng</a>
-            </div>
-            <div class="footer-col">
-                <h4>Hỗ trợ khách hàng</h4>
-                <a href="#">Câu hỏi thường gặp</a>
-                <a href="#">Chính sách khai thác</a>
-                <a href="#">Biểu giá dịch vụ</a>
-                <a href="#">Liên hệ hợp tác</a>
-            </div>
-            <div class="footer-col">
-                <h4>Giờ làm việc</h4>
-                <p>🚢 Bến cảng: 24/7 (tất cả các ngày trong năm)</p>
-                <p>🏢 Văn phòng: Thứ 2 - Thứ 7 (7:30 - 17:00)</p>
-                <p>📅 Bộ phận Hành chính: 7:30 - 11:30, 13:30 - 16:30</p>
-            </div>
+            <div class="footer-col"><h4>CẢNG QUỐC TẾ HÒN LA</h4><p>Khu kinh tế Hòn La, Quảng Trạch, Quảng Bình</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
+            <div class="footer-col"><h4>Liên kết nhanh</h4><a href="#about">Về chúng tôi</a><a href="#services">Dịch vụ</a><a href="#infrastructure">Hạ tầng</a><a href="#careers">Tuyển dụng</a></div>
+            <div class="footer-col"><h4>Hỗ trợ</h4><a href="#">FAQ</a><a href="#">Biểu giá</a><a href="#">Liên hệ</a></div>
+            <div class="footer-col"><h4>Giờ làm việc</h4><p>Bến cảng: 24/7</p><p>Văn phòng: 7:30 - 17:00</p></div>
         </div>
-        <div class="copyright">
-            <p>© 2026 Cảng Quốc tế Hòn La - Tổng Công ty Cổ phần Cảng Hòn La. All rights reserved.</p>
-            <p style="margin-top: 10px;"><a href="#">Điều khoản sử dụng</a> | <a href="#">Chính sách bảo mật</a></p>
-        </div>
+        <div class="copyright"><p>© 2026 Cảng Quốc tế Hòn La. All rights reserved.</p></div>
     </footer>
     
     <script>
-        // ===== SLIDER TỰ ĐỘNG CHẠY VÒNG LẶP =====
+        // ===== SLIDER TỰ ĐỘNG =====
         let currentSlide = 0;
         const slides = document.querySelectorAll('.slide');
         const dots = document.querySelectorAll('.slider-dot');
@@ -854,46 +729,42 @@ def show_landing_page():
             autoSlideInterval = setInterval(nextSlide, 5000);
         }}
         
-        // Gắn sự kiện click cho dots
         dots.forEach((dot, idx) => {{
             dot.addEventListener('click', () => {{
                 showSlide(idx);
-                startAutoSlide(); // Reset timer khi người dùng click
+                startAutoSlide();
             }});
         }});
         
-        // Khởi động slider
         startAutoSlide();
         
-        // ===== NAVBAR SCROLL EFFECT =====
+        // Navbar scroll effect
         window.addEventListener('scroll', () => {{
             const navbar = document.getElementById('navbar');
             if (window.scrollY > 50) {{
-                navbar.classList.add('scrolled');
+                navbar.style.background = 'rgba(15, 59, 92, 0.98)';
             }} else {{
-                navbar.classList.remove('scrolled');
+                navbar.style.background = 'rgba(15, 59, 92, 0.95)';
             }}
         }});
         
-        // ===== XỬ LÝ NÚT ĐĂNG NHẬP =====
-        document.getElementById('loginBtn')?.addEventListener('click', function(e) {{
+        // Login
+        document.getElementById('loginBtn')?.addEventListener('click', (e) => {{
             e.preventDefault();
             window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'login_clicked'}}, '*');
         }});
         
-        document.getElementById('careerLink')?.addEventListener('click', function(e) {{
+        document.getElementById('careerLink')?.addEventListener('click', (e) => {{
             e.preventDefault();
-            alert('Chức năng đang được phát triển. Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
+            alert('Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
         }});
     </script>
     </body>
     </html>
     """
     
-    # Hiển thị trực tiếp bằng markdown (không iframe)
     st.markdown(landing_html, unsafe_allow_html=True)
     
-    # Xử lý nút đăng nhập dự phòng (khi nhấn từ Streamlit)
     if st.button("🔐 Staff Login", key="hidden_login", help="Đăng nhập vào hệ thống quản lý"):
         st.session_state['show_landing'] = False
         st.rerun()

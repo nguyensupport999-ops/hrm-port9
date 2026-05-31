@@ -867,7 +867,7 @@ def show_landing_page():
                 loginBtn.addEventListener('click', function(e) {{
                     e.preventDefault();
                     // Chuyển hướng với query parameter để kích hoạt form đăng nhập
-                    window.location.href = window.location.pathname + '?login=true';
+                    window.location.href = window.location.pathname + '?goto=hrm';
                 }});
             }}
             
@@ -913,24 +913,24 @@ def show_landing_page():
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
 # ========== KHỞI TẠO SESSION STATE ==========
-# Phải đặt NGAY sau set_page_config, trước mọi thao tác khác
-if 'show_login_form' not in st.session_state:
-    st.session_state.show_login_form = False
-
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.role = None
     st.session_state.username = None
 
+# show_hrm=False → hiện landing | show_hrm=True → vào HRM (sidebar login)
+if 'show_hrm' not in st.session_state:
+    st.session_state.show_hrm = False
+
 # ========== KIỂM TRA URL PARAMS (Từ nút Nhân viên trên Landing Page) ==========
 query_params = st.query_params
-if query_params.get('login') == 'true':
-    st.session_state.show_login_form = True
-    st.query_params.clear()  # Xóa param sau khi đọc
+if query_params.get('goto') == 'hrm':
+    st.session_state.show_hrm = True   # Chỉ thoát landing, KHÔNG tự đăng nhập
+    st.query_params.clear()
+    st.rerun()
 
-# ========== HIỂN THỊ LANDING PAGE NẾU CHƯA ĐĂNG NHẬP ==========
-if not st.session_state.logged_in:
-    # Ẩn sidebar hoàn toàn
+# ========== HIỂN THỊ LANDING PAGE NẾU CHƯA VÀO HRM ==========
+if not st.session_state.logged_in and not st.session_state.show_hrm:
     st.markdown("""
         <style>
             [data-testid="stSidebar"] { display: none !important; }
@@ -939,53 +939,10 @@ if not st.session_state.logged_in:
             footer[data-testid], #stDecoration { display: none !important; }
         </style>
     """, unsafe_allow_html=True)
-    
-    # Hiển thị Landing Page
-    show_landing_page()  # Hàm này bạn đã có
-    
-    # ===== HIỂN THỊ FORM ĐĂNG NHẬP (Modal) KHI NHẤN NÚT "NHÂN VIÊN" =====
-    if st.session_state.show_login_form:
-        # Tạo container ở giữa màn hình
-        with st.container():
-            st.markdown("""
-            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-                        background: rgba(0,0,0,0.7); z-index: 9999; display: flex;
-                        align-items: center; justify-content: center;">
-                <div style="background: white; padding: 30px; border-radius: 15px; 
-                            width: 380px; box-shadow: 0 0 30px rgba(0,0,0,0.3);">
-                    <h3 style="color: #0f3b5c; text-align: center; margin-bottom: 20px;">
-                        🔐 ĐĂNG NHẬP HRM-PORT
-                    </h3>
-            """, unsafe_allow_html=True)
-            
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                username = st.text_input("👤 Tài khoản", key="landing_user", placeholder="Nhập tài khoản")
-                password = st.text_input("🔒 Mật khẩu", type="password", key="landing_pass", placeholder="Nhập mật khẩu")
-                
-                col_btn1, col_btn2 = st.columns(2)
-                with col_btn1:
-                    if st.button("✅ Đăng nhập", key="landing_login", use_container_width=True, type="primary"):
-                        success, role = check_login(username, password)
-                        if success:
-                            st.session_state.logged_in = True
-                            st.session_state.role = role
-                            st.session_state.username = username
-                            st.session_state.show_login_form = False
-                            st.rerun()
-                        else:
-                            st.error("❌ Sai tài khoản hoặc mật khẩu!")
-                with col_btn2:
-                    if st.button("❌ Hủy", key="landing_cancel", use_container_width=True):
-                        st.session_state.show_login_form = False
-                        st.rerun()
-            
-            st.markdown("""
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    st.stop()  # Dừng lại, không chạy phần HRM bên dưới
+    show_landing_page()
+    st.stop()
+
+# Nếu show_hrm=True hoặc logged_in=True → chạy tiếp HRM, sidebar tự hiện
 
 # ========== PHẦN CODE HRM BẮT ĐẦU TỪ ĐÂY ==========
 

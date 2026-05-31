@@ -943,47 +943,67 @@ if not st.session_state.logged_in:
     # Hiển thị Landing Page
     show_landing_page()  # Hàm này bạn đã có
     
-    # ===== HIỂN THỊ FORM ĐĂNG NHẬP (Modal) KHI NHẤN NÚT "NHÂN VIÊN" =====
+    # ===== HIỂN THỊ FORM ĐĂNG NHẬP KHI NHẤN NÚT "NHÂN VIÊN" =====
     if st.session_state.show_login_form:
-        # Tạo container ở giữa màn hình
-        with st.container():
-            st.markdown("""
-            <div style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-                        background: rgba(0,0,0,0.7); z-index: 9999; display: flex;
-                        align-items: center; justify-content: center;">
-                <div style="background: white; padding: 30px; border-radius: 15px; 
-                            width: 380px; box-shadow: 0 0 30px rgba(0,0,0,0.3);">
-                    <h3 style="color: #0f3b5c; text-align: center; margin-bottom: 20px;">
-                        🔐 ĐĂNG NHẬP HRM-PORT
-                    </h3>
-            """, unsafe_allow_html=True)
-            
-            col1, col2, col3 = st.columns([1, 2, 1])
-            with col2:
-                username = st.text_input("👤 Tài khoản", key="landing_user", placeholder="Nhập tài khoản")
-                password = st.text_input("🔒 Mật khẩu", type="password", key="landing_pass", placeholder="Nhập mật khẩu")
-                
-                col_btn1, col_btn2 = st.columns(2)
-                with col_btn1:
-                    if st.button("✅ Đăng nhập", key="landing_login", use_container_width=True, type="primary"):
-                        success, role = check_login(username, password)
-                        if success:
-                            st.session_state.logged_in = True
-                            st.session_state.role = role
-                            st.session_state.username = username
-                            st.session_state.show_login_form = False
-                            st.rerun()
-                        else:
-                            st.error("❌ Sai tài khoản hoặc mật khẩu!")
-                with col_btn2:
-                    if st.button("❌ Hủy", key="landing_cancel", use_container_width=True):
+        st.markdown("""
+        <style>
+            /* Overlay phủ toàn bộ màn hình */
+            .login-overlay {
+                position: fixed;
+                top: 0; left: 0;
+                width: 100vw; height: 100vh;
+                background: rgba(15, 59, 92, 0.82);
+                z-index: 99999;
+                backdrop-filter: blur(4px);
+            }
+            /* Card đăng nhập căn giữa */
+            .login-card {
+                position: fixed;
+                top: 50%; left: 50%;
+                transform: translate(-50%, -50%);
+                background: white;
+                padding: 40px 36px;
+                border-radius: 16px;
+                width: 420px;
+                max-width: 90vw;
+                box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+                z-index: 100000;
+            }
+            .login-card h3 {
+                color: #0f3b5c;
+                text-align: center;
+                margin-bottom: 24px;
+                font-size: 1.3rem;
+                white-space: nowrap;
+            }
+        </style>
+        <div class="login-overlay"></div>
+        <div class="login-card">
+            <h3>🔐 ĐĂNG NHẬP HRM-PORT</h3>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Form input dùng st.columns để căn giữa
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            username = st.text_input("👤 Tài khoản", key="landing_user", placeholder="Nhập tài khoản")
+            password = st.text_input("🔒 Mật khẩu", type="password", key="landing_pass", placeholder="Nhập mật khẩu")
+            col_btn1, col_btn2 = st.columns(2)
+            with col_btn1:
+                if st.button("✅ Đăng nhập", key="landing_login", use_container_width=True, type="primary"):
+                    success, role = check_login(username, password)
+                    if success:
+                        st.session_state.logged_in = True
+                        st.session_state.role = role
+                        st.session_state.username = username
                         st.session_state.show_login_form = False
                         st.rerun()
-            
-            st.markdown("""
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+                    else:
+                        st.error("❌ Sai tài khoản hoặc mật khẩu!")
+            with col_btn2:
+                if st.button("❌ Hủy", key="landing_cancel", use_container_width=True):
+                    st.session_state.show_login_form = False
+                    st.rerun()
     
     st.stop()  # Dừng lại, không chạy phần HRM bên dưới
 

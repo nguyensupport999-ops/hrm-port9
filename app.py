@@ -709,12 +709,12 @@ def show_landing_page():
                 font-weight: 600;
                 margin-bottom: 8px;
             }}
-            .a4-chairman-info .company {
-                font-size: 1.3rem;  /* Bằng với font-size của h2 (Ông Phùng Gia Phát) */
+            .a4-chairman-info .company {{
+                font-size: 1.3rem;
                 color: #666;
                 line-height: 1.4;
                 font-weight: 500;
-            }
+            }}
             .a4-body {{
                 line-height: 1.7;
                 color: #333;

@@ -263,8 +263,10 @@ def show_landing_page():
                 width: 100%;
                 height: 100%;
                 background-size: cover;
-                background-position: center;
+                background-position: center center;
                 background-repeat: no-repeat;
+                image-rendering: -webkit-optimize-contrast;
+                image-rendering: crisp-edges;
                 opacity: 0;
                 transition: opacity 1s ease-in-out;
                 display: flex;
@@ -276,18 +278,19 @@ def show_landing_page():
             .slide.active {{
                 opacity: 1;
                 z-index: 2;
-                animation: kenBurns 8s ease-out forwards;
-            }}
-            @keyframes kenBurns {{
-                from {{ background-size: 110%; }}
-                to {{ background-size: 100%; }}
             }}
             .slide::before {{
                 content: '';
                 position: absolute;
                 top: 0; left: 0;
                 width: 100%; height: 100%;
-                background: linear-gradient(135deg, rgba(15,59,92,0.78) 0%, rgba(15,59,92,0.48) 100%);
+                background: linear-gradient(
+                    to bottom,
+                    rgba(10,40,70,0.25) 0%,
+                    rgba(10,40,70,0.35) 40%,
+                    rgba(10,40,70,0.60) 75%,
+                    rgba(10,40,70,0.70) 100%
+                );
                 z-index: 1;
             }}
             .slide-content {{
@@ -306,13 +309,13 @@ def show_landing_page():
                 font-weight: 800;
                 margin-bottom: 1rem;
                 letter-spacing: -1px;
-                text-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+                text-shadow: 0 2px 4px rgba(0,0,0,0.5), 0 4px 16px rgba(0,0,0,0.4);
             }}
             .slide-content p {{
                 font-size: 1.25rem;
                 margin-bottom: 2rem;
-                opacity: 0.95;
-                text-shadow: 1px 1px 4px rgba(0,0,0,0.3);
+                opacity: 0.98;
+                text-shadow: 0 1px 3px rgba(0,0,0,0.6), 0 2px 8px rgba(0,0,0,0.4);
             }}
             .btn-cta {{
                 background: #f59e0b;

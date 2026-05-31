@@ -867,7 +867,7 @@ def show_landing_page():
                 loginBtn.addEventListener('click', function(e) {{
                     e.preventDefault();
                     // Chuyển hướng với query parameter để kích hoạt form đăng nhập
-                    window.location.href = window.location.pathname + '?login=true';
+                    window.location.href = window.location.pathname + '?goto=hrm';
                 }});
             }}
             
@@ -924,9 +924,20 @@ if 'logged_in' not in st.session_state:
 
 # ========== KIỂM TRA URL PARAMS (Từ nút Nhân viên trên Landing Page) ==========
 query_params = st.query_params
+if query_params.get('goto') == 'hrm':
+    st.session_state.logged_in = True          # Vào HRM trực tiếp, không cần đăng nhập
+    st.session_state.role = 'user'
+    st.session_state.username = 'guest'
+    st.query_params.clear()
+    st.rerun()
+
+# Giữ tương thích nếu còn link cũ dùng ?login=true
 if query_params.get('login') == 'true':
-    st.session_state.show_login_form = True
-    st.query_params.clear()  # Xóa param sau khi đọc
+    st.session_state.logged_in = True
+    st.session_state.role = 'user'
+    st.session_state.username = 'guest'
+    st.query_params.clear()
+    st.rerun()
 
 # ========== HIỂN THỊ LANDING PAGE NẾU CHƯA ĐĂNG NHẬP ==========
 if not st.session_state.logged_in:
@@ -941,69 +952,7 @@ if not st.session_state.logged_in:
     """, unsafe_allow_html=True)
     
     # Hiển thị Landing Page
-    show_landing_page()  # Hàm này bạn đã có
-    
-    # ===== HIỂN THỊ FORM ĐĂNG NHẬP KHI NHẤN NÚT "NHÂN VIÊN" =====
-    if st.session_state.show_login_form:
-        st.markdown("""
-        <style>
-            /* Overlay phủ toàn bộ màn hình */
-            .login-overlay {
-                position: fixed;
-                top: 0; left: 0;
-                width: 100vw; height: 100vh;
-                background: rgba(15, 59, 92, 0.82);
-                z-index: 99999;
-                backdrop-filter: blur(4px);
-            }
-            /* Card đăng nhập căn giữa */
-            .login-card {
-                position: fixed;
-                top: 50%; left: 50%;
-                transform: translate(-50%, -50%);
-                background: white;
-                padding: 40px 36px;
-                border-radius: 16px;
-                width: 420px;
-                max-width: 90vw;
-                box-shadow: 0 20px 60px rgba(0,0,0,0.4);
-                z-index: 100000;
-            }
-            .login-card h3 {
-                color: #0f3b5c;
-                text-align: center;
-                margin-bottom: 24px;
-                font-size: 1.3rem;
-                white-space: nowrap;
-            }
-        </style>
-        <div class="login-overlay"></div>
-        <div class="login-card">
-            <h3>🔐 ĐĂNG NHẬP HRM-PORT</h3>
-        </div>
-        """, unsafe_allow_html=True)
-
-        # Form input dùng st.columns để căn giữa
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            username = st.text_input("👤 Tài khoản", key="landing_user", placeholder="Nhập tài khoản")
-            password = st.text_input("🔒 Mật khẩu", type="password", key="landing_pass", placeholder="Nhập mật khẩu")
-            col_btn1, col_btn2 = st.columns(2)
-            with col_btn1:
-                if st.button("✅ Đăng nhập", key="landing_login", use_container_width=True, type="primary"):
-                    success, role = check_login(username, password)
-                    if success:
-                        st.session_state.logged_in = True
-                        st.session_state.role = role
-                        st.session_state.username = username
-                        st.session_state.show_login_form = False
-                        st.rerun()
-                    else:
-                        st.error("❌ Sai tài khoản hoặc mật khẩu!")
-            with col_btn2:
-                if st.button("❌ Hủy", key="landing_cancel", use_container_width=True):
-                    st.session_state.show_login_form = False
-                    st.rerun()
+    show_landing_page()
     
     st.stop()  # Dừng lại, không chạy phần HRM bên dưới
 

@@ -89,6 +89,20 @@ def show_landing_page():
         with open(logo_path, "rb") as f:
             logo_base64 = base64.b64encode(f.read()).decode()
     
+    # Đọc 3 ảnh slider → base64 (giải quyết vấn đề iframe không resolve URL tương đối)
+    def load_img_b64(filename):
+        path = os.path.join(os.path.dirname(__file__), "static", filename)
+        if os.path.exists(path):
+            with open(path, "rb") as f:
+                ext = filename.rsplit(".", 1)[-1].lower()
+                mime = "image/jpeg" if ext in ("jpg", "jpeg") else f"image/{ext}"
+                return f"data:{mime};base64,{base64.b64encode(f.read()).decode()}"
+        return ""  # trả về rỗng nếu chưa có file → slide hiển thị màu nền
+    
+    slide1_src = load_img_b64("anh1.jpeg")
+    slide2_src = load_img_b64("anh2.jpeg")
+    slide3_src = load_img_b64("anh3.jpeg")
+    
     landing_html = f"""
     <!DOCTYPE html>
     <html lang="vi">
@@ -627,7 +641,7 @@ def show_landing_page():
     <!-- Hero Slider (toàn màn hình) - ĐÃ SỬA CẤU TRÚC -->
     <section id="home" class="hero-slider">
         <div class="slides-container">
-            <div class="slide active" style="background-image: url('./app/static/anh1.jpeg');">
+            <div class="slide active" style="background-image: url('{slide1_src}');">
                 <div class="slide-content">
                     <h1>CẢNG TỔNG HỢP QUỐC TẾ HÒN LA</h1>
                     <p>Chính thức khởi công ngày 21 tháng 3 năm 2025 - Dự án trọng điểm Quốc gia</p>
@@ -635,7 +649,7 @@ def show_landing_page():
                     <a href="#infrastructure" class="btn-cta btn-cta-outline">⚓ KHÁM PHÁ DỰ ÁN</a>
                 </div>
             </div>
-            <div class="slide" style="background-image: url('./app/static/anh2.jpeg');">
+            <div class="slide" style="background-image: url('{slide2_src}');">
                 <div class="slide-content">
                     <h1>KẾT NỐI TOÀN CẦU</h1>
                     <p>Vị trí chiến lược trên tuyến hành lang kinh tế Đông - Tây (EWEC)</p>
@@ -643,7 +657,7 @@ def show_landing_page():
                     <a href="#contact" class="btn-cta btn-cta-outline">📞 LIÊN HỆ</a>
                 </div>
             </div>
-            <div class="slide" style="background-image: url('./app/static/anh3.jpeg');">
+            <div class="slide" style="background-image: url('{slide3_src}');">
                 <div class="slide-content">
                     <h1>HẠ TẦNG ĐẲNG CẤP QUỐC TẾ</h1>
                     <p>04 bến cấp tàu | Tổng chiều dài 970m | Tiếp nhận tàu 70.000 DWT</p>
@@ -880,26 +894,16 @@ def show_landing_page():
             }});
 
         }}); // end DOMContentLoaded
-
-        // Auto-resize iframe: gửi chiều cao thật lên Streamlit để iframe vừa đủ nội dung
-        function sendHeight() {{
-            const h = document.documentElement.scrollHeight || document.body.scrollHeight;
-            window.parent.postMessage({{type: 'streamlit:setFrameHeight', height: h}}, '*');
-        }}
-        // Gửi ngay + theo dõi khi layout thay đổi
-        window.addEventListener('load', sendHeight);
-        window.addEventListener('resize', sendHeight);
-        const resizeObserver = new ResizeObserver(sendHeight);
-        resizeObserver.observe(document.body);
     </script>
     </body>
     </html>
     """
     
     import streamlit.components.v1 as components
-    # scrolling=True để người dùng scroll trong iframe
-    # height đủ chứa toàn bộ nội dung landing page
-    components.html(landing_html, height=3600, scrolling=False)
+    # Height tính từ padding CSS thực tế mỗi section:
+    # navbar(80) + slider(600) + stats(200) + about(620) + services(420)
+    # + infra(620) + careers(240) + footer(360) = 3140 → +20 buffer
+    components.html(landing_html, height=3160, scrolling=False)
     
     # Nút đăng nhập dự phòng (ẩn, chỉ để xử lý khi cần)
     # if st.button("🔐 Staff Login", key="hidden_login", help="Đăng nhập vào hệ thống quản lý"):

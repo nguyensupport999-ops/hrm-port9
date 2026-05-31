@@ -26,6 +26,19 @@ import pathlib
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
+st.markdown("""
+    <style>
+        /* Ẩn nút Manage App góc dưới phải */
+        [data-testid="manage-app-button"] { display: none !important; }
+        
+        /* Ẩn footer "Made with Streamlit" */
+        footer { display: none !important; }
+        
+        /* Ẩn header "Running..." khi app đang load */
+        [data-testid="stStatusWidget"] { display: none !important; }
+    </style>
+""", unsafe_allow_html=True)
+
 def to_float_or_none(val):
     """Chuyển đổi giá trị sang float hoặc None, tránh lỗi numeric"""
     if val is None or str(val).strip() == '':
@@ -933,19 +946,55 @@ if menu == "📊 Dashboard":
                 """, unsafe_allow_html=True)
                 
                 # Hiển thị thông tin liên hệ
-                col_phone, col_email = st.columns(2)
+                # Hiển thị thông tin liên hệ (tất cả đều thấy)
+                col_phone, col_email_info = st.columns(2)
                 with col_phone:
                     if sn.get('dien_thoai'):
-                        sdt = sn['dien_thoai'].replace('+84', '0').replace(' ', '').strip()
                         st.markdown(f"📞 **SĐT:** {sn['dien_thoai']}")
-                        st.markdown(f"[👉 GỬI LỜI CHÚC QUA ZALO](https://zalo.me/{sdt})")
                     else:
                         st.warning("⚠️ Chưa cập nhật số điện thoại")
-                with col_email:
+                with col_email_info:
                     if sn.get('email_lien_he'):
                         st.markdown(f"📧 **Email:** {sn['email_lien_he']}")
                     else:
                         st.warning("⚠️ Chưa cập nhật email")
+
+                # Nút gửi — CHỈ ADMIN mới thấy
+                if st.session_state.get('role') == 'admin':
+                    col_btn_zalo, col_btn_email = st.columns(2)
+                    
+                    with col_btn_zalo:
+                        if sn.get('dien_thoai'):
+                            sdt = sn['dien_thoai'].replace('+84', '0').replace(' ', '').strip()
+                            if st.button(f"📱 Gửi Zalo cho {sn['ho_ten']}", 
+                                         key=f"zalo_sn_{sn['id']}", 
+                                         use_container_width=True, 
+                                         type="primary"):
+                                tuoi_nv = date.today().year - sn['ngay_sinh'].year
+                                loi_chuc_nv = get_loi_chuc_sinh_nhat(sn['ho_ten'], sn.get('gioi_tinh'), tuoi_nv)
+                                st.code(loi_chuc_nv)
+                                st.markdown(f"[👉 NHẤN ĐỂ GỬI QUA ZALO CHO {sn['ho_ten']}](https://zalo.me/{sdt})")
+                        else:
+                            st.button("📱 Gửi Zalo", disabled=True, 
+                                      key=f"zalo_sn_disabled_{sn['id']}", 
+                                      use_container_width=True,
+                                      help="Chưa có số điện thoại")
+
+                    with col_btn_email:
+                        if sn.get('email_lien_he'):
+                            if st.button(f"📧 Gửi Email cho {sn['ho_ten']}", 
+                                         key=f"email_sn_{sn['id']}", 
+                                         use_container_width=True):
+                                st.info(f"📧 Email: {sn['email_lien_he']}")
+                                st.toast(f"Chức năng gửi email đang phát triển!", icon="📧")
+                        else:
+                            st.button("📧 Gửi Email", disabled=True, 
+                                      key=f"email_sn_disabled_{sn['id']}", 
+                                      use_container_width=True,
+                                      help="Chưa có email")
+                else:
+                    # Tài khoản thường — hiện thông báo thay vì nút
+                    st.caption("💡 Liên hệ admin để gửi lời chúc sinh nhật.")
         else:
             st.info("🎉 Hôm nay không có ai sinh nhật.")
             
@@ -1017,26 +1066,35 @@ if menu == "📊 Dashboard":
                 label = f"{xung_ho} {sn['ho_ten']} - {format_date(ngay_sinh)}"
                 sn_options[label] = sn
             
+            # SAU KHI SỬA (ĐÚNG) — dùng key động theo từng nhân viên
             selected_label = st.selectbox("Chọn nhân viên:", list(sn_options.keys()), key="chon_sn_gui")
             selected_sn = sn_options[selected_label]
-            
+
             # Tính tuổi
             if selected_sn.get('ngay_sinh'):
                 today = date.today()
                 tuoi = today.year - selected_sn['ngay_sinh'].year
-                if today.month < selected_sn['ngay_sinh'].month or (today.month == selected_sn['ngay_sinh'].month and today.day < selected_sn['ngay_sinh'].day):
+                if today.month < selected_sn['ngay_sinh'].month or (
+                    today.month == selected_sn['ngay_sinh'].month and 
+                    today.day < selected_sn['ngay_sinh'].day
+                ):
                     tuoi -= 1
             else:
                 tuoi = None
-            
-            # Tạo lời chúc mặc định có xưng hô
+
             default_chuc = get_loi_chuc_sinh_nhat(
                 selected_sn['ho_ten'], 
                 selected_sn.get('gioi_tinh'), 
                 tuoi
             )
-            
-            loi_chuc = st.text_area("📝 Lời chúc sinh nhật:", value=default_chuc, height=250, key="loi_chuc_sn_gui")
+
+            # ✅ KEY ĐỘNG theo nv_id — buộc Streamlit re-render lại text_area mỗi khi chọn người mới
+            loi_chuc = st.text_area(
+                "📝 Lời chúc sinh nhật:", 
+                value=default_chuc, 
+                height=250, 
+                key=f"loi_chuc_sn_{selected_sn['id']}"  # ← thay "loi_chuc_sn_gui" bằng key động này
+            )
             
             col_zalo, col_email, col_cancel = st.columns(3)
             

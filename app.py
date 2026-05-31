@@ -406,29 +406,33 @@ def show_landing_page():
                 justify-content: space-between;
                 max-width: 1200px;
                 margin: 0 auto;
-                gap: 30px;
-                flex-wrap: wrap;
+                gap: 0;
+                flex-wrap: nowrap;
             }}
             .stat-card {{
                 text-align: center;
                 flex: 1;
-                padding: 20px;
+                min-width: 0;
+                padding: 28px 12px;
                 border-right: 1px solid rgba(255,255,255,0.2);
                 transition: transform 0.3s;
             }}
             .stat-card:hover {{ transform: translateY(-5px); }}
             .stat-card:last-child {{ border-right: none; }}
             .stat-number {{
-                font-size: 2.8rem;
+                font-size: clamp(1.4rem, 2.2vw, 2.4rem);
                 font-weight: 800;
                 color: #f59e0b;
-                margin-bottom: 10px;
+                margin-bottom: 8px;
+                white-space: nowrap;
+                line-height: 1.2;
             }}
             .stat-label {{
-                font-size: 0.9rem;
+                font-size: clamp(0.7rem, 1vw, 0.85rem);
                 text-transform: uppercase;
                 letter-spacing: 1px;
                 font-weight: 500;
+                white-space: nowrap;
             }}
             
             /* ===== ABOUT & SERVICES ===== */
@@ -623,7 +627,7 @@ def show_landing_page():
     <!-- Hero Slider (toàn màn hình) - ĐÃ SỬA CẤU TRÚC -->
     <section id="home" class="hero-slider">
         <div class="slides-container">
-            <div class="slide active" style="background-image: url('./app/static/slide1.jpg');">
+            <div class="slide active" style="background-image: url('./app/static/anh1.jpeg');">
                 <div class="slide-content">
                     <h1>CẢNG TỔNG HỢP QUỐC TẾ HÒN LA</h1>
                     <p>Chính thức khởi công ngày 21 tháng 3 năm 2025 - Dự án trọng điểm Quốc gia</p>
@@ -631,7 +635,7 @@ def show_landing_page():
                     <a href="#infrastructure" class="btn-cta btn-cta-outline">⚓ KHÁM PHÁ DỰ ÁN</a>
                 </div>
             </div>
-            <div class="slide" style="background-image: url('./app/static/slide2.jpg');">
+            <div class="slide" style="background-image: url('./app/static/anh2.jpeg');">
                 <div class="slide-content">
                     <h1>KẾT NỐI TOÀN CẦU</h1>
                     <p>Vị trí chiến lược trên tuyến hành lang kinh tế Đông - Tây (EWEC)</p>
@@ -639,7 +643,7 @@ def show_landing_page():
                     <a href="#contact" class="btn-cta btn-cta-outline">📞 LIÊN HỆ</a>
                 </div>
             </div>
-            <div class="slide" style="background-image: url('./app/static/slide3.jpg');">
+            <div class="slide" style="background-image: url('./app/static/anh3.jpeg');">
                 <div class="slide-content">
                     <h1>HẠ TẦNG ĐẲNG CẤP QUỐC TẾ</h1>
                     <p>04 bến cấp tàu | Tổng chiều dài 970m | Tiếp nhận tàu 70.000 DWT</p>
@@ -876,6 +880,17 @@ def show_landing_page():
             }});
 
         }}); // end DOMContentLoaded
+
+        // Auto-resize iframe: gửi chiều cao thật lên Streamlit để iframe vừa đủ nội dung
+        function sendHeight() {{
+            const h = document.documentElement.scrollHeight || document.body.scrollHeight;
+            window.parent.postMessage({{type: 'streamlit:setFrameHeight', height: h}}, '*');
+        }}
+        // Gửi ngay + theo dõi khi layout thay đổi
+        window.addEventListener('load', sendHeight);
+        window.addEventListener('resize', sendHeight);
+        const resizeObserver = new ResizeObserver(sendHeight);
+        resizeObserver.observe(document.body);
     </script>
     </body>
     </html>
@@ -884,7 +899,7 @@ def show_landing_page():
     import streamlit.components.v1 as components
     # scrolling=True để người dùng scroll trong iframe
     # height đủ chứa toàn bộ nội dung landing page
-    components.html(landing_html, height=4000, scrolling=True)
+    components.html(landing_html, height=3600, scrolling=False)
     
     # Nút đăng nhập dự phòng (ẩn, chỉ để xử lý khi cần)
     # if st.button("🔐 Staff Login", key="hidden_login", help="Đăng nhập vào hệ thống quản lý"):

@@ -670,34 +670,47 @@ def show_landing_page():
                 font-size: 0.85rem;
             }}
             /* Logo trong thư ngỏ - Tùy chỉnh kích thước */
-            .a4-header-logo img {{
+            .a4-chairman-logo {{
+                flex: 0 0 auto;
                 width: 80px;
                 height: 80px;
+            }}
+           .a4-chairman-logo img {{
+                width: 100%;
+                height: 100%;
                 border-radius: 50%;
                 object-fit: cover;
-                border: 2px solid #f59e0b;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            }}
-            .gold-line {{
-                height: 3px;
-                background: linear-gradient(90deg, #f59e0b, #ffd700, #f59e0b);
-                margin-bottom: 25px;
+                border: 2px solid #ddd;
+                background: white;
+                padding: 5px;
             }}
             .a4-chairman {{
                 display: flex;
                 align-items: center;
+                justify-content: space-between;
                 gap: 20px;
                 margin-bottom: 30px;
-                padding: 15px;
+                padding: 20px;
                 background: #f8f9fa;
-                border-radius: 12px;
+                border-radius: 16px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.05);
             }}
+            .a4-chairman-info {{
+                flex: 2;
+            }}
+            .a4-chairman-avatar {{
+                flex: 0 0 auto;
+                width: 100px;
+                height: 100px;
+            }}
+
             .a4-chairman-avatar img {{
-                width: 80px;
-                height: 80px;
+                width: 100%;
+                height: 100%;
                 border-radius: 50%;
                 object-fit: cover;
-                border: 2px solid #f59e0b;
+                border: 3px solid #f59e0b;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
             }}
             .a4-chairman-info h2 {{
                 font-size: 1.3rem;
@@ -710,7 +723,7 @@ def show_landing_page():
                 margin-bottom: 8px;
             }}
             .a4-chairman-info .company {{
-                font-size: 1.0rem;
+                font-size: 0.8rem;
                 color: #666;
                 line-height: 1.4;
                 font-weight: 500;
@@ -874,13 +887,18 @@ def show_landing_page():
                     width: 60px;
                     height: 60px;
                 }}
-                .a4-header-logo img {{
-                    width: 55px;
-                    height: 55px;
+                .a4-chairman {{
+                    flex-wrap: wrap;
+                    justify-content: center;
+                    text-align: center;
                 }}
-                .a4-chairman-avatar img {{
-                    width: 55px;
-                    height: 55px;
+                .a4-chairman-info {{
+                    order: 1;
+                    flex: 1 1 100%;
+                    text-align: center;
+                }}
+                .a4-chairman-avatar {{
+                    order: 2;
                 }}
                 .modal-body {{
                     padding: 20px;
@@ -921,29 +939,22 @@ def show_landing_page():
                 <button class="modal-close" id="closeModalBtn">✕</button>
             </div>
             <div class="modal-body">
-                <!-- Header -->
-                <div class="a4-header">
-                    <div class="a4-header-left">
-                        <h1>Công ty cổ phần Cảng Hòn La</h1>
-                        <p>HonLa International Port · Phát triển bền vững — Kết nối toàn cầu</p>
-                    </div>
-                    <div class="a4-header-logo">
-                        <img src="data:image/png;base64,{logo_base64}" alt="Logo Cảng Hòn La">
-                    </div>
-                </div>
-                
-                <!-- Chairman -->
+                                
+                <!-- Chairman với logo bên phải -->
                 <div class="a4-chairman">
+                    <div class="a4-chairman-info">
+                        <h2>Ông Phùng Gia Phát</h2>
+                        <p class="title">🎤 Chủ tịch Hội đồng Quản trị</p>
+                        <p class="company">
+                            Công ty Cổ phần Cảng Hòn La<br>
+                            Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình
+                        </p>
+                    </div>
                     <div class="a4-chairman-avatar">
                         <img src="{chu_tich_img}" alt="Chủ tịch HĐQT">
                     </div>
-                    <div class="a4-chairman-info">
-                        <h2>Ông Phùng Gia Phát</h2>
-                        <p class="title">⭐ Chủ tịch Hội đồng Quản trị</p>
-                        <p class="company">
-                            <h1>Công ty cổ phần Cảng Hòn La</h1>
-                            Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình
-                        </p>
+                    <div class="a4-chairman-logo">
+                        <img src="data:image/png;base64,{logo_base64}" alt="Logo Cảng Hòn La">
                     </div>
                 </div>
 

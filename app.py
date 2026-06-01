@@ -1336,15 +1336,41 @@ def show_landing_page():
     </body>
     </html>
     """    
+    # MỚI (đơn giản, chắc chắn):
     import streamlit.components.v1 as components
-    # Dùng empty container với key cố định → Streamlit replace thay vì append
-    placeholder = st.empty()
-    with placeholder:
-        components.html(
-            landing_html.replace('</head>', '<base target="_parent"></head>'),
-            height=3142,
-            scrolling=False
-        )
+
+    # CSS cho nút Streamlit float lên navbar
+    st.markdown("""
+        <style>
+        /* Nút Nhân viên float fixed góc trên phải */
+        section[data-testid="stMain"] > div > div:first-child > div > div:first-child > div[data-testid="stButton"] > button {
+            position: fixed !important;
+            top: 14px !important;
+            right: 30px !important;
+            z-index: 99999 !important;
+            background: #f59e0b !important;
+            color: #0f3b5c !important;
+            font-weight: 700 !important;
+            border: none !important;
+            border-radius: 40px !important;
+            padding: 8px 24px !important;
+            font-size: 0.9rem !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    if st.button("🔐 Nhân viên", key="btn_nhan_vien_landing"):
+        st.session_state.show_hrm = True
+        st.rerun()
+
+    # Ẩn nút loginBtn trùng trong iframe
+    landing_html_fixed = landing_html.replace(
+        '<a href="#" class="btn-login" id="loginBtn">🔐 Nhân viên</a>',
+        ''
+    )
+
+    st.empty().empty()  # clear slot cũ
+    components.html(landing_html_fixed, height=3142, scrolling=False)
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 

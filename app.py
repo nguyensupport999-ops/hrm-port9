@@ -1633,23 +1633,11 @@ def get_connection():
     )
 
 ## ========== LOGO SIDEBAR ==========
-try:
-    logo_path = pathlib.Path(__file__).parent / "logo_cty.png"
-    if logo_path.exists():
-        import base64
-        with open(str(logo_path), "rb") as f:
-            logo_b64 = base64.b64encode(f.read()).decode()
-        st.sidebar.markdown(f"""
-            <div style="text-align:center; padding: 12px 0 8px 0;">
-                <img src="data:image/png;base64,{logo_b64}"
-                     style="width:110px; height:auto; object-fit:contain;">
-            </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.sidebar.warning("⚠️ Không tìm thấy logo_cty.png")
-    st.sidebar.divider()
-except Exception as e:
-    st.sidebar.error(f"❌ Lỗi hiển thị logo: {e}")
+logo_path = "logo_cty.png"
+if os.path.exists(logo_path):
+    with st.sidebar:
+        st.image(logo_path, use_container_width=True)
+        st.divider()
 
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False

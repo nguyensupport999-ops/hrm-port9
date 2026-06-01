@@ -1385,17 +1385,29 @@ if not st.session_state.logged_in and not st.session_state.show_hrm:
             footer[data-testid], #stDecoration { display: none !important; }
         </style>
     """, unsafe_allow_html=True)
-
-    # Nút ẩn — Streamlit lắng nghe click từ iframe
+    
+    # Nút ẩn — CSS ẩn bằng data-testid của button
     st.markdown("""
         <style>
-            #btn_goto_hrm_container { display: none !important; }
+            button[kind="secondary"][data-testid="baseButton-secondary"]:has(p:contains("goto_hrm")) {
+                display: none !important;
+                visibility: hidden !important;
+                height: 0 !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                position: absolute !important;
+                pointer-events: none !important;
+            }
+            div:has(> button[kind="secondary"] p:contains("goto_hrm")) {
+                display: none !important;
+                height: 0 !important;
+                overflow: hidden !important;
+            }
         </style>
     """, unsafe_allow_html=True)
-    with st.container(key="btn_goto_hrm_container"):
-        if st.button("goto_hrm", key="btn_goto_hrm"):
-            st.session_state.show_hrm = True
-            st.rerun()
+    if st.button("goto_hrm", key="btn_goto_hrm", type="secondary"):
+        st.session_state.show_hrm = True
+        st.rerun()
 
     show_landing_page()
     st.stop()

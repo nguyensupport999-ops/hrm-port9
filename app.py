@@ -1341,30 +1341,32 @@ def show_landing_page():
 
     # Ẩn loginBtn trong iframe tránh trùng
     landing_html_fixed = landing_html.replace(
-        '<a href="#" class="btn-login" id="loginBtn">🔐 Nhân viên</a>',
+        '<a href="#" class="btn-login" id="loginBtn">🔐 HRM - QUẢN LÝ NHÂN SỰ./ Chỉ dành cho Nhân viên</a>',
         ''
     )
 
     # Render landing page
     components.html(landing_html_fixed, height=3142, scrolling=False)
 
-    # Nút Nhân viên cố định ở bottom center
+    # MỚI:
     st.markdown("""
         <style>
         div[data-testid="stBottom"] {
-            background: transparent !important;
-            border-top: none !important;
-            box-shadow: none !important;
+            background: #0f172a !important;
+            border-top: 2px solid #f59e0b !important;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.3) !important;
+            padding: 12px 0 !important;
         }
         div[data-testid="stBottom"] button {
             background: #f59e0b !important;
             color: #0f3b5c !important;
             font-weight: 700 !important;
             border: none !important;
-            border-radius: 40px !important;
-            padding: 10px 40px !important;
-            font-size: 1rem !important;
+            border-radius: 8px !important;
+            padding: 12px 32px !important;
+            font-size: 0.95rem !important;
             box-shadow: 0 4px 15px rgba(245,158,11,0.4) !important;
+            letter-spacing: 0.3px !important;
         }
         div[data-testid="stBottom"] button:hover {
             background: #e67e22 !important;
@@ -1374,9 +1376,9 @@ def show_landing_page():
     """, unsafe_allow_html=True)
 
     with st.container():
-        col1, col2, col3 = st.columns([2, 1, 2])
+        col1, col2, col3 = st.columns([1, 3, 1])
         with col2:
-            if st.button("🔐 Nhân viên", key="btn_nhan_vien_landing", use_container_width=True):
+            if st.button("🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên", key="btn_nhan_vien_landing", use_container_width=True):
                 st.session_state.show_hrm = True
                 st.rerun()
 

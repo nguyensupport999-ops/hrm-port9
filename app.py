@@ -124,7 +124,7 @@ def show_landing_page():
                 line-height: 1.5;
                 overflow-x: hidden;
                 width: 100%;
-                padding-top: 0;
+                padding-top: 100px;
             }}
             ::-webkit-scrollbar {{
                 width: 8px;
@@ -405,7 +405,7 @@ def show_landing_page():
             
             /* ===== STATS SECTION ===== */
             .stats-section {{
-                padding: 60px 30px;                                 #tùy chỉnh khoảng trắng xung quanh
+                padding: 60px 30px;                                 
                 background: #0f3b5c;
                 color: white;
             }}
@@ -445,7 +445,7 @@ def show_landing_page():
             
             /* ===== ABOUT & SERVICES ===== */
             .about-section {{
-                padding: 80px 30px;                                                       #tùy chỉnh khoảng trắng xung quanh
+                padding: 80px 30px;                                                       
                 background: #f8fafc;
             }}
             .about-grid {{
@@ -485,7 +485,7 @@ def show_landing_page():
                 box-shadow: 0 20px 30px -15px rgba(0,0,0,0.15);
             }}
             .services-section {{
-                padding: 80px 30px;                                         #tùy chỉnh khoảng trắng xung quanh
+                padding: 80px 30px;                                         
                 background: white;
             }}
             .section-header {{
@@ -522,7 +522,7 @@ def show_landing_page():
                 margin-bottom: 20px;
             }}
             .infra-section {{
-                padding: 80px 30px;                                         #tùy chỉnh khoảng trắng xung quanh
+                padding: 80px 30px;                                         
                 background: #f8fafc;
             }}
             .infra-grid {{
@@ -542,7 +542,7 @@ def show_landing_page():
                 color: #f59e0b;
             }}
             .careers-section {{
-                padding: 80px 30px;                                             #tùy chỉnh khoảng trắng xung quanh
+                padding: 80px 30px;                                             
                 background: linear-gradient(135deg, #0f3b5c 0%, #1e4a76 100%);
                 color: white;
                 text-align: center;
@@ -562,7 +562,7 @@ def show_landing_page():
             .footer {{
                 background: #0f172a;
                 color: #cbd5e1;
-                padding: 50px 30px 30px;                                        #tùy chỉnh khoảng trắng xung quanh
+                padding: 50px 30px 30px;                                        
                 width: 100%;
                 clear: both;
             }}
@@ -1640,7 +1640,7 @@ with st.sidebar:
         if logo_path.exists():
             col_l, col_m, col_r = st.columns([1, 2, 1])
             with col_m:
-                st.image(str(logo_path), use_container_width=True)
+                st.image(str(logo_path), width=120, use_container_width=True)
         else:
             st.warning("⚠️ Không tìm thấy logo_cty.png")
         st.divider()

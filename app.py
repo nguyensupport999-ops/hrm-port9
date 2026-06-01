@@ -1640,7 +1640,7 @@ with st.sidebar:
         if logo_path.exists():
             col_l, col_m, col_r = st.columns([1, 2, 1])
             with col_m:
-                st.image(str(logo_path), width=120, use_container_width=True)
+                st.image(str(logo_path), width=120)
         else:
             st.warning("⚠️ Không tìm thấy logo_cty.png")
         st.divider()

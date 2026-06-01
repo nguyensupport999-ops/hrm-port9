@@ -5019,11 +5019,18 @@ elif menu == "📋 Báo cáo 01/PLI":
             nv.ngay_vao_lam, nv.ngay_ky_hd, nv.ngay_ket_thuc, nv.thang_bat_dau_bh,
             nv.thang_ket_thuc_bh, nv.so_hdld, nv.phong_ban_lam_viec, nv.noi_lam_viec
         FROM nhan_vien nv
-        WHERE nv.trang_thai IN ('DANG_LAM', 'THU_VIEC')
+        WHERE nv.trang_thai IN ('DANG_LAM', 'THU_VIEC', 'NGHI_VIEC')
         AND nv.ngay_vao_lam <= %s
-        AND (nv.ngay_ket_thuc IS NULL OR nv.ngay_ket_thuc > %s)
+        AND (
+            nv.ngay_nghi_viec IS NULL
+            OR nv.ngay_nghi_viec > %s
+        )
+        AND (
+            nv.ngay_ket_thuc IS NULL
+            OR nv.ngay_ket_thuc > %s
+        )
         ORDER BY nv.STT ASC
-    """, (den_ngay, den_ngay))
+    """, (den_ngay, tu_ngay, tu_ngay))
     ds_lao_dong = c.fetchall()
     db.close()
     

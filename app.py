@@ -1336,22 +1336,15 @@ def show_landing_page():
     </body>
     </html>
     """    
-    import re
-    body_match = re.search(r'<body[^>]*>(.*?)</body>', landing_html, re.DOTALL)
-    body_content = body_match.group(1) if body_match else landing_html
-    
-    # Lấy CSS từ <style> trong <head>
-    style_match = re.search(r'<style>(.*?)</style>', landing_html, re.DOTALL)
-    style_content = f"<style>{style_match.group(1)}</style>" if style_match else ""
-    
-    # Lấy JS từ <script> trong body
-    script_matches = re.findall(r'<script[^>]*>(.*?)</script>', landing_html, re.DOTALL)
-    scripts = "".join([f"<script>{s}</script>" for s in script_matches])
-    
-    st.markdown(
-        style_content + body_content + scripts,
-        unsafe_allow_html=True
-    )
+    import streamlit.components.v1 as components
+    # Dùng empty container với key cố định → Streamlit replace thay vì append
+    placeholder = st.empty()
+    with placeholder:
+        components.html(
+            landing_html.replace('</head>', '<base target="_parent"></head>'),
+            height=3142,
+            scrolling=False
+        )
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
@@ -2158,13 +2151,15 @@ else:  # viewer
 menu = st.sidebar.radio("📋 Menu", menu_options)
 st.sidebar.divider()
 st.sidebar.caption(f"👤 {st.session_state.username} ({st.session_state.role})")
+# MỚI:
 if st.sidebar.button("🚪 Đăng xuất", width='stretch'):
     st.session_state.logged_in = False
     st.session_state.role = None
     st.session_state.username = None
-    st.session_state.show_hrm = False   # ← Quay về Landing page
+    st.session_state.show_hrm = False
     st.session_state.pop('last_birthday_check', None)
     st.session_state.pop('sinh_nhat_hom_nay_list', None)
+    st.cache_data.clear()
     st.rerun()
 
 # ========== DASHBOARD ==========

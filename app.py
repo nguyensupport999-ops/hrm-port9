@@ -2181,32 +2181,7 @@ if menu == "📊 Dashboard":
     cl4.metric("Đã nhận", dn)
     cl5.metric("Từ chối", tc)
     st.divider()
-    st.subheader("📌 Thông báo")
-    c.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE")
-    hn = c.fetchall()
-    c.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE - INTERVAL '1 day'")
-    hq = c.fetchall()
-    if hn:
-        st.success(f"🟢 Hôm nay có thêm: **{', '.join([x['ho_ten'] for x in hn])}**")
-    if hq:
-        st.info(f"🔵 Hôm qua có thêm: **{', '.join([x['ho_ten'] for x in hq])}**")
-    if st.session_state.role == "admin":
-        c.execute("""
-            SELECT STT, ma_nv, ho_ten, ngay_vao_lam, 
-                   (ngay_vao_lam + INTERVAL '30 days')::DATE as ngay_ket_thuc_tv,
-                   GREATEST(0, ((ngay_vao_lam + INTERVAL '30 days')::DATE - CURRENT_DATE)) as ngay_con_lai
-            FROM nhan_vien 
-            WHERE trang_thai = 'THU_VIEC' 
-            AND (ngay_vao_lam + INTERVAL '30 days')::DATE <= CURRENT_DATE + INTERVAL '5 days'
-            ORDER BY ngay_con_lai ASC
-        """)
-        tv_sap_het = c.fetchall()
-        for x in tv_sap_het:
-            if x['ngay_con_lai'] == 0:
-                st.error(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** - HÔM NAY LÀ NGÀY CUỐI HỢP ĐỒNG THỬ VIỆC!")
-            else:
-                st.warning(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** còn **{x['ngay_con_lai']}** ngày sẽ kết thúc hợp đồng thử việc!")
-    
+        
     # Gọi kiểm tra sinh nhật (đã xóa 2 dòng debug)
     auto_check_birthday()
 
@@ -2605,6 +2580,34 @@ if menu == "📊 Dashboard":
         df.columns = ['Chức vụ', 'SL']
         st.bar_chart(df.set_index('Chức vụ'))
     st.divider()
+    
+    st.subheader("📌 Thông báo")
+    c.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE")
+    hn = c.fetchall()
+    c.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE - INTERVAL '1 day'")
+    hq = c.fetchall()
+    if hn:
+        st.success(f"🟢 Hôm nay có thêm: **{', '.join([x['ho_ten'] for x in hn])}**")
+    if hq:
+        st.info(f"🔵 Hôm qua có thêm: **{', '.join([x['ho_ten'] for x in hq])}**")
+    if st.session_state.role == "admin":
+        c.execute("""
+            SELECT STT, ma_nv, ho_ten, ngay_vao_lam, 
+                   (ngay_vao_lam + INTERVAL '30 days')::DATE as ngay_ket_thuc_tv,
+                   GREATEST(0, ((ngay_vao_lam + INTERVAL '30 days')::DATE - CURRENT_DATE)) as ngay_con_lai
+            FROM nhan_vien 
+            WHERE trang_thai = 'THU_VIEC' 
+            AND (ngay_vao_lam + INTERVAL '30 days')::DATE <= CURRENT_DATE + INTERVAL '5 days'
+            ORDER BY ngay_con_lai ASC
+        """)
+        tv_sap_het = c.fetchall()
+        for x in tv_sap_het:
+            if x['ngay_con_lai'] == 0:
+                st.error(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** - HÔM NAY LÀ NGÀY CUỐI HỢP ĐỒNG THỬ VIỆC!")
+            else:
+                st.warning(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** còn **{x['ngay_con_lai']}** ngày sẽ kết thúc hợp đồng thử việc!")
+    
+    
     if st.session_state.role == "admin":
         if st.button("💾 BACKUP DỮ LIỆU NGAY", use_container_width=True):
             try:
@@ -2613,7 +2616,9 @@ if menu == "📊 Dashboard":
                 st.success("✅ Đã backup! Kiểm tra thư mục D:\\HRM_Port\\backup")
             except ImportError:
                 st.error("❌ Không tìm thấy module backup_nv. Backup chỉ hoạt động trên local.")
-            
+    
+    
+    
 # ========== ỨNG VIÊN ==========
 elif menu == "👤 Ứng viên":
     st.title("👤 Ứng viên")

@@ -1336,41 +1336,49 @@ def show_landing_page():
     </body>
     </html>
     """    
-    # MỚI (đơn giản, chắc chắn):
+    # MỚI:
     import streamlit.components.v1 as components
 
-    # CSS cho nút Streamlit float lên navbar
-    st.markdown("""
-        <style>
-        /* Nút Nhân viên float fixed góc trên phải */
-        section[data-testid="stMain"] > div > div:first-child > div > div:first-child > div[data-testid="stButton"] > button {
-            position: fixed !important;
-            top: 14px !important;
-            right: 30px !important;
-            z-index: 99999 !important;
-            background: #f59e0b !important;
-            color: #0f3b5c !important;
-            font-weight: 700 !important;
-            border: none !important;
-            border-radius: 40px !important;
-            padding: 8px 24px !important;
-            font-size: 0.9rem !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-    if st.button("🔐 Nhân viên", key="btn_nhan_vien_landing"):
-        st.session_state.show_hrm = True
-        st.rerun()
-
-    # Ẩn nút loginBtn trùng trong iframe
+    # Ẩn loginBtn trong iframe tránh trùng
     landing_html_fixed = landing_html.replace(
         '<a href="#" class="btn-login" id="loginBtn">🔐 Nhân viên</a>',
         ''
     )
 
-    st.empty().empty()  # clear slot cũ
+    # Render landing page
     components.html(landing_html_fixed, height=3142, scrolling=False)
+
+    # Nút Nhân viên cố định ở bottom center
+    st.markdown("""
+        <style>
+        div[data-testid="stBottom"] {
+            background: transparent !important;
+            border-top: none !important;
+            box-shadow: none !important;
+        }
+        div[data-testid="stBottom"] button {
+            background: #f59e0b !important;
+            color: #0f3b5c !important;
+            font-weight: 700 !important;
+            border: none !important;
+            border-radius: 40px !important;
+            padding: 10px 40px !important;
+            font-size: 1rem !important;
+            box-shadow: 0 4px 15px rgba(245,158,11,0.4) !important;
+        }
+        div[data-testid="stBottom"] button:hover {
+            background: #e67e22 !important;
+            color: white !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    with st.container():
+        col1, col2, col3 = st.columns([2, 1, 2])
+        with col2:
+            if st.button("🔐 Nhân viên", key="btn_nhan_vien_landing", use_container_width=True):
+                st.session_state.show_hrm = True
+                st.rerun()
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 

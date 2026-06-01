@@ -1334,7 +1334,11 @@ def show_landing_page():
     </body>
     </html>
     """    
-    st.iframe(landing_html, height=3100, scrolling=False)
+    import streamlit.components.v1 as components
+    # Height tính từ padding CSS thực tế mỗi section:
+    # navbar(80) + slider(600) + stats(200) + about(620) + services(420)
+    # + infra(620) + careers(240) + footer(360) = 3140 → +2 buffer
+    st.iframe(landing_html, height=3142, scrolling=False)
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 

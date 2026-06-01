@@ -1303,7 +1303,17 @@ def show_landing_page():
             if (loginBtn) {{
                 loginBtn.addEventListener('click', function(e) {{
                     e.preventDefault();
-                    window.location.href = window.location.pathname + '?goto=hrm';
+                    try {{
+                        const btns = window.parent.document.querySelectorAll('button');
+                        for (const btn of btns) {{
+                            if (btn.innerText.trim() === 'goto_hrm') {{
+                                btn.click();
+                                return;
+                            }}
+                        }}
+                    }} catch(err) {{
+                        console.log('postMessage fallback', err);
+                    }}
                 }});
             }}
             
@@ -1360,8 +1370,6 @@ if query_params.get('goto') == 'hrm':
     st.rerun()
 
 # ========== HIỂN THỊ LANDING PAGE NẾU CHƯA VÀO HRM ==========
-# MỚI:
-## ========== LOGO SIDEBAR ==========
 logo_path = "logo_cty.png"
 if os.path.exists(logo_path):
     with st.sidebar:
@@ -1377,6 +1385,18 @@ if not st.session_state.logged_in and not st.session_state.show_hrm:
             footer[data-testid], #stDecoration { display: none !important; }
         </style>
     """, unsafe_allow_html=True)
+
+    # Nút ẩn — Streamlit lắng nghe click từ iframe
+    st.markdown("""
+        <style>
+            #btn_goto_hrm_container { display: none !important; }
+        </style>
+    """, unsafe_allow_html=True)
+    with st.container(key="btn_goto_hrm_container"):
+        if st.button("goto_hrm", key="btn_goto_hrm"):
+            st.session_state.show_hrm = True
+            st.rerun()
+
     show_landing_page()
     st.stop()
 

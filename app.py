@@ -1638,11 +1638,18 @@ with st.sidebar:
         # Dùng đường dẫn local — Streamlit Cloud tự đọc từ repo
         logo_path = pathlib.Path(__file__).parent / "logo_cty.png"
         if logo_path.exists():
-            st.markdown(
-                "<style>[data-testid='stSidebar'] [data-testid='stImage']{display:flex;justify-content:center;}</style>",
+            import base64
+            with open(str(logo_path), "rb") as f:
+                logo_b64 = base64.b64encode(f.read()).decode()
+            st.sidebar.markdown(
+                f"""
+                <div style="display:flex; justify-content:center; padding: 10px 0;">
+                    <img src="data:image/png;base64,{logo_b64}" 
+                         style="width:120px; height:auto; object-fit:contain;">
+                </div>
+                """,
                 unsafe_allow_html=True
             )
-            st.image(str(logo_path), width=120)
         else:
             st.warning("⚠️ Không tìm thấy logo_cty.png")
         st.divider()

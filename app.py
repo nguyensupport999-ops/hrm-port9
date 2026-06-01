@@ -1338,7 +1338,7 @@ def show_landing_page():
     # Height tính từ padding CSS thực tế mỗi section:
     # navbar(80) + slider(600) + stats(200) + about(620) + services(420)
     # + infra(620) + careers(240) + footer(360) = 3140 → +2 buffer
-    st.iframe(landing_html, height=3142, scrolling=False)
+    components.html(landing_html, height=3142, scrolling=False)
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
@@ -1637,23 +1637,10 @@ with st.sidebar:
     try:
         # Dùng đường dẫn local — Streamlit Cloud tự đọc từ repo
         logo_path = pathlib.Path(__file__).parent / "logo_cty.png"
-        # MỚI:
         if logo_path.exists():
-            st.image(str(logo_path), width='content')
-            st.markdown(
-                """
-                <style>
-                [data-testid="stSidebar"] img {
-                    display: block;
-                    margin: 0 auto;
-                    max-width: 120px;
-                    width: 120px !important;
-                    height: auto !important;
-                }
-                </style>
-                """,
-                unsafe_allow_html=True
-            )
+            col_l, col_m, col_r = st.columns([1, 2, 1])
+            with col_m:
+                st.image(str(logo_path), use_container_width=True)
         else:
             st.warning("⚠️ Không tìm thấy logo_cty.png")
         st.divider()

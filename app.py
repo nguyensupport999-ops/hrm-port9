@@ -1633,19 +1633,23 @@ def get_connection():
     )
 
 ## ========== LOGO SIDEBAR ==========
-with st.sidebar:
-    try:
-        # Dùng đường dẫn local — Streamlit Cloud tự đọc từ repo
-        logo_path = pathlib.Path(__file__).parent / "logo_cty.png"
-        if logo_path.exists():
-            col_l, col_m, col_r = st.columns([1, 2, 1])
-            with col_m:
-                st.image(str(logo_path), width='stretch')
-        else:
-            st.warning("⚠️ Không tìm thấy logo_cty.png")
-        st.divider()
-    except Exception as e:
-        st.error(f"❌ Lỗi hiển thị logo: {e}")
+try:
+    logo_path = pathlib.Path(__file__).parent / "logo_cty.png"
+    if logo_path.exists():
+        import base64
+        with open(str(logo_path), "rb") as f:
+            logo_b64 = base64.b64encode(f.read()).decode()
+        st.sidebar.markdown(f"""
+            <div style="text-align:center; padding: 12px 0 8px 0;">
+                <img src="data:image/png;base64,{logo_b64}"
+                     style="width:110px; height:auto; object-fit:contain;">
+            </div>
+        """, unsafe_allow_html=True)
+    else:
+        st.sidebar.warning("⚠️ Không tìm thấy logo_cty.png")
+    st.sidebar.divider()
+except Exception as e:
+    st.sidebar.error(f"❌ Lỗi hiển thị logo: {e}")
 
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False

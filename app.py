@@ -144,7 +144,7 @@ def show_landing_page():
                 left: 0;
                 width: 100%;
                 z-index: 1000;
-                padding: 0.8rem 30px;                                       # tùy chỉnh khoảng trắng xung quanh.
+                padding: 0.8rem 30px;                                       
                 background: rgba(15, 59, 92, 0.95);
                 backdrop-filter: blur(10px);
                 box-shadow: 0 2px 10px rgba(0,0,0,0.1);
@@ -1638,9 +1638,11 @@ with st.sidebar:
         # Dùng đường dẫn local — Streamlit Cloud tự đọc từ repo
         logo_path = pathlib.Path(__file__).parent / "logo_cty.png"
         if logo_path.exists():
-            col_l, col_m, col_r = st.columns([1, 2, 1])
-            with col_m:
-                st.image(str(logo_path), width=120)
+            st.markdown(
+                "<style>[data-testid='stSidebar'] [data-testid='stImage']{display:flex;justify-content:center;}</style>",
+                unsafe_allow_html=True
+            )
+            st.image(str(logo_path), width=120)
         else:
             st.warning("⚠️ Không tìm thấy logo_cty.png")
         st.divider()

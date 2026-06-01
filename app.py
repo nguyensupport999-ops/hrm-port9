@@ -1303,7 +1303,7 @@ def show_landing_page():
             if (loginBtn) {{
                 loginBtn.addEventListener('click', function(e) {{
                     e.preventDefault();
-                    window.parent.location.href = window.parent.location.pathname + '?goto=hrm';
+                    window.location.href = window.location.pathname + '?goto=hrm';
                 }});
             }}
             

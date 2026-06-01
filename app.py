@@ -2570,42 +2570,114 @@ if menu == "📊 Dashboard":
 
     # ========== KẾT THÚC PHẦN SINH NHẬT ==========
     
-    c.execute("SELECT chuc_danh_nghe, COUNT(*) t FROM nhan_vien WHERE trang_thai='DANG_LAM' GROUP BY chuc_danh_nghe ORDER BY t DESC")
-    data = c.fetchall()
-    db.close()
+    # ── Phân bố chức danh ──
+    import plotly.express as px
+    import plotly.graph_objects as go
+
+    db2 = get_connection()
+    c2 = db2.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    c2.execute("""
+        SELECT chuc_danh_nghe, COUNT(*) t 
+        FROM nhan_vien 
+        WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+        GROUP BY chuc_danh_nghe 
+        ORDER BY t DESC
+    """)
+    data = c2.fetchall()
+    db2.close()
+
     if data:
         st.divider()
-        st.subheader("📈 Phân bố")
-        df = pd.DataFrame(data)
-        df.columns = ['Chức vụ', 'SL']
-        st.bar_chart(df.set_index('Chức vụ'))
+        st.subheader("📈 Phân bố nhân sự theo chức danh")
+
+        df_phan_bo = pd.DataFrame(data)
+        df_phan_bo.columns = ['Chức danh', 'Số lượng']
+        df_phan_bo['Chức danh'] = df_phan_bo['Chức danh'].fillna('Chưa phân loại')
+
+        col_chart, col_table = st.columns([3, 2])
+
+        with col_chart:
+            fig = go.Figure(data=[go.Pie(
+                labels=df_phan_bo['Chức danh'],
+                values=df_phan_bo['Số lượng'],
+                hole=0.55,
+                textinfo='label+percent',
+                textposition='outside',
+                textfont=dict(size=12),
+                marker=dict(
+                    colors=px.colors.qualitative.Safe,
+                    line=dict(color='white', width=2)
+                ),
+                hovertemplate='<b>%{label}</b><br>Số lượng: %{value}<br>Tỷ lệ: %{percent}<extra></extra>'
+            )])
+            fig.update_layout(
+                title=dict(
+                    text=f"<b>Tổng: {df_phan_bo['Số lượng'].sum()} nhân viên</b>",
+                    x=0.5, y=0.5,
+                    xanchor='center', yanchor='middle',
+                    font=dict(size=16, color='#0f3b5c')
+                ),
+                showlegend=False,
+                margin=dict(t=40, b=40, l=20, r=20),
+                height=400,
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        with col_table:
+            st.markdown("**📋 Chi tiết**")
+            colors = px.colors.qualitative.Safe
+            for i, row in df_phan_bo.iterrows():
+                color = colors[i % len(colors)]
+                pct = row['Số lượng'] / df_phan_bo['Số lượng'].sum() * 100
+                st.markdown(f"""
+                <div style='display:flex; align-items:center; padding:8px 10px; 
+                            margin:4px 0; border-radius:8px; background:#f8f9fa;
+                            border-left: 4px solid {color};'>
+                    <div style='flex:1; font-size:13px; color:#333;'>
+                        {row['Chức danh']}
+                    </div>
+                    <div style='font-weight:bold; color:{color}; font-size:15px; margin-left:8px;'>
+                        {row['Số lượng']}
+                    </div>
+                    <div style='color:#999; font-size:12px; margin-left:6px;'>
+                        ({pct:.0f}%)
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
     st.divider()
-    
+
+    # ── Thông báo ──
     st.subheader("📌 Thông báo")
-        c.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE")
-        hn = c.fetchall()
-        c.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE - INTERVAL '1 day'")
-        hq = c.fetchall()
-        if hn:
-            st.success(f"🟢 Hôm nay có thêm: **{', '.join([x['ho_ten'] for x in hn])}**")
-        if hq:
-            st.info(f"🔵 Hôm qua có thêm: **{', '.join([x['ho_ten'] for x in hq])}**")
-        if st.session_state.role == "admin":
-            c.execute("""
-                SELECT STT, ma_nv, ho_ten, ngay_vao_lam, 
-                       (ngay_vao_lam + INTERVAL '30 days')::DATE as ngay_ket_thuc_tv,
-                       GREATEST(0, ((ngay_vao_lam + INTERVAL '30 days')::DATE - CURRENT_DATE)) as ngay_con_lai
-                FROM nhan_vien 
-                WHERE trang_thai = 'THU_VIEC' 
-                AND (ngay_vao_lam + INTERVAL '30 days')::DATE <= CURRENT_DATE + INTERVAL '5 days'
-                ORDER BY ngay_con_lai ASC
-            """)
-            tv_sap_het = c.fetchall()
-            for x in tv_sap_het:
-                if x['ngay_con_lai'] == 0:
-                    st.error(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** - HÔM NAY LÀ NGÀY CUỐI HỢP ĐỒNG THỬ VIỆC!")
-                else:
-                    st.warning(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** còn **{x['ngay_con_lai']}** ngày sẽ kết thúc hợp đồng thử việc!")
+    db3 = get_connection()
+    c3 = db3.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    c3.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE")
+    hn = c3.fetchall()
+    c3.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE - INTERVAL '1 day'")
+    hq = c3.fetchall()
+    if hn:
+        st.success(f"🟢 Hôm nay có thêm: **{', '.join([x['ho_ten'] for x in hn])}**")
+    if hq:
+        st.info(f"🔵 Hôm qua có thêm: **{', '.join([x['ho_ten'] for x in hq])}**")
+    if st.session_state.role == "admin":
+        c3.execute("""
+            SELECT STT, ma_nv, ho_ten, ngay_vao_lam, 
+                   (ngay_vao_lam + INTERVAL '30 days')::DATE as ngay_ket_thuc_tv,
+                   GREATEST(0, ((ngay_vao_lam + INTERVAL '30 days')::DATE - CURRENT_DATE)) as ngay_con_lai
+            FROM nhan_vien 
+            WHERE trang_thai = 'THU_VIEC' 
+            AND (ngay_vao_lam + INTERVAL '30 days')::DATE <= CURRENT_DATE + INTERVAL '5 days'
+            ORDER BY ngay_con_lai ASC
+        """)
+        tv_sap_het = c3.fetchall()
+        for x in tv_sap_het:
+            if x['ngay_con_lai'] == 0:
+                st.error(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** - HÔM NAY LÀ NGÀY CUỐI HỢP ĐỒNG THỬ VIỆC!")
+            else:
+                st.warning(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** còn **{x['ngay_con_lai']}** ngày sẽ kết thúc hợp đồng thử việc!")
+    db3.close()
     
     
     if st.session_state.role == "admin":

@@ -1303,7 +1303,9 @@ def show_landing_page():
             if (loginBtn) {{
                 loginBtn.addEventListener('click', function(e) {{
                     e.preventDefault();
-                    window.location.href = '/?goto=hrm';
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('goto', 'hrm');
+                    window.location.href = url.toString();
                 }});
             }}
             
@@ -1334,14 +1336,21 @@ def show_landing_page():
     </body>
     </html>
     """    
-    import streamlit.components.v1 as components
-    components.html(
-        landing_html.replace(
-            '</head>',
-            '<base target="_parent"></head>'
-        ),
-        height=3142,
-        scrolling=False
+    import re
+    body_match = re.search(r'<body[^>]*>(.*?)</body>', landing_html, re.DOTALL)
+    body_content = body_match.group(1) if body_match else landing_html
+    
+    # Lấy CSS từ <style> trong <head>
+    style_match = re.search(r'<style>(.*?)</style>', landing_html, re.DOTALL)
+    style_content = f"<style>{style_match.group(1)}</style>" if style_match else ""
+    
+    # Lấy JS từ <script> trong body
+    script_matches = re.findall(r'<script[^>]*>(.*?)</script>', landing_html, re.DOTALL)
+    scripts = "".join([f"<script>{s}</script>" for s in script_matches])
+    
+    st.markdown(
+        style_content + body_content + scripts,
+        unsafe_allow_html=True
     )
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")

@@ -2857,6 +2857,7 @@ elif menu == "👤 Ứng viên":
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    RETURNING id
                                 """, (
                                     stt_moi, ma_nv, so_hd, ho_ten_nv, chuc_danh_nv,
                                     parse_date(ngay_sinh_nv), gioi_tinh_nv, so_cccd_nv, parse_date(ngay_cap_cccd_nv), noi_cap_cccd_nv,
@@ -2871,7 +2872,7 @@ elif menu == "👤 Ứng viên":
                                     phuong_thuc_dong_chuyen, tinh_nhan_hs_chuyen, phuong_nhan_hs_chuyen, dia_chi_nhan_hs_chuyen,
                                     tinh_kcb_chuyen, noi_kcb_chuyen, dk_nhan_so_chuyen
                                 ))
-                                
+                                nhan_vien_id_moi = c.fetchone()[0]
                                 # Cập nhật trạng thái ứng viên
                                 c.execute("UPDATE ung_vien SET trang_thai='DA_NHAN_VIEC', ma_nv=%s WHERE id=%s", 
                                          (ma_nv, st.session_state['chuyen_uv_id']))
@@ -2880,7 +2881,7 @@ elif menu == "👤 Ứng viên":
                                 c.execute("""
                                     INSERT INTO lich_su_cong_tac (nhan_vien_id, tu_ngay, chuc_danh, phong_ban, noi_lam_viec, loai_hop_dong, he_so_luong, so_hop_dong)
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                                """, (stt_moi, ngay_vao_lam_chuyen, chuc_danh_nv, phong_ban_nv, noi_lam_viec_nv, loai_hd_chuyen, 
+                                """, (nhan_vien_id_moi, ngay_vao_lam_chuyen, chuc_danh_nv, phong_ban_nv, noi_lam_viec_nv, loai_hd_chuyen, 
                                       to_float_or_none(he_so_luong_chuyen), so_hd))
                                 
                                 db.commit()

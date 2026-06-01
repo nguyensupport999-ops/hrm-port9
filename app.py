@@ -231,7 +231,6 @@ def show_landing_page():
                 background: #f8fafc;
                 color: #f59e0b !important;
             }}
-            # MỚI:
             .btn-login {{
                 background: #f59e0b !important;
                 color: #0f3b5c !important;
@@ -241,17 +240,6 @@ def show_landing_page():
             .btn-login:hover {{
                 background: #e67e22 !important;
                 color: white !important;
-            }}
-            .btn-lang {{
-                background: rgba(255,255,255,0.15) !important;
-                color: white !important;
-                padding: 8px 20px !important;
-                font-weight: 600 !important;
-                border: 1px solid rgba(255,255,255,0.4) !important;
-                border-radius: 40px !important;
-            }}
-            .btn-lang:hover {{
-                background: rgba(255,255,255,0.3) !important;
             }}
             
             /* ===== HERO SLIDER MỚI - ẢNH + TEXT 2 CỘT ===== */
@@ -940,7 +928,7 @@ def show_landing_page():
                 <a href="#infrastructure">Vị trí & Hạ tầng</a>
                 <a href="#careers">Tuyển dụng</a>
                 <a href="#contact">Liên hệ</a>
-                <a href="#" class="btn-lang" id="langBtn">🌐 EN</a>
+               
             </div>
         </div>
     </nav>
@@ -1310,60 +1298,12 @@ def show_landing_page():
                 }});
             }}
 
-            # MỚI:
-            // Language toggle handler
-            const langBtn = document.getElementById('langBtn');
-            let currentLang = 'VI';
-            const translations = {{
-                navbar: {{'Trang chủ':'Home','Dịch vụ':'Services','Vị trí & Hạ tầng':'Location & Infra','Tuyển dụng':'Careers','Liên hệ':'Contact'}},
-                vi2en: [
-                    ['KẾT NỐI TOÀN CẦU','GLOBAL CONNECTIVITY'],
-                    ['Vị trí chiến lược trên tuyến hành lang kinh tế Đông - Tây (EWEC)','Strategic location on the East-West Economic Corridor (EWEC)'],
-                    ['Kết nối trực tiếp với các cảng biển lớn trong khu vực và quốc tế','Direct connection to major regional & international seaports'],
-                    ['Hành lang thương mại huyết mạch','Vital trade corridor'],
-                    ['CẢNG TỔNG HỢP QUỐC TẾ HÒN LA','HON LA INTERNATIONAL PORT'],
-                    ['Chính thức khởi công ngày 21 tháng 3 năm 2025','Officially groundbroken on March 21, 2025'],
-                    ['Đưa vào khai thác từ Tháng 5 năm 2026','Expected to operate from May 2026'],
-                    ['Cửa ngõ hàng hải chiến lược của Miền Trung','Strategic maritime gateway of Central Vietnam'],
-                    ['HẠ TẦNG ĐẲNG CẤP QUỐC TẾ','WORLD-CLASS INFRASTRUCTURE'],
-                    ['Hiện đại - Đồng bộ - Chuyên nghiệp','Modern - Integrated - Professional'],
-                    ['GIA NHẬP ĐỘI NGŨ NHÂN SỰ CỦA CHÚNG TÔI','JOIN OUR TEAM'],
-                    ['Chúng tôi luôn tìm kiếm những nhân tài','We are always looking for talented people'],
-                    ['Xem cơ hội việc làm tại đây','View job opportunities here'],
-                    ['CÔNG TY CỔ PHẦN CẢNG HÒN LA','HON LA PORT JOINT STOCK COMPANY'],
-                    ['Liên kết nhanh','Quick Links'],['Hỗ trợ','Support'],
-                    ['Giờ làm việc','Working Hours'],
-                    ['Câu hỏi thường gặp','FAQ'],
-                    ['Chính sách bảo mật','Privacy Policy'],
-                    ['Điều khoản sử dụng','Terms of Use'],
-                    ['Bến cảng: 24/7','Port: 24/7'],
-                    ['Văn phòng: 7:30 - 17:00','Office: 7:30 AM - 5:00 PM'],
-                    ['Thứ 2 - Thứ 7','Mon - Sat'],
-                    ['PHÁT TRIỂN BỀN VỮNG - KẾT NỐI TOÀN CẦU','SUSTAINABLE DEVELOPMENT - GLOBAL CONNECTIVITY'],
-                ]
-            }};
-
-            // Lưu text gốc toàn bộ body
-            const originalHTML = document.body.innerHTML;
-
-            if (langBtn) {{
-                langBtn.addEventListener('click', function(e) {{
+            // Login handler
+            const loginBtn = document.getElementById('loginBtn');
+            if (loginBtn) {{
+                loginBtn.addEventListener('click', function(e) {{
                     e.preventDefault();
-                    if (currentLang === 'VI') {{
-                        currentLang = 'EN';
-                        langBtn.textContent = '🌐 VI';
-                        let html = document.body.innerHTML;
-                        translations.vi2en.forEach(([vi, en]) => {{
-                            html = html.split(vi).join(en);
-                        }});
-                        document.body.innerHTML = html;
-                        // Gắn lại listener vì innerHTML bị replace
-                        document.getElementById('langBtn').addEventListener('click', arguments.callee);
-                    }} else {{
-                        currentLang = 'VI';
-                        document.body.innerHTML = originalHTML;
-                        document.getElementById('langBtn').addEventListener('click', arguments.callee);
-                    }}
+                    ...
                 }});
             }}
             

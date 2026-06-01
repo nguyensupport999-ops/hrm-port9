@@ -2582,30 +2582,30 @@ if menu == "📊 Dashboard":
     st.divider()
     
     st.subheader("📌 Thông báo")
-    c.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE")
-    hn = c.fetchall()
-    c.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE - INTERVAL '1 day'")
-    hq = c.fetchall()
-    if hn:
-        st.success(f"🟢 Hôm nay có thêm: **{', '.join([x['ho_ten'] for x in hn])}**")
-    if hq:
-        st.info(f"🔵 Hôm qua có thêm: **{', '.join([x['ho_ten'] for x in hq])}**")
-    if st.session_state.role == "admin":
-        c.execute("""
-            SELECT STT, ma_nv, ho_ten, ngay_vao_lam, 
-                   (ngay_vao_lam + INTERVAL '30 days')::DATE as ngay_ket_thuc_tv,
-                   GREATEST(0, ((ngay_vao_lam + INTERVAL '30 days')::DATE - CURRENT_DATE)) as ngay_con_lai
-            FROM nhan_vien 
-            WHERE trang_thai = 'THU_VIEC' 
-            AND (ngay_vao_lam + INTERVAL '30 days')::DATE <= CURRENT_DATE + INTERVAL '5 days'
-            ORDER BY ngay_con_lai ASC
-        """)
-        tv_sap_het = c.fetchall()
-        for x in tv_sap_het:
-            if x['ngay_con_lai'] == 0:
-                st.error(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** - HÔM NAY LÀ NGÀY CUỐI HỢP ĐỒNG THỬ VIỆC!")
-            else:
-                st.warning(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** còn **{x['ngay_con_lai']}** ngày sẽ kết thúc hợp đồng thử việc!")
+        c.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE")
+        hn = c.fetchall()
+        c.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE - INTERVAL '1 day'")
+        hq = c.fetchall()
+        if hn:
+            st.success(f"🟢 Hôm nay có thêm: **{', '.join([x['ho_ten'] for x in hn])}**")
+        if hq:
+            st.info(f"🔵 Hôm qua có thêm: **{', '.join([x['ho_ten'] for x in hq])}**")
+        if st.session_state.role == "admin":
+            c.execute("""
+                SELECT STT, ma_nv, ho_ten, ngay_vao_lam, 
+                       (ngay_vao_lam + INTERVAL '30 days')::DATE as ngay_ket_thuc_tv,
+                       GREATEST(0, ((ngay_vao_lam + INTERVAL '30 days')::DATE - CURRENT_DATE)) as ngay_con_lai
+                FROM nhan_vien 
+                WHERE trang_thai = 'THU_VIEC' 
+                AND (ngay_vao_lam + INTERVAL '30 days')::DATE <= CURRENT_DATE + INTERVAL '5 days'
+                ORDER BY ngay_con_lai ASC
+            """)
+            tv_sap_het = c.fetchall()
+            for x in tv_sap_het:
+                if x['ngay_con_lai'] == 0:
+                    st.error(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** - HÔM NAY LÀ NGÀY CUỐI HỢP ĐỒNG THỬ VIỆC!")
+                else:
+                    st.warning(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** còn **{x['ngay_con_lai']}** ngày sẽ kết thúc hợp đồng thử việc!")
     
     
     if st.session_state.role == "admin":

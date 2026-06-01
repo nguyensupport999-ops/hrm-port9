@@ -144,7 +144,7 @@ def show_landing_page():
                 left: 0;
                 width: 100%;
                 z-index: 1000;
-                padding: 0.8rem 5%;
+                padding: 0.8rem 30px;                                       # tùy chỉnh khoảng trắng xung quanh.
                 background: rgba(15, 59, 92, 0.95);
                 backdrop-filter: blur(10px);
                 box-shadow: 0 2px 10px rgba(0,0,0,0.1);
@@ -308,7 +308,7 @@ def show_landing_page():
                 text-shadow: 0 1px 3px rgba(0,0,0,0.3);
             }}
             .slide-content .highlight {{
-                font-size: 1.2rem;
+                font-size: clamp(0.85rem, 1.1vw, 1.2rem);
                 font-weight: 700;
                 color: #f59e0b;
                 margin-top: 1.2rem;
@@ -317,6 +317,7 @@ def show_landing_page():
                 padding: 6px 18px;
                 border-radius: 40px;
                 backdrop-filter: blur(4px);
+                white-space: nowrap;
             }}
             /* Tùy chỉnh riêng từng slide */
             .slide:nth-child(1) .slide-content .highlight {{
@@ -404,7 +405,7 @@ def show_landing_page():
             
             /* ===== STATS SECTION ===== */
             .stats-section {{
-                padding: 60px 5%;
+                padding: 60px 30px;                                 #tùy chỉnh khoảng trắng xung quanh
                 background: #0f3b5c;
                 color: white;
             }}
@@ -444,7 +445,7 @@ def show_landing_page():
             
             /* ===== ABOUT & SERVICES ===== */
             .about-section {{
-                padding: 80px 5%;
+                padding: 80px 30px;                                                       #tùy chỉnh khoảng trắng xung quanh
                 background: #f8fafc;
             }}
             .about-grid {{
@@ -484,7 +485,7 @@ def show_landing_page():
                 box-shadow: 0 20px 30px -15px rgba(0,0,0,0.15);
             }}
             .services-section {{
-                padding: 80px 5%;
+                padding: 80px 30px;                                         #tùy chỉnh khoảng trắng xung quanh
                 background: white;
             }}
             .section-header {{
@@ -521,7 +522,7 @@ def show_landing_page():
                 margin-bottom: 20px;
             }}
             .infra-section {{
-                padding: 80px 5%;
+                padding: 80px 30px;                                         #tùy chỉnh khoảng trắng xung quanh
                 background: #f8fafc;
             }}
             .infra-grid {{
@@ -541,7 +542,7 @@ def show_landing_page():
                 color: #f59e0b;
             }}
             .careers-section {{
-                padding: 80px 5%;
+                padding: 80px 30px;                                             #tùy chỉnh khoảng trắng xung quanh
                 background: linear-gradient(135deg, #0f3b5c 0%, #1e4a76 100%);
                 color: white;
                 text-align: center;
@@ -561,7 +562,7 @@ def show_landing_page():
             .footer {{
                 background: #0f172a;
                 color: #cbd5e1;
-                padding: 50px 5% 30px;
+                padding: 50px 30px 30px;                                        #tùy chỉnh khoảng trắng xung quanh
                 width: 100%;
                 clear: both;
             }}
@@ -1047,7 +1048,7 @@ def show_landing_page():
                         <h1>CẢNG TỔNG HỢP QUỐC TẾ HÒN LA</h1>
                         <p>Chính thức khởi công ngày 21 tháng 3 năm 2025</p>
                         <p>Đưa vào khai thác từ Tháng 5 năm 2026</p>
-                        <div class="highlight">🚢 Cửa ngõ hàng hải chiến lược của Miền Trung</div>
+                        <div class="highlight" style="white-space:nowrap;">🚢 Cửa ngõ hàng hải chiến lược của Miền Trung</div>
                     </div>
                 </div>
             </div>
@@ -1144,7 +1145,7 @@ def show_landing_page():
     <!-- Footer -->
     <footer id="contact" class="footer">
         <div class="footer-grid">
-            <div class="footer-col"><h4>CÔNG TY CỔ PHẦN CẢNG HÒN LA</h4><p>Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
+            <div class="footer-col"><h4 style="font-size:0.95rem; white-space:nowrap;">CÔNG TY CỔ PHẦN CẢNG HÒN LA</h4><p>Khu kinh tế Hòn La, Xã Phú Trạch, Tỉnh Quảng Trị</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
             <div class="footer-col"><h4>Liên kết nhanh</h4><a href="#home">Trang chủ</a><a href="#about">Về chúng tôi</a><a href="#services">Dịch vụ</a><a href="#infrastructure">Hạ tầng</a><a href="#careers">Tuyển dụng</a></div>
             <div class="footer-col"><h4>Hỗ trợ</h4><a href="#">Câu hỏi thường gặp</a><a href="#">Chính sách bảo mật</a><a href="#">Điều khoản sử dụng</a></div>
             <div class="footer-col"><h4>Giờ làm việc</h4><p>🚢 Bến cảng: 24/7</p><p>🏢 Văn phòng: 7:30 - 17:00</p><p>📅 Thứ 2 - Thứ 7</p></div>
@@ -1637,7 +1638,9 @@ with st.sidebar:
         # Dùng đường dẫn local — Streamlit Cloud tự đọc từ repo
         logo_path = pathlib.Path(__file__).parent / "logo_cty.png"
         if logo_path.exists():
-            st.image(str(logo_path), use_container_width=True)
+            col_l, col_m, col_r = st.columns([1, 2, 1])
+            with col_m:
+                st.image(str(logo_path), use_container_width=True)
         else:
             st.warning("⚠️ Không tìm thấy logo_cty.png")
         st.divider()

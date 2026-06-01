@@ -1640,7 +1640,7 @@ with st.sidebar:
         if logo_path.exists():
             col_l, col_m, col_r = st.columns([1, 2, 1])
             with col_m:
-                st.image(str(logo_path), use_container_width=True)
+                st.image(str(logo_path), width='stretch')
         else:
             st.warning("⚠️ Không tìm thấy logo_cty.png")
         st.divider()
@@ -2128,7 +2128,7 @@ if not st.session_state.logged_in:
     p = st.sidebar.text_input("Mật khẩu", type="password")
     c1, c2 = st.sidebar.columns(2)
     with c1:
-        if st.button("Đăng nhập", use_container_width=True):
+        if st.button("Đăng nhập", width='stretch'):
             success, role = check_login(u, p)
             if success:
                 st.session_state.logged_in = True
@@ -2138,7 +2138,7 @@ if not st.session_state.logged_in:
             else:
                 st.sidebar.error("❌ Sai tài khoản hoặc mật khẩu!")
     with c2:
-        if st.button("👁️ Xem thử", use_container_width=True):
+        if st.button("👁️ Xem thử", width='stretch'):
             st.session_state.logged_in = True
             st.session_state.role = "viewer"
             st.session_state.username = "guest"
@@ -2153,7 +2153,7 @@ else:  # viewer
 menu = st.sidebar.radio("📋 Menu", menu_options)
 st.sidebar.divider()
 st.sidebar.caption(f"👤 {st.session_state.username} ({st.session_state.role})")
-if st.sidebar.button("🚪 Đăng xuất", use_container_width=True):
+if st.sidebar.button("🚪 Đăng xuất", width='stretch'):
     st.session_state.logged_in = False
     st.session_state.role = None
     st.session_state.username = None
@@ -2356,7 +2356,7 @@ if menu == "📊 Dashboard":
                             sdt = sn['dien_thoai'].replace('+84', '0').replace(' ', '').strip()
                             if st.button(f"📱 Gửi Zalo cho {sn['ho_ten']}", 
                                          key=f"zalo_sn_{sn['id']}", 
-                                         use_container_width=True, 
+                                         width='stretch', 
                                          type="primary"):
                                 tuoi_nv = date.today().year - sn['ngay_sinh'].year
                                 loi_chuc_nv = get_loi_chuc_sinh_nhat(sn['ho_ten'], sn.get('gioi_tinh'), tuoi_nv)
@@ -2365,20 +2365,20 @@ if menu == "📊 Dashboard":
                         else:
                             st.button("📱 Gửi Zalo", disabled=True, 
                                       key=f"zalo_sn_disabled_{sn['id']}", 
-                                      use_container_width=True,
+                                      width='stretch',
                                       help="Chưa có số điện thoại")
 
                     with col_btn_email:
                         if sn.get('email_lien_he'):
                             if st.button(f"📧 Gửi Email cho {sn['ho_ten']}", 
                                          key=f"email_sn_{sn['id']}", 
-                                         use_container_width=True):
+                                         width='stretch'):
                                 st.info(f"📧 Email: {sn['email_lien_he']}")
                                 st.toast(f"Chức năng gửi email đang phát triển!", icon="📧")
                         else:
                             st.button("📧 Gửi Email", disabled=True, 
                                       key=f"email_sn_disabled_{sn['id']}", 
-                                      use_container_width=True,
+                                      width='stretch',
                                       help="Chưa có email")
                 else:
                     # Tài khoản thường — hiện thông báo thay vì nút
@@ -2431,7 +2431,7 @@ if menu == "📊 Dashboard":
                             "Trạng thái": "✅ Đã gửi" if ls['trang_thai'] == 'DA_GUI' else ls['trang_thai']
                         })
                     df_ls = pd.DataFrame(ls_data)
-                    st.dataframe(df_ls, use_container_width=True, hide_index=True)
+                    st.dataframe(df_ls, width='stretch', hide_index=True)
                 else:
                     st.info("📭 Chưa có lịch sử gửi lời chúc nào.")
             except Exception as e:
@@ -2487,7 +2487,7 @@ if menu == "📊 Dashboard":
             col_zalo, col_email, col_cancel = st.columns(3)
             
             with col_zalo:
-                if st.button("📱 GỬI QUA ZALO", use_container_width=True, type="primary"):
+                if st.button("📱 GỬI QUA ZALO", width='stretch', type="primary"):
                     sdt = selected_sn.get('dien_thoai', '')
                     if sdt:
                         sdt = sdt.replace('+84', '0').replace(' ', '').strip()
@@ -2512,7 +2512,7 @@ if menu == "📊 Dashboard":
                         st.error("❌ Nhân viên chưa có số điện thoại! Vui lòng cập nhật SĐT trước.")
             
             with col_email:
-                if st.button("📧 GỬI QUA EMAIL", use_container_width=True):
+                if st.button("📧 GỬI QUA EMAIL", width='stretch'):
                     email = selected_sn.get('email_lien_he', '')
                     if email:
                         try:
@@ -2626,7 +2626,7 @@ if menu == "📊 Dashboard":
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
         with col_table:
             st.markdown("**📋 Chi tiết**")
@@ -2684,7 +2684,7 @@ if menu == "📊 Dashboard":
     
     
     if st.session_state.role == "admin":
-        if st.button("💾 BACKUP DỮ LIỆU NGAY", use_container_width=True):
+        if st.button("💾 BACKUP DỮ LIỆU NGAY", width='stretch'):
             try:
                 from backup_nv import backup_nhan_vien
                 backup_nhan_vien()
@@ -2774,7 +2774,7 @@ elif menu == "👤 Ứng viên":
             
             col_confirm1, col_confirm2 = st.columns(2)
             with col_confirm1:
-                if st.form_submit_button("✅ XÁC NHẬN CHUYỂN", use_container_width=True, type="primary"):
+                if st.form_submit_button("✅ XÁC NHẬN CHUYỂN", width='stretch', type="primary"):
                     if ho_ten_nv:
                         # Kiểm tra định dạng ngày
                         ngay_loi = []
@@ -2889,7 +2889,7 @@ elif menu == "👤 Ứng viên":
                         st.error("Họ tên không được để trống!")
             
             with col_confirm2:
-                if st.form_submit_button("❌ HỦY", use_container_width=True):
+                if st.form_submit_button("❌ HỦY", width='stretch'):
                     del st.session_state['show_chuyen_nv_form']
                     del st.session_state['chuyen_uv_id']
                     del st.session_state['chuyen_uv_data']
@@ -2934,7 +2934,7 @@ elif menu == "👤 Ứng viên":
                     ngay_vao_lam_uv = st.text_input("Ngày vào làm (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
                     ghi_chu_uv = st.text_area("Ghi chú")
                 
-                if st.form_submit_button("💾 LƯU", use_container_width=True):
+                if st.form_submit_button("💾 LƯU", width='stretch'):
                     if ho_ten_uv:
                         ngay_loi = []
                         if ngay_sinh_uv and not parse_date(ngay_sinh_uv): 
@@ -3071,7 +3071,7 @@ elif menu == "👤 Ứng viên":
                                             st.error(f"❌ Lỗi: {e}")
                 else:
                     # Viewer: chỉ hiển thị bảng
-                    st.dataframe(df_show, use_container_width=True, hide_index=True, height=400)
+                    st.dataframe(df_show, width='stretch', hide_index=True, height=400)
             else:
                 st.info("Không có dữ liệu")
     
@@ -3404,7 +3404,7 @@ elif menu == "✅ Nhân viên":
                 )
             else:
                 # Viewer: hiển thị bảng đơn thuần, không có checkbox
-                st.dataframe(df_show.drop(columns=['Chọn'], errors='ignore'), use_container_width=True, hide_index=True, height=400)
+                st.dataframe(df_show.drop(columns=['Chọn'], errors='ignore'), width='stretch', hide_index=True, height=400)
                 edited_df = None
             
             selected_nv = None
@@ -3422,14 +3422,14 @@ elif menu == "✅ Nhân viên":
                         col_btn1, col_btn2, col_btn3, col_btn4, col_btn5 = st.columns(5)
                         
                         with col_btn1:
-                            if st.button(f"✏️ SỬA '{selected_nv['ho_ten']}'", key=f"edit_nv_btn_{nv_id_key}", use_container_width=True):
+                            if st.button(f"✏️ SỬA '{selected_nv['ho_ten']}'", key=f"edit_nv_btn_{nv_id_key}", width='stretch'):
                                 st.session_state['selected_nv_id'] = int(selected_nv['id'])
                                 st.rerun()
                         
                         with col_btn2:
                             trang_thai_nv = selected_nv.get('trang_thai', '')
                             if trang_thai_nv == 'DANG_LAM':
-                                if st.button(f"🖨️ IN HĐLĐ - {selected_nv['ho_ten']}", key=f"print_hdld_btn_{nv_id_key}", use_container_width=True):
+                                if st.button(f"🖨️ IN HĐLĐ - {selected_nv['ho_ten']}", key=f"print_hdld_btn_{nv_id_key}", width='stretch'):
                                     db = get_connection()
                                     c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                                     c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(selected_nv['id']),))
@@ -3448,7 +3448,7 @@ elif menu == "✅ Nhân viên":
                                     else:
                                         st.error("Không tìm thấy thông tin nhân viên!")
                             elif trang_thai_nv == 'THU_VIEC':
-                                if st.button(f"🖨️ IN HĐTV - {selected_nv['ho_ten']}", key=f"print_hdtv_btn_{nv_id_key}", use_container_width=True):
+                                if st.button(f"🖨️ IN HĐTV - {selected_nv['ho_ten']}", key=f"print_hdtv_btn_{nv_id_key}", width='stretch'):
                                     db = get_connection()
                                     c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                                     c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(selected_nv['id']),))
@@ -3467,10 +3467,10 @@ elif menu == "✅ Nhân viên":
                                     else:
                                         st.error("Không tìm thấy thông tin nhân viên!")
                             else:
-                                st.button(f"📄 {selected_nv['ho_ten']} (Không thể in HĐ)", disabled=True, use_container_width=True, key=f"disabled_btn_{nv_id_key}")
+                                st.button(f"📄 {selected_nv['ho_ten']} (Không thể in HĐ)", disabled=True, width='stretch', key=f"disabled_btn_{nv_id_key}")
                         
                         with col_btn3:
-                            if st.button(f"📱 GỬI ZALO - {selected_nv['ho_ten']}", key=f"zalo_btn_{nv_id_key}", use_container_width=True):
+                            if st.button(f"📱 GỬI ZALO - {selected_nv['ho_ten']}", key=f"zalo_btn_{nv_id_key}", width='stretch'):
                                 db = get_connection()
                                 c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                                 c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(selected_nv['id']),))
@@ -3491,12 +3491,12 @@ elif menu == "✅ Nhân viên":
                             ma_bhxh = selected_nv.get('ma_so_bhxh', '')
                             chua_co_bhxh = not bool(ma_bhxh and str(ma_bhxh).strip())
                             if chua_co_bhxh:
-                                if st.button(f"🏠 NHẬP THÔNG TIN HỘ GIA ĐÌNH - {selected_nv['ho_ten']}", key=f"bhxh_family_btn_{nv_id_key}", use_container_width=True, type="primary"):
+                                if st.button(f"🏠 NHẬP THÔNG TIN HỘ GIA ĐÌNH - {selected_nv['ho_ten']}", key=f"bhxh_family_btn_{nv_id_key}", width='stretch', type="primary"):
                                     st.session_state['bhxh_family_nv_id'] = int(selected_nv['id'])
                                     st.session_state['bhxh_family_nv_name'] = selected_nv['ho_ten']
                                     st.rerun()
                             else:
-                                st.button(f"✅ ĐÃ CÓ BHXH - {selected_nv['ho_ten']}", disabled=True, use_container_width=True, key=f"has_bhxh_btn_{nv_id_key}")
+                                st.button(f"✅ ĐÃ CÓ BHXH - {selected_nv['ho_ten']}", disabled=True, width='stretch', key=f"has_bhxh_btn_{nv_id_key}")
                         
                         with col_btn5:
                             trang_thai_nv = selected_nv.get('trang_thai', '')
@@ -3507,7 +3507,7 @@ elif menu == "✅ Nhân viên":
                                 if not st.session_state[f'convert_open_{nv_id_key}']:
                                     if st.button(f"🔄 CHUYỂN HĐLĐ KHÔNG XĐTH - {selected_nv['ho_ten']}", 
                                                 key=f"convert_hdld_btn_{nv_id_key}", 
-                                                use_container_width=True, type="primary"):
+                                                width='stretch', type="primary"):
                                         st.session_state[f'convert_open_{nv_id_key}'] = True
                                         st.rerun()
                                 else:
@@ -3572,7 +3572,7 @@ elif menu == "✅ Nhân viên":
                                         
                                         col_confirm1, col_confirm2, col_confirm3 = st.columns([1, 2, 1])
                                         with col_confirm2:
-                                            if st.button("✅ XÁC NHẬN CHUYỂN ĐỔI", key=f"confirm_convert_{nv_id_key}", use_container_width=True, type="primary"):
+                                            if st.button("✅ XÁC NHẬN CHUYỂN ĐỔI", key=f"confirm_convert_{nv_id_key}", width='stretch', type="primary"):
                                                 try:
                                                     db = get_connection()
                                                     c = db.cursor()
@@ -3659,11 +3659,11 @@ elif menu == "✅ Nhân viên":
                                                     db.close()
                                                     st.error(f"❌ Lỗi: {str(e)}")
 
-                                        if st.button("❌ HỦY", key=f"cancel_convert_{nv_id_key}", use_container_width=True):
+                                        if st.button("❌ HỦY", key=f"cancel_convert_{nv_id_key}", width='stretch'):
                                             st.session_state[f'convert_open_{nv_id_key}'] = False
                                             st.rerun()
                             else:
-                                st.button(f"✅ ĐÃ LÀ HĐLĐ", disabled=True, use_container_width=True, key=f"already_hdld_btn_{nv_id_key}")
+                                st.button(f"✅ ĐÃ LÀ HĐLĐ", disabled=True, width='stretch', key=f"already_hdld_btn_{nv_id_key}")
                         
                         st.divider()
             
@@ -3740,7 +3740,7 @@ elif menu == "✅ Nhân viên":
                             
                             col_save, col_quit, col_delete = st.columns(3)
                             with col_save:
-                                if st.form_submit_button("💾 CẬP NHẬT", use_container_width=True):
+                                if st.form_submit_button("💾 CẬP NHẬT", width='stretch'):
                                     if hnv:
                                         ngay_loi = []
                                         if nsnv and not parse_date(nsnv):
@@ -3799,7 +3799,7 @@ elif menu == "✅ Nhân viên":
                                     st.session_state[f'nghi_viec_open_{nid}'] = False
                                 
                                 if not st.session_state[f'nghi_viec_open_{nid}']:
-                                    if st.form_submit_button("🚫 NGHỈ VIỆC", use_container_width=True, type="secondary"):
+                                    if st.form_submit_button("🚫 NGHỈ VIỆC", width='stretch', type="secondary"):
                                         st.session_state[f'nghi_viec_open_{nid}'] = True
                                         st.rerun()
                                 else:
@@ -3832,7 +3832,7 @@ elif menu == "✅ Nhân viên":
                                     col_xac_nhan, col_huy = st.columns(2)
                                     
                                     with col_xac_nhan:
-                                        if st.form_submit_button("✅ XÁC NHẬN NGHỈ VIỆC", use_container_width=True, type="primary"):
+                                        if st.form_submit_button("✅ XÁC NHẬN NGHỈ VIỆC", width='stretch', type="primary"):
                                             try:
                                                 db_nghi = get_connection()
                                                 c_nghi = db_nghi.cursor()
@@ -3858,7 +3858,7 @@ elif menu == "✅ Nhân viên":
                                                 st.error(f"❌ Lỗi khi cập nhật nghỉ việc: {e}")
                                     
                                     with col_huy:
-                                        if st.form_submit_button("❌ HỦY", use_container_width=True):
+                                        if st.form_submit_button("❌ HỦY", width='stretch'):
                                             st.session_state[f'nghi_viec_open_{nid}'] = False
                                             st.rerun()
                             
@@ -3867,7 +3867,7 @@ elif menu == "✅ Nhân viên":
                                 da_chuyen_doi, quyet_dinh = da_chuyen_doi_chinh_thuc(nid)
                                 
                                 if da_chuyen_doi:
-                                    if st.form_submit_button("🔄 XÓA QUYẾT ĐỊNH CHUYỂN ĐỔI", use_container_width=True, type="secondary"):
+                                    if st.form_submit_button("🔄 XÓA QUYẾT ĐỊNH CHUYỂN ĐỔI", width='stretch', type="secondary"):
                                         try:
                                             db_xoa = get_connection()
                                             c_xoa = db_xoa.cursor()
@@ -3933,7 +3933,7 @@ elif menu == "✅ Nhân viên":
                                             db_xoa.close()
                                             st.error(f"❌ Lỗi khi xóa quyết định chuyển đổi: {e}")
                                 else:
-                                    if st.form_submit_button("🗑️ XÓA NHÂN VIÊN", use_container_width=True, type="secondary"):
+                                    if st.form_submit_button("🗑️ XÓA NHÂN VIÊN", width='stretch', type="secondary"):
                                         try:
                                             db_xoa = get_connection()
                                             c_xoa = db_xoa.cursor()
@@ -3950,7 +3950,7 @@ elif menu == "✅ Nhân viên":
                                             st.error(f"❌ Lỗi khi xóa: {e}")
                         
                         # Nút hủy sửa (đặt ngoài form)
-                        if st.button("❌ HỦY SỬA", use_container_width=True):
+                        if st.button("❌ HỦY SỬA", width='stretch'):
                             del st.session_state['selected_nv_id']
                             st.rerun()
                     
@@ -4008,7 +4008,7 @@ elif menu == "✅ Nhân viên":
                                         "Giới tính": tv['gioi_tinh'], "Quốc tịch": tv['quoc_tich'], "Dân tộc": tv['dan_toc'],
                                         "Quan hệ chủ hộ": tv['quan_he'], "Tỉnh/TP": tv['tinh'], "Phường/Xã": tv['phuong_xa']})
                     df_tv = pd.DataFrame(tv_data)
-                    st.dataframe(df_tv, use_container_width=True, hide_index=True)
+                    st.dataframe(df_tv, width='stretch', hide_index=True)
                     col_del1, col_del2, col_del3 = st.columns([1,1,1])
                     with col_del2:
                         tv_to_delete = st.number_input("Nhập STT thành viên cần xóa:", min_value=1, max_value=len(st.session_state.bhxh_family_members), step=1, key="tv_delete_family")
@@ -4105,7 +4105,7 @@ elif menu == "✅ Nhân viên":
                     
                     col_btn_add1, col_btn_add2, col_btn_add3 = st.columns([1,1,1])
                     with col_btn_add2:
-                        if st.form_submit_button("➕ Thêm thành viên vào danh sách", use_container_width=True):
+                        if st.form_submit_button("➕ Thêm thành viên vào danh sách", width='stretch'):
                             if ho_ten_tv:
                                 st.session_state.bhxh_family_members.append({
                                     'ho_ten': ho_ten_tv, 'ngay_sinh': parse_date(ngay_sinh_tv), 'gioi_tinh': gioi_tinh_tv,
@@ -4119,7 +4119,7 @@ elif menu == "✅ Nhân viên":
                     st.markdown("---")
                     col_save1, col_save2, col_save3 = st.columns([1,2,1])
                     with col_save2:
-                        if st.form_submit_button("💾 LƯU THÔNG TIN CHỦ HỘ", use_container_width=True, type="primary"):
+                        if st.form_submit_button("💾 LƯU THÔNG TIN CHỦ HỘ", width='stretch', type="primary"):
                             try:
                                 db_luu = get_connection()
                                 c_luu = db_luu.cursor()
@@ -4143,7 +4143,7 @@ elif menu == "✅ Nhân viên":
                 
                 col_cancel1, col_cancel2, col_cancel3 = st.columns([1,2,1])
                 with col_cancel2:
-                    if st.button("❌ HỦY BỎ", use_container_width=True):
+                    if st.button("❌ HỦY BỎ", width='stretch'):
                         del st.session_state['bhxh_family_nv_id']
                         del st.session_state['bhxh_family_nv_name']
                         if 'bhxh_family_members' in st.session_state:
@@ -4214,7 +4214,7 @@ elif menu == "✅ Nhân viên":
             df_show_nghi.rename(columns=col_map_nghi, inplace=True)
             
             st.caption(f"📌 Tổng số: **{len(ds_nghi)}** nhân viên đã nghỉ việc")
-            st.dataframe(df_show_nghi, use_container_width=True, hide_index=True, height=400)
+            st.dataframe(df_show_nghi, width='stretch', hide_index=True, height=400)
             
             st.divider()
             st.subheader("🔍 Xem chi tiết / Khôi phục nhân viên")
@@ -4254,7 +4254,7 @@ elif menu == "✅ Nhân viên":
                     st.divider()
                     col_restore1, col_restore2, col_restore3 = st.columns([1, 2, 1])
                     with col_restore2:
-                        if st.button(f"🔄 KHÔI PHỤC NHÂN VIÊN - {nv_nghi_detail['ho_ten']}", use_container_width=True, type="primary"):
+                        if st.button(f"🔄 KHÔI PHỤC NHÂN VIÊN - {nv_nghi_detail['ho_ten']}", width='stretch', type="primary"):
                             try:
                                 db = get_connection()
                                 c = db.cursor()
@@ -4337,7 +4337,7 @@ elif menu == "✅ Nhân viên":
                         "Nội dung": (qd['noi_dung'][:50] + "...") if qd['noi_dung'] and len(qd['noi_dung']) > 50 else qd['noi_dung']
                     })
                 df_qd = pd.DataFrame(qd_data)
-                st.dataframe(df_qd, use_container_width=True, hide_index=True)
+                st.dataframe(df_qd, width='stretch', hide_index=True)
                 
                 with st.expander("🔍 Xem chi tiết quyết định"):
                     qd_options = {f"{format_date(qd['ngay_quyet_dinh'])} - {qd['loai_quyet_dinh']}": qd for qd in quyet_dinh_list}
@@ -4381,7 +4381,7 @@ elif menu == "✅ Nhân viên":
                         "Hệ số lương": ls['he_so_luong'] or ''
                     })
                 df_ls = pd.DataFrame(ls_data)
-                st.dataframe(df_ls, use_container_width=True, hide_index=True, height=400)
+                st.dataframe(df_ls, width='stretch', hide_index=True, height=400)
             else:
                 st.info("📭 Chưa có lịch sử công tác. Đang tạo từ dữ liệu hiện tại...")
                 loai_hd_dung = nv_current['loai_hop_dong']
@@ -4408,7 +4408,7 @@ elif menu == "✅ Nhân viên":
     with col_to:
         den_ngay_bc = st.date_input("Đến ngày:", value=date.today(), key="bc_den")
     with col_btn:
-        xuat_bc = st.button("📄 XUẤT BÁO CÁO WORD", use_container_width=True)
+        xuat_bc = st.button("📄 XUẤT BÁO CÁO WORD", width='stretch')
     
     if xuat_bc:
         db = get_connection()
@@ -4561,7 +4561,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
             if fl:
                 st.info(f"📄 Tên file: {fl.name} | 📏 Kích thước: {fl.size/1024:.1f} KB")
             
-            if fl and st.button("📤 UPLOAD", type="primary", use_container_width=True):
+            if fl and st.button("📤 UPLOAD", type="primary", width='stretch'):
                 nid = nd[cn]
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                 fn = f"{nid}_{timestamp}_{lh}_{fl.name}"
@@ -4622,7 +4622,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                         "Đường dẫn": hs['duong_dan_file']
                     })
                 df_hs = pd.DataFrame(hs_data)
-                st.dataframe(df_hs[['STT', 'Loại hồ sơ', 'Tên file gốc', 'Ngày upload']], use_container_width=True, hide_index=True)
+                st.dataframe(df_hs[['STT', 'Loại hồ sơ', 'Tên file gốc', 'Ngày upload']], width='stretch', hide_index=True)
                 
                 st.divider()
                 st.subheader("📄 Xem chi tiết & Tải xuống")
@@ -4648,7 +4648,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                                 data=f,
                                 file_name=selected_hs['ten_file'],
                                 mime="application/octet-stream",
-                                use_container_width=True
+                                width='stretch'
                             )
                     else:
                         st.error("❌ File không tồn tại trên máy chủ!")
@@ -4656,7 +4656,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                 st.divider()
                 col_del1, col_del2, col_del3 = st.columns([1, 2, 1])
                 with col_del2:
-                    if st.button("🗑️ XÓA HỒ SƠ NÀY", use_container_width=True, type="secondary"):
+                    if st.button("🗑️ XÓA HỒ SƠ NÀY", width='stretch', type="secondary"):
                         try:
                             if os.path.exists(selected_hs['duong_dan_file']):
                                 os.remove(selected_hs['duong_dan_file'])
@@ -4697,7 +4697,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
         c.execute("SELECT id, ten_vi_tri, ghi_chu FROM vi_tri_cong_tac ORDER BY id")
         ds = c.fetchall(); db.close()
         if ds:
-            df = pd.DataFrame(ds); df.columns = ['ID', 'Tên chức danh', 'Ghi chú']; st.dataframe(df, use_container_width=True, hide_index=True)
+            df = pd.DataFrame(ds); df.columns = ['ID', 'Tên chức danh', 'Ghi chú']; st.dataframe(df, width='stretch', hide_index=True)
             st.divider(); cdx = st.number_input("Nhập ID cần xóa:", min_value=1, step=1)
             if st.button("🗑️ XÓA", key="del_cd"):
                 db = get_connection(); c = db.cursor()
@@ -4758,7 +4758,7 @@ elif menu == "📋 BHXH":
             for col in df_chua_dong.columns:
                 if 'ngay' in col.lower():
                     df_chua_dong[col] = df_chua_dong[col].apply(format_date)
-            st.dataframe(df_chua_dong, use_container_width=True, hide_index=True)
+            st.dataframe(df_chua_dong, width='stretch', hide_index=True)
             
             if st.session_state.role == "admin":
                 st.warning("💡 Hướng dẫn: Vào menu '✅ Nhân viên' -> chọn nhân viên -> sửa thông tin -> cập nhật 'Bắt đầu BH' và chuyển trạng thái BHXH thành 'ĐANG ĐÓNG'")
@@ -4815,7 +4815,7 @@ elif menu == "📋 BHXH":
                 for col in df_tang.columns:
                     if 'ngay' in col.lower():
                         df_tang[col] = df_tang[col].apply(format_date)
-                st.dataframe(df_tang, use_container_width=True, hide_index=True, height=300)
+                st.dataframe(df_tang, width='stretch', hide_index=True, height=300)
             else:
                 st.info("📭 Không có lao động tăng trong kỳ")
         
@@ -4826,7 +4826,7 @@ elif menu == "📋 BHXH":
                 for col in df_giam.columns:
                     if 'ngay' in col.lower():
                         df_giam[col] = df_giam[col].apply(format_date)
-                st.dataframe(df_giam, use_container_width=True, hide_index=True, height=300)
+                st.dataframe(df_giam, width='stretch', hide_index=True, height=300)
             else:
                 st.info("📭 Không có lao động giảm trong kỳ")
         
@@ -4835,7 +4835,7 @@ elif menu == "📋 BHXH":
         # Chỉ admin mới được xuất Excel
         if st.session_state.role == "admin":
             if tang_list or giam_list:
-                if st.button("📥 XUẤT EXCEL D02-LT (Mẫu báo cáo BHXH)", type="primary", use_container_width=True):
+                if st.button("📥 XUẤT EXCEL D02-LT (Mẫu báo cáo BHXH)", type="primary", width='stretch'):
                     from openpyxl import Workbook
                     from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
                     from openpyxl.utils import get_column_letter
@@ -4998,7 +4998,7 @@ elif menu == "📋 BHXH":
                             data=f,
                             file_name=filename,
                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True
+                            width='stretch'
                         )
                     st.success(f"✅ Đã xuất báo cáo D02-LT với {len(tang_list)} lao động tăng và {len(giam_list)} lao động giảm")
             else:
@@ -5129,13 +5129,13 @@ elif menu == "📋 Báo cáo 01/PLI":
             'ma_so_bhxh': 'Mã BHXH'
         }
         df_display.rename(columns=col_map_preview, inplace=True)
-        st.dataframe(df_display, use_container_width=True, hide_index=True, height=400)
+        st.dataframe(df_display, width='stretch', hide_index=True, height=400)
         
         st.divider()
         
         # Chỉ admin mới được xuất Excel
         if st.session_state.role == "admin":
-            if st.button("📥 XUẤT EXCEL MẪU 01/PLI", type="primary", use_container_width=True):
+            if st.button("📥 XUẤT EXCEL MẪU 01/PLI", type="primary", width='stretch'):
                 wb = Workbook()
                 ws = wb.active
                 ws.title = "BC_Tinh_hinh_su_dung_LD"
@@ -5411,7 +5411,7 @@ elif menu == "📋 Báo cáo 01/PLI":
                         data=f,
                         file_name=filename,
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True
+                        width='stretch'
                     )
                 st.success(f"✅ Đã xuất báo cáo với {len(ds_lao_dong)} lao động")
         else:

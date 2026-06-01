@@ -1303,17 +1303,7 @@ def show_landing_page():
             if (loginBtn) {{
                 loginBtn.addEventListener('click', function(e) {{
                     e.preventDefault();
-                    try {{
-                        const btns = window.parent.document.querySelectorAll('button');
-                        for (const btn of btns) {{
-                            if (btn.innerText.trim() === 'goto_hrm') {{
-                                btn.click();
-                                return;
-                            }}
-                        }}
-                    }} catch(err) {{
-                        console.log('postMessage fallback', err);
-                    }}
+                    window.location.href = '/?goto=hrm';
                 }});
             }}
             
@@ -1345,10 +1335,14 @@ def show_landing_page():
     </html>
     """    
     import streamlit.components.v1 as components
-    # Height tính từ padding CSS thực tế mỗi section:
-    # navbar(80) + slider(600) + stats(200) + about(620) + services(420)
-    # + infra(620) + careers(240) + footer(360) = 3140 → +2 buffer
-    components.html(landing_html, height=3142, scrolling=False)
+    components.html(
+        landing_html.replace(
+            '</head>',
+            '<base target="_parent"></head>'
+        ),
+        height=3142,
+        scrolling=False
+    )
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 

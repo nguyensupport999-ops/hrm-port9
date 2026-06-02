@@ -2141,21 +2141,22 @@ if not st.session_state.logged_in:
             else:
                 st.sidebar.error("❌ Sai tài khoản hoặc mật khẩu!")
     with c2:
-    if st.button("👁️ Xem thử", width='stretch'):
-        st.session_state.logged_in = True
-        st.session_state.role = "viewer"
-        st.session_state.username = "guest"
-        st.rerun()
-
-        # Thêm nút Back cho Guest ở đây
-        if st.session_state.get('show_hrm', False) and not st.session_state.get('logged_in', False):
-            if st.button("🔙 Quay lại Landing Page", width='stretch'):
-                st.session_state.show_hrm = False
-                st.session_state.pop('last_birthday_check', None)
-                st.session_state.pop('sinh_nhat_hom_nay_list', None)
-                st.rerun()
-    st.stop()
-
+        if st.button("👁️ Xem thử", width='stretch'):
+            st.session_state.logged_in = True
+            st.session_state.role = "viewer"
+            st.session_state.username = "guest"
+            st.rerun()
+    
+    # Nút Back cho Guest
+    if st.session_state.get('show_hrm', False) and not st.session_state.get('logged_in', False):
+        if st.button("🔙 Quay lại Landing Page", width='stretch'):
+            st.session_state.show_hrm = False
+            st.session_state.pop('last_birthday_check', None)
+            st.session_state.pop('sinh_nhat_hom_nay_list', None)
+            st.rerun()
+    
+    st.stop()  
+    
 # Menu theo role
 if st.session_state.role == "admin":
     menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI","👆 Chấm công (Face ID)","💰 Tính thu nhập"]

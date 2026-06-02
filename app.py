@@ -179,7 +179,7 @@ def show_landing_page():
                 line-height: 1.5;
                 overflow-x: hidden;
                 width: 100%;
-                padding-top: 100px;
+                padding-top: 80px;
             }}
             ::-webkit-scrollbar {{
                 width: 8px;
@@ -192,32 +192,27 @@ def show_landing_page():
                 border-radius: 4px;
             }}
             
-            /* Language selector - góc phải, cao hơn logo */
+            /* Language selector - nằm trong nav-links */
             .language-selector {{
-                position: fixed;
-                top: 20px;
-                right: 30px;
-                z-index: 10000;
-                background: rgba(0,0,0,0.65);
-                backdrop-filter: blur(12px);
-                border-radius: 50px;
-                padding: 6px 8px;
                 display: flex;
-                gap: 8px;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-                border: 1px solid rgba(255,255,255,0.2);
+                gap: 4px;
+                align-items: center;
+                margin-left: 8px;
+                padding-left: 12px;
+                border-left: 1px solid rgba(255,255,255,0.25);
             }}
             .lang-btn {{
                 background: transparent;
                 border: none;
                 color: white;
-                padding: 6px 18px;
+                padding: 6px 14px;
                 border-radius: 40px;
                 cursor: pointer;
                 font-weight: 600;
                 font-size: 0.85rem;
                 transition: all 0.3s;
                 font-family: inherit;
+                white-space: nowrap;
             }}
             .lang-btn.active {{
                 background: #f59e0b;
@@ -867,24 +862,19 @@ def show_landing_page():
                     padding: 20px;
                 }}
                 .language-selector {{
-                    top: 10px;
-                    right: 10px;
-                    padding: 4px 6px;
+                    margin-left: 0;
+                    padding-left: 0;
+                    border-left: none;
+                    padding: 4px 0;
                 }}
                 .lang-btn {{
-                    padding: 4px 12px;
-                    font-size: 0.7rem;
+                    padding: 4px 10px;
+                    font-size: 0.75rem;
                 }}
             }}
         </style>
     </head>
     <body>
-    
-    <!-- Language Selector -->
-    <div class="language-selector">
-        <button class="lang-btn {vi_active}" onclick="setLanguage('vi')">🇻🇳 VI</button>
-        <button class="lang-btn {en_active}" onclick="setLanguage('en')">🇬🇧 EN</button>
-    </div>
     
     <!-- Navigation -->
     <nav class="navbar" id="navbar">
@@ -905,6 +895,10 @@ def show_landing_page():
                 <a href="#infrastructure">{text.get('nav_infrastructure', 'Vị trí & Hạ tầng')}</a>
                 <a href="#careers">{text.get('nav_careers', 'Tuyển dụng')}</a>
                 <a href="#contact">{text.get('nav_contact', 'Liên hệ')}</a>
+                <div class="language-selector">
+                    <button class="lang-btn {vi_active}" onclick="setLanguage('vi')">🇻🇳 VI</button>
+                    <button class="lang-btn {en_active}" onclick="setLanguage('en')">🇬🇧 EN</button>
+                </div>
             </div>
         </div>
     </nav>
@@ -1082,22 +1076,11 @@ def show_landing_page():
     </footer>
     
     <script>
-        // Trong <script> của landing_html, thay hàm setLanguage bằng:
-        function setLanguage(lang) {
-            // Gọi API Streamlit để set query param
-            fetch(window.location.origin + '/_stcore/stream', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    'language': lang
-                })
-            });
-            
-            // Hoặc dùng cách đơn giản: chuyển hướng với query param
+        function setLanguage(lang) {{
             const url = new URL(window.location.href);
             url.searchParams.set('lang', lang);
             window.location.href = url.toString();
-        }
+        }}
 
             // Slider tự động
             let currentSlide = 0;

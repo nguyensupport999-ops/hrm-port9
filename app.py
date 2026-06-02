@@ -961,7 +961,7 @@ def show_landing_page():
                 </div>
                 <div class="a4-body">
                     <p class="a4-date">Quảng Bình, ngày 21 tháng 3 năm 2025</p>
-                    <p class="a4-greeting"><h3>{text.get('modal_greeting', 'Kính gửi Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên,')}<h3></p>
+                    <p class="a4-greeting">{text.get('modal_greeting', 'Kính gửi Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên,')}</p>
                     <p>{text.get('modal_content_1', 'Với niềm tự hào sâu sắc, Tôi xin thay mặt Hội đồng Quản trị Công ty Cổ phần Cảng Hòn La gửi lời chào trân trọng nhất đến Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên — những người đã và đang đồng hành cùng chúng tôi trên hành trình kiến tạo một cảng biển tầm cỡ quốc tế giữa lòng đất nước Việt Nam.')}</p>
                     <p>{text.get('modal_content_2', 'Ngày 21 tháng 3 năm 2025 là một mốc son lịch sử — ngày chính thức khởi công Dự án Cảng tổng hợp quốc tế Hòn La, dự án được Chính phủ công nhận là Dự án trọng điểm Quốc gia. Đây không chỉ là thành quả của nhiều năm nỗ lực không ngừng, mà còn là khởi đầu của một chương mới trong lịch sử phát triển kinh tế hàng hải miền Trung Việt Nam.')}</p>
                     <div class="vision-box">

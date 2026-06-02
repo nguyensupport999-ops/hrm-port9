@@ -242,7 +242,7 @@ def show_landing_page():
                 color: white !important;
             }}
             
-            /* ===== HERO SLIDER MỚI - ẢNH + TEXT 2 CỘT ===== */
+            /* ===== HERO SLIDER ===== */
             .hero-slider {{
                 height: 550px;
                 width: 100%;
@@ -270,7 +270,6 @@ def show_landing_page():
                 opacity: 1;
                 z-index: 2;
             }}
-            /* Layout 2 cột */
             .slide-layout {{
                 display: flex;
                 width: 100%;
@@ -285,7 +284,6 @@ def show_landing_page():
                 background-position: center center;
                 background-repeat: no-repeat;
             }}
-            /* ===== SLIDER CONTENT STYLES ===== */
             .slide-content {{
                 flex: 1;
                 padding: 50px 40px;
@@ -319,19 +317,6 @@ def show_landing_page():
                 backdrop-filter: blur(4px);
                 white-space: nowrap;
             }}
-            /* Tùy chỉnh riêng từng slide */
-            .slide:nth-child(1) .slide-content .highlight {{
-                background: linear-gradient(135deg, rgba(245,158,11,0.3), rgba(245,158,11,0.1));
-            }}
-            .slide:nth-child(2) .slide-content h1 {{
-                font-size: 3rem;
-                color: #ffd700;
-            }}
-            .slide:nth-child(3) .slide-content .highlight {{
-                background: #f59e0b;
-                color: #0f3b5c;
-            }}
-            /* Progress bar slider */
             .slider-progress {{
                 position: absolute;
                 bottom: 0;
@@ -364,7 +349,6 @@ def show_landing_page():
                 width: 30px;
                 border-radius: 10px;
             }}
-            /* Arrow navigation */
             .slider-arrow {{
                 position: absolute;
                 top: 50%;
@@ -597,7 +581,7 @@ def show_landing_page():
                 color: #64748b;
             }}
             
-            /* ===== MODAL THƯ NGỎ - PHONG CÁCH A4 ===== */
+            /* ===== MODAL THƯ NGỎ ===== */
             .modal {{
                 display: none;
                 position: fixed;
@@ -652,39 +636,6 @@ def show_landing_page():
                 overflow-y: auto;
             }}
             
-            /* A4 Letter Style */
-            .a4-header {{
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 20px;
-                border-bottom: 2px solid #f59e0b;
-                padding-bottom: 15px;
-            }}
-            .a4-header-left h1 {{
-                font-size: 1.4rem;
-                color: #0f3b5c;
-                margin-bottom: 5px;
-            }}
-            .a4-header-left p {{
-                color: #666;
-                font-size: 0.85rem;
-            }}
-            /* Logo trong thư ngỏ - Tùy chỉnh kích thước */
-            .a4-chairman-logo {{
-                flex: 0 0 auto;
-                width: 80px;
-                height: 80px;
-            }}
-           .a4-chairman-logo img {{
-                width: 100%;
-                height: 100%;
-                border-radius: 50%;
-                object-fit: cover;
-                border: 2px solid #ddd;
-                background: white;
-                padding: 5px;
-            }}
             .a4-chairman {{
                 display: flex;
                 align-items: center;
@@ -704,7 +655,6 @@ def show_landing_page():
                 width: 100px;
                 height: 100px;
             }}
-
             .a4-chairman-avatar img {{
                 width: 100%;
                 height: 100%;
@@ -712,6 +662,20 @@ def show_landing_page():
                 object-fit: cover;
                 border: 3px solid #f59e0b;
                 box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            }}
+            .a4-chairman-logo {{
+                flex: 0 0 auto;
+                width: 80px;
+                height: 80px;
+            }}
+            .a4-chairman-logo img {{
+                width: 100%;
+                height: 100%;
+                border-radius: 50%;
+                object-fit: cover;
+                border: 2px solid #ddd;
+                background: white;
+                padding: 5px;
             }}
             .a4-chairman-info h2 {{
                 font-size: 1.3rem;
@@ -733,19 +697,11 @@ def show_landing_page():
                 line-height: 1.7;
                 color: #333;
             }}
-            /* Modal Thư ngỏ - Text Justify */
             .modal-body .a4-body p {{
                 text-align: justify;
                 text-justify: inter-ideograph;
             }}
-            .modal-body .a4-body .vision-box p,
-            .modal-body .a4-body .mission-box p {{
-                text-align: justify;
-            }}
-            .modal-body .a4-greeting {{
-                text-align: left !important;
-            }}
-            .modal-body .a4-date {{
+            .a4-date {{
                 text-align: right !important;
                 font-style: italic;
                 margin-bottom: 20px;
@@ -763,8 +719,6 @@ def show_landing_page():
                 margin-bottom: 12px;
                 font-size: 1.1rem;
             }}
-            
-            /* Signature bên trái */
             .a4-signature-left {{
                 margin-top: 40px;
                 text-align: left;
@@ -773,65 +727,9 @@ def show_landing_page():
                 display: inline-block;
                 text-align: center;
             }}
-            .sig-block-left .sig-title {{
-                font-size: 1rem;
-                color: #333;
-                margin-bottom: 5px;
-                font-weight: 500;
-            }}
-            .sig-block-left .sig-company {{
-                font-size: 1rem;
-                font-weight: 700;
-                color: #0f3b5c;
-                margin: 10px 0;
-            }}
-            .sig-block-left .sig-image {{
-                margin: 10px 0;
-            }}
-            .sig-block-left .sig-name {{
-                font-weight: 700;
-                font-size: 1rem;
-                margin-top: 5px;
-            }}
-            .sig-block-left .sig-role {{
-                font-size: 0.85rem;
-                color: #666;
-            }}
-            .sig-block {{
-                display: inline-block;
-                text-align: center;
-            }}
-            .sig-title {{
-                font-size: 0.9rem;
-                color: #666;
-                margin-bottom: 10px;
-            }}
-            .sig-svg {{
-                margin: 10px 0;
-            }}
-            .sig-seal {{
-                width: 70px;
-                height: 70px;
-                border: 2px solid #c0392b;
-                border-radius: 50%;
-                display: inline-flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                font-size: 10px;
-                font-weight: bold;
-                color: #c0392b;
-                margin: 10px auto;
-                line-height: 1.3;
-            }}
-            .sig-name {{
-                font-weight: 700;
-                font-size: 1rem;
-                margin-top: 10px;
-            }}
-            .sig-role {{
-                font-size: 0.85rem;
-                color: #666;
+            .sig-block-left .sig-image img {{
+                max-width: 386px;
+                height: auto;
             }}
             .a4-footer {{
                 margin-top: 30px;
@@ -863,13 +761,6 @@ def show_landing_page():
                 .slide-content p {{
                     font-size: 0.9rem;
                 }}
-                .slide-content .highlight {{
-                    font-size: 0.95rem;
-                    padding: 4px 12px;
-                }}
-                .slide:nth-child(2) .slide-content h1 {{
-                    font-size: 1.7rem;
-                }}
                 .hero-slider {{
                     height: auto;
                     min-height: 480px;
@@ -892,14 +783,6 @@ def show_landing_page():
                     flex-wrap: wrap;
                     justify-content: center;
                     text-align: center;
-                }}
-                .a4-chairman-info {{
-                    order: 1;
-                    flex: 1 1 100%;
-                    text-align: center;
-                }}
-                .a4-chairman-avatar {{
-                    order: 2;
                 }}
                 .modal-body {{
                     padding: 20px;
@@ -928,20 +811,17 @@ def show_landing_page():
                 <a href="#infrastructure">Vị trí & Hạ tầng</a>
                 <a href="#careers">Tuyển dụng</a>
                 <a href="#contact">Liên hệ</a>
-               
             </div>
         </div>
     </nav>
 
-    <!-- Modal Thư ngỏ Chủ tịch HĐQT - PHONG CÁCH A4 MỚI -->
+    <!-- Modal Thư ngỏ -->
     <div id="thuNgoModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
                 <button class="modal-close" id="closeModalBtn">✕</button>
             </div>
             <div class="modal-body">
-                                
-                <!-- Chairman với logo bên phải -->
                 <div class="a4-chairman">
                     <div class="a4-chairman-avatar">
                         <img src="{chu_tich_img}" alt="Chủ tịch HĐQT">
@@ -958,76 +838,30 @@ def show_landing_page():
                         <img src="data:image/png;base64,{logo_base64}" alt="Logo Cảng Hòn La">
                     </div>
                 </div>
-
-                <!-- Body -->
                 <div class="a4-body">
                     <p class="a4-date">Quảng Bình, ngày 21 tháng 3 năm 2025</p>
                     <p class="a4-greeting">Kính gửi Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên,</p>
-
-                    <p>
-                        Với niềm tự hào sâu sắc, Tôi xin thay mặt Hội đồng Quản trị Công ty Cổ phần Cảng Hòn La 
-                        gửi lời chào trân trọng nhất đến Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên 
-                        — những người đã và đang đồng hành cùng chúng tôi trên hành trình kiến tạo một cảng biển 
-                        tầm cỡ quốc tế giữa lòng đất nước Việt Nam.
-                    </p>
-
-                    <p>
-                        Ngày <strong>21 tháng 3 năm 2025</strong> là một mốc son lịch sử — ngày chính thức khởi công Dự án 
-                        Cảng tổng hợp quốc tế Hòn La, dự án được Chính phủ công nhận là <strong>Dự án trọng điểm Quốc gia</strong>. 
-                        Đây không chỉ là thành quả của nhiều năm nỗ lực không ngừng, mà còn là khởi đầu của 
-                        một chương mới trong lịch sử phát triển kinh tế hàng hải miền Trung Việt Nam.
-                    </p>
-
+                    <p>Với niềm tự hào sâu sắc, Tôi xin thay mặt Hội đồng Quản trị Công ty Cổ phần Cảng Hòn La gửi lời chào trân trọng nhất đến Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên — những người đã và đang đồng hành cùng chúng tôi trên hành trình kiến tạo một cảng biển tầm cỡ quốc tế giữa lòng đất nước Việt Nam.</p>
+                    <p>Ngày <strong>21 tháng 3 năm 2025</strong> là một mốc son lịch sử — ngày chính thức khởi công Dự án Cảng tổng hợp quốc tế Hòn La, dự án được Chính phủ công nhận là <strong>Dự án trọng điểm Quốc gia</strong>. Đây không chỉ là thành quả của nhiều năm nỗ lực không ngừng, mà còn là khởi đầu của một chương mới trong lịch sử phát triển kinh tế hàng hải miền Trung Việt Nam.</p>
                     <div class="vision-box">
                         <h3>🎯 Tầm nhìn — Vision 2035</h3>
-                        <p>
-                            Trở thành cảng biển quốc tế hiện đại hàng đầu Đông Nam Á trên tuyến hành lang kinh tế 
-                            Đông–Tây (EWEC) — nơi kết nối Việt Nam với thế giới, thúc đẩy thương mại, logistic và 
-                            du lịch tàu biển, đóng góp thiết thực vào chiến lược phát triển kinh tế biển bền vững 
-                            của Việt Nam đến năm 2035 và tầm nhìn 2045.
-                        </p>
+                        <p>Trở thành cảng biển quốc tế hiện đại hàng đầu Đông Nam Á trên tuyến hành lang kinh tế Đông–Tây (EWEC) — nơi kết nối Việt Nam với thế giới, thúc đẩy thương mại, logistic và du lịch tàu biển, đóng góp thiết thực vào chiến lược phát triển kinh tế biển bền vững của Việt Nam đến năm 2035 và tầm nhìn 2045.</p>
                     </div>
-
-                    <p>
-                        Với vị trí địa chiến lược độc đáo, hệ thống hạ tầng quy mô 39,22 ha, năng lực tiếp nhận 
-                        tàu trọng tải lên đến <strong>70.000 DWT</strong> và tàu du lịch quốc tế <strong>225.000 GT</strong>, 
-                        Cảng tổng hợp quốc tế Hòn La sẽ là cửa ngõ hàng hải chiến lược, cầu nối giữa các nền kinh tế trong khu vực và toàn cầu.
-                    </p>
-
+                    <p>Với vị trí địa chiến lược độc đáo, hệ thống hạ tầng quy mô 39,22 ha, năng lực tiếp nhận tàu trọng tải lên đến <strong>70.000 DWT</strong> và tàu du lịch quốc tế <strong>225.000 GT</strong>, Cảng tổng hợp quốc tế Hòn La sẽ là cửa ngõ hàng hải chiến lược, cầu nối giữa các nền kinh tế trong khu vực và toàn cầu.</p>
                     <div class="mission-box">
                         <h3>💡 Sứ mệnh - Nhắn gửi đến mỗi thành viên</h3>
-                        <p>
-                            Mỗi cán bộ nhân viên của Công ty cổ phần Cảng Hòn La là một đại sứ của sự chuyên nghiệp và tận tâm. 
-                            Sứ mệnh của chúng ta là <strong>xây dựng một môi trường làm việc đẳng cấp</strong>, 
-                            nơi năng lực được trọng dụng, sáng tạo được khuyến khích và mỗi cá nhân đều tự hào 
-                            khi đặt bàn tay mình vào công trình lịch sử này. Hãy làm việc với trái tim của người 
-                            kiến tạo — bởi di sản chúng ta để lại không chỉ là những cầu bến vững chắc, 
-                            mà còn là những thế hệ nhân lực xuất sắc của đất nước.
-                        </p>
+                        <p>Mỗi cán bộ nhân viên của Công ty cổ phần Cảng Hòn La là một đại sứ của sự chuyên nghiệp và tận tâm. Sứ mệnh của chúng ta là <strong>xây dựng một môi trường làm việc đẳng cấp</strong>, nơi năng lực được trọng dụng, sáng tạo được khuyến khích và mỗi cá nhân đều tự hào khi đặt bàn tay mình vào công trình lịch sử này. Hãy làm việc với trái tim của người kiến tạo — bởi di sản chúng ta để lại không chỉ là những cầu bến vững chắc, mà còn là những thế hệ nhân lực xuất sắc của đất nước.</p>
                     </div>
-
-                    <p>
-                        Chúng tôi hiểu rằng con đường phía trước còn không ít thách thức. Song Tôi tin tưởng 
-                        sâu sắc rằng với <strong>trí tuệ tập thể, khí phách dân tộc và khát vọng vươn ra biển lớn</strong>, 
-                        Cảng tổng hợp quốc tế Hòn La sẽ hoàn thành xuất sắc sứ mệnh lịch sử được giao phó.
-                    </p>
-
-                    <p>
-                        Xin trân trọng cảm ơn sự tin tưởng, đồng hành và cống hiến của tất cả Quý vị.<br>
-                        Chúc Quý đối tác thịnh vượng, toàn thể cán bộ nhân viên sức khỏe và thành công!
-                    </p>
+                    <p>Chúng tôi hiểu rằng con đường phía trước còn không ít thách thức. Song Tôi tin tưởng sâu sắc rằng với <strong>trí tuệ tập thể, khí phách dân tộc và khát vọng vươn ra biển lớn</strong>, Cảng tổng hợp quốc tế Hòn La sẽ hoàn thành xuất sắc sứ mệnh lịch sử được giao phó.</p>
+                    <p>Xin trân trọng cảm ơn sự tin tưởng, đồng hành và cống hiến của tất cả Quý vị.<br>Chúc Quý đối tác thịnh vượng, toàn thể cán bộ nhân viên sức khỏe và thành công!</p>
                 </div>
-
-                <!-- Signature - Bên trái -->
                 <div class="a4-signature-left">
                     <div class="sig-block-left">
                         <div class="sig-image">
-                            <img src="{chu_ky_img}" alt="Chữ ký Chủ tịch" style="max-width: 386px; height: auto;">
+                            <img src="{chu_ky_img}" alt="Chữ ký Chủ tịch">
                         </div>
                     </div>
                 </div>
-
-                <!-- Footer -->
                 <div class="a4-footer">
                     <span>🌐 honlaport.com.vn</span>
                     <span>✉ info@honlaport.com.vn</span>
@@ -1037,10 +871,9 @@ def show_landing_page():
         </div>
     </div>
     
-    <!-- Hero Slider MỚI - Layout 2 cột -->
+    <!-- Hero Slider -->
     <section id="home" class="hero-slider">
         <div class="slides-container">
-            <!-- Slide 1: Ảnh trái - Text phải -->
             <div class="slide active">
                 <div class="slide-layout">
                     <div class="slide-image" style="background-image: url('{slide1_src}');"></div>
@@ -1052,7 +885,6 @@ def show_landing_page():
                     </div>
                 </div>
             </div>
-            <!-- Slide 2: Text trái - Ảnh phải -->
             <div class="slide">
                 <div class="slide-layout">
                     <div class="slide-content">
@@ -1064,7 +896,6 @@ def show_landing_page():
                     <div class="slide-image" style="background-image: url('{slide2_src}');"></div>
                 </div>
             </div>
-            <!-- Slide 3: Ảnh trái - Text phải -->
             <div class="slide">
                 <div class="slide-layout">
                     <div class="slide-image" style="background-image: url('{slide3_src}');"></div>
@@ -1158,6 +989,28 @@ def show_landing_page():
     
     <script>
         document.addEventListener('DOMContentLoaded', function() {{
+
+            // ===== FIX: Xử lý tất cả link nội bộ để không reload page =====
+            const allInternalLinks = document.querySelectorAll('a[href^="#"]');
+            
+            allInternalLinks.forEach(link => {{
+                link.addEventListener('click', function(e) {{
+                    const targetId = this.getAttribute('href');
+                    if (targetId === '#' || !targetId) return;
+                    const targetElement = document.querySelector(targetId);
+                    if (targetElement) {{
+                        e.preventDefault();
+                        e.stopPropagation();
+                        targetElement.scrollIntoView({{ 
+                            behavior: 'smooth', 
+                            block: 'start' 
+                        }});
+                        if (history.replaceState) {{
+                            history.replaceState(null, null, targetId);
+                        }}
+                    }}
+                }});
+            }});
 
             // ===== SLIDER TỰ ĐỘNG =====
             let currentSlide = 0;
@@ -1272,7 +1125,7 @@ def show_landing_page():
                 }}
             }});
             
-            // ===== MODAL THƯ NGỎ MỚI =====
+            // ===== MODAL THƯ NGỎ =====
             const modal = document.getElementById('thuNgoModal');
             const thuNgoBtn = document.getElementById('thuNgoBtn');
             const closeModalBtn = document.getElementById('closeModalBtn');
@@ -1298,15 +1151,6 @@ def show_landing_page():
                 }});
             }}
 
-            // Login handler
-            const loginBtn = document.getElementById('loginBtn');
-            if (loginBtn) {{
-                loginBtn.addEventListener('click', function(e) {{
-                    e.preventDefault();
-                    ...
-                }});
-            }}
-            
             // Career link handler
             const careerLink = document.getElementById('careerLink');
             if (careerLink) {{
@@ -1315,44 +1159,11 @@ def show_landing_page():
                     alert('Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
                 }});
             }}
-            
-            // Lấy tất cả các link có href bắt đầu bằng #
-            const allInternalLinks = document.querySelectorAll('a[href^="#"]');
-            
-            allInternalLinks.forEach(link => {
-                link.addEventListener('click', function(e) {
-                    // Lấy target ID từ href
-                    const targetId = this.getAttribute('href');
-                    
-                    // Bỏ qua nếu là '#' hoặc rỗng
-                    if (targetId === '#' || !targetId) return;
-                    
-                    const targetElement = document.querySelector(targetId);
-                    
-                    if (targetElement) {
-                        e.preventDefault();  // Ngăn không thay đổi URL
-                        e.stopPropagation(); // Ngăn sự kiện lan truyền
-                        
-                        // Scroll mượt đến phần tử
-                        targetElement.scrollIntoView({ 
-                            behavior: 'smooth', 
-                            block: 'start' 
-                        });
-                        
-                        // Cập nhật URL mà không gây reload (tùy chọn)
-                        if (history.replaceState) {
-                            history.replaceState(null, null, targetId);
-                        }
-                    }
-                });
-            });
         }});
     </script>
     </body>
     </html>
-    """    
-    # MỚI:
-    import streamlit.components.v1 as components
+    """
 
     # Ẩn loginBtn trong iframe tránh trùng
     landing_html_fixed = landing_html.replace(

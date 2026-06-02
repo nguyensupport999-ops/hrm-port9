@@ -59,11 +59,7 @@ def handle_language_change():
 handle_language_change()
 
 def show_landing_page():
-    """Hiển thị Landing Page - Logo tròn 86px, slider mới (ảnh + text 2 cột), thư ngỏ A4 với text justify"""
-    
-    # Khởi tạo session state cho ngôn ngữ
-    if 'language' not in st.session_state:
-        st.session_state.language = 'vi'
+    """Hiển thị Landing Page với chuyển ngữ Việt/Anh"""
     
     # Import languages
     try:
@@ -72,10 +68,9 @@ def show_landing_page():
         # Fallback nếu chưa có file languages.py
         LANGUAGES = {'vi': {}, 'en': {}}
     
-    lang = st.session_state.language
-    text = LANGUAGES.get(lang, LANGUAGES['vi'])
+    lang = st.session_state.get('language', 'vi')
+    text = LANGUAGES.get(lang, LANGUAGES.get('vi', {}))
     
-    # Ẩn hoàn toàn sidebar, header, footer
     st.markdown("""
         <style>
             /* Ẩn hoàn toàn UI chrome của Streamlit */
@@ -91,69 +86,19 @@ def show_landing_page():
                 display: none !important;
                 height: 0 !important;
             }
-
-            /* Xoá sạch mọi padding/margin của Streamlit wrapper */
-            .stApp, .stApp > div,
-            [data-testid="stAppViewContainer"],
-            [data-testid="stAppViewBlockContainer"],
-            [data-testid="stMain"],
-            .main, .main > div,
-            .block-container,
-            .stMainBlockContainer {
-                padding: 0 !important;
-                margin: 0 !important;
-                max-width: 100% !important;
-                width: 100% !important;
-            }
-
-            /* Xoá padding top do header Streamlit để lại - FIX: chỉ còn 2px */
             .stApp > div[data-testid="stAppViewContainer"] > section > div {
                 padding-top: 2px !important;
             }
-
-            /* iframe của components.html: xoá border và margin */
             iframe {
                 border: none !important;
                 display: block !important;
                 margin: 0 !important;
                 padding: 0 !important;
             }
-
             html, body {
                 margin: 0 !important;
                 padding: 0 !important;
                 overflow-x: hidden;
-            }
-            
-            /* Language selector styling */
-            .language-selector {
-                position: fixed;
-                top: 15px;
-                right: 30px;
-                z-index: 1001;
-                background: rgba(0,0,0,0.7);
-                backdrop-filter: blur(10px);
-                border-radius: 30px;
-                padding: 5px 10px;
-                display: flex;
-                gap: 8px;
-            }
-            .lang-btn {
-                background: transparent;
-                border: none;
-                color: white;
-                padding: 5px 12px;
-                border-radius: 20px;
-                cursor: pointer;
-                font-weight: 500;
-                transition: all 0.3s;
-            }
-            .lang-btn.active {
-                background: #f59e0b;
-                color: #0f3b5c;
-            }
-            .lang-btn:hover:not(.active) {
-                background: rgba(255,255,255,0.2);
             }
         </style>
     """, unsafe_allow_html=True)
@@ -166,7 +111,7 @@ def show_landing_page():
         with open(logo_path, "rb") as f:
             logo_base64 = base64.b64encode(f.read()).decode()
     
-    # Đọc 3 ảnh slider → base64
+    # Đọc ảnh slider
     def load_img_b64(filename):
         path = os.path.join(os.path.dirname(__file__), "static", filename)
         if os.path.exists(path):
@@ -182,7 +127,10 @@ def show_landing_page():
     chu_tich_img = load_img_b64("321.png")
     chu_ky_img = load_img_b64("123456.png")
     
-    # Tạo HTML cho landing page với nội dung đa ngôn ngữ
+    # Active class cho language buttons
+    vi_active = 'active' if lang == 'vi' else ''
+    en_active = 'active' if lang == 'en' else ''
+    
     landing_html = f"""
     <!DOCTYPE html>
     <html lang="{lang}">
@@ -216,6 +164,41 @@ def show_landing_page():
             ::-webkit-scrollbar-thumb {{
                 background: #0f3b5c;
                 border-radius: 4px;
+            }}
+            
+            /* Language selector - góc phải, cao hơn logo */
+            .language-selector {{
+                position: fixed;
+                top: 20px;
+                right: 30px;
+                z-index: 10000;
+                background: rgba(0,0,0,0.65);
+                backdrop-filter: blur(12px);
+                border-radius: 50px;
+                padding: 6px 8px;
+                display: flex;
+                gap: 8px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                border: 1px solid rgba(255,255,255,0.2);
+            }}
+            .lang-btn {{
+                background: transparent;
+                border: none;
+                color: white;
+                padding: 6px 18px;
+                border-radius: 40px;
+                cursor: pointer;
+                font-weight: 600;
+                font-size: 0.85rem;
+                transition: all 0.3s;
+                font-family: inherit;
+            }}
+            .lang-btn.active {{
+                background: #f59e0b;
+                color: #0f3b5c;
+            }}
+            .lang-btn:hover:not(.active) {{
+                background: rgba(255,255,255,0.2);
             }}
             
             /* ===== NAVIGATION ===== */
@@ -652,7 +635,7 @@ def show_landing_page():
                 color: #64748b;
             }}
             
-            /* ===== MODAL THƯ NGỎ ===== */
+            /* ===== MODAL ===== */
             .modal {{
                 display: none;
                 position: fixed;
@@ -706,7 +689,6 @@ def show_landing_page():
                 max-height: 80vh;
                 overflow-y: auto;
             }}
-            
             .a4-chairman {{
                 display: flex;
                 align-items: center;
@@ -858,6 +840,15 @@ def show_landing_page():
                 .modal-body {{
                     padding: 20px;
                 }}
+                .language-selector {{
+                    top: 10px;
+                    right: 10px;
+                    padding: 4px 6px;
+                }}
+                .lang-btn {{
+                    padding: 4px 12px;
+                    font-size: 0.7rem;
+                }}
             }}
         </style>
     </head>
@@ -865,8 +856,8 @@ def show_landing_page():
     
     <!-- Language Selector -->
     <div class="language-selector">
-        <button class="lang-btn {'active' if lang == 'vi' else ''}" onclick="setLanguage('vi')">🇻🇳 VI</button>
-        <button class="lang-btn {'active' if lang == 'en' else ''}" onclick="setLanguage('en')">🇬🇧 EN</button>
+        <button class="lang-btn {vi_active}" onclick="setLanguage('vi')">🇻🇳 VI</button>
+        <button class="lang-btn {en_active}" onclick="setLanguage('en')">🇬🇧 EN</button>
     </div>
     
     <!-- Navigation -->
@@ -1065,25 +1056,16 @@ def show_landing_page():
     </footer>
     
     <script>
-        // Hàm đổi ngôn ngữ
+        // Hàm đổi ngôn ngữ - chuyển hướng với query param
         function setLanguage(lang) {{
-            // Gửi request lên Streamlit để cập nhật session_state
-            fetch(window.location.origin + '/_stcore/stream', {{
-                method: 'POST',
-                headers: {{
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                }},
-                body: 'set_language=' + lang
-            }});
-            // Reload page để áp dụng ngôn ngữ mới
-            window.location.reload();
+            const url = new URL(window.location.href);
+            url.searchParams.set('lang', lang);
+            window.location.href = url.toString();
         }}
         
         document.addEventListener('DOMContentLoaded', function() {{
-
-            // ===== FIX: Xử lý tất cả link nội bộ để không reload page =====
+            // Xử lý tất cả link nội bộ
             const allInternalLinks = document.querySelectorAll('a[href^="#"]');
-            
             allInternalLinks.forEach(link => {{
                 link.addEventListener('click', function(e) {{
                     const targetId = this.getAttribute('href');
@@ -1103,7 +1085,7 @@ def show_landing_page():
                 }});
             }});
 
-            // ===== SLIDER TỰ ĐỘNG =====
+            // Slider tự động
             let currentSlide = 0;
             const slides = document.querySelectorAll('.slide');
             const dots = document.querySelectorAll('.slider-dot');
@@ -1191,7 +1173,7 @@ def show_landing_page():
                 startAutoSlide();
             }}
             
-            // ===== SCROLL REVEAL =====
+            // Scroll reveal
             const revealObserver = new IntersectionObserver((entries) => {{
                 entries.forEach(entry => {{
                     if (entry.isIntersecting) {{
@@ -1216,7 +1198,7 @@ def show_landing_page():
                 }}
             }});
             
-            // ===== MODAL THƯ NGỎ =====
+            // Modal thư ngỏ
             const modal = document.getElementById('thuNgoModal');
             const thuNgoBtn = document.getElementById('thuNgoBtn');
             const closeModalBtn = document.getElementById('closeModalBtn');
@@ -1256,10 +1238,6 @@ def show_landing_page():
     </html>
     """
 
-    # Ẩn loginBtn trong iframe tránh trùng
-    landing_html_fixed = landing_html
-
-    # Render landing page
     components.html(landing_html_fixed, height=3142, scrolling=False)
 
     # MỚI:
@@ -1297,6 +1275,25 @@ def show_landing_page():
                 st.rerun()
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
+
+# ========== XỬ LÝ ĐA NGÔN NGỮ ==========
+def init_language():
+    """Khởi tạo và xử lý chuyển đổi ngôn ngữ"""
+    if 'language' not in st.session_state:
+        st.session_state.language = 'vi'
+    
+    # Kiểm tra query params để đổi ngôn ngữ
+    query_params = st.query_params
+    if 'lang' in query_params:
+        new_lang = query_params['lang']
+        if new_lang in ['vi', 'en']:
+            st.session_state.language = new_lang
+            # Xóa param để tránh lặp
+            st.query_params.clear()
+            st.rerun()
+
+# Gọi hàm khởi tạo
+init_language()
 
 # ========== KHỞI TẠO SESSION STATE ==========
 if 'logged_in' not in st.session_state:

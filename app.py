@@ -71,6 +71,7 @@ def show_landing_page():
     lang = st.session_state.get('language', 'vi')
     text = LANGUAGES.get(lang, LANGUAGES.get('vi', {}))
     
+    # Thay đoạn CSS hiện tại bằng:
     st.markdown("""
         <style>
             /* Ẩn hoàn toàn UI chrome của Streamlit */
@@ -82,22 +83,47 @@ def show_landing_page():
             footer[data-testid],
             .stAppDeployButton,
             .stToolbar,
-            .stStatusWidget {
+            .stStatusWidget,
+            .stApp > header,
+            .stApp > div[data-testid="stToolbar"] {
                 display: none !important;
                 height: 0 !important;
             }
-            .stApp > div[data-testid="stAppViewContainer"] > section > div {
-                padding-top: 2px !important;
+            
+            /* Thu hẹp padding toàn bộ */
+            html, body, .stApp, .stApp > div {
+                margin: 0 !important;
+                padding: 0 !important;
             }
+            
+            .main > div {
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            
+            .block-container {
+                padding-top: 0 !important;
+                padding-bottom: 0 !important;
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+                max-width: 100% !important;
+            }
+            
+            /* Xóa khoảng trống đầu trang */
+            section[data-testid="stMain"] > div {
+                padding-top: 0 !important;
+            }
+            
             iframe {
                 border: none !important;
                 display: block !important;
                 margin: 0 !important;
                 padding: 0 !important;
+                width: 100% !important;
             }
-            html, body {
-                margin: 0 !important;
-                padding: 0 !important;
+            
+            /* Ẩn thanh cuộn dọc thừa */
+            body {
                 overflow-x: hidden;
             }
         </style>
@@ -1056,34 +1082,22 @@ def show_landing_page():
     </footer>
     
     <script>
-        // Hàm đổi ngôn ngữ - chuyển hướng với query param
-        function setLanguage(lang) {{
+        // Trong <script> của landing_html, thay hàm setLanguage bằng:
+        function setLanguage(lang) {
+            // Gọi API Streamlit để set query param
+            fetch(window.location.origin + '/_stcore/stream', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    'language': lang
+                })
+            });
+            
+            // Hoặc dùng cách đơn giản: chuyển hướng với query param
             const url = new URL(window.location.href);
             url.searchParams.set('lang', lang);
             window.location.href = url.toString();
-        }}
-        
-        document.addEventListener('DOMContentLoaded', function() {{
-            // Xử lý tất cả link nội bộ
-            const allInternalLinks = document.querySelectorAll('a[href^="#"]');
-            allInternalLinks.forEach(link => {{
-                link.addEventListener('click', function(e) {{
-                    const targetId = this.getAttribute('href');
-                    if (targetId === '#' || !targetId) return;
-                    const targetElement = document.querySelector(targetId);
-                    if (targetElement) {{
-                        e.preventDefault();
-                        e.stopPropagation();
-                        targetElement.scrollIntoView({{ 
-                            behavior: 'smooth', 
-                            block: 'start' 
-                        }});
-                        if (history.replaceState) {{
-                            history.replaceState(null, null, targetId);
-                        }}
-                    }}
-                }});
-            }});
+        }
 
             // Slider tự động
             let currentSlide = 0;
@@ -1244,7 +1258,7 @@ def show_landing_page():
     )
 
     # Render landing page
-    components.html(landing_html_fixed, height=3142, scrolling=False)
+    components.html(landing_html_fixed, height=3150, scrolling=False)
 
     # MỚI:
     st.markdown("""

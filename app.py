@@ -1512,9 +1512,34 @@ def format_date(d):
     except: return str(d)
 
 def parse_date(s):
-    if not s or s.strip()=='': return None
-    try: return datetime.strptime(s.strip(),'%d/%m/%Y').date()
-    except: return None
+    """Chuyển đổi nhiều định dạng ngày tháng về date object"""
+    if not s or str(s).strip() == '':
+        return None
+    
+    # Nếu đã là date object
+    if hasattr(s, 'strftime'):
+        return s
+    
+    s = str(s).strip()
+    
+    # Các định dạng cần thử
+    formats = [
+        '%d/%m/%Y',      # 18/04/2026
+        '%d-%m-%Y',      # 18-04-2026
+        '%Y-%m-%d',      # 2026-04-18
+        '%Y/%m/%d',      # 2026/04/18
+        '%d.%m.%Y',      # 18.04.2026
+    ]
+    
+    for fmt in formats:
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    
+    # Nếu không có định dạng nào phù hợp
+    print(f"⚠️ Không thể parse ngày: {s}")
+    return None
 
 def get_xung_ho(gioi_tinh, ho_ten=""):
     """

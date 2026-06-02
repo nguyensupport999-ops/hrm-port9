@@ -5409,7 +5409,7 @@ elif menu == "📋 Báo cáo 01/PLI":
             
 st.sidebar.divider()
 st.sidebar.caption("© 2026 HRM-Port | Cảng biển quốc tế Hòn La")
-
+'''
 #===== Hàm xử lý chính =====
 def main():
     """Hàm điều khiển chính - phân luồng Landing Page / HRM App"""
@@ -5473,3 +5473,5 @@ def main():
 # Chạy ứng dụng
 if __name__ == "__main__":
     main()
+    
+'''

@@ -1237,7 +1237,13 @@ def show_landing_page():
     </body>
     </html>
     """
+    # Ẩn loginBtn trong iframe tránh trùng
+    landing_html_fixed = landing_html.replace(
+        '<a href="#" class="btn-login" id="loginBtn">🔐 HRM - QUẢN LÝ NHÂN SỰ./ Chỉ dành cho Nhân viên</a>',
+        ''
+    )
 
+    # Render landing page
     components.html(landing_html_fixed, height=3142, scrolling=False)
 
     # MỚI:
@@ -5409,7 +5415,8 @@ elif menu == "📋 Báo cáo 01/PLI":
             
 st.sidebar.divider()
 st.sidebar.caption("© 2026 HRM-Port | Cảng biển quốc tế Hòn La")
-'''
+
+
 #===== Hàm xử lý chính =====
 def main():
     """Hàm điều khiển chính - phân luồng Landing Page / HRM App"""
@@ -5473,5 +5480,3 @@ def main():
 # Chạy ứng dụng
 if __name__ == "__main__":
     main()
-    
-'''

@@ -1108,15 +1108,9 @@ def show_landing_page():
     
     <script>
         function setLanguage(lang) {{
-            // Gửi request đến Streamlit backend
-            fetch(window.location.origin + '/_stcore/stream', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({'language': lang})
-            }).then(() => {
-                // Reload page sau khi gửi request
-                window.location.reload();
-            });
+            const url = new URL(window.location.href);
+            url.searchParams.set('lang', lang);
+            window.location.href = url.toString();
         }}
 
         // Slider tự động

@@ -71,10 +71,9 @@ def show_landing_page():
     lang = st.session_state.get('language', 'vi')
     text = LANGUAGES.get(lang, LANGUAGES.get('vi', {}))
     
-    # Thay đoạn CSS hiện tại bằng:
+    # Ẩn UI chrome của Streamlit
     st.markdown("""
         <style>
-            /* Ẩn hoàn toàn UI chrome của Streamlit */
             [data-testid="stSidebar"],
             [data-testid="collapsedControl"],
             [data-testid="stDecoration"],
@@ -89,18 +88,14 @@ def show_landing_page():
                 display: none !important;
                 height: 0 !important;
             }
-            
-            /* Thu hẹp padding toàn bộ */
             html, body, .stApp, .stApp > div {
                 margin: 0 !important;
                 padding: 0 !important;
             }
-            
             .main > div {
                 padding: 0 !important;
                 margin: 0 !important;
             }
-            
             .block-container {
                 padding-top: 0 !important;
                 padding-bottom: 0 !important;
@@ -108,12 +103,9 @@ def show_landing_page():
                 padding-right: 0 !important;
                 max-width: 100% !important;
             }
-            
-            /* Xóa khoảng trống đầu trang */
             section[data-testid="stMain"] > div {
                 padding-top: 0 !important;
             }
-            
             iframe {
                 border: none !important;
                 display: block !important;
@@ -121,8 +113,6 @@ def show_landing_page():
                 padding: 0 !important;
                 width: 100% !important;
             }
-            
-            /* Ẩn thanh cuộn dọc thừa */
             body {
                 overflow-x: hidden;
             }
@@ -179,7 +169,7 @@ def show_landing_page():
                 line-height: 1.5;
                 overflow-x: hidden;
                 width: 100%;
-                padding-top: 80px;
+                padding-top: 100px;
             }}
             ::-webkit-scrollbar {{
                 width: 8px;
@@ -190,36 +180,6 @@ def show_landing_page():
             ::-webkit-scrollbar-thumb {{
                 background: #0f3b5c;
                 border-radius: 4px;
-            }}
-            
-            /* Language selector - nằm trong nav-links */
-            .language-selector {{
-                display: flex;
-                gap: 4px;
-                align-items: center;
-                margin-left: 8px;
-                padding-left: 12px;
-                border-left: 1px solid rgba(255,255,255,0.25);
-            }}
-            .lang-btn {{
-                background: transparent;
-                border: none;
-                color: white;
-                padding: 6px 14px;
-                border-radius: 40px;
-                cursor: pointer;
-                font-weight: 600;
-                font-size: 0.85rem;
-                transition: all 0.3s;
-                font-family: inherit;
-                white-space: nowrap;
-            }}
-            .lang-btn.active {{
-                background: #f59e0b;
-                color: #0f3b5c;
-            }}
-            .lang-btn:hover:not(.active) {{
-                background: rgba(255,255,255,0.2);
             }}
             
             /* ===== NAVIGATION ===== */
@@ -287,6 +247,73 @@ def show_landing_page():
                 background: #f59e0b;
                 color: #0f3b5c;
             }}
+            
+            /* ===== DIVIDER VÀ LANGUAGE SWITCH ===== */
+            .nav-links .nav-divider {{
+                color: rgba(255,255,255,0.4);
+                margin: 0 5px;
+                font-size: 14px;
+            }}
+            .lang-switch {{
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                margin-left: 5px;
+            }}
+            .lang-link {{
+                text-decoration: none !important;
+                color: white !important;
+                font-weight: 500;
+                font-size: 0.85rem;
+                padding: 8px 8px !important;
+                border-radius: 40px;
+                transition: all 0.3s;
+                background: transparent !important;
+            }}
+            .lang-link:hover {{
+                background: #f59e0b !important;
+                color: #0f3b5c !important;
+            }}
+            .lang-link.active {{
+                background: #f59e0b !important;
+                color: #0f3b5c !important;
+            }}
+            .lang-sep {{
+                color: rgba(255,255,255,0.5);
+                font-size: 12px;
+            }}
+            
+            /* ===== MOBILE LANGUAGE ===== */
+            .mobile-lang {{
+                position: fixed;
+                top: 15px;
+                right: 15px;
+                z-index: 10001;
+                background: rgba(0,0,0,0.6);
+                backdrop-filter: blur(8px);
+                border-radius: 30px;
+                padding: 6px 12px;
+                display: none;
+                gap: 8px;
+                border: 1px solid rgba(255,255,255,0.2);
+            }}
+            .mobile-lang a {{
+                color: white;
+                text-decoration: none;
+                font-size: 12px;
+                font-weight: 600;
+                padding: 4px 8px;
+                border-radius: 20px;
+                transition: all 0.2s;
+            }}
+            .mobile-lang a:hover {{
+                background: rgba(255,255,255,0.2);
+            }}
+            .mobile-lang a.active {{
+                background: #f59e0b;
+                color: #0f3b5c;
+            }}
+            
             .dropdown {{
                 position: relative;
             }}
@@ -817,6 +844,7 @@ def show_landing_page():
                 flex-wrap: wrap;
             }}
             
+            /* ===== RESPONSIVE ===== */
             @media (max-width: 768px) {{
                 .slide-layout {{
                     flex-direction: column;
@@ -861,15 +889,11 @@ def show_landing_page():
                 .modal-body {{
                     padding: 20px;
                 }}
-                .language-selector {{
-                    margin-left: 0;
-                    padding-left: 0;
-                    border-left: none;
-                    padding: 4px 0;
+                .mobile-lang {{
+                    display: flex !important;
                 }}
-                .lang-btn {{
-                    padding: 4px 10px;
-                    font-size: 0.75rem;
+                .nav-links .lang-switch {{
+                    display: none;
                 }}
             }}
         </style>
@@ -895,13 +919,22 @@ def show_landing_page():
                 <a href="#infrastructure">{text.get('nav_infrastructure', 'Vị trí & Hạ tầng')}</a>
                 <a href="#careers">{text.get('nav_careers', 'Tuyển dụng')}</a>
                 <a href="#contact">{text.get('nav_contact', 'Liên hệ')}</a>
-                <div class="language-selector">
-                    <button class="lang-btn {vi_active}" onclick="setLanguage('vi')">🇻🇳 VI</button>
-                    <button class="lang-btn {en_active}" onclick="setLanguage('en')">🇬🇧 EN</button>
+                <span class="nav-divider">|</span>
+                <div class="lang-switch">
+                    <a href="#" class="lang-link {vi_active}" onclick="setLanguage('vi'); return false;">🇻🇳 VI</a>
+                    <span class="lang-sep">/</span>
+                    <a href="#" class="lang-link {en_active}" onclick="setLanguage('en'); return false;">🇬🇧 EN</a>
                 </div>
             </div>
         </div>
     </nav>
+
+    <!-- Mobile Language Switcher -->
+    <div class="mobile-lang">
+        <a href="#" class="{vi_active}" onclick="setLanguage('vi'); return false;">🇻🇳 VI</a>
+        <span style="color:white; opacity:0.5;">|</span>
+        <a href="#" class="{en_active}" onclick="setLanguage('en'); return false;">🇬🇧 EN</a>
+    </div>
 
     <!-- Modal Thư ngỏ -->
     <div id="thuNgoModal" class="modal">
@@ -916,7 +949,7 @@ def show_landing_page():
                     </div>
                     <div class="a4-chairman-info">
                         <h2>Ông Phùng Gia Phát</h2>
-                        <p class="title">🎤 {text.get('modal_chairman_title', 'Chủ tịch Hội đồng Quản trị')}</p>
+                        <p class="title">{text.get('modal_chairman_title', 'Chủ tịch Hội đồng Quản trị')}</p>
                         <p class="company">
                             Công ty Cổ phần Cảng Hòn La<br>
                             Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình
@@ -928,7 +961,7 @@ def show_landing_page():
                 </div>
                 <div class="a4-body">
                     <p class="a4-date">Quảng Bình, ngày 21 tháng 3 năm 2025</p>
-                    <p class="a4-greeting">{text.get('modal_greeting', 'Kính gửi Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên,')}</p>
+                    <p class="a4-greeting"><h3>{text.get('modal_greeting', 'Kính gửi Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên,')}<h3></p>
                     <p>{text.get('modal_content_1', 'Với niềm tự hào sâu sắc, Tôi xin thay mặt Hội đồng Quản trị Công ty Cổ phần Cảng Hòn La gửi lời chào trân trọng nhất đến Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên — những người đã và đang đồng hành cùng chúng tôi trên hành trình kiến tạo một cảng biển tầm cỡ quốc tế giữa lòng đất nước Việt Nam.')}</p>
                     <p>{text.get('modal_content_2', 'Ngày 21 tháng 3 năm 2025 là một mốc son lịch sử — ngày chính thức khởi công Dự án Cảng tổng hợp quốc tế Hòn La, dự án được Chính phủ công nhận là Dự án trọng điểm Quốc gia. Đây không chỉ là thành quả của nhiều năm nỗ lực không ngừng, mà còn là khởi đầu của một chương mới trong lịch sử phát triển kinh tế hàng hải miền Trung Việt Nam.')}</p>
                     <div class="vision-box">
@@ -1082,168 +1115,162 @@ def show_landing_page():
             window.location.href = url.toString();
         }}
 
-            // Slider tự động
-            let currentSlide = 0;
-            const slides = document.querySelectorAll('.slide');
-            const dots = document.querySelectorAll('.slider-dot');
-            const totalSlides = slides.length;
-            let autoSlideInterval;
-            let progressInterval;
-            let progressValue = 0;
-            const SLIDE_DURATION = 5000;
-            const progressBar = document.getElementById('sliderProgress');
-            
-            function showSlide(index) {{
-                slides.forEach((slide, i) => {{
-                    slide.classList.remove('active');
-                    if (dots[i]) dots[i].classList.remove('active');
-                }});
-                slides[index].classList.add('active');
-                if (dots[index]) dots[index].classList.add('active');
-                currentSlide = index;
-                resetProgress();
-            }}
-            
-            function nextSlide() {{
-                showSlide((currentSlide + 1) % totalSlides);
-            }}
-            
-            function prevSlide() {{
-                showSlide((currentSlide - 1 + totalSlides) % totalSlides);
-            }}
-            
-            function resetProgress() {{
-                progressValue = 0;
-                if (progressBar) progressBar.style.width = '0%';
-            }}
-            
-            function startProgress() {{
-                if (progressInterval) clearInterval(progressInterval);
-                progressValue = 0;
-                progressInterval = setInterval(() => {{
-                    progressValue += 100 / (SLIDE_DURATION / 100);
-                    if (progressBar) progressBar.style.width = Math.min(progressValue, 100) + '%';
-                    if (progressValue >= 100) resetProgress();
-                }}, 100);
-            }}
-            
-            function startAutoSlide() {{
-                if (autoSlideInterval) clearInterval(autoSlideInterval);
-                autoSlideInterval = setInterval(nextSlide, SLIDE_DURATION);
-                startProgress();
-            }}
-            
-            if (totalSlides > 0) {{
-                dots.forEach((dot, idx) => {{
-                    dot.addEventListener('click', () => {{
-                        showSlide(idx);
-                        if (autoSlideInterval) clearInterval(autoSlideInterval);
-                        if (progressInterval) clearInterval(progressInterval);
-                        startAutoSlide();
-                    }});
-                }});
-                
-                const prevBtn = document.getElementById('prevBtn');
-                const nextBtn = document.getElementById('nextBtn');
-                if (prevBtn) prevBtn.addEventListener('click', () => {{
-                    prevSlide();
+        // Slider tự động
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const dots = document.querySelectorAll('.slider-dot');
+        const totalSlides = slides.length;
+        let autoSlideInterval;
+        let progressInterval;
+        let progressValue = 0;
+        const SLIDE_DURATION = 5000;
+        const progressBar = document.getElementById('sliderProgress');
+        
+        function showSlide(index) {{
+            slides.forEach((slide, i) => {{
+                slide.classList.remove('active');
+                if (dots[i]) dots[i].classList.remove('active');
+            }});
+            slides[index].classList.add('active');
+            if (dots[index]) dots[index].classList.add('active');
+            currentSlide = index;
+            resetProgress();
+        }}
+        
+        function nextSlide() {{
+            showSlide((currentSlide + 1) % totalSlides);
+        }}
+        
+        function prevSlide() {{
+            showSlide((currentSlide - 1 + totalSlides) % totalSlides);
+        }}
+        
+        function resetProgress() {{
+            progressValue = 0;
+            if (progressBar) progressBar.style.width = '0%';
+        }}
+        
+        function startProgress() {{
+            if (progressInterval) clearInterval(progressInterval);
+            progressValue = 0;
+            progressInterval = setInterval(() => {{
+                progressValue += 100 / (SLIDE_DURATION / 100);
+                if (progressBar) progressBar.style.width = Math.min(progressValue, 100) + '%';
+                if (progressValue >= 100) resetProgress();
+            }}, 100);
+        }}
+        
+        function startAutoSlide() {{
+            if (autoSlideInterval) clearInterval(autoSlideInterval);
+            autoSlideInterval = setInterval(nextSlide, SLIDE_DURATION);
+            startProgress();
+        }}
+        
+        if (totalSlides > 0) {{
+            dots.forEach((dot, idx) => {{
+                dot.addEventListener('click', () => {{
+                    showSlide(idx);
                     if (autoSlideInterval) clearInterval(autoSlideInterval);
                     if (progressInterval) clearInterval(progressInterval);
                     startAutoSlide();
                 }});
-                if (nextBtn) nextBtn.addEventListener('click', () => {{
-                    nextSlide();
-                    if (autoSlideInterval) clearInterval(autoSlideInterval);
-                    if (progressInterval) clearInterval(progressInterval);
-                    startAutoSlide();
-                }});
-                
-                let touchStartX = 0;
-                const heroSlider = document.querySelector('.hero-slider');
-                if (heroSlider) {{
-                    heroSlider.addEventListener('touchstart', e => {{ touchStartX = e.touches[0].clientX; }});
-                    heroSlider.addEventListener('touchend', e => {{
-                        const diff = touchStartX - e.changedTouches[0].clientX;
-                        if (Math.abs(diff) > 50) {{ diff > 0 ? nextSlide() : prevSlide(); startAutoSlide(); }}
-                    }});
-                }}
-                startAutoSlide();
-            }}
-            
-            // Scroll reveal
-            const revealObserver = new IntersectionObserver((entries) => {{
-                entries.forEach(entry => {{
-                    if (entry.isIntersecting) {{
-                        entry.target.classList.add('visible');
-                        revealObserver.unobserve(entry.target);
-                    }}
-                }});
-            }}, {{ threshold: 0.15 }});
-            document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
-            
-            // Navbar scroll effect
-            window.addEventListener('scroll', () => {{
-                const navbar = document.getElementById('navbar');
-                if (navbar) {{
-                    if (window.scrollY > 50) {{
-                        navbar.style.background = 'rgba(15, 59, 92, 0.98)';
-                        navbar.style.boxShadow = '0 4px 20px rgba(0,0,0,0.2)';
-                    }} else {{
-                        navbar.style.background = 'rgba(15, 59, 92, 0.95)';
-                        navbar.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-                    }}
-                }}
             }});
             
-            // Modal thư ngỏ
-            const modal = document.getElementById('thuNgoModal');
-            const thuNgoBtn = document.getElementById('thuNgoBtn');
-            const closeModalBtn = document.getElementById('closeModalBtn');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            if (prevBtn) prevBtn.addEventListener('click', () => {{
+                prevSlide();
+                if (autoSlideInterval) clearInterval(autoSlideInterval);
+                if (progressInterval) clearInterval(progressInterval);
+                startAutoSlide();
+            }});
+            if (nextBtn) nextBtn.addEventListener('click', () => {{
+                nextSlide();
+                if (autoSlideInterval) clearInterval(autoSlideInterval);
+                if (progressInterval) clearInterval(progressInterval);
+                startAutoSlide();
+            }});
             
-            if (thuNgoBtn && modal) {{
-                thuNgoBtn.addEventListener('click', (e) => {{
-                    e.preventDefault();
-                    modal.classList.add('active');
-                    document.body.style.overflow = 'hidden';
-                }});
-                
-                const closeModal = () => {{
-                    modal.classList.remove('active');
-                    document.body.style.overflow = '';
-                }};
-                
-                if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
-                modal.addEventListener('click', (e) => {{
-                    if (e.target === modal) closeModal();
-                }});
-                document.addEventListener('keydown', (e) => {{
-                    if (e.key === 'Escape' && modal.classList.contains('active')) closeModal();
+            let touchStartX = 0;
+            const heroSlider = document.querySelector('.hero-slider');
+            if (heroSlider) {{
+                heroSlider.addEventListener('touchstart', e => {{ touchStartX = e.touches[0].clientX; }});
+                heroSlider.addEventListener('touchend', e => {{
+                    const diff = touchStartX - e.changedTouches[0].clientX;
+                    if (Math.abs(diff) > 50) {{ diff > 0 ? nextSlide() : prevSlide(); startAutoSlide(); }}
                 }});
             }}
-
-            // Career link handler
-            const careerLink = document.getElementById('careerLink');
-            if (careerLink) {{
-                careerLink.addEventListener('click', (e) => {{
-                    e.preventDefault();
-                    alert('Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
-                }});
+            startAutoSlide();
+        }}
+        
+        // Scroll reveal
+        const revealObserver = new IntersectionObserver((entries) => {{
+            entries.forEach(entry => {{
+                if (entry.isIntersecting) {{
+                    entry.target.classList.add('visible');
+                    revealObserver.unobserve(entry.target);
+                }}
+            }});
+        }}, {{ threshold: 0.15 }});
+        document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+        
+        // Navbar scroll effect
+        window.addEventListener('scroll', () => {{
+            const navbar = document.getElementById('navbar');
+            if (navbar) {{
+                if (window.scrollY > 50) {{
+                    navbar.style.background = 'rgba(15, 59, 92, 0.98)';
+                    navbar.style.boxShadow = '0 4px 20px rgba(0,0,0,0.2)';
+                }} else {{
+                    navbar.style.background = 'rgba(15, 59, 92, 0.95)';
+                    navbar.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+                }}
             }}
         }});
+        
+        // Modal thư ngỏ
+        const modal = document.getElementById('thuNgoModal');
+        const thuNgoBtn = document.getElementById('thuNgoBtn');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        
+        if (thuNgoBtn && modal) {{
+            thuNgoBtn.addEventListener('click', (e) => {{
+                e.preventDefault();
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }});
+            
+            const closeModal = () => {{
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }};
+            
+            if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+            modal.addEventListener('click', (e) => {{
+                if (e.target === modal) closeModal();
+            }});
+            document.addEventListener('keydown', (e) => {{
+                if (e.key === 'Escape' && modal.classList.contains('active')) closeModal();
+            }});
+        }}
+
+        // Career link handler
+        const careerLink = document.getElementById('careerLink');
+        if (careerLink) {{
+            careerLink.addEventListener('click', (e) => {{
+                e.preventDefault();
+                alert('Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
+            }});
+        }}
     </script>
     </body>
     </html>
     """
-    # Ẩn loginBtn trong iframe tránh trùng
-    landing_html_fixed = landing_html.replace(
-        '<a href="#" class="btn-login" id="loginBtn">🔐 HRM - QUẢN LÝ NHÂN SỰ./ Chỉ dành cho Nhân viên</a>',
-        ''
-    )
-
+    
     # Render landing page
-    components.html(landing_html_fixed, height=3150, scrolling=False)
+    components.html(landing_html, height=3150, scrolling=False)
 
-    # MỚI:
+    # Nút HRM ở footer
     st.markdown("""
         <style>
         div[data-testid="stBottom"] {

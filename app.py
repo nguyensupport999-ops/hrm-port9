@@ -1268,37 +1268,61 @@ def show_landing_page():
     # Render landing page
     components.html(landing_html, height=3150, scrolling=False)
 
-    # Nút HRM ở footer
+    # CSS cho nút HRM ở footer
     st.markdown("""
         <style>
-        div[data-testid="stBottom"] {
-            background: #0f172a !important;
-            border-top: 2px solid #f59e0b !important;
-            box-shadow: 0 -4px 20px rgba(0,0,0,0.3) !important;
-            padding: 12px 0 !important;
-        }
-        div[data-testid="stBottom"] button {
-            background: #f59e0b !important;
-            color: #0f3b5c !important;
-            font-weight: 700 !important;
-            border: none !important;
-            border-radius: 8px !important;
-            padding: 12px 32px !important;
-            font-size: 0.95rem !important;
-            box-shadow: 0 4px 15px rgba(245,158,11,0.4) !important;
-            letter-spacing: 0.3px !important;
-        }
-        div[data-testid="stBottom"] button:hover {
-            background: #e67e22 !important;
-            color: white !important;
-        }
+            /* Container chứa nút HRM */
+            div[data-testid="stBottom"] {
+                background: #0f3b5c !important;  /* Màu xanh đồng nhất với header */
+                border-top: 2px solid #f59e0b !important;
+                box-shadow: 0 -4px 20px rgba(0,0,0,0.3) !important;
+                padding: 20px 0 !important;  /* Tăng padding để nút to hơn */
+                min-height: 100px !important;  /* Chiều cao tối thiểu */
+                display: flex !important;
+                align-items: center !important;  /* Căn giữa theo chiều dọc */
+                justify-content: center !important;
+            }
+            /* Style cho nút HRM */
+            div[data-testid="stBottom"] button {
+                background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%) !important;
+                color: #0f3b5c !important;
+                font-weight: 800 !important;
+                font-size: 1.2rem !important;  /* Tăng font size */
+                border: none !important;
+                border-radius: 50px !important;  /* Bo tròn hơn */
+                padding: 16px 48px !important;  /* Tăng padding (cao hơn, rộng hơn) */
+                box-shadow: 0 6px 20px rgba(0,0,0,0.3) !important;
+                letter-spacing: 1px !important;
+                transition: all 0.3s ease !important;
+                cursor: pointer !important;
+                width: auto !important;
+                min-width: 400px !important;
+                white-space: nowrap !important;
+            }
+            div[data-testid="stBottom"] button:hover {
+                background: linear-gradient(135deg, #e67e22 0%, #d35400 100%) !important;
+                transform: translateY(-3px) !important;
+                box-shadow: 0 10px 25px rgba(0,0,0,0.4) !important;
+            }
+            /* Responsive cho mobile */
+            @media (max-width: 768px) {
+                div[data-testid="stBottom"] button {
+                    font-size: 0.9rem !important;
+                    padding: 12px 20px !important;
+                    min-width: 280px !important;
+                    white-space: normal !important;
+                }
+            }
         </style>
     """, unsafe_allow_html=True)
 
+    # Nút HRM ở footer - đặt trong container để căn giữa
     with st.container():
-        col1, col2, col3 = st.columns([1, 3, 1])
+        col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
-            if st.button("🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên", key="btn_nhan_vien_landing", use_container_width=True):
+            if st.button("🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên", 
+                         key="btn_nhan_vien_landing", 
+                         use_container_width=True):
                 st.session_state.show_hrm = True
                 st.rerun()
 
@@ -2149,6 +2173,7 @@ if not st.session_state.logged_in:
     
     # Nút Back cho Guest
     if st.session_state.get('show_hrm', False) and not st.session_state.get('logged_in', False):
+        st.markdown("<br><br><br>", unsafe_allow_html=True)  # Thêm khoảng trống
         if st.button("🔙 Quay lại Landing Page", width='stretch'):
             st.session_state.show_hrm = False
             st.session_state.pop('last_birthday_check', None)

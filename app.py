@@ -1268,63 +1268,76 @@ def show_landing_page():
     # Render landing page
     components.html(landing_html, height=3150, scrolling=False)
 
-    # CSS cho nút HRM ở footer
+    # CSS cho nút HRM - Đặt NGAY TRƯỚC container chứa nút
     st.markdown("""
         <style>
-            /* Container chứa nút HRM */
-            div[data-testid="stBottom"] {
-                background: #0f3b5c !important;  /* Màu xanh đồng nhất với header */
-                border-top: 2px solid #f59e0b !important;
-                box-shadow: 0 -4px 20px rgba(0,0,0,0.3) !important;
-                padding: 20px 0 !important;  /* Tăng padding để nút to hơn */
-                min-height: 100px !important;  /* Chiều cao tối thiểu */
-                display: flex !important;
-                align-items: center !important;  /* Căn giữa theo chiều dọc */
-                justify-content: center !important;
+        /* Container chứa nút HRM - căn giữa và background xanh */
+        .hrm-button-container {
+            background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
+            padding: 40px 20px;
+            margin: 0;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-top: 3px solid #f59e0b;
+            border-bottom: 3px solid #f59e0b;
+        }
+        
+        /* Style cho nút HRM */
+        .hrm-button {
+            background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
+            color: #0f3b5c;
+            font-weight: 800;
+            font-size: 1.25rem;
+            border: none;
+            border-radius: 60px;
+            padding: 18px 60px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: auto;
+            min-width: 450px;
+            text-align: center;
+            font-family: inherit;
+        }
+        
+        .hrm-button:hover {
+            background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+        }
+        
+        /* Responsive cho mobile */
+        @media (max-width: 768px) {
+            .hrm-button {
+                font-size: 0.9rem;
+                padding: 14px 30px;
+                min-width: 280px;
+                white-space: normal;
             }
-            /* Style cho nút HRM */
-            div[data-testid="stBottom"] button {
-                background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%) !important;
-                color: #0f3b5c !important;
-                font-weight: 800 !important;
-                font-size: 1.2rem !important;  /* Tăng font size */
-                border: none !important;
-                border-radius: 50px !important;  /* Bo tròn hơn */
-                padding: 16px 48px !important;  /* Tăng padding (cao hơn, rộng hơn) */
-                box-shadow: 0 6px 20px rgba(0,0,0,0.3) !important;
-                letter-spacing: 1px !important;
-                transition: all 0.3s ease !important;
-                cursor: pointer !important;
-                width: auto !important;
-                min-width: 400px !important;
-                white-space: nowrap !important;
+            .hrm-button-container {
+                padding: 25px 15px;
             }
-            div[data-testid="stBottom"] button:hover {
-                background: linear-gradient(135deg, #e67e22 0%, #d35400 100%) !important;
-                transform: translateY(-3px) !important;
-                box-shadow: 0 10px 25px rgba(0,0,0,0.4) !important;
-            }
-            /* Responsive cho mobile */
-            @media (max-width: 768px) {
-                div[data-testid="stBottom"] button {
-                    font-size: 0.9rem !important;
-                    padding: 12px 20px !important;
-                    min-width: 280px !important;
-                    white-space: normal !important;
-                }
-            }
+        }
         </style>
+        
+        <div class="hrm-button-container">
+            <button class="hrm-button" id="hrmLandingBtn">
+                🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
+            </button>
+        </div>
+        
+        <script>
+        document.getElementById('hrmLandingBtn').addEventListener('click', function() {
+            // Gửi request để set session state
+            const url = new URL(window.location.href);
+            url.searchParams.set('goto', 'hrm');
+            window.location.href = url.toString();
+        });
+        </script>
     """, unsafe_allow_html=True)
-
-    # Nút HRM ở footer - đặt trong container để căn giữa
-    with st.container():
-        col1, col2, col3 = st.columns([1, 2, 1])
-        with col2:
-            if st.button("🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên", 
-                         key="btn_nhan_vien_landing", 
-                         use_container_width=True):
-                st.session_state.show_hrm = True
-                st.rerun()
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 

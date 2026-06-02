@@ -10,14 +10,14 @@ DB_CONFIG = {
 }
 
 COMPANY_CONFIG = {
-    "ten_cong_ty": "TÊN CÔNG TY CỦA BẠN",
-    "dai_dien": "Tên người đại diện",
-    "chuc_vu": "Chức vụ",
-    "ma_so_thue": "Mã số thuế",
-    "dien_thoai_cty": "Số điện thoại",
+    "ten_cong_ty": "Công ty cổ phần Cảng Hòn La",
+    "dai_dien": "Nguyễn Đình Thi",
+    "chuc_vu": "Tổng Giám đốc",
+    "ma_so_thue": "0108872052",
+    "dien_thoai_cty": "0966369828",
     "ma_don_vi_BHXH": "................",
     "ma_vung_luong": "....",
-    "dia_chi": "Địa chỉ công ty",
+    "dia_chi": "Cảng tổng hợp Quốc tế Hòn La, Xã Phú Trạch, Tỉnh Quảng Trị",
     "loi_nhan_zalo": "Vui lòng kiểm tra và phản hồi nếu có sai sót...",
     "zalo_group_link": "https://zalo.me/g/...",
     "zalo_group_name": "Tên nhóm Zalo"

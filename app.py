@@ -753,8 +753,8 @@ def show_landing_page():
             }}
             .a4-chairman-avatar {{
                 flex: 0 0 auto;
-                width: 100px;
-                height: 100px;
+                width: 150px;
+                height: 150px;
             }}
             .a4-chairman-avatar img {{
                 width: 100%;
@@ -762,7 +762,7 @@ def show_landing_page():
                 border-radius: 50%;
                 object-fit: cover;
                 border: 3px solid #f59e0b;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                box-shadow: 0 4px 15px rgba(0,0,0,0.15);
             }}
             .a4-chairman-logo {{
                 flex: 0 0 auto;
@@ -950,18 +950,16 @@ def show_landing_page():
                     <div class="a4-chairman-info">
                         <h2>Ông Phùng Gia Phát</h2>
                         <p class="title">{text.get('modal_chairman_title', 'Chủ tịch Hội đồng Quản trị')}</p>
-                        <p class="company">
-                            Công ty Cổ phần Cảng Hòn La<br>
-                            Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình
-                        </p>
-                    </div>                    
+                        <p class="company">Công ty Cổ phần Cảng Hòn La</p>
+                        <p class="company">Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình</p>
+                    </div>                  
                     <div class="a4-chairman-logo">
                         <img src="data:image/png;base64,{logo_base64}" alt="Logo Cảng Hòn La">
                     </div>
                 </div>
                 <div class="a4-body">
                     <p class="a4-date">Quảng Bình, ngày 21 tháng 3 năm 2025</p>
-                    <p class="a4-greeting">{text.get('modal_greeting', 'Kính gửi Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên,')}</p>
+                    <p class="a4-greeting" style="font-weight: bold; font-size: 1rem;">{text.get('modal_greeting', 'Kính gửi: Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên,')}</p>
                     <p>{text.get('modal_content_1', 'Với niềm tự hào sâu sắc, Tôi xin thay mặt Hội đồng Quản trị Công ty Cổ phần Cảng Hòn La gửi lời chào trân trọng nhất đến Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên — những người đã và đang đồng hành cùng chúng tôi trên hành trình kiến tạo một cảng biển tầm cỡ quốc tế giữa lòng đất nước Việt Nam.')}</p>
                     <p>{text.get('modal_content_2', 'Ngày 21 tháng 3 năm 2025 là một mốc son lịch sử — ngày chính thức khởi công Dự án Cảng tổng hợp quốc tế Hòn La, dự án được Chính phủ công nhận là Dự án trọng điểm Quốc gia. Đây không chỉ là thành quả của nhiều năm nỗ lực không ngừng, mà còn là khởi đầu của một chương mới trong lịch sử phát triển kinh tế hàng hải miền Trung Việt Nam.')}</p>
                     <div class="vision-box">
@@ -1110,9 +1108,15 @@ def show_landing_page():
     
     <script>
         function setLanguage(lang) {{
-            const url = new URL(window.location.href);
-            url.searchParams.set('lang', lang);
-            window.location.href = url.toString();
+            // Gửi request đến Streamlit backend
+            fetch(window.location.origin + '/_stcore/stream', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({'language': lang})
+            }).then(() => {
+                // Reload page sau khi gửi request
+                window.location.reload();
+            });
         }}
 
         // Slider tự động
@@ -2143,11 +2147,19 @@ if not st.session_state.logged_in:
             else:
                 st.sidebar.error("❌ Sai tài khoản hoặc mật khẩu!")
     with c2:
-        if st.button("👁️ Xem thử", width='stretch'):
-            st.session_state.logged_in = True
-            st.session_state.role = "viewer"
-            st.session_state.username = "guest"
-            st.rerun()
+    if st.button("👁️ Xem thử", width='stretch'):
+        st.session_state.logged_in = True
+        st.session_state.role = "viewer"
+        st.session_state.username = "guest"
+        st.rerun()
+
+        # Thêm nút Back cho Guest ở đây
+        if st.session_state.get('show_hrm', False) and not st.session_state.get('logged_in', False):
+            if st.button("🔙 Quay lại Landing Page", width='stretch'):
+                st.session_state.show_hrm = False
+                st.session_state.pop('last_birthday_check', None)
+                st.session_state.pop('sinh_nhat_hom_nay_list', None)
+                st.rerun()
     st.stop()
 
 # Menu theo role

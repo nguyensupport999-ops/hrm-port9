@@ -1116,7 +1116,7 @@ def show_landing_page():
             }).then(() => {
                 // Reload page sau khi gửi request
                 window.location.reload();
-            };
+            });
         }}
 
         // Slider tự động

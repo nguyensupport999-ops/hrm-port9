@@ -22,6 +22,7 @@ import qrcode
 from io import BytesIO
 import os
 import pathlib
+import streamlit.components.v1 as components
 
 def show_landing_page():
     """Hiển thị Landing Page - Logo tròn 86px, slider mới (ảnh + text 2 cột), thư ngỏ A4 với text justify"""

@@ -24,8 +24,56 @@ import os
 import pathlib
 import streamlit.components.v1 as components
 
+# Xử lý đổi ngôn ngữ từ request
+def handle_language_change():
+    """Xử lý thay đổi ngôn ngữ từ client"""
+    import urllib.parse
+    
+    # Kiểm tra query params cho language
+    query_params = st.query_params
+    if 'lang' in query_params:
+        new_lang = query_params['lang']
+        if new_lang in ['vi', 'en']:
+            st.session_state.language = new_lang
+            # Xóa param sau khi xử lý
+            st.query_params.clear()
+            st.rerun()
+    
+    # Cũng kiểm tra POST request (cho fetch từ client)
+    try:
+        # Lấy dữ liệu từ request (nếu có)
+        import sys
+        if hasattr(st, 'context') and hasattr(st.context, 'headers'):
+            content_length = int(st.context.headers.get('content-length', 0))
+            if content_length > 0:
+                body = sys.stdin.read(content_length) if content_length else ''
+                if 'set_language=' in body:
+                    new_lang = body.replace('set_language=', '').strip()
+                    if new_lang in ['vi', 'en']:
+                        st.session_state.language = new_lang
+                        st.rerun()
+    except:
+        pass
+
+# Gọi hàm xử lý ngôn ngữ trước khi hiển thị landing page
+handle_language_change()
+
 def show_landing_page():
     """Hiển thị Landing Page - Logo tròn 86px, slider mới (ảnh + text 2 cột), thư ngỏ A4 với text justify"""
+    
+    # Khởi tạo session state cho ngôn ngữ
+    if 'language' not in st.session_state:
+        st.session_state.language = 'vi'
+    
+    # Import languages
+    try:
+        from languages import LANGUAGES
+    except ImportError:
+        # Fallback nếu chưa có file languages.py
+        LANGUAGES = {'vi': {}, 'en': {}}
+    
+    lang = st.session_state.language
+    text = LANGUAGES.get(lang, LANGUAGES['vi'])
     
     # Ẩn hoàn toàn sidebar, header, footer
     st.markdown("""
@@ -76,6 +124,37 @@ def show_landing_page():
                 padding: 0 !important;
                 overflow-x: hidden;
             }
+            
+            /* Language selector styling */
+            .language-selector {
+                position: fixed;
+                top: 15px;
+                right: 30px;
+                z-index: 1001;
+                background: rgba(0,0,0,0.7);
+                backdrop-filter: blur(10px);
+                border-radius: 30px;
+                padding: 5px 10px;
+                display: flex;
+                gap: 8px;
+            }
+            .lang-btn {
+                background: transparent;
+                border: none;
+                color: white;
+                padding: 5px 12px;
+                border-radius: 20px;
+                cursor: pointer;
+                font-weight: 500;
+                transition: all 0.3s;
+            }
+            .lang-btn.active {
+                background: #f59e0b;
+                color: #0f3b5c;
+            }
+            .lang-btn:hover:not(.active) {
+                background: rgba(255,255,255,0.2);
+            }
         </style>
     """, unsafe_allow_html=True)
     
@@ -100,12 +179,13 @@ def show_landing_page():
     slide1_src = load_img_b64("anh1.jpeg")
     slide2_src = load_img_b64("anh2.jpeg")
     slide3_src = load_img_b64("anh3.jpeg")
-    chu_tich_img = load_img_b64("321.png")      # Ảnh đại diện Chủ tịch
-    chu_ky_img = load_img_b64("123456.png")     # Ảnh chữ ký
+    chu_tich_img = load_img_b64("321.png")
+    chu_ky_img = load_img_b64("123456.png")
     
+    # Tạo HTML cho landing page với nội dung đa ngôn ngữ
     landing_html = f"""
     <!DOCTYPE html>
-    <html lang="vi">
+    <html lang="{lang}">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
@@ -231,16 +311,6 @@ def show_landing_page():
             .dropdown-content a:hover {{
                 background: #f8fafc;
                 color: #f59e0b !important;
-            }}
-            .btn-login {{
-                background: #f59e0b !important;
-                color: #0f3b5c !important;
-                padding: 8px 24px !important;
-                font-weight: 700 !important;
-            }}
-            .btn-login:hover {{
-                background: #e67e22 !important;
-                color: white !important;
             }}
             
             /* ===== HERO SLIDER ===== */
@@ -793,6 +863,12 @@ def show_landing_page():
     </head>
     <body>
     
+    <!-- Language Selector -->
+    <div class="language-selector">
+        <button class="lang-btn {'active' if lang == 'vi' else ''}" onclick="setLanguage('vi')">🇻🇳 VI</button>
+        <button class="lang-btn {'active' if lang == 'en' else ''}" onclick="setLanguage('en')">🇬🇧 EN</button>
+    </div>
+    
     <!-- Navigation -->
     <nav class="navbar" id="navbar">
         <div class="nav-container">
@@ -800,18 +876,18 @@ def show_landing_page():
                 <img src="data:image/png;base64,{logo_base64}" alt="Cảng Hòn La">
             </div>
             <div class="nav-links">
-                <a href="#home">Trang chủ</a>
+                <a href="#home">{text.get('nav_home', 'Trang chủ')}</a>
                 <div class="dropdown">
-                    <a href="#about">Giới thiệu <i class="fas fa-chevron-down"></i></a>
+                    <a href="#about">{text.get('nav_about', 'Giới thiệu')} <i class="fas fa-chevron-down"></i></a>
                     <div class="dropdown-content">
-                        <a href="#about">Về chúng tôi</a>
-                        <a href="#" id="thuNgoBtn">Thư ngỏ của Chủ tịch HĐQT</a>
+                        <a href="#about">{text.get('about_us', 'Về chúng tôi')}</a>
+                        <a href="#" id="thuNgoBtn">{text.get('chairman_letter', 'Thư ngỏ của Chủ tịch HĐQT')}</a>
                     </div>
                 </div>
-                <a href="#services">Dịch vụ</a>
-                <a href="#infrastructure">Vị trí & Hạ tầng</a>
-                <a href="#careers">Tuyển dụng</a>
-                <a href="#contact">Liên hệ</a>
+                <a href="#services">{text.get('nav_services', 'Dịch vụ')}</a>
+                <a href="#infrastructure">{text.get('nav_infrastructure', 'Vị trí & Hạ tầng')}</a>
+                <a href="#careers">{text.get('nav_careers', 'Tuyển dụng')}</a>
+                <a href="#contact">{text.get('nav_contact', 'Liên hệ')}</a>
             </div>
         </div>
     </nav>
@@ -829,7 +905,7 @@ def show_landing_page():
                     </div>
                     <div class="a4-chairman-info">
                         <h2>Ông Phùng Gia Phát</h2>
-                        <p class="title">🎤 Chủ tịch Hội đồng Quản trị</p>
+                        <p class="title">🎤 {text.get('modal_chairman_title', 'Chủ tịch Hội đồng Quản trị')}</p>
                         <p class="company">
                             Công ty Cổ phần Cảng Hòn La<br>
                             Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình
@@ -841,20 +917,20 @@ def show_landing_page():
                 </div>
                 <div class="a4-body">
                     <p class="a4-date">Quảng Bình, ngày 21 tháng 3 năm 2025</p>
-                    <p class="a4-greeting">Kính gửi Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên,</p>
-                    <p>Với niềm tự hào sâu sắc, Tôi xin thay mặt Hội đồng Quản trị Công ty Cổ phần Cảng Hòn La gửi lời chào trân trọng nhất đến Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên — những người đã và đang đồng hành cùng chúng tôi trên hành trình kiến tạo một cảng biển tầm cỡ quốc tế giữa lòng đất nước Việt Nam.</p>
-                    <p>Ngày <strong>21 tháng 3 năm 2025</strong> là một mốc son lịch sử — ngày chính thức khởi công Dự án Cảng tổng hợp quốc tế Hòn La, dự án được Chính phủ công nhận là <strong>Dự án trọng điểm Quốc gia</strong>. Đây không chỉ là thành quả của nhiều năm nỗ lực không ngừng, mà còn là khởi đầu của một chương mới trong lịch sử phát triển kinh tế hàng hải miền Trung Việt Nam.</p>
+                    <p class="a4-greeting">{text.get('modal_greeting', 'Kính gửi Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên,')}</p>
+                    <p>{text.get('modal_content_1', 'Với niềm tự hào sâu sắc, Tôi xin thay mặt Hội đồng Quản trị Công ty Cổ phần Cảng Hòn La gửi lời chào trân trọng nhất đến Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên — những người đã và đang đồng hành cùng chúng tôi trên hành trình kiến tạo một cảng biển tầm cỡ quốc tế giữa lòng đất nước Việt Nam.')}</p>
+                    <p>{text.get('modal_content_2', 'Ngày 21 tháng 3 năm 2025 là một mốc son lịch sử — ngày chính thức khởi công Dự án Cảng tổng hợp quốc tế Hòn La, dự án được Chính phủ công nhận là Dự án trọng điểm Quốc gia. Đây không chỉ là thành quả của nhiều năm nỗ lực không ngừng, mà còn là khởi đầu của một chương mới trong lịch sử phát triển kinh tế hàng hải miền Trung Việt Nam.')}</p>
                     <div class="vision-box">
-                        <h3>🎯 Tầm nhìn — Vision 2035</h3>
-                        <p>Trở thành cảng biển quốc tế hiện đại hàng đầu Đông Nam Á trên tuyến hành lang kinh tế Đông–Tây (EWEC) — nơi kết nối Việt Nam với thế giới, thúc đẩy thương mại, logistic và du lịch tàu biển, đóng góp thiết thực vào chiến lược phát triển kinh tế biển bền vững của Việt Nam đến năm 2035 và tầm nhìn 2045.</p>
+                        <h3>{text.get('modal_vision_title', '🎯 Tầm nhìn — Vision 2035')}</h3>
+                        <p>{text.get('modal_vision_text', 'Trở thành cảng biển quốc tế hiện đại hàng đầu Đông Nam Á trên tuyến hành lang kinh tế Đông–Tây (EWEC) — nơi kết nối Việt Nam với thế giới, thúc đẩy thương mại, logistic và du lịch tàu biển, đóng góp thiết thực vào chiến lược phát triển kinh tế biển bền vững của Việt Nam đến năm 2035 và tầm nhìn 2045.')}</p>
                     </div>
-                    <p>Với vị trí địa chiến lược độc đáo, hệ thống hạ tầng quy mô 39,22 ha, năng lực tiếp nhận tàu trọng tải lên đến <strong>70.000 DWT</strong> và tàu du lịch quốc tế <strong>225.000 GT</strong>, Cảng tổng hợp quốc tế Hòn La sẽ là cửa ngõ hàng hải chiến lược, cầu nối giữa các nền kinh tế trong khu vực và toàn cầu.</p>
+                    <p>{text.get('modal_content_3', 'Với vị trí địa chiến lược độc đáo, hệ thống hạ tầng quy mô 39,22 ha, năng lực tiếp nhận tàu trọng tải lên đến 70.000 DWT và tàu du lịch quốc tế 225.000 GT, Cảng tổng hợp quốc tế Hòn La sẽ là cửa ngõ hàng hải chiến lược, cầu nối giữa các nền kinh tế trong khu vực và toàn cầu.')}</p>
                     <div class="mission-box">
-                        <h3>💡 Sứ mệnh - Nhắn gửi đến mỗi thành viên</h3>
-                        <p>Mỗi cán bộ nhân viên của Công ty cổ phần Cảng Hòn La là một đại sứ của sự chuyên nghiệp và tận tâm. Sứ mệnh của chúng ta là <strong>xây dựng một môi trường làm việc đẳng cấp</strong>, nơi năng lực được trọng dụng, sáng tạo được khuyến khích và mỗi cá nhân đều tự hào khi đặt bàn tay mình vào công trình lịch sử này. Hãy làm việc với trái tim của người kiến tạo — bởi di sản chúng ta để lại không chỉ là những cầu bến vững chắc, mà còn là những thế hệ nhân lực xuất sắc của đất nước.</p>
+                        <h3>{text.get('modal_mission_title', '💡 Sứ mệnh - Nhắn gửi đến mỗi thành viên')}</h3>
+                        <p>{text.get('modal_mission_text', 'Mỗi cán bộ nhân viên của Công ty cổ phần Cảng Hòn La là một đại sứ của sự chuyên nghiệp và tận tâm. Sứ mệnh của chúng ta là xây dựng một môi trường làm việc đẳng cấp, nơi năng lực được trọng dụng, sáng tạo được khuyến khích và mỗi cá nhân đều tự hào khi đặt bàn tay mình vào công trình lịch sử này. Hãy làm việc với trái tim của người kiến tạo — bởi di sản chúng ta để lại không chỉ là những cầu bến vững chắc, mà còn là những thế hệ nhân lực xuất sắc của đất nước.')}</p>
                     </div>
-                    <p>Chúng tôi hiểu rằng con đường phía trước còn không ít thách thức. Song Tôi tin tưởng sâu sắc rằng với <strong>trí tuệ tập thể, khí phách dân tộc và khát vọng vươn ra biển lớn</strong>, Cảng tổng hợp quốc tế Hòn La sẽ hoàn thành xuất sắc sứ mệnh lịch sử được giao phó.</p>
-                    <p>Xin trân trọng cảm ơn sự tin tưởng, đồng hành và cống hiến của tất cả Quý vị.<br>Chúc Quý đối tác thịnh vượng, toàn thể cán bộ nhân viên sức khỏe và thành công!</p>
+                    <p>{text.get('modal_content_4', 'Chúng tôi hiểu rằng con đường phía trước còn không ít thách thức. Song Tôi tin tưởng sâu sắc rằng với trí tuệ tập thể, khí phách dân tộc và khát vọng vươn ra biển lớn, Cảng tổng hợp quốc tế Hòn La sẽ hoàn thành xuất sắc sứ mệnh lịch sử được giao phó.')}</p>
+                    <p>{text.get('modal_thanks', 'Xin trân trọng cảm ơn sự tin tưởng, đồng hành và cống hiến của tất cả Quý vị.')}<br>{text.get('modal_wishes', 'Chúc Quý đối tác thịnh vượng, toàn thể cán bộ nhân viên sức khỏe và thành công!')}</p>
                 </div>
                 <div class="a4-signature-left">
                     <div class="sig-block-left">
@@ -879,20 +955,20 @@ def show_landing_page():
                 <div class="slide-layout">
                     <div class="slide-image" style="background-image: url('{slide1_src}');"></div>
                     <div class="slide-content">
-                        <h1>CẢNG TỔNG HỢP QUỐC TẾ HÒN LA</h1>
-                        <p>Chính thức khởi công ngày 21 tháng 3 năm 2025</p>
-                        <p>Đưa vào khai thác từ Tháng 5 năm 2026</p>
-                        <div class="highlight" style="white-space:nowrap;">🚢 Cửa ngõ hàng hải chiến lược của Miền Trung</div>
+                        <h1>{text.get('hero_title_1', 'CẢNG TỔNG HỢP QUỐC TẾ HÒN LA')}</h1>
+                        <p>{text.get('hero_desc_1_1', 'Chính thức khởi công ngày 21 tháng 3 năm 2025')}</p>
+                        <p>{text.get('hero_desc_1_2', 'Đưa vào khai thác từ Tháng 5 năm 2026')}</p>
+                        <div class="highlight">{text.get('hero_tag_1', '🚢 Cửa ngõ hàng hải chiến lược của Miền Trung')}</div>
                     </div>
                 </div>
             </div>
             <div class="slide">
                 <div class="slide-layout">
                     <div class="slide-content">
-                        <h1>KẾT NỐI TOÀN CẦU</h1>
-                        <p>Vị trí chiến lược trên tuyến hành lang kinh tế Đông - Tây (EWEC)</p>
-                        <p>Kết nối trực tiếp với các cảng biển lớn trong khu vực và quốc tế</p>
-                        <div class="highlight">🌏 Hành lang thương mại huyết mạch</div>
+                        <h1>{text.get('hero_title_2', 'KẾT NỐI TOÀN CẦU')}</h1>
+                        <p>{text.get('hero_desc_2_1', 'Vị trí chiến lược trên tuyến hành lang kinh tế Đông - Tây (EWEC)')}</p>
+                        <p>{text.get('hero_desc_2_2', 'Kết nối trực tiếp với các cảng biển lớn trong khu vực và quốc tế')}</p>
+                        <div class="highlight">{text.get('hero_tag_2', '🌏 Hành lang thương mại huyết mạch')}</div>
                     </div>
                     <div class="slide-image" style="background-image: url('{slide2_src}');"></div>
                 </div>
@@ -901,10 +977,10 @@ def show_landing_page():
                 <div class="slide-layout">
                     <div class="slide-image" style="background-image: url('{slide3_src}');"></div>
                     <div class="slide-content">
-                        <h1>HẠ TẦNG ĐẲNG CẤP QUỐC TẾ</h1>
-                        <p>04 Cầu Tàu | Tổng chiều dài 970m | Tiếp nhận tàu 70.000 DWT</p>
-                        <p>Tàu du lịch quốc tế 225.000 GT</p>
-                        <div class="highlight">⚓ Hiện đại - Đồng bộ - Chuyên nghiệp</div>
+                        <h1>{text.get('hero_title_3', 'HẠ TẦNG ĐẲNG CẤP QUỐC TẾ')}</h1>
+                        <p>{text.get('hero_desc_3_1', '04 Cầu Tàu | Tổng chiều dài 970m | Tiếp nhận tàu 70.000 DWT')}</p>
+                        <p>{text.get('hero_desc_3_2', 'Tàu du lịch quốc tế 225.000 GT')}</p>
+                        <div class="highlight">{text.get('hero_tag_3', '⚓ Hiện đại - Đồng bộ - Chuyên nghiệp')}</div>
                     </div>
                 </div>
             </div>
@@ -922,10 +998,10 @@ def show_landing_page():
     <!-- Statistics -->
     <section class="stats-section">
         <div class="stats-grid">
-            <div class="stat-card reveal"><div class="stat-number">39,22 ha</div><div class="stat-label">Tổng diện tích</div></div>
-            <div class="stat-card reveal"><div class="stat-number">70.000 DWT</div><div class="stat-label">Trọng tải tàu tối đa</div></div>
-            <div class="stat-card reveal"><div class="stat-number">970 m</div><div class="stat-label">Chiều dài cầu cảng</div></div>
-            <div class="stat-card reveal"><div class="stat-number">225.000 GT</div><div class="stat-label">Tàu du lịch quốc tế</div></div>
+            <div class="stat-card reveal"><div class="stat-number">39,22 ha</div><div class="stat-label">{text.get('stat_total_area', 'Tổng diện tích')}</div></div>
+            <div class="stat-card reveal"><div class="stat-number">70.000 DWT</div><div class="stat-label">{text.get('stat_max_capacity', 'Trọng tải tàu tối đa')}</div></div>
+            <div class="stat-card reveal"><div class="stat-number">970 m</div><div class="stat-label">{text.get('stat_berth_length', 'Chiều dài cầu cảng')}</div></div>
+            <div class="stat-card reveal"><div class="stat-number">225.000 GT</div><div class="stat-label">{text.get('stat_cruise_ship', 'Tàu du lịch quốc tế')}</div></div>
         </div>
     </section>
     
@@ -933,10 +1009,10 @@ def show_landing_page():
     <section id="about" class="about-section">
         <div class="about-grid">
             <div>
-                <div class="about-tag">CHÀO MỪNG ĐẾN VỚI CẢNG QUỐC TẾ HÒN LA</div>
-                <h2 class="about-title">Cửa ngõ hàng hải chiến lược của Miền Trung</h2>
-                <p class="about-text">Cảng tổng hợp Quốc tế Hòn La được đầu tư bài bản với hệ thống cơ sở hạ tầng đồng bộ, hiện đại, đáp ứng nhu cầu bốc xếp hàng hóa, trung chuyển container và đón tàu du lịch quốc tế.</p>
-                <div class="about-highlight"><i class="fas fa-trophy" style="color:#f59e0b"></i> <strong>Dự án trọng điểm Quốc gia</strong></div>
+                <div class="about-tag">{text.get('about_tag', 'CHÀO MỪNG ĐẾN VỚI CẢNG QUỐC TẾ HÒN LA')}</div>
+                <h2 class="about-title">{text.get('about_title', 'Cửa ngõ hàng hải chiến lược của Miền Trung')}</h2>
+                <p class="about-text">{text.get('about_text', 'Cảng tổng hợp Quốc tế Hòn La được đầu tư bài bản với hệ thống cơ sở hạ tầng đồng bộ, hiện đại, đáp ứng nhu cầu bốc xếp hàng hóa, trung chuyển container và đón tàu du lịch quốc tế.')}</p>
+                <div class="about-highlight"><i class="fas fa-trophy" style="color:#f59e0b"></i> <strong>{text.get('about_highlight', 'Dự án trọng điểm Quốc gia')}</strong></div>
             </div>
             <div><img src="https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070" class="about-img"></div>
         </div>
@@ -944,12 +1020,12 @@ def show_landing_page():
     
     <!-- Services -->
     <section id="services" class="services-section">
-        <div class="section-header"><h2>Dịch vụ của chúng tôi</h2></div>
+        <div class="section-header"><h2>{text.get('services_title', 'Dịch vụ của chúng tôi')}</h2></div>
         <div class="services-grid">
-            <div class="service-card"><div class="service-icon"><i class="fas fa-ship"></i></div><h3>Hàng rời & Hàng khô</h3></div>
-            <div class="service-card"><div class="service-icon"><i class="fas fa-boxes"></i></div><h3>Hàng container</h3></div>
-            <div class="service-card"><div class="service-icon"><i class="fas fa-umbrella-beach"></i></div><h3>Du lịch tàu biển</h3></div>
-            <div class="service-card"><div class="service-icon"><i class="fas fa-warehouse"></i></div><h3>Logistics & Kho bãi</h3></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-ship"></i></div><h3>{text.get('service_bulk', 'Hàng rời & Hàng khô')}</h3></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-boxes"></i></div><h3>{text.get('service_container', 'Hàng container')}</h3></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-umbrella-beach"></i></div><h3>{text.get('service_cruise', 'Du lịch tàu biển')}</h3></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-warehouse"></i></div><h3>{text.get('service_logistics', 'Logistics & Kho bãi')}</h3></div>
         </div>
     </section>
     
@@ -957,11 +1033,11 @@ def show_landing_page():
     <section id="infrastructure" class="infra-section">
         <div class="infra-grid">
             <div>
-                <div class="about-tag">HẠ TẦNG & VỊ TRÍ</div>
-                <h2 class="about-title">Vị thế vàng trên bản đồ logistics</h2>
-                <div class="infra-feature"><i class="fas fa-map-marker-alt"></i><div><strong>Quảng Trạch, Quảng Bình</strong><br>Khu kinh tế Hòn La</div></div>
-                <div class="infra-feature"><i class="fas fa-road"></i><div><strong>Kết nối hành lang Đông - Tây (EWEC)</strong></div></div>
-                <div class="infra-feature"><i class="fas fa-anchor"></i><div><strong>04 bến cấp tàu</strong><br>Tổng chiều dài 970m</div></div>
+                <div class="about-tag">{text.get('infra_tag', 'HẠ TẦNG & VỊ TRÍ')}</div>
+                <h2 class="about-title">{text.get('infra_title', 'Vị thế vàng trên bản đồ logistics')}</h2>
+                <div class="infra-feature"><i class="fas fa-map-marker-alt"></i><div><strong>Quảng Trạch, Quảng Bình</strong><br>{text.get('infra_location', 'Khu kinh tế Hòn La')}</div></div>
+                <div class="infra-feature"><i class="fas fa-road"></i><div><strong>{text.get('infra_connection', 'Kết nối hành lang Đông - Tây (EWEC)')}</strong></div></div>
+                <div class="infra-feature"><i class="fas fa-anchor"></i><div><strong>{text.get('infra_berths', '04 bến cấp tàu')}</strong><br>Tổng chiều dài 970m</div></div>
             </div>
             <div><img src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070" class="about-img"></div>
         </div>
@@ -969,26 +1045,40 @@ def show_landing_page():
     
     <!-- Careers -->
     <section id="careers" class="careers-section">
-        <h2>GIA NHẬP ĐỘI NGŨ NHÂN SỰ CỦA CHÚNG TÔI</h2>
-        <p>Chúng tôi luôn tìm kiếm những nhân tài</p>
-        <a href="#" class="btn-white" id="careerLink">📢 Xem cơ hội việc làm tại đây</a>
+        <h2>{text.get('careers_title', 'GIA NHẬP ĐỘI NGŨ NHÂN SỰ CỦA CHÚNG TÔI')}</h2>
+        <p>{text.get('careers_subtitle', 'Chúng tôi luôn tìm kiếm những nhân tài')}</p>
+        <a href="#" class="btn-white" id="careerLink">{text.get('careers_button', '📢 Xem cơ hội việc làm tại đây')}</a>
     </section>
     
     <!-- Footer -->
     <footer id="contact" class="footer">
         <div class="footer-grid">
-            <div class="footer-col"><h4 style="font-size:0.95rem; white-space:nowrap;">CÔNG TY CỔ PHẦN CẢNG HÒN LA</h4><p>Khu kinh tế Hòn La, Xã Phú Trạch, Tỉnh Quảng Trị</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
-            <div class="footer-col"><h4>Liên kết nhanh</h4><a href="#home">Trang chủ</a><a href="#about">Về chúng tôi</a><a href="#services">Dịch vụ</a><a href="#infrastructure">Hạ tầng</a><a href="#careers">Tuyển dụng</a></div>
-            <div class="footer-col"><h4>Hỗ trợ</h4><a href="#">Câu hỏi thường gặp</a><a href="#">Chính sách bảo mật</a><a href="#">Điều khoản sử dụng</a></div>
-            <div class="footer-col"><h4>Giờ làm việc</h4><p>🚢 Bến cảng: 24/7</p><p>🏢 Văn phòng: 7:30 - 17:00</p><p>📅 Thứ 2 - Thứ 7</p></div>
+            <div class="footer-col"><h4 style="font-size:0.95rem; white-space:nowrap;">{text.get('footer_company', 'CÔNG TY CỔ PHẦN CẢNG HÒN LA')}</h4><p>Khu kinh tế Hòn La, Xã Phú Trạch, Tỉnh Quảng Trị</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
+            <div class="footer-col"><h4>{text.get('footer_quick_links', 'Liên kết nhanh')}</h4><a href="#home">{text.get('nav_home', 'Trang chủ')}</a><a href="#about">{text.get('nav_about', 'Về chúng tôi')}</a><a href="#services">{text.get('nav_services', 'Dịch vụ')}</a><a href="#infrastructure">{text.get('nav_infrastructure', 'Hạ tầng')}</a><a href="#careers">{text.get('nav_careers', 'Tuyển dụng')}</a></div>
+            <div class="footer-col"><h4>{text.get('footer_support', 'Hỗ trợ')}</h4><a href="#">{text.get('footer_faq', 'Câu hỏi thường gặp')}</a><a href="#">{text.get('footer_privacy', 'Chính sách bảo mật')}</a><a href="#">{text.get('footer_terms', 'Điều khoản sử dụng')}</a></div>
+            <div class="footer-col"><h4>{text.get('footer_working_hours', 'Giờ làm việc')}</h4><p>🚢 {text.get('footer_working_hours_port', 'Bến cảng: 24/7')}</p><p>🏢 {text.get('footer_working_hours_office', 'Văn phòng: 7:30 - 17:00')}</p><p>📅 {text.get('footer_working_days', 'Thứ 2 - Thứ 7')}</p></div>
         </div>
         <div class="copyright">
             <p>© 2026 - Công ty Cổ phần Cảng Hòn La. All rights reserved.</p>
-            <p style="margin-top: 10px;">🏗️ PHÁT TRIỂN BỀN VỮNG - KẾT NỐI TOÀN CẦU</p>
+            <p style="margin-top: 10px;">{text.get('footer_copyright', 'PHÁT TRIỂN BỀN VỮNG - KẾT NỐI TOÀN CẦU')}</p>
         </div>
     </footer>
     
     <script>
+        // Hàm đổi ngôn ngữ
+        function setLanguage(lang) {{
+            // Gửi request lên Streamlit để cập nhật session_state
+            fetch(window.location.origin + '/_stcore/stream', {{
+                method: 'POST',
+                headers: {{
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                }},
+                body: 'set_language=' + lang
+            }});
+            // Reload page để áp dụng ngôn ngữ mới
+            window.location.reload();
+        }}
+        
         document.addEventListener('DOMContentLoaded', function() {{
 
             // ===== FIX: Xử lý tất cả link nội bộ để không reload page =====
@@ -1167,10 +1257,7 @@ def show_landing_page():
     """
 
     # Ẩn loginBtn trong iframe tránh trùng
-    landing_html_fixed = landing_html.replace(
-        '<a href="#" class="btn-login" id="loginBtn">🔐 HRM - QUẢN LÝ NHÂN SỰ./ Chỉ dành cho Nhân viên</a>',
-        ''
-    )
+    landing_html_fixed = landing_html
 
     # Render landing page
     components.html(landing_html_fixed, height=3142, scrolling=False)
@@ -1236,7 +1323,12 @@ if os.path.exists(logo_path):
         st.image(logo_path, use_container_width=True)
         st.divider()
 
-if not st.session_state.logged_in and not st.session_state.show_hrm:
+# Trong phần main hoặc ở cuối file, đảm bảo:
+if not st.session_state.logged_in and not st.session_state.get('show_hrm', False):
+    # Xử lý đổi ngôn ngữ
+    handle_language_change()
+    
+    # Ẩn sidebar
     st.markdown("""
         <style>
             [data-testid="stSidebar"] { display: none !important; }

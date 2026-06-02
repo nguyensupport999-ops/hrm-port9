@@ -140,7 +140,7 @@ def show_landing_page():
     slide1_src = load_img_b64("anh1.jpeg")
     slide2_src = load_img_b64("anh2.jpeg")
     slide3_src = load_img_b64("anh3.jpeg")
-    chu_tich_img = load_img_b64("321.png")
+    chu_tich_img = load_img_b64("333.png")
     chu_ky_img = load_img_b64("123456.png")
     
     # Active class cho language buttons

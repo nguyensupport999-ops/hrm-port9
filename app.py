@@ -1316,19 +1316,36 @@ def show_landing_page():
                 }});
             }}
             
-            // Smooth scroll
-            document.querySelectorAll('a[href^="#"]').forEach(anchor => {{
-                anchor.addEventListener('click', function(e) {{
+            // Lấy tất cả các link có href bắt đầu bằng #
+            const allInternalLinks = document.querySelectorAll('a[href^="#"]');
+            
+            allInternalLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    // Lấy target ID từ href
                     const targetId = this.getAttribute('href');
-                    if (targetId === '#') return;
+                    
+                    // Bỏ qua nếu là '#' hoặc rỗng
+                    if (targetId === '#' || !targetId) return;
+                    
                     const targetElement = document.querySelector(targetId);
-                    if (targetElement) {{
-                        e.preventDefault();
-                        targetElement.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
-                    }}
-                }});
-            }});
-
+                    
+                    if (targetElement) {
+                        e.preventDefault();  // Ngăn không thay đổi URL
+                        e.stopPropagation(); // Ngăn sự kiện lan truyền
+                        
+                        // Scroll mượt đến phần tử
+                        targetElement.scrollIntoView({ 
+                            behavior: 'smooth', 
+                            block: 'start' 
+                        });
+                        
+                        // Cập nhật URL mà không gây reload (tùy chọn)
+                        if (history.replaceState) {
+                            history.replaceState(null, null, targetId);
+                        }
+                    }
+                });
+            });
         }});
     </script>
     </body>
@@ -3640,8 +3657,17 @@ elif menu == "✅ Nhân viên":
                                                     # Lưu số HĐ cũ (HĐTV) vào biến để sau này rollback
                                                     so_hd_cu = selected_nv.get('so_hdld', '')
                                                     ngay_vao_lam_cu = selected_nv.get('ngay_vao_lam')
-                                                    if isinstance(ngay_vao_lam_cu, str):
-                                                        ngay_vao_lam_cu = datetime.strptime(ngay_vao_lam_cu, '%Y-%m-%d').date()
+                                                    # Dùng hàm parse_date có sẵn để xử lý nhiều định dạng
+                                                    if ngay_vao_lam_cu:
+                                                        if hasattr(ngay_vao_lam_cu, 'strftime'):
+                                                            # Đã là date object
+                                                            pass
+                                                        else:
+                                                            ngay_vao_lam_cu = parse_date(ngay_vao_lam_cu)
+                                                            if not ngay_vao_lam_cu:
+                                                                ngay_vao_lam_cu = date.today()
+                                                    else:
+                                                        ngay_vao_lam_cu = date.today()
                                                     
                                                     # Cập nhật nhân viên sang HĐLĐ không xác định thời hạn
                                                     c.execute("""

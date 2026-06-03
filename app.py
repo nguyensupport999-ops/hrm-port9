@@ -2815,7 +2815,7 @@ if menu == "📊 Dashboard":
         c3.execute("""
             SELECT STT, ma_nv, ho_ten, ngay_vao_lam, 
                    (ngay_vao_lam + INTERVAL '30 days')::DATE as ngay_ket_thuc_tv,
-                   GREATEST(0, ((ngay_vao_lam + INTERVAL '30 days')::DATE - CURRENT_DATE)) as ngay_con_lai
+                   ((ngay_vao_lam + INTERVAL '30 days')::DATE - CURRENT_DATE) as ngay_con_lai
             FROM nhan_vien 
             WHERE trang_thai = 'THU_VIEC' 
             AND (ngay_vao_lam + INTERVAL '30 days')::DATE <= CURRENT_DATE + INTERVAL '5 days'
@@ -2823,10 +2823,15 @@ if menu == "📊 Dashboard":
         """)
         tv_sap_het = c3.fetchall()
         for x in tv_sap_het:
-            if x['ngay_con_lai'] == 0:
+            ngay_con_lai = x['ngay_con_lai']
+            if isinstance(ngay_con_lai, timedelta):
+                ngay_con_lai = ngay_con_lai.days
+            if ngay_con_lai < 0:
+                st.error(f"🔴 **{x.get('ma_nv','')} {x['ho_ten']}** - ĐÃ QUÁ THỜI HẠN THỬ VIỆC {abs(ngay_con_lai)} NGÀY!")
+            elif ngay_con_lai == 0:
                 st.error(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** - HÔM NAY LÀ NGÀY CUỐI HỢP ĐỒNG THỬ VIỆC!")
             else:
-                st.warning(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** còn **{x['ngay_con_lai']}** ngày sẽ kết thúc hợp đồng thử việc!")
+                st.warning(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** còn **{ngay_con_lai}** ngày sẽ kết thúc hợp đồng thử việc!")
     db3.close()
     
     

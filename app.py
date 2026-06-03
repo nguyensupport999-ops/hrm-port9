@@ -1252,12 +1252,16 @@ def show_landing_page():
             }});
         }}
 
-        // Language switcher - dùng replaceState để tránh URL bị kéo dài vô hạn
+        // Language switcher - window.top để thoát khỏi mọi tầng iframe Streamlit
         function switchLanguage(lang) {{
-            var url = new URL(window.parent.location.href);
+            var topWin = window.top || window.parent || window;
+            var url = new URL(topWin.location.href);
+            // Xóa param lang cũ nếu có, set lại mới
             url.searchParams.set('lang', lang);
-            window.parent.history.replaceState({{}}, '', url.toString());
-            window.parent.location.href = url.toString();
+            // replaceState thay URL mà KHÔNG tạo history entry mới
+            topWin.history.replaceState(null, '', url.toString());
+            // reload để Streamlit server nhận ?lang= và rerun
+            topWin.location.reload();
         }}
     </script>
     </body>
@@ -1307,9 +1311,10 @@ body {
     <script>
     // Nút HRM click
     document.getElementById('hrmBtn').addEventListener('click', function() {
-        var url = new URL(window.parent.location.href);
+        var topWin = window.top || window.parent || window;
+        var url = new URL(topWin.location.href);
         url.searchParams.set('goto', 'hrm');
-        window.parent.location.href = url.toString();
+        topWin.location.href = url.toString();
     });
     </script>
 </body>
@@ -1356,7 +1361,7 @@ body {
     # Nút HRM thuần Python
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        if st.button("🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên", use_container_width=True):
+        if st.button("🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên", width='stretch'):
             st.session_state.show_hrm = True
             st.rerun()
 
@@ -1405,7 +1410,7 @@ if query_params.get('goto') == 'hrm':
 logo_path = "logo_cty.png"
 if os.path.exists(logo_path):
     with st.sidebar:
-        st.image(logo_path, use_container_width=True)
+        st.image(logo_path, width='stretch')
         st.divider()
 
 # Trong phần main hoặc ở cuối file, đảm bảo:

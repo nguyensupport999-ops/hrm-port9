@@ -147,6 +147,220 @@ def show_landing_page():
     vi_active = 'active' if lang == 'vi' else ''
     en_active = 'active' if lang == 'en' else ''
     
+    # JavaScript riêng biệt (không có {} để tránh xung đột)
+    landing_js = """
+    <script>
+        // Hàm cuộn mượt đến section bằng window.top
+        function scrollToSection(sectionId) {
+            var topWin = window.top || window.parent || window;
+            var targetElement = document.getElementById(sectionId);
+            if (targetElement) {
+                var targetRect = targetElement.getBoundingClientRect();
+                var offsetTop = targetRect.top + (topWin.scrollY || topWin.pageYOffset);
+                topWin.scrollTo({
+                    top: offsetTop - 80,
+                    behavior: 'smooth'
+                });
+            }
+        }
+        
+        function handleNavClick(e) {
+            e.preventDefault();
+            var section = this.getAttribute('data-section');
+            if (section) {
+                scrollToSection(section);
+            }
+        }
+        
+        function initNavigation() {
+            var navLinks = document.querySelectorAll('.nav-link');
+            for (var i = 0; i < navLinks.length; i++) {
+                navLinks[i].removeEventListener('click', handleNavClick);
+                navLinks[i].addEventListener('click', handleNavClick);
+            }
+        }
+        
+        // Slider
+        var currentSlide = 0;
+        var slides = document.querySelectorAll('.slide');
+        var dots = document.querySelectorAll('.slider-dot');
+        var totalSlides = slides.length;
+        var autoSlideInterval;
+        var progressInterval;
+        var progressValue = 0;
+        var SLIDE_DURATION = 5000;
+        var progressBar = document.getElementById('sliderProgress');
+        
+        function showSlide(index) {
+            for (var i = 0; i < slides.length; i++) {
+                slides[i].classList.remove('active');
+                if (dots[i]) dots[i].classList.remove('active');
+            }
+            slides[index].classList.add('active');
+            if (dots[index]) dots[index].classList.add('active');
+            currentSlide = index;
+            resetProgress();
+        }
+        
+        function nextSlide() {
+            showSlide((currentSlide + 1) % totalSlides);
+        }
+        
+        function prevSlide() {
+            showSlide((currentSlide - 1 + totalSlides) % totalSlides);
+        }
+        
+        function resetProgress() {
+            progressValue = 0;
+            if (progressBar) progressBar.style.width = '0%';
+        }
+        
+        function startProgress() {
+            if (progressInterval) clearInterval(progressInterval);
+            progressValue = 0;
+            progressInterval = setInterval(function() {
+                progressValue += 100 / (SLIDE_DURATION / 100);
+                if (progressBar) progressBar.style.width = Math.min(progressValue, 100) + '%';
+                if (progressValue >= 100) resetProgress();
+            }, 100);
+        }
+        
+        function startAutoSlide() {
+            if (autoSlideInterval) clearInterval(autoSlideInterval);
+            autoSlideInterval = setInterval(nextSlide, SLIDE_DURATION);
+            startProgress();
+        }
+        
+        if (totalSlides > 0) {
+            for (var i = 0; i < dots.length; i++) {
+                dots[i].addEventListener('click', (function(idx) {
+                    return function() {
+                        showSlide(idx);
+                        if (autoSlideInterval) clearInterval(autoSlideInterval);
+                        if (progressInterval) clearInterval(progressInterval);
+                        startAutoSlide();
+                    };
+                })(i));
+            }
+            
+            var prevBtn = document.getElementById('prevBtn');
+            var nextBtn = document.getElementById('nextBtn');
+            if (prevBtn) {
+                prevBtn.addEventListener('click', function() {
+                    prevSlide();
+                    if (autoSlideInterval) clearInterval(autoSlideInterval);
+                    if (progressInterval) clearInterval(progressInterval);
+                    startAutoSlide();
+                });
+            }
+            if (nextBtn) {
+                nextBtn.addEventListener('click', function() {
+                    nextSlide();
+                    if (autoSlideInterval) clearInterval(autoSlideInterval);
+                    if (progressInterval) clearInterval(progressInterval);
+                    startAutoSlide();
+                });
+            }
+            
+            var touchStartX = 0;
+            var heroSlider = document.querySelector('.hero-slider');
+            if (heroSlider) {
+                heroSlider.addEventListener('touchstart', function(e) {
+                    touchStartX = e.touches[0].clientX;
+                });
+                heroSlider.addEventListener('touchend', function(e) {
+                    var diff = touchStartX - e.changedTouches[0].clientX;
+                    if (Math.abs(diff) > 50) {
+                        diff > 0 ? nextSlide() : prevSlide();
+                        startAutoSlide();
+                    }
+                });
+            }
+            startAutoSlide();
+        }
+        
+        // Scroll reveal
+        var revealObserver = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    revealObserver.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.15 });
+        document.querySelectorAll('.reveal').forEach(function(el) {
+            revealObserver.observe(el);
+        });
+        
+        // Navbar scroll effect
+        window.addEventListener('scroll', function() {
+            var navbar = document.getElementById('navbar');
+            if (navbar) {
+                if (window.scrollY > 50) {
+                    navbar.style.background = 'rgba(15, 59, 92, 0.98)';
+                    navbar.style.boxShadow = '0 4px 20px rgba(0,0,0,0.2)';
+                } else {
+                    navbar.style.background = 'rgba(15, 59, 92, 0.95)';
+                    navbar.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+                }
+            }
+        });
+        
+        // Modal
+        var modal = document.getElementById('thuNgoModal');
+        var thuNgoBtn = document.getElementById('thuNgoBtn');
+        var closeModalBtn = document.getElementById('closeModalBtn');
+        
+        if (thuNgoBtn && modal) {
+            thuNgoBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            });
+            
+            var closeModal = function() {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            };
+            
+            if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) closeModal();
+            });
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && modal.classList.contains('active')) closeModal();
+            });
+        }
+        
+        // Career link
+        var careerLink = document.getElementById('careerLink');
+        if (careerLink) {
+            careerLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                alert('Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
+            });
+        }
+        
+        // Language switcher
+        function switchLanguage(lang) {
+            var topWin = window.top || window.parent || window;
+            var url = new URL(topWin.location.href);
+            url.searchParams.set('lang', lang);
+            topWin.history.replaceState(null, '', url.toString());
+            topWin.location.reload();
+        }
+        
+        // Khởi tạo navigation
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                initNavigation();
+            });
+        } else {
+            initNavigation();
+        }
+    </script>
+    """
+    
     landing_html = f"""
     <!DOCTYPE html>
     <html lang="{lang}">
@@ -242,6 +456,7 @@ def show_landing_page():
                 padding: 8px 16px;
                 border-radius: 40px;
                 transition: all 0.3s;
+                cursor: pointer;
             }}
             .nav-links a:hover {{
                 background: #f59e0b;
@@ -269,6 +484,7 @@ def show_landing_page():
                 border-radius: 40px;
                 transition: all 0.3s;
                 background: transparent !important;
+                cursor: pointer;
             }}
             .lang-link:hover {{
                 background: #f59e0b !important;
@@ -305,6 +521,7 @@ def show_landing_page():
                 padding: 4px 8px;
                 border-radius: 20px;
                 transition: all 0.2s;
+                cursor: pointer;
             }}
             .mobile-lang a:hover {{
                 background: rgba(255,255,255,0.2);
@@ -338,6 +555,7 @@ def show_landing_page():
                 display: block;
                 font-size: 0.85rem;
                 background: transparent;
+                cursor: pointer;
             }}
             .dropdown-content a:hover {{
                 background: #f8fafc;
@@ -642,6 +860,7 @@ def show_landing_page():
                 display: inline-block;
                 margin-top: 20px;
                 text-decoration: none;
+                cursor: pointer;
             }}
             
             /* ===== FOOTER ===== */
@@ -672,6 +891,7 @@ def show_landing_page():
                 line-height: 1.8;
                 font-size: 0.9rem;
                 display: block;
+                cursor: pointer;
             }}
             .footer-col a:hover {{
                 color: #f59e0b;
@@ -907,18 +1127,18 @@ def show_landing_page():
                 <img src="data:image/png;base64,{logo_base64}" alt="Cảng Hòn La">
             </div>
             <div class="nav-links">
-                <a href="javascript:void(0)" class="nav-link" data-section="home">{text.get('nav_home', 'Trang chủ')}</a>
+                <a class="nav-link" data-section="home">{text.get('nav_home', 'Trang chủ')}</a>
                 <div class="dropdown">
-                    <a href="javascript:void(0)" class="nav-link" data-section="about">{text.get('nav_about', 'Giới thiệu')} <i class="fas fa-chevron-down"></i></a>
+                    <a class="nav-link" data-section="about">{text.get('nav_about', 'Giới thiệu')} <i class="fas fa-chevron-down"></i></a>
                     <div class="dropdown-content">
-                        <a href="javascript:void(0)" class="nav-link" data-section="about">{text.get('about_us', 'Về chúng tôi')}</a>
-                        <a href="javascript:void(0)" id="thuNgoBtn">{text.get('chairman_letter', 'Thư ngỏ của Chủ tịch HĐQT')}</a>
+                        <a class="nav-link" data-section="about">{text.get('about_us', 'Về chúng tôi')}</a>
+                        <a href="#" id="thuNgoBtn">{text.get('chairman_letter', 'Thư ngỏ của Chủ tịch HĐQT')}</a>
                     </div>
                 </div>
-                <a href="javascript:void(0)" class="nav-link" data-section="services">{text.get('nav_services', 'Dịch vụ')}</a>
-                <a href="javascript:void(0)" class="nav-link" data-section="infrastructure">{text.get('nav_infrastructure', 'Vị trí & Hạ tầng')}</a>
-                <a href="javascript:void(0)" class="nav-link" data-section="careers">{text.get('nav_careers', 'Tuyển dụng')}</a>
-                <a href="javascript:void(0)" class="nav-link" data-section="contact">{text.get('nav_contact', 'Liên hệ')}</a>
+                <a class="nav-link" data-section="services">{text.get('nav_services', 'Dịch vụ')}</a>
+                <a class="nav-link" data-section="infrastructure">{text.get('nav_infrastructure', 'Vị trí & Hạ tầng')}</a>
+                <a class="nav-link" data-section="careers">{text.get('nav_careers', 'Tuyển dụng')}</a>
+                <a class="nav-link" data-section="contact">{text.get('nav_contact', 'Liên hệ')}</a>
                 <span class="nav-divider">|</span>
                 <div class="lang-switch">
                     <a href="#" class="lang-link {vi_active}" onclick="switchLanguage('vi'); return false;">🇻🇳 VI</a>
@@ -1038,7 +1258,7 @@ def show_landing_page():
     </section>
     
     <!-- Statistics -->
-    <section class="stats-section">
+    <section id="stats" class="stats-section">
         <div class="stats-grid">
             <div class="stat-card reveal"><div class="stat-number">39,22 ha</div><div class="stat-label">{text.get('stat_total_area', 'Tổng diện tích')}</div></div>
             <div class="stat-card reveal"><div class="stat-number">70.000 DWT</div><div class="stat-label">{text.get('stat_max_capacity', 'Trọng tải tàu tối đa')}</div></div>
@@ -1097,11 +1317,11 @@ def show_landing_page():
         <div class="footer-grid">
             <div class="footer-col"><h4 style="font-size:0.95rem; white-space:nowrap;">{text.get('footer_company', 'CÔNG TY CỔ PHẦN CẢNG HÒN LA')}</h4><p>Khu kinh tế Hòn La, Xã Phú Trạch, Tỉnh Quảng Trị</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
             <div class="footer-col"><h4>{text.get('footer_quick_links', 'Liên kết nhanh')}</h4>
-                <a href="javascript:void(0)" class="nav-link" data-section="home">{text.get('nav_home', 'Trang chủ')}</a>
-                <a href="javascript:void(0)" class="nav-link" data-section="about">{text.get('nav_about', 'Về chúng tôi')}</a>
-                <a href="javascript:void(0)" class="nav-link" data-section="services">{text.get('nav_services', 'Dịch vụ')}</a>
-                <a href="javascript:void(0)" class="nav-link" data-section="infrastructure">{text.get('nav_infrastructure', 'Hạ tầng')}</a>
-                <a href="javascript:void(0)" class="nav-link" data-section="careers">{text.get('nav_careers', 'Tuyển dụng')}</a>
+                <a class="nav-link" data-section="home">{text.get('nav_home', 'Trang chủ')}</a>
+                <a class="nav-link" data-section="about">{text.get('nav_about', 'Về chúng tôi')}</a>
+                <a class="nav-link" data-section="services">{text.get('nav_services', 'Dịch vụ')}</a>
+                <a class="nav-link" data-section="infrastructure">{text.get('nav_infrastructure', 'Hạ tầng')}</a>
+                <a class="nav-link" data-section="careers">{text.get('nav_careers', 'Tuyển dụng')}</a>
             </div>
             <div class="footer-col"><h4>{text.get('footer_support', 'Hỗ trợ')}</h4><a href="#">{text.get('footer_faq', 'Câu hỏi thường gặp')}</a><a href="#">{text.get('footer_privacy', 'Chính sách bảo mật')}</a><a href="#">{text.get('footer_terms', 'Điều khoản sử dụng')}</a></div>
             <div class="footer-col"><h4>{text.get('footer_working_hours', 'Giờ làm việc')}</h4><p>🚢 {text.get('footer_working_hours_port', 'Bến cảng: 24/7')}</p><p>🏢 {text.get('footer_working_hours_office', 'Văn phòng: 7:30 - 17:00')}</p><p>📅 {text.get('footer_working_days', 'Thứ 2 - Thứ 7')}</p></div>
@@ -1112,207 +1332,7 @@ def show_landing_page():
         </div>
     </footer>
     
-    <script>
-        // Hàm cuộn mượt đến section bằng window.top (cho iframe)
-        function scrollToSection(sectionId) {
-            var topWin = window.top || window.parent || window;
-            
-            var targetElement = document.getElementById(sectionId);
-            if (targetElement) {
-                var iframeRect = document.body.getBoundingClientRect();
-                var targetRect = targetElement.getBoundingClientRect();
-                var offsetTop = targetRect.top + (topWin.scrollY || topWin.pageYOffset);
-                
-                topWin.scrollTo({
-                    top: offsetTop - 80,
-                    behavior: 'smooth'
-                });
-            }
-        }
-        
-        // Khởi tạo navigation handlers
-        function initNavigation() {
-            var navLinks = document.querySelectorAll('.nav-link');
-            navLinks.forEach(function(link) {
-                link.removeEventListener('click', handleNavClick);
-                link.addEventListener('click', handleNavClick);
-            });
-        }
-        
-        function handleNavClick(e) {
-            e.preventDefault();
-            var section = this.getAttribute('data-section');
-            if (section) {
-                scrollToSection(section);
-            }
-        }
-        
-        // Slider tự động
-        let currentSlide = 0;
-        const slides = document.querySelectorAll('.slide');
-        const dots = document.querySelectorAll('.slider-dot');
-        const totalSlides = slides.length;
-        let autoSlideInterval;
-        let progressInterval;
-        let progressValue = 0;
-        const SLIDE_DURATION = 5000;
-        const progressBar = document.getElementById('sliderProgress');
-        
-        function showSlide(index) {
-            slides.forEach((slide, i) => {
-                slide.classList.remove('active');
-                if (dots[i]) dots[i].classList.remove('active');
-            });
-            slides[index].classList.add('active');
-            if (dots[index]) dots[index].classList.add('active');
-            currentSlide = index;
-            resetProgress();
-        }
-        
-        function nextSlide() {
-            showSlide((currentSlide + 1) % totalSlides);
-        }
-        
-        function prevSlide() {
-            showSlide((currentSlide - 1 + totalSlides) % totalSlides);
-        }
-        
-        function resetProgress() {
-            progressValue = 0;
-            if (progressBar) progressBar.style.width = '0%';
-        }
-        
-        function startProgress() {
-            if (progressInterval) clearInterval(progressInterval);
-            progressValue = 0;
-            progressInterval = setInterval(() => {
-                progressValue += 100 / (SLIDE_DURATION / 100);
-                if (progressBar) progressBar.style.width = Math.min(progressValue, 100) + '%';
-                if (progressValue >= 100) resetProgress();
-            }, 100);
-        }
-        
-        function startAutoSlide() {
-            if (autoSlideInterval) clearInterval(autoSlideInterval);
-            autoSlideInterval = setInterval(nextSlide, SLIDE_DURATION);
-            startProgress();
-        }
-        
-        if (totalSlides > 0) {
-            dots.forEach((dot, idx) => {
-                dot.addEventListener('click', () => {
-                    showSlide(idx);
-                    if (autoSlideInterval) clearInterval(autoSlideInterval);
-                    if (progressInterval) clearInterval(progressInterval);
-                    startAutoSlide();
-                });
-            });
-            
-            const prevBtn = document.getElementById('prevBtn');
-            const nextBtn = document.getElementById('nextBtn');
-            if (prevBtn) prevBtn.addEventListener('click', () => {
-                prevSlide();
-                if (autoSlideInterval) clearInterval(autoSlideInterval);
-                if (progressInterval) clearInterval(progressInterval);
-                startAutoSlide();
-            });
-            if (nextBtn) nextBtn.addEventListener('click', () => {
-                nextSlide();
-                if (autoSlideInterval) clearInterval(autoSlideInterval);
-                if (progressInterval) clearInterval(progressInterval);
-                startAutoSlide();
-            });
-            
-            let touchStartX = 0;
-            const heroSlider = document.querySelector('.hero-slider');
-            if (heroSlider) {
-                heroSlider.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; });
-                heroSlider.addEventListener('touchend', e => {
-                    const diff = touchStartX - e.changedTouches[0].clientX;
-                    if (Math.abs(diff) > 50) { diff > 0 ? nextSlide() : prevSlide(); startAutoSlide(); }
-                });
-            }
-            startAutoSlide();
-        }
-        
-        // Scroll reveal
-        const revealObserver = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('visible');
-                    revealObserver.unobserve(entry.target);
-                }
-            });
-        }, { threshold: 0.15 });
-        document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
-        
-        // Navbar scroll effect
-        window.addEventListener('scroll', () => {
-            const navbar = document.getElementById('navbar');
-            if (navbar) {
-                if (window.scrollY > 50) {
-                    navbar.style.background = 'rgba(15, 59, 92, 0.98)';
-                    navbar.style.boxShadow = '0 4px 20px rgba(0,0,0,0.2)';
-                } else {
-                    navbar.style.background = 'rgba(15, 59, 92, 0.95)';
-                    navbar.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-                }
-            }
-        });
-        
-        // Modal thư ngỏ
-        const modal = document.getElementById('thuNgoModal');
-        const thuNgoBtn = document.getElementById('thuNgoBtn');
-        const closeModalBtn = document.getElementById('closeModalBtn');
-        
-        if (thuNgoBtn && modal) {
-            thuNgoBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                modal.classList.add('active');
-                document.body.style.overflow = 'hidden';
-            });
-            
-            const closeModal = () => {
-                modal.classList.remove('active');
-                document.body.style.overflow = '';
-            };
-            
-            if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
-            modal.addEventListener('click', (e) => {
-                if (e.target === modal) closeModal();
-            });
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape' && modal.classList.contains('active')) closeModal();
-            });
-        }
-
-        // Career link handler
-        const careerLink = document.getElementById('careerLink');
-        if (careerLink) {
-            careerLink.addEventListener('click', (e) => {
-                e.preventDefault();
-                alert('Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
-            });
-        }
-
-        // Language switcher
-        function switchLanguage(lang) {
-            var topWin = window.top || window.parent || window;
-            var url = new URL(topWin.location.href);
-            url.searchParams.set('lang', lang);
-            topWin.history.replaceState(null, '', url.toString());
-            topWin.location.reload();
-        }
-        
-        // Khởi tạo navigation sau khi DOM load
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function() {
-                initNavigation();
-            });
-        } else {
-            initNavigation();
-        }
-    </script>
+    {landing_js}
     </body>
     </html>
     """
@@ -1320,8 +1340,7 @@ def show_landing_page():
     # Render landing page
     components.html(landing_html, height=3150, scrolling=False)
     
-    # Nút HRM dùng components.html (nhận HTML string, script chạy được)
-    # components.html tạo iframe riêng nên script hoạt động bình thường
+    # Nút HRM dùng components.html (giữ nguyên phần còn lại)
     hrm_html = """<!DOCTYPE html>
 <html>
 <head>
@@ -1358,7 +1377,6 @@ body {
         🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
     </button>
     <script>
-    // Nút HRM click
     document.getElementById('hrmBtn').addEventListener('click', function() {
         var topWin = window.top || window.parent || window;
         var url = new URL(topWin.location.href);

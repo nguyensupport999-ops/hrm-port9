@@ -24,33 +24,43 @@ import os
 import pathlib
 import streamlit.components.v1 as components
 
-# ==================================
-# LANGUAGE SYSTEM
-# ==================================
+# Xử lý đổi ngôn ngữ từ request
+def handle_language_change():
+    """Xử lý thay đổi ngôn ngữ từ client"""
+    import urllib.parse
+    
+    # Kiểm tra query params cho language
+    query_params = st.query_params
+    if 'lang' in query_params:
+        new_lang = query_params['lang']
+        if new_lang in ['vi', 'en']:
+            st.session_state.language = new_lang
+            # Xóa param sau khi xử lý
+            st.query_params.clear()
+            st.rerun()
+    
+    # Cũng kiểm tra POST request (cho fetch từ client)
+    try:
+        # Lấy dữ liệu từ request (nếu có)
+        import sys
+        if hasattr(st, 'context') and hasattr(st.context, 'headers'):
+            content_length = int(st.context.headers.get('content-length', 0))
+            if content_length > 0:
+                body = sys.stdin.read(content_length) if content_length else ''
+                if 'set_language=' in body:
+                    new_lang = body.replace('set_language=', '').strip()
+                    if new_lang in ['vi', 'en']:
+                        st.session_state.language = new_lang
+                        st.rerun()
+    except:
+        pass
 
-def init_language():
-
-    if "language" not in st.session_state:
-        st.session_state.language = "vi"
-
-    lang = st.query_params.get("lang")
-
-    if lang in ["vi", "en"]:
-        st.session_state.language = lang
-
-init_language()
-
-if "page" not in st.session_state:
-    st.session_state.page = "landing"
+# Gọi hàm xử lý ngôn ngữ trước khi hiển thị landing page
+handle_language_change()
 
 def show_landing_page():
     """Hiển thị Landing Page với chuyển ngữ Việt/Anh"""
-    lang = st.session_state.language
-
-    text = LANGUAGES.get(
-        lang,
-        LANGUAGES["vi"]
-    )
+    
     # Import languages
     try:
         from languages import LANGUAGES
@@ -244,54 +254,35 @@ def show_landing_page():
                 margin: 0 5px;
                 font-size: 14px;
             }}
-            .lang-toggle {{
+            .lang-switch {{
                 display: inline-flex;
                 align-items: center;
-                gap: 6px;
+                gap: 5px;
                 margin-left: 5px;
-                background: rgba(255,255,255,0.12);
-                border-radius: 30px;
-                padding: 4px 10px;
-                cursor: pointer;
-                user-select: none;
             }}
-            .lang-toggle-label {{
-                color: rgba(255,255,255,0.75);
-                font-size: 0.8rem;
-                font-weight: 600;
-                min-width: 22px;
-                text-align: center;
-                transition: color 0.2s;
+            .lang-link {{
+                text-decoration: none !important;
+                color: white !important;
+                font-weight: 500;
+                font-size: 0.85rem;
+                padding: 8px 8px !important;
+                border-radius: 40px;
+                transition: all 0.3s;
+                background: transparent !important;
             }}
-            .lang-toggle-label.active {{
-                color: #f59e0b;
+            .lang-link:hover {{
+                background: #f59e0b !important;
+                color: #0f3b5c !important;
             }}
-            .lang-toggle-track {{
-                position: relative;
-                width: 42px;
-                height: 22px;
-                background: rgba(255,255,255,0.2);
-                border-radius: 11px;
-                transition: background 0.3s;
+            .lang-link.active {{
+                background: #f59e0b !important;
+                color: #0f3b5c !important;
             }}
-            .lang-toggle-thumb {{
-                position: absolute;
-                top: 3px;
-                left: 3px;
-                width: 16px;
-                height: 16px;
-                background: #f59e0b;
-                border-radius: 50%;
-                transition: transform 0.3s;
-                box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+            .lang-sep {{
+                color: rgba(255,255,255,0.5);
+                font-size: 12px;
             }}
-            .lang-toggle.en-active .lang-toggle-thumb {{
-                transform: translateX(20px);
-            }}
-            .lang-toggle:hover .lang-toggle-track {{
-                background: rgba(255,255,255,0.3);
-            }}
-
+            
             /* ===== MOBILE LANGUAGE ===== */
             .mobile-lang {{
                 position: fixed;
@@ -304,41 +295,23 @@ def show_landing_page():
                 padding: 6px 12px;
                 display: none;
                 gap: 8px;
-                align-items: center;
                 border: 1px solid rgba(255,255,255,0.2);
             }}
-            .mobile-lang-label {{
-                color: rgba(255,255,255,0.75);
-                font-size: 11px;
-                font-weight: 700;
-                min-width: 20px;
-                text-align: center;
-                transition: color 0.2s;
+            .mobile-lang a {{
+                color: white;
+                text-decoration: none;
+                font-size: 12px;
+                font-weight: 600;
+                padding: 4px 8px;
+                border-radius: 20px;
+                transition: all 0.2s;
             }}
-            .mobile-lang-label.active {{
-                color: #f59e0b;
-            }}
-            .mobile-lang-track {{
-                position: relative;
-                width: 36px;
-                height: 18px;
+            .mobile-lang a:hover {{
                 background: rgba(255,255,255,0.2);
-                border-radius: 9px;
-                cursor: pointer;
-                transition: background 0.3s;
             }}
-            .mobile-lang-thumb {{
-                position: absolute;
-                top: 2px;
-                left: 2px;
-                width: 14px;
-                height: 14px;
+            .mobile-lang a.active {{
                 background: #f59e0b;
-                border-radius: 50%;
-                transition: transform 0.3s;
-            }}
-            .mobile-lang.en-active .mobile-lang-thumb {{
-                transform: translateX(18px);
+                color: #0f3b5c;
             }}
             
             .dropdown {{
@@ -947,24 +920,20 @@ def show_landing_page():
                 <a href="#careers">{text.get('nav_careers', 'Tuyển dụng')}</a>
                 <a href="#contact">{text.get('nav_contact', 'Liên hệ')}</a>
                 <span class="nav-divider">|</span>
-                <div class="lang-toggle {('en-active' if lang == 'en' else '')}" id="langToggle" onclick="toggleLanguage()">
-                    <span class="lang-toggle-label {'active' if lang == 'vi' else ''}">🇻🇳</span>
-                    <div class="lang-toggle-track">
-                        <div class="lang-toggle-thumb"></div>
-                    </div>
-                    <span class="lang-toggle-label {'active' if lang == 'en' else ''}">EN</span>
+                <div class="lang-switch">
+                    <a href="#" class="lang-link {vi_active}" onclick="setLanguage('vi'); return false;">🇻🇳 VI</a>
+                    <span class="lang-sep">/</span>
+                    <a href="#" class="lang-link {en_active}" onclick="setLanguage('en'); return false;">🇬🇧 EN</a>
                 </div>
             </div>
         </div>
     </nav>
 
     <!-- Mobile Language Switcher -->
-    <div class="mobile-lang {('en-active' if lang == 'en' else '')}" id="mobileLangToggle" onclick="toggleLanguage()">
-        <span class="mobile-lang-label {'active' if lang == 'vi' else ''}">🇻🇳</span>
-        <div class="mobile-lang-track">
-            <div class="mobile-lang-thumb"></div>
-        </div>
-        <span class="mobile-lang-label {'active' if lang == 'en' else ''}">🇬🇧</span>
+    <div class="mobile-lang">
+        <a href="#" class="{vi_active}" onclick="setLanguage('vi'); return false;">🇻🇳 VI</a>
+        <span style="color:white; opacity:0.5;">|</span>
+        <a href="#" class="{en_active}" onclick="setLanguage('en'); return false;">🇬🇧 EN</a>
     </div>
 
     <!-- Modal Thư ngỏ -->
@@ -1138,27 +1107,11 @@ def show_landing_page():
     </footer>
     
     <script>
-        function toggleLanguage() {
-
-            const currentLang =
-                document.documentElement.lang || "vi";
-
-            const newLang =
-                currentLang === "vi"
-                ? "en"
-                : "vi";
-
-            const url =
-                new URL(window.location.href);
-
-            url.searchParams.set(
-                "lang",
-                newLang
-            );
-
-            window.location.href =
-                url.toString();
-        }
+        function setLanguage(lang) {{
+            const url = new URL(window.location.href);
+            url.searchParams.set('lang', lang);
+            window.location.href = url.toString();
+        }}
 
         // Slider tự động
         let currentSlide = 0;
@@ -1314,67 +1267,12 @@ def show_landing_page():
     
     # Render landing page
     components.html(landing_html, height=3150, scrolling=False)
-    
-    st.markdown("<br>", unsafe_allow_html=True)
 
-    st.markdown("""
-    <style>
-
-    div.stButton > button {
-
-        background:
-            linear-gradient(
-                135deg,
-                #f59e0b,
-                #e67e22
-            ) !important;
-
-        color: #0f3b5c !important;
-
-        font-weight: 800 !important;
-
-        font-size: 22px !important;
-
-        border-radius: 60px !important;
-
-        height: 72px !important;
-
-        border: none !important;
-
-        box-shadow:
-            0 8px 25px rgba(0,0,0,.25);
-
-    }
-
-    div.stButton > button:hover {
-
-        transform:
-            translateY(-3px);
-
-    }
-
-    </style>
-    """, unsafe_allow_html=True)
-
-    col1, col2, col3 = st.columns([1,3,1])
-
-    with col2:
-
-        if st.button(
-            text.get(
-                "btn_login",
-                "🔐 HRM"
-            ),
-            use_container_width=True
-        ):
-
-            st.session_state.page = "hrm"
-            st.rerun()
-
-    # CSS cho nút HRM
+    # CSS cho nút HRM - Đặt NGAY TRƯỚC container chứa nút
     st.markdown("""
         <style>
-        .hrm-button-container {{
+        /* Container chứa nút HRM - căn giữa và background xanh */
+        .hrm-button-container {
             background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
             padding: 40px 20px;
             margin: 0;
@@ -1384,7 +1282,9 @@ def show_landing_page():
             align-items: center;
             border-top: 3px solid #f59e0b;
             border-bottom: 3px solid #f59e0b;
-        }}
+        }
+        
+        /* Style cho nút HRM */
         .hrm-button {
             background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
             color: #0f3b5c;
@@ -1402,11 +1302,14 @@ def show_landing_page():
             text-align: center;
             font-family: inherit;
         }
+        
         .hrm-button:hover {
             background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
             transform: translateY(-4px);
             box-shadow: 0 12px 30px rgba(0,0,0,0.4);
         }
+        
+        /* Responsive cho mobile */
         @media (max-width: 768px) {
             .hrm-button {
                 font-size: 0.9rem;
@@ -1419,26 +1322,40 @@ def show_landing_page():
             }
         }
         </style>
-
+        
+        <div class="hrm-button-container">
+            <button class="hrm-button" id="hrmLandingBtn">
+                🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
+            </button>
+        </div>
+        
+        <script>
         document.getElementById('hrmLandingBtn').addEventListener('click', function() {
+            // Gửi request để set session state
             const url = new URL(window.location.href);
             url.searchParams.set('goto', 'hrm');
             window.location.href = url.toString();
         });
         </script>
     """, unsafe_allow_html=True)
-    
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
 # ========== XỬ LÝ ĐA NGÔN NGỮ ==========
 def init_language():
+    """Khởi tạo và xử lý chuyển đổi ngôn ngữ"""
     if 'language' not in st.session_state:
         st.session_state.language = 'vi'
-
-    lang = st.query_params.get("lang")
-    if lang in ["vi", "en"]:
-        st.session_state.language = lang
+    
+    # Kiểm tra query params để đổi ngôn ngữ
+    query_params = st.query_params
+    if 'lang' in query_params:
+        new_lang = query_params['lang']
+        if new_lang in ['vi', 'en']:
+            st.session_state.language = new_lang
+            # Xóa param để tránh lặp
+            st.query_params.clear()
+            st.rerun()
 
 # Gọi hàm khởi tạo
 init_language()
@@ -1455,6 +1372,11 @@ if 'show_hrm' not in st.session_state:
 
 # ========== KIỂM TRA URL PARAMS (Từ nút Nhân viên trên Landing Page) ==========
 query_params = st.query_params
+if query_params.get('goto') == 'hrm':
+    st.session_state.show_hrm = True   # Chỉ thoát landing, KHÔNG tự đăng nhập
+    st.query_params.clear()
+    st.rerun()
+
 
 # ========== HIỂN THỊ LANDING PAGE NẾU CHƯA VÀO HRM ==========
 logo_path = "logo_cty.png"

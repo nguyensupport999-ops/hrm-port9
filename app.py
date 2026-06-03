@@ -23,19 +23,16 @@ from io import BytesIO
 import os
 import pathlib
 import streamlit.components.v1 as components
+import urllib.parse
 
 # Xử lý đổi ngôn ngữ từ request
 def handle_language_change():
-    """Xử lý thay đổi ngôn ngữ từ client"""
-    import urllib.parse
-    
-    # Kiểm tra query params cho language
+    """Xử lý thay đổi ngôn ngữ từ query params"""
     query_params = st.query_params
     if 'lang' in query_params:
         new_lang = query_params['lang']
         if new_lang in ['vi', 'en']:
             st.session_state.language = new_lang
-            # Xóa param sau khi xử lý
             st.query_params.clear()
             st.rerun()
     
@@ -921,9 +918,9 @@ def show_landing_page():
                 <a href="#contact">{text.get('nav_contact', 'Liên hệ')}</a>
                 <span class="nav-divider">|</span>
                 <div class="lang-switch">
-                    <a href="#" class="lang-link {vi_active}" onclick="setLanguage('vi'); return false;">🇻🇳 VI</a>
+                    <a href="?lang=vi" class="lang-link {vi_active}">🇻🇳 VI</a>
                     <span class="lang-sep">/</span>
-                    <a href="#" class="lang-link {en_active}" onclick="setLanguage('en'); return false;">🇬🇧 EN</a>
+                    <a href="?lang=en" class="lang-link {en_active}">🇬🇧 EN</a>
                 </div>
             </div>
         </div>
@@ -931,9 +928,9 @@ def show_landing_page():
 
     <!-- Mobile Language Switcher -->
     <div class="mobile-lang">
-        <a href="#" class="{vi_active}" onclick="setLanguage('vi'); return false;">🇻🇳 VI</a>
+        <a href="?lang=vi" class="{vi_active}">🇻🇳 VI</a>
         <span style="color:white; opacity:0.5;">|</span>
-        <a href="#" class="{en_active}" onclick="setLanguage('en'); return false;">🇬🇧 EN</a>
+        <a href="?lang=en" class="{en_active}">🇬🇧 EN</a>
     </div>
 
     <!-- Modal Thư ngỏ -->
@@ -1107,11 +1104,6 @@ def show_landing_page():
     </footer>
     
     <script>
-        function setLanguage(lang) {{
-            // Gửi message lên trang cha (Streamlit) vì đây là iframe
-            window.parent.postMessage({{type: 'setLang', lang: lang}}, '*');
-        }}
-
         // Slider tự động
         let currentSlide = 0;
         const slides = document.querySelectorAll('.slide');
@@ -1305,20 +1297,6 @@ body {
         🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
     </button>
     <script>
-    // Nhận postMessage từ landing iframe (chuyển ngữ VI/EN)
-    window.addEventListener('message', function(e) {
-        if (!e.data || !e.data.type) return;
-        if (e.data.type === 'setLang') {
-            var url = new URL(window.parent.location.href);
-            url.searchParams.set('lang', e.data.lang);
-            window.parent.location.href = url.toString();
-        }
-        if (e.data.type === 'gotoHRM') {
-            var url = new URL(window.parent.location.href);
-            url.searchParams.set('goto', 'hrm');
-            window.parent.location.href = url.toString();
-        }
-    });
     // Nút HRM click
     document.getElementById('hrmBtn').addEventListener('click', function() {
         var url = new URL(window.parent.location.href);
@@ -1328,7 +1306,53 @@ body {
     </script>
 </body>
 </html>"""
-    components.html(hrm_html, height=110, scrolling=False)
+ 
+    st.markdown("""
+        <style>
+            .hrm-button-container {
+                background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
+                border-top: 3px solid #f59e0b;
+                border-bottom: 3px solid #f59e0b;
+                padding: 20px;
+                text-align: center;
+            }
+            .stButton > button {
+                background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
+                color: #0f3b5c !important;
+                font-weight: 800;
+                font-size: 1.2rem;
+                border: none;
+                border-radius: 60px;
+                padding: 18px 60px;
+                box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+                min-width: 420px;
+                transition: all 0.3s ease;
+                width: auto !important;
+            }
+            .stButton > button:hover {
+                background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
+                transform: translateY(-3px);
+                box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+            }
+            @media (max-width: 768px) {
+                .stButton > button {
+                    font-size: 0.9rem;
+                    padding: 14px 30px;
+                    min-width: 260px;
+                }
+            }
+        </style>
+        <div class="hrm-button-container">
+    """, unsafe_allow_html=True)
+
+    # Nút HRM thuần Python
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên", use_container_width=True):
+            st.session_state.show_hrm = True
+            st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 

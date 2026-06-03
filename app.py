@@ -1108,9 +1108,8 @@ def show_landing_page():
     
     <script>
         function setLanguage(lang) {{
-            const url = new URL(window.location.href);
-            url.searchParams.set('lang', lang);
-            window.location.href = url.toString();
+            // Gửi message lên trang cha (Streamlit) vì đây là iframe
+            window.parent.postMessage({{type: 'setLang', lang: lang}}, '*');
         }}
 
         // Slider tự động
@@ -1267,6 +1266,25 @@ def show_landing_page():
     
     # Render landing page
     components.html(landing_html, height=3150, scrolling=False)
+    
+    # Listener nhận postMessage từ iframe (language switch & HRM button)
+    st.markdown("""
+    <script>
+    window.addEventListener('message', function(e) {
+        if (!e.data || !e.data.type) return;
+        if (e.data.type === 'setLang') {
+            const url = new URL(window.location.href);
+            url.searchParams.set('lang', e.data.lang);
+            window.location.href = url.toString();
+        }
+        if (e.data.type === 'gotoHRM') {
+            const url = new URL(window.location.href);
+            url.searchParams.set('goto', 'hrm');
+            window.location.href = url.toString();
+        }
+    }, false);
+    </script>
+    """, unsafe_allow_html=True)
 
     # CSS cho nút HRM - Đặt NGAY TRƯỚC container chứa nút
     st.markdown("""
@@ -1331,10 +1349,7 @@ def show_landing_page():
         
         <script>
         document.getElementById('hrmLandingBtn').addEventListener('click', function() {
-            // Gửi request để set session state
-            const url = new URL(window.location.href);
-            url.searchParams.set('goto', 'hrm');
-            window.location.href = url.toString();
+            window.parent.postMessage({type: 'gotoHRM'}, '*');
         });
         </script>
     """, unsafe_allow_html=True)

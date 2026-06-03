@@ -116,30 +116,6 @@ def show_landing_page():
             body {
                 overflow-x: hidden;
             }
-            /* ===== Nút HRM ===== */
-            .hrm-section {{
-                background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
-                display: flex; justify-content: center; align-items: center;
-                min-height: 100px;
-                border-top: 3px solid #f59e0b;
-                border-bottom: 3px solid #f59e0b;
-                padding: 20px;
-            }}
-            .hrm-button {{
-                background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
-                color: #0f3b5c; font-weight: 800; font-size: 1.2rem;
-                border: none; border-radius: 60px; padding: 18px 60px;
-                box-shadow: 0 8px 25px rgba(0,0,0,0.3); letter-spacing: 1px;
-                cursor: pointer; transition: all 0.3s ease; min-width: 420px;
-                font-family: 'Inter', sans-serif;
-            }}
-            .hrm-button:hover {{
-                background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
-                transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.4);
-            }}
-            @media (max-width: 768px) {{
-                .hrm-button {{ font-size: 0.9rem; padding: 14px 30px; min-width: 260px; }}
-            }}
         </style>
     """, unsafe_allow_html=True)
     
@@ -856,24 +832,6 @@ def show_landing_page():
                 max-width: 386px;
                 height: auto;
             }}
-            .sig-closing {{
-                font-style: italic;
-                color: #555;
-                margin-bottom: 4px;
-                font-size: 0.95rem;
-            }}
-            .sig-name {{
-                font-weight: 700;
-                font-size: 1rem;
-                color: #0f3b5c;
-                margin-top: 6px;
-                margin-bottom: 2px;
-            }}
-            .sig-title {{
-                font-size: 0.88rem;
-                color: #555;
-                font-style: italic;
-            }}
             .a4-footer {{
                 margin-top: 30px;
                 padding-top: 15px;
@@ -990,17 +948,17 @@ def show_landing_page():
                         <img src="{chu_tich_img}" alt="Chủ tịch HĐQT">
                     </div>
                     <div class="a4-chairman-info">
-                        <h2>{text.get('modal_chairman_name', 'Ông Phùng Gia Phát')}</h2>
+                        <h2>Ông Phùng Gia Phát</h2>
                         <p class="title">{text.get('modal_chairman_title', 'Chủ tịch Hội đồng Quản trị')}</p>
-                        <p class="company">{text.get('modal_company', 'Công ty Cổ phần Cảng Hòn La')}</p>
-                        <p class="company">{text.get('modal_address', 'Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình')}</p>
+                        <p class="company">Công ty Cổ phần Cảng Hòn La</p>
+                        <p class="company">Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình</p>
                     </div>                  
                     <div class="a4-chairman-logo">
                         <img src="data:image/png;base64,{logo_base64}" alt="Logo Cảng Hòn La">
                     </div>
                 </div>
                 <div class="a4-body">
-                    <p class="a4-date">{text.get('modal_date', 'Quảng Bình, ngày 21 tháng 3 năm 2025')}</p>
+                    <p class="a4-date">Quảng Bình, ngày 21 tháng 3 năm 2025</p>
                     <p class="a4-greeting" style="font-weight: bold; font-size: 1rem;">{text.get('modal_greeting', 'Kính gửi: Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên,')}</p>
                     <p>{text.get('modal_content_1', 'Với niềm tự hào sâu sắc, Tôi xin thay mặt Hội đồng Quản trị Công ty Cổ phần Cảng Hòn La gửi lời chào trân trọng nhất đến Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên — những người đã và đang đồng hành cùng chúng tôi trên hành trình kiến tạo một cảng biển tầm cỡ quốc tế giữa lòng đất nước Việt Nam.')}</p>
                     <p>{text.get('modal_content_2', 'Ngày 21 tháng 3 năm 2025 là một mốc son lịch sử — ngày chính thức khởi công Dự án Cảng tổng hợp quốc tế Hòn La, dự án được Chính phủ công nhận là Dự án trọng điểm Quốc gia. Đây không chỉ là thành quả của nhiều năm nỗ lực không ngừng, mà còn là khởi đầu của một chương mới trong lịch sử phát triển kinh tế hàng hải miền Trung Việt Nam.')}</p>
@@ -1018,12 +976,9 @@ def show_landing_page():
                 </div>
                 <div class="a4-signature-left">
                     <div class="sig-block-left">
-                        <p class="sig-closing">{text.get('modal_closing', 'Trân trọng,')}</p>
                         <div class="sig-image">
                             <img src="{chu_ky_img}" alt="Chữ ký Chủ tịch">
                         </div>
-                        <p class="sig-name">{text.get('modal_sign_name', 'Phùng Gia Phát')}</p>
-                        <p class="sig-title">{text.get('modal_sign_title', 'Chủ tịch Hội đồng Quản trị')}</p>
                     </div>
                 </div>
                 <div class="a4-footer">
@@ -1140,7 +1095,7 @@ def show_landing_page():
     <!-- Footer -->
     <footer id="contact" class="footer">
         <div class="footer-grid">
-            <div class="footer-col"><h4 style="font-size:0.95rem; white-space:nowrap;">{text.get('footer_company', 'CÔNG TY CỔ PHẦN CẢNG HÒN LA')}</h4><p>{text.get('footer_address', 'Khu kinh tế Hòn La, Xã Phú Trạch, Tỉnh Quảng Trị')}</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
+            <div class="footer-col"><h4 style="font-size:0.95rem; white-space:nowrap;">{text.get('footer_company', 'CÔNG TY CỔ PHẦN CẢNG HÒN LA')}</h4><p>Khu kinh tế Hòn La, Xã Phú Trạch, Tỉnh Quảng Trị</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
             <div class="footer-col"><h4>{text.get('footer_quick_links', 'Liên kết nhanh')}</h4><a href="#home">{text.get('nav_home', 'Trang chủ')}</a><a href="#about">{text.get('nav_about', 'Về chúng tôi')}</a><a href="#services">{text.get('nav_services', 'Dịch vụ')}</a><a href="#infrastructure">{text.get('nav_infrastructure', 'Hạ tầng')}</a><a href="#careers">{text.get('nav_careers', 'Tuyển dụng')}</a></div>
             <div class="footer-col"><h4>{text.get('footer_support', 'Hỗ trợ')}</h4><a href="#">{text.get('footer_faq', 'Câu hỏi thường gặp')}</a><a href="#">{text.get('footer_privacy', 'Chính sách bảo mật')}</a><a href="#">{text.get('footer_terms', 'Điều khoản sử dụng')}</a></div>
             <div class="footer-col"><h4>{text.get('footer_working_hours', 'Giờ làm việc')}</h4><p>🚢 {text.get('footer_working_hours_port', 'Bến cảng: 24/7')}</p><p>🏢 {text.get('footer_working_hours_office', 'Văn phòng: 7:30 - 17:00')}</p><p>📅 {text.get('footer_working_days', 'Thứ 2 - Thứ 7')}</p></div>
@@ -1150,13 +1105,6 @@ def show_landing_page():
             <p style="margin-top: 10px;">{text.get('footer_copyright', 'PHÁT TRIỂN BỀN VỮNG - KẾT NỐI TOÀN CẦU')}</p>
         </div>
     </footer>
-    
-    <!-- Nút HRM — nằm trong cùng iframe landing, window.top/parent chỉ 1 tầng -->
-    <div class="hrm-section">
-        <button class="hrm-button" id="hrmBtn">
-            {text.get('btn_login', '🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên')}
-        </button>
-    </div>
     
     <script>
         // Slider tự động
@@ -1318,41 +1266,109 @@ def show_landing_page():
             // reload để Streamlit server nhận ?lang= và rerun
             topWin.location.reload();
         }}
-
-        // Listener nhận postMessage từ hrm_html iframe (khi window.top bị chặn cross-origin)
-        window.addEventListener('message', function(e) {{
-            if (e.data === 'goto_hrm') {{
-                try {{
-                    var topWin = window.top || window.parent || window;
-                    var url = new URL(topWin.location.href);
-                    url.searchParams.set('goto', 'hrm');
-                    topWin.location.href = url.toString();
-                }} catch(err) {{
-                    // Nếu vẫn bị chặn, thử reload với param
-                    window.location.href = window.location.href.split('?')[0] + '?goto=hrm';
-                }}
-            }}
-        }});
-
-        // Nút HRM - nằm trong cùng iframe với landing_html
-        // window.parent ở đây = Streamlit app (chỉ 1 tầng) → hoạt động được
-        document.getElementById('hrmBtn').addEventListener('click', function() {{
-            try {{
-                var topWin = window.top || window.parent || window;
-                var url = new URL(topWin.location.href);
-                url.searchParams.set('goto', 'hrm');
-                topWin.location.href = url.toString();
-            }} catch(e) {{
-                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'goto_hrm'}}, '*');
-            }}
-        }});
     </script>
     </body>
     </html>
     """
     
-    # Render landing page (nút HRM đã được nhúng bên trong landing_html)
-    components.html(landing_html, height=3280, scrolling=False)
+    # Render landing page
+    components.html(landing_html, height=3150, scrolling=False)
+    
+    # Nút HRM dùng components.html (nhận HTML string, script chạy được)
+    # components.html tạo iframe riêng nên script hoạt động bình thường
+    hrm_html = """<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
+    display: flex; justify-content: center; align-items: center;
+    min-height: 100px;
+    border-top: 3px solid #f59e0b;
+    border-bottom: 3px solid #f59e0b;
+    padding: 20px;
+}
+.hrm-button {
+    background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
+    color: #0f3b5c; font-weight: 800; font-size: 1.2rem;
+    border: none; border-radius: 60px; padding: 18px 60px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3); letter-spacing: 1px;
+    cursor: pointer; transition: all 0.3s ease; min-width: 420px;
+    font-family: sans-serif;
+}
+.hrm-button:hover {
+    background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
+    transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+}
+@media (max-width: 768px) {
+    .hrm-button { font-size: 0.9rem; padding: 14px 30px; min-width: 260px; }
+}
+</style>
+</head>
+<body>
+    <button class="hrm-button" id="hrmBtn">
+        🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
+    </button>
+    <script>
+    // Nút HRM click
+    document.getElementById('hrmBtn').addEventListener('click', function() {
+        var topWin = window.top || window.parent || window;
+        var url = new URL(topWin.location.href);
+        url.searchParams.set('goto', 'hrm');
+        topWin.location.href = url.toString();
+    });
+    </script>
+</body>
+</html>"""
+ 
+    st.markdown("""
+        <style>
+            .hrm-button-container {
+                background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
+                border-top: 3px solid #f59e0b;
+                border-bottom: 3px solid #f59e0b;
+                padding: 20px;
+                text-align: center;
+            }
+            .stButton > button {
+                background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
+                color: #0f3b5c !important;
+                font-weight: 800;
+                font-size: 1.2rem;
+                border: none;
+                border-radius: 60px;
+                padding: 18px 60px;
+                box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+                min-width: 420px;
+                transition: all 0.3s ease;
+                width: auto !important;
+            }
+            .stButton > button:hover {
+                background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
+                transform: translateY(-3px);
+                box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+            }
+            @media (max-width: 768px) {
+                .stButton > button {
+                    font-size: 0.9rem;
+                    padding: 14px 30px;
+                    min-width: 260px;
+                }
+            }
+        </style>
+        <div class="hrm-button-container">
+    """, unsafe_allow_html=True)
+
+    # Nút HRM thuần Python
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên", width='stretch'):
+            st.session_state.show_hrm = True
+            st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 

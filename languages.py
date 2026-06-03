@@ -156,7 +156,7 @@ LANGUAGES = {
         
         # Footer
         'footer_company': 'HON LA PORT JOINT STOCK COMPANY',
-        'footer_address': ''Hon La Economic Zone, Phu Trach Commune, Quang Tri Province',
+        'footer_address': 'Hon La Economic Zone, Phu Trach Commune, Quang Tri Province',
         'footer_quick_links': 'Quick Links',
         'footer_support': 'Support',
         'footer_working_hours': 'Working Hours',

@@ -1151,9 +1151,15 @@ def show_landing_page():
         function toggleLanguage() {{
             const currentLang = '{lang}';
             const newLang = currentLang === 'vi' ? 'en' : 'vi';
-            const url = new URL(window.location.href);
+            const url = new URL(window.parent.location.href);
             url.searchParams.set('lang', newLang);
-            window.location.href = url.toString();
+            window.parent.location.href = url.toString();
+        }}
+        
+        function gotoHRM() {{
+            const url = new URL(window.parent.location.href);
+            url.searchParams.set('goto', 'hrm');
+            window.parent.location.href = url.toString();
         }}
 
         // Slider tự động
@@ -1309,88 +1315,9 @@ def show_landing_page():
     """
     
     # Render landing page
-    components.html(landing_html, height=3150, scrolling=False)
+    components.html(landing_html, height=3310, scrolling=False)
 
-    # CSS cho nút HRM
-    st.markdown("""
-        <style>
-        .hrm-button-container {{
-            background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
-            padding: 40px 20px;
-            margin: 0;
-            width: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            border-top: 3px solid #f59e0b;
-            border-bottom: 3px solid #f59e0b;
-        }}
-        .hrm-button {
-            background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
-            color: #0f3b5c;
-            font-weight: 800;
-            font-size: 1.25rem;
-            border: none;
-            border-radius: 60px;
-            padding: 18px 60px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-            letter-spacing: 1px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            width: auto;
-            min-width: 450px;
-            text-align: center;
-            font-family: inherit;
-        }
-        .hrm-button:hover {
-            background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
-            transform: translateY(-4px);
-            box-shadow: 0 12px 30px rgba(0,0,0,0.4);
-        }
-        @media (max-width: 768px) {
-            .hrm-button {
-                font-size: 0.9rem;
-                padding: 14px 30px;
-                min-width: 280px;
-                white-space: normal;
-            }
-            .hrm-button-container {
-                padding: 25px 15px;
-            }
-        }
-        </style>
 
-        <div class="hrm-button-container">
-            <button class="hrm-button" id="hrmLandingBtn">
-                🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
-            </button>
-        </div>
-
-        <script>
-        document.getElementById('hrmLandingBtn').addEventListener('click', function() {
-            const url = new URL(window.location.href);
-            url.searchParams.set('goto', 'hrm');
-            window.location.href = url.toString();
-        });
-        </script>
-    """, unsafe_allow_html=True)
-    
-    # DÙNG components.html để tạo nút và gọi Streamlit
-    components.html("""
-        <div class="hrm-button-container">
-            <button class="hrm-button" id="hrmBtn">
-                🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
-            </button>
-        </div>
-        <script>
-            document.getElementById('hrmLandingBtn').addEventListener('click', function() {
-                window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'goto_hrm'}, '*');
-                const url = new URL(window.location.href);
-                url.searchParams.set('goto', 'hrm');
-                window.location.href = url.toString();
-            });
-        </script>
-    """, height=100)
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 

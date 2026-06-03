@@ -1319,7 +1319,7 @@ def show_landing_page():
                 # CSS cho nút HRM
     st.markdown("""
         <style>
-        .hrm-button-container {
+        .hrm-button-container {{
             background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
             padding: 40px 20px;
             margin: 0;
@@ -1329,7 +1329,7 @@ def show_landing_page():
             align-items: center;
             border-top: 3px solid #f59e0b;
             border-bottom: 3px solid #f59e0b;
-        }
+        }}
         .hrm-button {
             background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
             color: #0f3b5c;

@@ -1321,40 +1321,63 @@ def show_landing_page():
         <style>
         .hrm-button-container {
             background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
-            padding: 30px 20px;
+            padding: 40px 20px;
             margin: 0;
             width: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
             border-top: 3px solid #f59e0b;
+            border-bottom: 3px solid #f59e0b;
         }
         .hrm-button {
             background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
             color: #0f3b5c;
             font-weight: 800;
-            font-size: 1.1rem;
+            font-size: 1.25rem;
             border: none;
-            border-radius: 50px;
-            padding: 14px 40px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            border-radius: 60px;
+            padding: 18px 60px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+            letter-spacing: 1px;
             cursor: pointer;
             transition: all 0.3s ease;
+            width: auto;
+            min-width: 450px;
+            text-align: center;
             font-family: inherit;
         }
         .hrm-button:hover {
             background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+            transform: translateY(-4px);
+            box-shadow: 0 12px 30px rgba(0,0,0,0.4);
         }
         @media (max-width: 768px) {
             .hrm-button {
-                font-size: 0.85rem;
-                padding: 10px 20px;
+                font-size: 0.9rem;
+                padding: 14px 30px;
+                min-width: 280px;
                 white-space: normal;
+            }
+            .hrm-button-container {
+                padding: 25px 15px;
             }
         }
         </style>
+
+        <div class="hrm-button-container">
+            <button class="hrm-button" id="hrmLandingBtn">
+                🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
+            </button>
+        </div>
+
+        <script>
+        document.getElementById('hrmLandingBtn').addEventListener('click', function() {
+            const url = new URL(window.location.href);
+            url.searchParams.set('goto', 'hrm');
+            window.location.href = url.toString();
+        });
+        </script>
     """, unsafe_allow_html=True)
     
     # DÙNG components.html để tạo nút và gọi Streamlit

@@ -116,6 +116,30 @@ def show_landing_page():
             body {
                 overflow-x: hidden;
             }
+            /* ===== Nút HRM ===== */
+            .hrm-section {{
+                background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
+                display: flex; justify-content: center; align-items: center;
+                min-height: 100px;
+                border-top: 3px solid #f59e0b;
+                border-bottom: 3px solid #f59e0b;
+                padding: 20px;
+            }}
+            .hrm-button {{
+                background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
+                color: #0f3b5c; font-weight: 800; font-size: 1.2rem;
+                border: none; border-radius: 60px; padding: 18px 60px;
+                box-shadow: 0 8px 25px rgba(0,0,0,0.3); letter-spacing: 1px;
+                cursor: pointer; transition: all 0.3s ease; min-width: 420px;
+                font-family: 'Inter', sans-serif;
+            }}
+            .hrm-button:hover {{
+                background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
+                transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+            }}
+            @media (max-width: 768px) {{
+                .hrm-button {{ font-size: 0.9rem; padding: 14px 30px; min-width: 260px; }}
+            }}
         </style>
     """, unsafe_allow_html=True)
     
@@ -832,6 +856,24 @@ def show_landing_page():
                 max-width: 386px;
                 height: auto;
             }}
+            .sig-closing {{
+                font-style: italic;
+                color: #555;
+                margin-bottom: 4px;
+                font-size: 0.95rem;
+            }}
+            .sig-name {{
+                font-weight: 700;
+                font-size: 1rem;
+                color: #0f3b5c;
+                margin-top: 6px;
+                margin-bottom: 2px;
+            }}
+            .sig-title {{
+                font-size: 0.88rem;
+                color: #555;
+                font-style: italic;
+            }}
             .a4-footer {{
                 margin-top: 30px;
                 padding-top: 15px;
@@ -907,23 +949,23 @@ def show_landing_page():
                 <img src="data:image/png;base64,{logo_base64}" alt="Cảng Hòn La">
             </div>
             <div class="nav-links">
-                <a href="#home">{text.get('nav_home', 'Trang chủ')}</a>
+                <a href="#home" class="nav-link">Trang chủ</a>
                 <div class="dropdown">
-                    <a href="#about">{text.get('nav_about', 'Giới thiệu')} <i class="fas fa-chevron-down"></i></a>
+                    <a href="#about" class="nav-link">Giới thiệu <i class="fas fa-chevron-down"></i></a>
                     <div class="dropdown-content">
-                        <a href="#about">{text.get('about_us', 'Về chúng tôi')}</a>
-                        <a href="#" id="thuNgoBtn">{text.get('chairman_letter', 'Thư ngỏ của Chủ tịch HĐQT')}</a>
+                        <a href="#about" class="nav-link">Về chúng tôi</a>
+                        <a href="#" id="thuNgoBtn">Thư ngỏ của Chủ tịch HĐQT</a>
                     </div>
                 </div>
-                <a href="#services">{text.get('nav_services', 'Dịch vụ')}</a>
-                <a href="#infrastructure">{text.get('nav_infrastructure', 'Vị trí & Hạ tầng')}</a>
-                <a href="#careers">{text.get('nav_careers', 'Tuyển dụng')}</a>
-                <a href="#contact">{text.get('nav_contact', 'Liên hệ')}</a>
+                <a href="#services" class="nav-link">Dịch vụ</a>
+                <a href="#infrastructure" class="nav-link">Vị trí & Hạ tầng</a>
+                <a href="#careers" class="nav-link">Tuyển dụng</a>
+                <a href="#contact" class="nav-link">Liên hệ</a>
                 <span class="nav-divider">|</span>
                 <div class="lang-switch">
-                    <a href="#" class="lang-link {vi_active}" onclick="switchLanguage('vi'); return false;">🇻🇳 VI</a>
+                    <a href="#" class="lang-link vi_active" onclick="switchLanguage('vi'); return false;">🇻🇳 VI</a>
                     <span class="lang-sep">/</span>
-                    <a href="#" class="lang-link {en_active}" onclick="switchLanguage('en'); return false;">🇬🇧 EN</a>
+                    <a href="#" class="lang-link en_active" onclick="switchLanguage('en'); return false;">🇬🇧 EN</a>
                 </div>
             </div>
         </div>
@@ -948,17 +990,17 @@ def show_landing_page():
                         <img src="{chu_tich_img}" alt="Chủ tịch HĐQT">
                     </div>
                     <div class="a4-chairman-info">
-                        <h2>Ông Phùng Gia Phát</h2>
+                        <h2>{text.get('modal_chairman_name', 'Ông Phùng Gia Phát')}</h2>
                         <p class="title">{text.get('modal_chairman_title', 'Chủ tịch Hội đồng Quản trị')}</p>
-                        <p class="company">Công ty Cổ phần Cảng Hòn La</p>
-                        <p class="company">Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình</p>
+                        <p class="company">{text.get('modal_company', 'Công ty Cổ phần Cảng Hòn La')}</p>
+                        <p class="company">{text.get('modal_address', 'Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình')}</p>
                     </div>                  
                     <div class="a4-chairman-logo">
                         <img src="data:image/png;base64,{logo_base64}" alt="Logo Cảng Hòn La">
                     </div>
                 </div>
                 <div class="a4-body">
-                    <p class="a4-date">Quảng Bình, ngày 21 tháng 3 năm 2025</p>
+                    <p class="a4-date">{text.get('modal_date', 'Quảng Bình, ngày 21 tháng 3 năm 2025')}</p>
                     <p class="a4-greeting" style="font-weight: bold; font-size: 1rem;">{text.get('modal_greeting', 'Kính gửi: Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên,')}</p>
                     <p>{text.get('modal_content_1', 'Với niềm tự hào sâu sắc, Tôi xin thay mặt Hội đồng Quản trị Công ty Cổ phần Cảng Hòn La gửi lời chào trân trọng nhất đến Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên — những người đã và đang đồng hành cùng chúng tôi trên hành trình kiến tạo một cảng biển tầm cỡ quốc tế giữa lòng đất nước Việt Nam.')}</p>
                     <p>{text.get('modal_content_2', 'Ngày 21 tháng 3 năm 2025 là một mốc son lịch sử — ngày chính thức khởi công Dự án Cảng tổng hợp quốc tế Hòn La, dự án được Chính phủ công nhận là Dự án trọng điểm Quốc gia. Đây không chỉ là thành quả của nhiều năm nỗ lực không ngừng, mà còn là khởi đầu của một chương mới trong lịch sử phát triển kinh tế hàng hải miền Trung Việt Nam.')}</p>
@@ -976,9 +1018,12 @@ def show_landing_page():
                 </div>
                 <div class="a4-signature-left">
                     <div class="sig-block-left">
+                        <p class="sig-closing">{text.get('modal_closing', 'Trân trọng,')}</p>
                         <div class="sig-image">
                             <img src="{chu_ky_img}" alt="Chữ ký Chủ tịch">
                         </div>
+                        <p class="sig-name">{text.get('modal_sign_name', 'Phùng Gia Phát')}</p>
+                        <p class="sig-title">{text.get('modal_sign_title', 'Chủ tịch Hội đồng Quản trị')}</p>
                     </div>
                 </div>
                 <div class="a4-footer">
@@ -1095,7 +1140,7 @@ def show_landing_page():
     <!-- Footer -->
     <footer id="contact" class="footer">
         <div class="footer-grid">
-            <div class="footer-col"><h4 style="font-size:0.95rem; white-space:nowrap;">{text.get('footer_company', 'CÔNG TY CỔ PHẦN CẢNG HÒN LA')}</h4><p>Khu kinh tế Hòn La, Xã Phú Trạch, Tỉnh Quảng Trị</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
+            <div class="footer-col"><h4 style="font-size:0.95rem; white-space:nowrap;">{text.get('footer_company', 'CÔNG TY CỔ PHẦN CẢNG HÒN LA')}</h4><p>{text.get('footer_address', 'Khu kinh tế Hòn La, Xã Phú Trạch, Tỉnh Quảng Trị')}</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
             <div class="footer-col"><h4>{text.get('footer_quick_links', 'Liên kết nhanh')}</h4><a href="#home">{text.get('nav_home', 'Trang chủ')}</a><a href="#about">{text.get('nav_about', 'Về chúng tôi')}</a><a href="#services">{text.get('nav_services', 'Dịch vụ')}</a><a href="#infrastructure">{text.get('nav_infrastructure', 'Hạ tầng')}</a><a href="#careers">{text.get('nav_careers', 'Tuyển dụng')}</a></div>
             <div class="footer-col"><h4>{text.get('footer_support', 'Hỗ trợ')}</h4><a href="#">{text.get('footer_faq', 'Câu hỏi thường gặp')}</a><a href="#">{text.get('footer_privacy', 'Chính sách bảo mật')}</a><a href="#">{text.get('footer_terms', 'Điều khoản sử dụng')}</a></div>
             <div class="footer-col"><h4>{text.get('footer_working_hours', 'Giờ làm việc')}</h4><p>🚢 {text.get('footer_working_hours_port', 'Bến cảng: 24/7')}</p><p>🏢 {text.get('footer_working_hours_office', 'Văn phòng: 7:30 - 17:00')}</p><p>📅 {text.get('footer_working_days', 'Thứ 2 - Thứ 7')}</p></div>
@@ -1106,8 +1151,15 @@ def show_landing_page():
         </div>
     </footer>
     
-    <script>
-        // Slider tự động
+    <!-- Nút HRM — nằm trong cùng iframe landing, window.top/parent chỉ 1 tầng -->
+    <div class="hrm-section">
+        <button class="hrm-button" id="hrmBtn">
+            🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
+        </button>
+    </div>
+
+     <script>
+        // Slider
         let currentSlide = 0;
         const slides = document.querySelectorAll('.slide');
         const dots = document.querySelectorAll('.slider-dot');
@@ -1118,377 +1170,179 @@ def show_landing_page():
         const SLIDE_DURATION = 5000;
         const progressBar = document.getElementById('sliderProgress');
         
-        function showSlide(index) {{
-            slides.forEach((slide, i) => {{
+        function showSlide(index) {
+            slides.forEach((slide, i) => {
                 slide.classList.remove('active');
                 if (dots[i]) dots[i].classList.remove('active');
-            }});
+            });
             slides[index].classList.add('active');
             if (dots[index]) dots[index].classList.add('active');
             currentSlide = index;
             resetProgress();
-        }}
+        }
         
-        function nextSlide() {{
-            showSlide((currentSlide + 1) % totalSlides);
-        }}
+        function nextSlide() { showSlide((currentSlide + 1) % totalSlides); }
+        function prevSlide() { showSlide((currentSlide - 1 + totalSlides) % totalSlides); }
+        function resetProgress() { progressValue = 0; if (progressBar) progressBar.style.width = '0%'; }
         
-        function prevSlide() {{
-            showSlide((currentSlide - 1 + totalSlides) % totalSlides);
-        }}
-        
-        function resetProgress() {{
-            progressValue = 0;
-            if (progressBar) progressBar.style.width = '0%';
-        }}
-        
-        function startProgress() {{
+        function startProgress() {
             if (progressInterval) clearInterval(progressInterval);
             progressValue = 0;
-            progressInterval = setInterval(() => {{
+            progressInterval = setInterval(() => {
                 progressValue += 100 / (SLIDE_DURATION / 100);
                 if (progressBar) progressBar.style.width = Math.min(progressValue, 100) + '%';
                 if (progressValue >= 100) resetProgress();
-            }}, 100);
-        }}
+            }, 100);
+        }
         
-        function startAutoSlide() {{
+        function startAutoSlide() {
             if (autoSlideInterval) clearInterval(autoSlideInterval);
             autoSlideInterval = setInterval(nextSlide, SLIDE_DURATION);
             startProgress();
-        }}
+        }
         
-        if (totalSlides > 0) {{
-            dots.forEach((dot, idx) => {{
-                dot.addEventListener('click', () => {{
-                    showSlide(idx);
-                    if (autoSlideInterval) clearInterval(autoSlideInterval);
-                    if (progressInterval) clearInterval(progressInterval);
-                    startAutoSlide();
-                }});
-            }});
-            
+        if (totalSlides > 0) {
+            dots.forEach((dot, idx) => {
+                dot.addEventListener('click', () => { showSlide(idx); if (autoSlideInterval) clearInterval(autoSlideInterval); if (progressInterval) clearInterval(progressInterval); startAutoSlide(); });
+            });
             const prevBtn = document.getElementById('prevBtn');
             const nextBtn = document.getElementById('nextBtn');
-            if (prevBtn) prevBtn.addEventListener('click', () => {{
-                prevSlide();
-                if (autoSlideInterval) clearInterval(autoSlideInterval);
-                if (progressInterval) clearInterval(progressInterval);
-                startAutoSlide();
-            }});
-            if (nextBtn) nextBtn.addEventListener('click', () => {{
-                nextSlide();
-                if (autoSlideInterval) clearInterval(autoSlideInterval);
-                if (progressInterval) clearInterval(progressInterval);
-                startAutoSlide();
-            }});
-            
+            if (prevBtn) prevBtn.addEventListener('click', () => { prevSlide(); if (autoSlideInterval) clearInterval(autoSlideInterval); if (progressInterval) clearInterval(progressInterval); startAutoSlide(); });
+            if (nextBtn) nextBtn.addEventListener('click', () => { nextSlide(); if (autoSlideInterval) clearInterval(autoSlideInterval); if (progressInterval) clearInterval(progressInterval); startAutoSlide(); });
             let touchStartX = 0;
             const heroSlider = document.querySelector('.hero-slider');
-            if (heroSlider) {{
-                heroSlider.addEventListener('touchstart', e => {{ touchStartX = e.touches[0].clientX; }});
-                heroSlider.addEventListener('touchend', e => {{
+            if (heroSlider) {
+                heroSlider.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; });
+                heroSlider.addEventListener('touchend', e => {
                     const diff = touchStartX - e.changedTouches[0].clientX;
-                    if (Math.abs(diff) > 50) {{ diff > 0 ? nextSlide() : prevSlide(); startAutoSlide(); }}
-                }});
-            }}
+                    if (Math.abs(diff) > 50) { diff > 0 ? nextSlide() : prevSlide(); startAutoSlide(); }
+                });
+            }
             startAutoSlide();
-        }}
+        }
         
         // Scroll reveal
-        const revealObserver = new IntersectionObserver((entries) => {{
-            entries.forEach(entry => {{
-                if (entry.isIntersecting) {{
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
                     entry.target.classList.add('visible');
                     revealObserver.unobserve(entry.target);
-                }}
-            }});
-        }}, {{ threshold: 0.15 }});
+                }
+            });
+        }, { threshold: 0.15 });
         document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
         
         // Navbar scroll effect
-        window.addEventListener('scroll', () => {{
+        window.addEventListener('scroll', () => {
             const navbar = document.getElementById('navbar');
-            if (navbar) {{
-                if (window.scrollY > 50) {{
+            if (navbar) {
+                if (window.scrollY > 50) {
                     navbar.style.background = 'rgba(15, 59, 92, 0.98)';
                     navbar.style.boxShadow = '0 4px 20px rgba(0,0,0,0.2)';
-                }} else {{
+                } else {
                     navbar.style.background = 'rgba(15, 59, 92, 0.95)';
                     navbar.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-                }}
-            }}
-        }});
+                }
+            }
+        });
         
         // Modal thư ngỏ
         const modal = document.getElementById('thuNgoModal');
         const thuNgoBtn = document.getElementById('thuNgoBtn');
         const closeModalBtn = document.getElementById('closeModalBtn');
         
-        if (thuNgoBtn && modal) {{
-            thuNgoBtn.addEventListener('click', (e) => {{
+        if (thuNgoBtn && modal) {
+            thuNgoBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 modal.classList.add('active');
                 document.body.style.overflow = 'hidden';
-            }});
-            
-            const closeModal = () => {{
+            });
+            const closeModal = () => {
                 modal.classList.remove('active');
                 document.body.style.overflow = '';
-            }};
-            
+            };
             if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
-            modal.addEventListener('click', (e) => {{
+            modal.addEventListener('click', (e) => {
                 if (e.target === modal) closeModal();
-            }});
-            document.addEventListener('keydown', (e) => {{
+            });
+            document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape' && modal.classList.contains('active')) closeModal();
-            }});
-        }}
-
+            });
+        }
+        
+        // ===== QUAN TRỌNG: XỬ LÝ CLICK VÀO CÁC NÚT MENU - KHÔNG MỞ TRANG MỚI =====
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                const href = this.getAttribute('href');
+                if (href && href.startsWith('#')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const targetId = href.substring(1);
+                    const targetElement = document.getElementById(targetId);
+                    if (targetElement) {
+                        targetElement.scrollIntoView({ behavior: 'smooth' });
+                        // Cập nhật URL mà không reload
+                        const topWin = window.top || window.parent || window;
+                        try {
+                            const newUrl = new URL(topWin.location.href);
+                            newUrl.hash = href;
+                            topWin.history.replaceState(null, '', newUrl.toString());
+                        } catch(err) {}
+                    }
+                }
+            });
+        });
+        
         // Career link handler
         const careerLink = document.getElementById('careerLink');
-        if (careerLink) {{
-            careerLink.addEventListener('click', (e) => {{
+        if (careerLink) {
+            careerLink.addEventListener('click', (e) => {
                 e.preventDefault();
                 alert('Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
-            }});
-        }}
-
-        // Language switcher - window.top để thoát khỏi mọi tầng iframe Streamlit
-        function switchLanguage(lang) {{
+            });
+        }
+        
+        // Language switcher
+        function switchLanguage(lang) {
             var topWin = window.top || window.parent || window;
             var url = new URL(topWin.location.href);
-            // Xóa param lang cũ nếu có, set lại mới
             url.searchParams.set('lang', lang);
-            // replaceState thay URL mà KHÔNG tạo history entry mới
             topWin.history.replaceState(null, '', url.toString());
-            // reload để Streamlit server nhận ?lang= và rerun
             topWin.location.reload();
-        }}
-    </script>
-    </body>
-    </html>
-    """
-    
-    # Render landing page
-    components.html(landing_html, height=3150, scrolling=False)
-    
-    # Nút HRM dùng components.html (nhận HTML string, script chạy được)
-    # components.html tạo iframe riêng nên script hoạt động bình thường
-    hrm_html = """<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-    background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
-    display: flex; justify-content: center; align-items: center;
-    min-height: 100px;
-    border-top: 3px solid #f59e0b;
-    border-bottom: 3px solid #f59e0b;
-    padding: 20px;
-}
-.hrm-button {
-    background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
-    color: #0f3b5c; font-weight: 800; font-size: 1.2rem;
-    border: none; border-radius: 60px; padding: 18px 60px;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.3); letter-spacing: 1px;
-    cursor: pointer; transition: all 0.3s ease; min-width: 420px;
-    font-family: sans-serif;
-}
-.hrm-button:hover {
-    background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
-    transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.4);
-}
-@media (max-width: 768px) {
-    .hrm-button { font-size: 0.9rem; padding: 14px 30px; min-width: 260px; }
-}
-</style>
-</head>
-<body>
-    <button class="hrm-button" id="hrmBtn">
-        🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
-    </button>
-    <script>
-    // Nút HRM click
-    document.getElementById('hrmBtn').addEventListener('click', function() {
-        var topWin = window.top || window.parent || window;
-        var url = new URL(topWin.location.href);
-        url.searchParams.set('goto', 'hrm');
-        topWin.location.href = url.toString();
-    });
-    </script>
-</body>
-</html>"""
- 
-    st.markdown("""
-        <style>
-            .hrm-button-container {
-                background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
-                border-top: 3px solid #f59e0b;
-                border-bottom: 3px solid #f59e0b;
-                padding: 20px;
-                text-align: center;
-            }
-            .stButton > button {
-                background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
-                color: #0f3b5c !important;
-                font-weight: 800;
-                font-size: 1.2rem;
-                border: none;
-                border-radius: 60px;
-                padding: 18px 60px;
-                box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-                min-width: 420px;
-                transition: all 0.3s ease;
-                width: auto !important;
-            }
-            .stButton > button:hover {
-                background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
-                transform: translateY(-3px);
-                box-shadow: 0 12px 30px rgba(0,0,0,0.4);
-            }
-            @media (max-width: 768px) {
-                .stButton > button {
-                    font-size: 0.9rem;
-                    padding: 14px 30px;
-                    min-width: 260px;
+        }
+        window.switchLanguage = switchLanguage;
+        
+        // ===== QUAN TRỌNG: NÚT HRM =====
+        const hrmBtn = document.getElementById('hrmBtn');
+        if (hrmBtn) {
+            hrmBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                try {
+                    var topWin = window.top || window.parent || window;
+                    var url = new URL(topWin.location.href);
+                    url.searchParams.set('goto', 'hrm');
+                    topWin.location.href = url.toString();
+                } catch(err) {
+                    window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'goto_hrm'}, '*');
+                }
+            });
+        }
+        
+        // Post message listener
+        window.addEventListener('message', function(e) {
+            if (e.data === 'goto_hrm') {
+                try {
+                    var topWin = window.top || window.parent || window;
+                    var url = new URL(topWin.location.href);
+                    url.searchParams.set('goto', 'hrm');
+                    topWin.location.href = url.toString();
+                } catch(err) {
+                    window.location.href = window.location.href.split('?')[0] + '?goto=hrm';
                 }
             }
-        </style>
-        <div class="hrm-button-container">
-    """, unsafe_allow_html=True)
-
-    # Nút HRM thuần Python
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên", width='stretch'):
-            st.session_state.show_hrm = True
-            st.rerun()
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
-
-# ========== XỬ LÝ ĐA NGÔN NGỮ ==========
-def init_language():
-    """Khởi tạo và xử lý chuyển đổi ngôn ngữ"""
-    if 'language' not in st.session_state:
-        st.session_state.language = 'vi'
-    
-    # Kiểm tra query params để đổi ngôn ngữ
-    query_params = st.query_params
-    if 'lang' in query_params:
-        new_lang = query_params['lang']
-        if new_lang in ['vi', 'en']:
-            st.session_state.language = new_lang
-            # Xóa param để tránh lặp
-            st.query_params.clear()
-            st.rerun()
-
-# Gọi hàm khởi tạo
-init_language()
-
-# ========== KHỞI TẠO SESSION STATE ==========
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-    st.session_state.role = None
-    st.session_state.username = None
-
-# show_hrm=False → hiện landing | show_hrm=True → vào HRM (sidebar login)
-if 'show_hrm' not in st.session_state:
-    st.session_state.show_hrm = False
-
-# ========== KIỂM TRA URL PARAMS (Từ nút Nhân viên trên Landing Page) ==========
-query_params = st.query_params
-if query_params.get('goto') == 'hrm':
-    st.session_state.show_hrm = True   # Chỉ thoát landing, KHÔNG tự đăng nhập
-    st.query_params.clear()
-    st.rerun()
-
-
-# ========== HIỂN THỊ LANDING PAGE NẾU CHƯA VÀO HRM ==========
-logo_path = "logo_cty.png"
-if os.path.exists(logo_path):
-    with st.sidebar:
-        st.image(logo_path, width='stretch')
-        st.divider()
-
-# Trong phần main hoặc ở cuối file, đảm bảo:
-if not st.session_state.logged_in and not st.session_state.get('show_hrm', False):
-    # Xử lý đổi ngôn ngữ
-    handle_language_change()
-    
-    # Ẩn sidebar
-    st.markdown("""
-        <style>
-            [data-testid="stSidebar"] { display: none !important; }
-            [data-testid="collapsedControl"] { display: none !important; }
-            header { display: none !important; }
-            footer[data-testid], #stDecoration { display: none !important; }
-        </style>
-    """, unsafe_allow_html=True)
-    show_landing_page()
-    st.stop()
-
-# Nếu show_hrm=True hoặc logged_in=True → chạy tiếp HRM, sidebar tự hiện
-
-# ========== PHẦN CODE HRM BẮT ĐẦU TỪ ĐÂY ==========
-
-st.markdown("""
-    <style>
-        /* ===== ẨN MANAGE APP - dùng mọi selector có thể ===== */
-        [data-testid="stToolbar"],
-        [data-testid="manage-app-button"],
-        [data-testid="stAppDeployButton"],
-        .stDeployButton,
-        #MainMenu,
-        div[class*="toolbar"],
-        div[class*="StatusWidget"],
-        div[class*="viewerBadge"],
-        div[class*="manage-app"],
-        button[kind="managedApp"],
-        [data-testid="stBottom"] > div:last-child { 
-            display: none !important; 
-            visibility: hidden !important;
-            opacity: 0 !important;
-            pointer-events: none !important;
-        }
-        footer[data-testid] { display: none !important; }
-
-        /* ===== PADDING TOP / BOTTOM = 5px ===== */
-        .stApp > div[data-testid="stAppViewContainer"] > section[data-testid="stMain"] > div {
-            padding-top: 5px !important;
-            padding-bottom: 5px !important;
-        }
-        .block-container {
-            padding-top: 5px !important;
-            padding-bottom: 5px !important;
-        }
-
-        /* ===== LOGO SIDEBAR: hình tròn đổ bóng, sát top, căn giữa ===== */
-        [data-testid="stSidebar"] > div:first-child {
-            padding-top: 0 !important;
-        }
-        [data-testid="stSidebar"] [data-testid="stImage"] {
-            display: flex !important;
-            justify-content: center !important;
-            margin-top: 0 !important;
-            padding-top: 0 !important;
-        }
-        [data-testid="stSidebar"] [data-testid="stImage"] img {
-            width: 150px !important;
-            height: 150px !important;
-            border-radius: 50% !important;
-            object-fit: cover !important;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.25) !important;
-            display: block !important;
-            margin: 4px auto 0 auto !important;
-        }
-    </style>
-    <script>
+        });
+    </script>
         // MutationObserver: ẩn Manage App ngay khi DOM thay đổi
         function hideManageApp() {
             const selectors = [

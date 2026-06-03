@@ -254,35 +254,54 @@ def show_landing_page():
                 margin: 0 5px;
                 font-size: 14px;
             }}
-            .lang-switch {{
+            .lang-toggle {{
                 display: inline-flex;
                 align-items: center;
-                gap: 5px;
+                gap: 6px;
                 margin-left: 5px;
+                background: rgba(255,255,255,0.12);
+                border-radius: 30px;
+                padding: 4px 10px;
+                cursor: pointer;
+                user-select: none;
             }}
-            .lang-link {{
-                text-decoration: none !important;
-                color: white !important;
-                font-weight: 500;
-                font-size: 0.85rem;
-                padding: 8px 8px !important;
-                border-radius: 40px;
-                transition: all 0.3s;
-                background: transparent !important;
+            .lang-toggle-label {{
+                color: rgba(255,255,255,0.75);
+                font-size: 0.8rem;
+                font-weight: 600;
+                min-width: 22px;
+                text-align: center;
+                transition: color 0.2s;
             }}
-            .lang-link:hover {{
-                background: #f59e0b !important;
-                color: #0f3b5c !important;
+            .lang-toggle-label.active {{
+                color: #f59e0b;
             }}
-            .lang-link.active {{
-                background: #f59e0b !important;
-                color: #0f3b5c !important;
+            .lang-toggle-track {{
+                position: relative;
+                width: 42px;
+                height: 22px;
+                background: rgba(255,255,255,0.2);
+                border-radius: 11px;
+                transition: background 0.3s;
             }}
-            .lang-sep {{
-                color: rgba(255,255,255,0.5);
-                font-size: 12px;
+            .lang-toggle-thumb {{
+                position: absolute;
+                top: 3px;
+                left: 3px;
+                width: 16px;
+                height: 16px;
+                background: #f59e0b;
+                border-radius: 50%;
+                transition: transform 0.3s;
+                box-shadow: 0 1px 4px rgba(0,0,0,0.3);
             }}
-            
+            .lang-toggle.en-active .lang-toggle-thumb {{
+                transform: translateX(20px);
+            }}
+            .lang-toggle:hover .lang-toggle-track {{
+                background: rgba(255,255,255,0.3);
+            }}
+
             /* ===== MOBILE LANGUAGE ===== */
             .mobile-lang {{
                 position: fixed;
@@ -295,23 +314,41 @@ def show_landing_page():
                 padding: 6px 12px;
                 display: none;
                 gap: 8px;
+                align-items: center;
                 border: 1px solid rgba(255,255,255,0.2);
             }}
-            .mobile-lang a {{
-                color: white;
-                text-decoration: none;
-                font-size: 12px;
-                font-weight: 600;
-                padding: 4px 8px;
-                border-radius: 20px;
-                transition: all 0.2s;
+            .mobile-lang-label {{
+                color: rgba(255,255,255,0.75);
+                font-size: 11px;
+                font-weight: 700;
+                min-width: 20px;
+                text-align: center;
+                transition: color 0.2s;
             }}
-            .mobile-lang a:hover {{
+            .mobile-lang-label.active {{
+                color: #f59e0b;
+            }}
+            .mobile-lang-track {{
+                position: relative;
+                width: 36px;
+                height: 18px;
                 background: rgba(255,255,255,0.2);
+                border-radius: 9px;
+                cursor: pointer;
+                transition: background 0.3s;
             }}
-            .mobile-lang a.active {{
+            .mobile-lang-thumb {{
+                position: absolute;
+                top: 2px;
+                left: 2px;
+                width: 14px;
+                height: 14px;
                 background: #f59e0b;
-                color: #0f3b5c;
+                border-radius: 50%;
+                transition: transform 0.3s;
+            }}
+            .mobile-lang.en-active .mobile-lang-thumb {{
+                transform: translateX(18px);
             }}
             
             .dropdown {{
@@ -920,20 +957,24 @@ def show_landing_page():
                 <a href="#careers">{text.get('nav_careers', 'Tuyển dụng')}</a>
                 <a href="#contact">{text.get('nav_contact', 'Liên hệ')}</a>
                 <span class="nav-divider">|</span>
-                <div class="lang-switch">
-                    <a href="#" class="lang-link {vi_active}" onclick="setLanguage('vi'); return false;">🇻🇳 VI</a>
-                    <span class="lang-sep">/</span>
-                    <a href="#" class="lang-link {en_active}" onclick="setLanguage('en'); return false;">🇬🇧 EN</a>
+                <div class="lang-toggle {('en-active' if lang == 'en' else '')}" id="langToggle" onclick="toggleLanguage()">
+                    <span class="lang-toggle-label {'active' if lang == 'vi' else ''}">🇻🇳</span>
+                    <div class="lang-toggle-track">
+                        <div class="lang-toggle-thumb"></div>
+                    </div>
+                    <span class="lang-toggle-label {'active' if lang == 'en' else ''}">🇬🇧</span>
                 </div>
             </div>
         </div>
     </nav>
 
     <!-- Mobile Language Switcher -->
-    <div class="mobile-lang">
-        <a href="#" class="{vi_active}" onclick="setLanguage('vi'); return false;">🇻🇳 VI</a>
-        <span style="color:white; opacity:0.5;">|</span>
-        <a href="#" class="{en_active}" onclick="setLanguage('en'); return false;">🇬🇧 EN</a>
+    <div class="mobile-lang {('en-active' if lang == 'en' else '')}" id="mobileLangToggle" onclick="toggleLanguage()">
+        <span class="mobile-lang-label {'active' if lang == 'vi' else ''}">🇻🇳</span>
+        <div class="mobile-lang-track">
+            <div class="mobile-lang-thumb"></div>
+        </div>
+        <span class="mobile-lang-label {'active' if lang == 'en' else ''}">🇬🇧</span>
     </div>
 
     <!-- Modal Thư ngỏ -->
@@ -1107,9 +1148,11 @@ def show_landing_page():
     </footer>
     
     <script>
-        function setLanguage(lang) {{
+        function toggleLanguage() {{
+            const currentLang = '{lang}';
+            const newLang = currentLang === 'vi' ? 'en' : 'vi';
             const url = new URL(window.location.href);
-            url.searchParams.set('lang', lang);
+            url.searchParams.set('lang', newLang);
             window.location.href = url.toString();
         }}
 
@@ -1273,71 +1316,63 @@ def show_landing_page():
         <style>
         /* Container chứa nút HRM - căn giữa và background xanh */
         .hrm-button-container {
+                # CSS cho nút HRM
+    st.markdown("""
+        <style>
+        .hrm-button-container {
             background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
-            padding: 40px 20px;
+            padding: 30px 20px;
             margin: 0;
             width: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
             border-top: 3px solid #f59e0b;
-            border-bottom: 3px solid #f59e0b;
         }
-        
-        /* Style cho nút HRM */
         .hrm-button {
             background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
             color: #0f3b5c;
             font-weight: 800;
-            font-size: 1.25rem;
+            font-size: 1.1rem;
             border: none;
-            border-radius: 60px;
-            padding: 18px 60px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-            letter-spacing: 1px;
+            border-radius: 50px;
+            padding: 14px 40px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
             cursor: pointer;
             transition: all 0.3s ease;
-            width: auto;
-            min-width: 450px;
-            text-align: center;
             font-family: inherit;
         }
-        
         .hrm-button:hover {
             background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
-            transform: translateY(-4px);
-            box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.3);
         }
-        
-        /* Responsive cho mobile */
         @media (max-width: 768px) {
             .hrm-button {
-                font-size: 0.9rem;
-                padding: 14px 30px;
-                min-width: 280px;
+                font-size: 0.85rem;
+                padding: 10px 20px;
                 white-space: normal;
-            }
-            .hrm-button-container {
-                padding: 25px 15px;
             }
         }
         </style>
-        
+    """, unsafe_allow_html=True)
+    
+    # DÙNG components.html để tạo nút và gọi Streamlit
+    components.html(f"""
         <div class="hrm-button-container">
-            <button class="hrm-button" id="hrmLandingBtn">
+            <button class="hrm-button" id="hrmBtn">
                 🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
             </button>
         </div>
-        
         <script>
-        document.getElementById('hrmLandingBtn').addEventListener('click', function() {
-            // Gửi request để set session state
-            const url = new URL(window.location.href);
-            url.searchParams.set('goto', 'hrm');
-            window.location.href = url.toString();
-        });
+            document.getElementById('hrmLandingBtn').addEventListener('click', function() {
+                window.parent.postMessage({type: 'streamlit:setComponentValue', value: 'goto_hrm'}, '*');
+                const url = new URL(window.location.href);
+                url.searchParams.set('goto', 'hrm');
+                window.location.href = url.toString();
+            });
         </script>
-    """, unsafe_allow_html=True)
+    """, height=100)
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 

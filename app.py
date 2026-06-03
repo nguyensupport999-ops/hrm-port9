@@ -1343,8 +1343,8 @@ def show_landing_page():
             }
         });
     </script>
-        // MutationObserver: ẩn Manage App ngay khi DOM thay đổi
-        function hideManageApp() {
+        // Ẩn các thành phần Streamlit
+        setTimeout(function() {
             const selectors = [
                 '[data-testid="manage-app-button"]',
                 '[data-testid="stToolbar"]',
@@ -1357,11 +1357,7 @@ def show_landing_page():
                     el.style.cssText = 'display:none!important;visibility:hidden!important';
                 });
             });
-        }
-        hideManageApp();
-        // Quan sát DOM liên tục — bắt được dù Streamlit render trễ
-        const observer = new MutationObserver(hideManageApp);
-        observer.observe(document.body, { childList: true, subtree: true });
+        }, 100);
     </script>
 """, unsafe_allow_html=True)
 

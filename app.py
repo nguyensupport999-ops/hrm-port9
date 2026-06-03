@@ -1311,12 +1311,7 @@ def show_landing_page():
     # Render landing page
     components.html(landing_html, height=3150, scrolling=False)
 
-    # CSS cho nút HRM - Đặt NGAY TRƯỚC container chứa nút
-    st.markdown("""
-        <style>
-        /* Container chứa nút HRM - căn giữa và background xanh */
-        .hrm-button-container {
-                # CSS cho nút HRM
+    # CSS cho nút HRM
     st.markdown("""
         <style>
         .hrm-button-container {{
@@ -1381,7 +1376,7 @@ def show_landing_page():
     """, unsafe_allow_html=True)
     
     # DÙNG components.html để tạo nút và gọi Streamlit
-    components.html(f"""
+    components.html("""
         <div class="hrm-button-container">
             <button class="hrm-button" id="hrmBtn">
                 🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên

@@ -116,6 +116,30 @@ def show_landing_page():
             body {
                 overflow-x: hidden;
             }
+            /* ===== Nút HRM ===== */
+            .hrm-section {{
+                background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
+                display: flex; justify-content: center; align-items: center;
+                min-height: 100px;
+                border-top: 3px solid #f59e0b;
+                border-bottom: 3px solid #f59e0b;
+                padding: 20px;
+            }}
+            .hrm-button {{
+                background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
+                color: #0f3b5c; font-weight: 800; font-size: 1.2rem;
+                border: none; border-radius: 60px; padding: 18px 60px;
+                box-shadow: 0 8px 25px rgba(0,0,0,0.3); letter-spacing: 1px;
+                cursor: pointer; transition: all 0.3s ease; min-width: 420px;
+                font-family: 'Inter', sans-serif;
+            }}
+            .hrm-button:hover {{
+                background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
+                transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+            }}
+            @media (max-width: 768px) {{
+                .hrm-button {{ font-size: 0.9rem; padding: 14px 30px; min-width: 260px; }}
+            }}
         </style>
     """, unsafe_allow_html=True)
     
@@ -1127,6 +1151,13 @@ def show_landing_page():
         </div>
     </footer>
     
+    <!-- Nút HRM — nằm trong cùng iframe landing, window.top/parent chỉ 1 tầng -->
+    <div class="hrm-section">
+        <button class="hrm-button" id="hrmBtn">
+            {text.get('btn_login', '🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên')}
+        </button>
+    </div>
+    
     <script>
         // Slider tự động
         let currentSlide = 0;
@@ -1302,69 +1333,26 @@ def show_landing_page():
                 }}
             }}
         }});
+
+        // Nút HRM - nằm trong cùng iframe với landing_html
+        // window.parent ở đây = Streamlit app (chỉ 1 tầng) → hoạt động được
+        document.getElementById('hrmBtn').addEventListener('click', function() {{
+            try {{
+                var topWin = window.top || window.parent || window;
+                var url = new URL(topWin.location.href);
+                url.searchParams.set('goto', 'hrm');
+                topWin.location.href = url.toString();
+            }} catch(e) {{
+                window.parent.postMessage({{type: 'streamlit:setComponentValue', value: 'goto_hrm'}}, '*');
+            }}
+        }});
     </script>
     </body>
     </html>
     """
     
-    # Render landing page
-    components.html(landing_html, height=3150, scrolling=False)
-    
-    # Nút HRM dùng components.html (nhận HTML string, script chạy được)
-    # components.html tạo iframe riêng nên script hoạt động bình thường
-    hrm_html = """<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-    background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
-    display: flex; justify-content: center; align-items: center;
-    min-height: 100px;
-    border-top: 3px solid #f59e0b;
-    border-bottom: 3px solid #f59e0b;
-    padding: 20px;
-}
-.hrm-button {
-    background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
-    color: #0f3b5c; font-weight: 800; font-size: 1.2rem;
-    border: none; border-radius: 60px; padding: 18px 60px;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.3); letter-spacing: 1px;
-    cursor: pointer; transition: all 0.3s ease; min-width: 420px;
-    font-family: sans-serif;
-}
-.hrm-button:hover {
-    background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
-    transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.4);
-}
-@media (max-width: 768px) {
-    .hrm-button { font-size: 0.9rem; padding: 14px 30px; min-width: 260px; }
-}
-</style>
-</head>
-<body>
-    <button class="hrm-button" id="hrmBtn">
-        🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
-    </button>
-    <script>
-    // Nút HRM click - thử window.top trước, fallback postMessage nếu bị chặn cross-origin
-    document.getElementById('hrmBtn').addEventListener('click', function() {
-        try {
-            var topWin = window.top;
-            var url = new URL(topWin.location.href);
-            url.searchParams.set('goto', 'hrm');
-            topWin.location.href = url.toString();
-        } catch(e) {
-            // Fallback: postMessage lên landing_html iframe (tầng cha)
-            window.parent.postMessage('goto_hrm', '*');
-        }
-    });
-    </script>
-</body>
-</html>"""
- 
-    components.html(hrm_html, height=110)
+    # Render landing page (nút HRM đã được nhúng bên trong landing_html)
+    components.html(landing_html, height=3280, scrolling=False)
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 

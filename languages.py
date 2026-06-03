@@ -59,7 +59,6 @@ LANGUAGES = {
         
         # Footer
         'footer_company': 'CÔNG TY CỔ PHẦN CẢNG HÒN LA',
-        'footer_address': 'Khu kinh tế Hòn La, Xã Phú Trạch, Tỉnh Quảng Trị',
         'footer_quick_links': 'Liên kết nhanh',
         'footer_support': 'Hỗ trợ',
         'footer_working_hours': 'Giờ làm việc',
@@ -156,7 +155,6 @@ LANGUAGES = {
         
         # Footer
         'footer_company': 'HON LA PORT JOINT STOCK COMPANY',
-        'footer_address': 'Hon La Economic Zone, Phu Trach Commune, Quang Tri Province',
         'footer_quick_links': 'Quick Links',
         'footer_support': 'Support',
         'footer_working_hours': 'Working Hours',

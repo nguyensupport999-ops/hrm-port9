@@ -1,3 +1,6 @@
+'''Tóm lại bài học rút ra từ ca này: khi HTML nằm trong components.html (iframe), việc giao tiếp với trang Streamlit cha luôn phải dùng window.top thay vì window.parent — đặc biệt trên Streamlit Cloud nơi có thể có nhiều tầng iframe lồng nhau. Và không bao giờ dùng replaceState rồi lại location.href cùng lúc vì chúng triệt tiêu nhau.
+Nếu sau này cần thêm tính năng hay gặp bug mới, cứ ping lại nhé!
+'''
 import streamlit as st
 import psycopg2
 import psycopg2.extras
@@ -829,6 +832,24 @@ def show_landing_page():
                 max-width: 386px;
                 height: auto;
             }}
+            .sig-closing {{
+                font-style: italic;
+                color: #555;
+                margin-bottom: 4px;
+                font-size: 0.95rem;
+            }}
+            .sig-name {{
+                font-weight: 700;
+                font-size: 1rem;
+                color: #0f3b5c;
+                margin-top: 6px;
+                margin-bottom: 2px;
+            }}
+            .sig-title {{
+                font-size: 0.88rem;
+                color: #555;
+                font-style: italic;
+            }}
             .a4-footer {{
                 margin-top: 30px;
                 padding-top: 15px;
@@ -945,17 +966,17 @@ def show_landing_page():
                         <img src="{chu_tich_img}" alt="Chủ tịch HĐQT">
                     </div>
                     <div class="a4-chairman-info">
-                        <h2>Ông Phùng Gia Phát</h2>
+                        <h2>{text.get('modal_chairman_name', 'Ông Phùng Gia Phát')}</h2>
                         <p class="title">{text.get('modal_chairman_title', 'Chủ tịch Hội đồng Quản trị')}</p>
-                        <p class="company">Công ty Cổ phần Cảng Hòn La</p>
-                        <p class="company">Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình</p>
+                        <p class="company">{text.get('modal_company', 'Công ty Cổ phần Cảng Hòn La')}</p>
+                        <p class="company">{text.get('modal_address', 'Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình')}</p>
                     </div>                  
                     <div class="a4-chairman-logo">
                         <img src="data:image/png;base64,{logo_base64}" alt="Logo Cảng Hòn La">
                     </div>
                 </div>
                 <div class="a4-body">
-                    <p class="a4-date">Quảng Bình, ngày 21 tháng 3 năm 2025</p>
+                    <p class="a4-date">{text.get('modal_date', 'Quảng Bình, ngày 21 tháng 3 năm 2025')}</p>
                     <p class="a4-greeting" style="font-weight: bold; font-size: 1rem;">{text.get('modal_greeting', 'Kính gửi: Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên,')}</p>
                     <p>{text.get('modal_content_1', 'Với niềm tự hào sâu sắc, Tôi xin thay mặt Hội đồng Quản trị Công ty Cổ phần Cảng Hòn La gửi lời chào trân trọng nhất đến Quý đối tác, nhà đầu tư và toàn thể cán bộ nhân viên — những người đã và đang đồng hành cùng chúng tôi trên hành trình kiến tạo một cảng biển tầm cỡ quốc tế giữa lòng đất nước Việt Nam.')}</p>
                     <p>{text.get('modal_content_2', 'Ngày 21 tháng 3 năm 2025 là một mốc son lịch sử — ngày chính thức khởi công Dự án Cảng tổng hợp quốc tế Hòn La, dự án được Chính phủ công nhận là Dự án trọng điểm Quốc gia. Đây không chỉ là thành quả của nhiều năm nỗ lực không ngừng, mà còn là khởi đầu của một chương mới trong lịch sử phát triển kinh tế hàng hải miền Trung Việt Nam.')}</p>
@@ -973,9 +994,12 @@ def show_landing_page():
                 </div>
                 <div class="a4-signature-left">
                     <div class="sig-block-left">
+                        <p class="sig-closing">{text.get('modal_closing', 'Trân trọng,')}</p>
                         <div class="sig-image">
                             <img src="{chu_ky_img}" alt="Chữ ký Chủ tịch">
                         </div>
+                        <p class="sig-name">{text.get('modal_sign_name', 'Phùng Gia Phát')}</p>
+                        <p class="sig-title">{text.get('modal_sign_title', 'Chủ tịch Hội đồng Quản trị')}</p>
                     </div>
                 </div>
                 <div class="a4-footer">
@@ -1320,52 +1344,7 @@ body {
 </body>
 </html>"""
  
-    st.markdown("""
-        <style>
-            .hrm-button-container {
-                background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
-                border-top: 3px solid #f59e0b;
-                border-bottom: 3px solid #f59e0b;
-                padding: 20px;
-                text-align: center;
-            }
-            .stButton > button {
-                background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
-                color: #0f3b5c !important;
-                font-weight: 800;
-                font-size: 1.2rem;
-                border: none;
-                border-radius: 60px;
-                padding: 18px 60px;
-                box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-                min-width: 420px;
-                transition: all 0.3s ease;
-                width: auto !important;
-            }
-            .stButton > button:hover {
-                background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
-                transform: translateY(-3px);
-                box-shadow: 0 12px 30px rgba(0,0,0,0.4);
-            }
-            @media (max-width: 768px) {
-                .stButton > button {
-                    font-size: 0.9rem;
-                    padding: 14px 30px;
-                    min-width: 260px;
-                }
-            }
-        </style>
-        <div class="hrm-button-container">
-    """, unsafe_allow_html=True)
-
-    # Nút HRM thuần Python
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên", width='stretch'):
-            st.session_state.show_hrm = True
-            st.rerun()
-
-    st.markdown("</div>", unsafe_allow_html=True)
+    components.html(hrm_html, height=110)
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 

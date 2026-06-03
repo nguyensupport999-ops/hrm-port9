@@ -84,6 +84,15 @@ LANGUAGES = {
         'modal_thanks': 'Xin trân trọng cảm ơn sự tin tưởng, đồng hành và cống hiến của tất cả Quý vị.',
         'modal_wishes': 'Chúc Quý đối tác thịnh vượng, toàn thể cán bộ nhân viên sức khỏe và thành công!',
         
+        # Modal - các dòng header & chữ ký (mới bổ sung)
+        'modal_chairman_name': 'Ông Phùng Gia Phát',
+        'modal_company': 'Công ty Cổ phần Cảng Hòn La',
+        'modal_address': 'Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình',
+        'modal_date': 'Quảng Bình, ngày 21 tháng 3 năm 2025',
+        'modal_closing': 'Trân trọng,',
+        'modal_sign_name': 'Phùng Gia Phát',
+        'modal_sign_title': 'Chủ tịch Hội đồng Quản trị',
+        
         'btn_login': '🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên',
     },
     
@@ -170,6 +179,15 @@ LANGUAGES = {
         'modal_content_4': 'We understand that the road ahead still has many challenges. But I deeply believe that with collective intelligence, national spirit, and the aspiration to reach out to the vast sea, Hon La International General Port will successfully fulfill the historic mission entrusted to us.',
         'modal_thanks': 'We sincerely thank you for your trust, partnership, and dedication.',
         'modal_wishes': 'Wishing our partners prosperity and all employees health and success!',
+        
+        # Modal - header & signature lines (newly added)
+        'modal_chairman_name': 'Mr. Phung Gia Phat',
+        'modal_company': 'Hon La Port Joint Stock Company',
+        'modal_address': 'Hon La Economic Zone, Quang Dong Commune, Quang Trach District, Quang Binh Province',
+        'modal_date': 'Quang Binh, March 21, 2025',
+        'modal_closing': 'Sincerely,',
+        'modal_sign_name': 'Phung Gia Phat',
+        'modal_sign_title': 'Chairman of the Board',
         
         'btn_login': '🔐 HRM - PERSONNEL MANAGEMENT / For Employees Only',
     }

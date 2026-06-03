@@ -266,6 +266,7 @@ def show_landing_page():
                 border-radius: 40px;
                 transition: all 0.3s;
                 background: transparent !important;
+                cursor: pointer;
             }}
             .lang-link:hover {{
                 background: #f59e0b !important;
@@ -302,6 +303,7 @@ def show_landing_page():
                 padding: 4px 8px;
                 border-radius: 20px;
                 transition: all 0.2s;
+                cursor: pointer;
             }}
             .mobile-lang a:hover {{
                 background: rgba(255,255,255,0.2);
@@ -639,6 +641,7 @@ def show_landing_page():
                 display: inline-block;
                 margin-top: 20px;
                 text-decoration: none;
+                cursor: pointer;
             }}
             
             /* ===== FOOTER ===== */
@@ -918,9 +921,9 @@ def show_landing_page():
                 <a href="#contact">{text.get('nav_contact', 'Liên hệ')}</a>
                 <span class="nav-divider">|</span>
                 <div class="lang-switch">
-                    <a href="?lang=vi" class="lang-link {vi_active}">🇻🇳 VI</a>
+                    <a href="#" class="lang-link {vi_active}" onclick="switchLanguage('vi'); return false;">🇻🇳 VI</a>
                     <span class="lang-sep">/</span>
-                    <a href="?lang=en" class="lang-link {en_active}">🇬🇧 EN</a>
+                    <a href="#" class="lang-link {en_active}" onclick="switchLanguage('en'); return false;">🇬🇧 EN</a>
                 </div>
             </div>
         </div>
@@ -928,9 +931,9 @@ def show_landing_page():
 
     <!-- Mobile Language Switcher -->
     <div class="mobile-lang">
-        <a href="?lang=vi" class="{vi_active}">🇻🇳 VI</a>
+        <a href="#" class="{vi_active}" onclick="switchLanguage('vi'); return false;">🇻🇳 VI</a>
         <span style="color:white; opacity:0.5;">|</span>
-        <a href="?lang=en" class="{en_active}">🇬🇧 EN</a>
+        <a href="#" class="{en_active}" onclick="switchLanguage('en'); return false;">🇬🇧 EN</a>
     </div>
 
     <!-- Modal Thư ngỏ -->
@@ -1104,6 +1107,38 @@ def show_landing_page():
     </footer>
     
     <script>
+        // ===== CLEAN URL ON LOAD - Tránh tích tụ params =====
+        (function cleanURL() {{
+            if (window.location.search) {{
+                var params = new URLSearchParams(window.location.search);
+                var lang = params.get('lang');
+                if (lang && (lang === 'vi' || lang === 'en')) {{
+                    var newUrl = window.location.pathname + '?lang=' + lang;
+                    if (window.location.search !== '?lang=' + lang) {{
+                        window.history.replaceState({{}}, '', newUrl);
+                    }}
+                }} else {{
+                    window.history.replaceState({{}}, '', window.location.pathname);
+                }}
+            }}
+        }})();
+
+        // ===== SWITCH LANGUAGE - Thay thế URL thay vì append =====
+        function switchLanguage(lang) {{
+            var url = new URL(window.location.href);
+            url.search = '';
+            url.searchParams.set('lang', lang);
+            window.location.href = url.toString();
+        }}
+
+        // ===== GO TO HRM =====
+        function goToHRM() {{
+            var url = new URL(window.location.href);
+            url.search = '';
+            url.searchParams.set('goto', 'hrm');
+            window.location.href = url.toString();
+        }}
+
         // Slider tự động
         let currentSlide = 0;
         const slides = document.querySelectorAll('.slide');
@@ -1259,8 +1294,7 @@ def show_landing_page():
     # Render landing page
     components.html(landing_html, height=3150, scrolling=False)
     
-    # Nút HRM dùng components.html (nhận HTML string, script chạy được)
-    # components.html tạo iframe riêng nên script hoạt động bình thường
+    # Nút HRM dùng components.html
     hrm_html = """<!DOCTYPE html>
 <html>
 <head>
@@ -1293,20 +1327,22 @@ body {
 </style>
 </head>
 <body>
-    <button class="hrm-button" id="hrmBtn">
+    <button class="hrm-button" id="hrmBtn" onclick="goToHRM(); return false;">
         🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
     </button>
     <script>
-    // Nút HRM click
-    document.getElementById('hrmBtn').addEventListener('click', function() {
+    // Hàm goToHRM đã được định nghĩa trong landing page, không cần định nghĩa lại
+    // Chỉ cần gọi hàm từ parent
+    function goToHRM() {
         var url = new URL(window.parent.location.href);
+        url.search = '';
         url.searchParams.set('goto', 'hrm');
         window.parent.location.href = url.toString();
-    });
+    }
     </script>
 </body>
 </html>"""
- 
+
     st.markdown("""
         <style>
             .hrm-button-container {

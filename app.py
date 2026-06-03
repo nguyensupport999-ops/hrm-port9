@@ -1265,82 +1265,70 @@ def show_landing_page():
     """
     
     # Render landing page
-    st.iframe(landing_html, height=3150, scrolling=False)
+    components.html(landing_html, height=3150, scrolling=False)
     
-    # Nút HRM + listener postMessage - dùng st.iframe để script chạy được
-    hrm_iframe_html = """
-    <!DOCTYPE html>
-    <html>
-    <head>
-    <meta charset="UTF-8">
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100px;
-            border-top: 3px solid #f59e0b;
-            border-bottom: 3px solid #f59e0b;
-            padding: 20px;
+    # Nút HRM dùng components.html (nhận HTML string, script chạy được)
+    # components.html tạo iframe riêng nên script hoạt động bình thường
+    hrm_html = """<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+    background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
+    display: flex; justify-content: center; align-items: center;
+    min-height: 100px;
+    border-top: 3px solid #f59e0b;
+    border-bottom: 3px solid #f59e0b;
+    padding: 20px;
+}
+.hrm-button {
+    background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
+    color: #0f3b5c; font-weight: 800; font-size: 1.2rem;
+    border: none; border-radius: 60px; padding: 18px 60px;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3); letter-spacing: 1px;
+    cursor: pointer; transition: all 0.3s ease; min-width: 420px;
+    font-family: sans-serif;
+}
+.hrm-button:hover {
+    background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
+    transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.4);
+}
+@media (max-width: 768px) {
+    .hrm-button { font-size: 0.9rem; padding: 14px 30px; min-width: 260px; }
+}
+</style>
+</head>
+<body>
+    <button class="hrm-button" id="hrmBtn">
+        🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
+    </button>
+    <script>
+    // Nhận postMessage từ landing iframe (chuyển ngữ VI/EN)
+    window.addEventListener('message', function(e) {
+        if (!e.data || !e.data.type) return;
+        if (e.data.type === 'setLang') {
+            var url = new URL(window.parent.location.href);
+            url.searchParams.set('lang', e.data.lang);
+            window.parent.location.href = url.toString();
         }
-        .hrm-button {
-            background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
-            color: #0f3b5c;
-            font-weight: 800;
-            font-size: 1.25rem;
-            border: none;
-            border-radius: 60px;
-            padding: 18px 60px;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-            letter-spacing: 1px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            min-width: 450px;
-            font-family: sans-serif;
-        }
-        .hrm-button:hover {
-            background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
-            transform: translateY(-4px);
-            box-shadow: 0 12px 30px rgba(0,0,0,0.4);
-        }
-        @media (max-width: 768px) {
-            .hrm-button { font-size: 0.9rem; padding: 14px 30px; min-width: 280px; }
-        }
-    </style>
-    </head>
-    <body>
-        <button class="hrm-button" id="hrmBtn">
-            🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
-        </button>
-        <script>
-        // Nhận postMessage từ landing page iframe (chuyển ngữ)
-        window.addEventListener('message', function(e) {
-            if (!e.data || !e.data.type) return;
-            if (e.data.type === 'setLang') {
-                var url = new URL(window.parent.location.href);
-                url.searchParams.set('lang', e.data.lang);
-                window.parent.location.href = url.toString();
-            }
-            if (e.data.type === 'gotoHRM') {
-                var url = new URL(window.parent.location.href);
-                url.searchParams.set('goto', 'hrm');
-                window.parent.location.href = url.toString();
-            }
-        }, false);
-
-        // Nút HRM click
-        document.getElementById('hrmBtn').addEventListener('click', function() {
+        if (e.data.type === 'gotoHRM') {
             var url = new URL(window.parent.location.href);
             url.searchParams.set('goto', 'hrm');
             window.parent.location.href = url.toString();
-        });
-        </script>
-    </body>
-    </html>
-    """
-    st.iframe(hrm_iframe_html, height=110, scrolling=False)
+        }
+    });
+    // Nút HRM click
+    document.getElementById('hrmBtn').addEventListener('click', function() {
+        var url = new URL(window.parent.location.href);
+        url.searchParams.set('goto', 'hrm');
+        window.parent.location.href = url.toString();
+    });
+    </script>
+</body>
+</html>"""
+    components.html(hrm_html, height=110, scrolling=False)
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 

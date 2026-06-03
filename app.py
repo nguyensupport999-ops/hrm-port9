@@ -1116,7 +1116,7 @@ def show_landing_page():
     <!-- Footer -->
     <footer id="contact" class="footer">
         <div class="footer-grid">
-            <div class="footer-col"><h4 style="font-size:0.95rem; white-space:nowrap;">{text.get('footer_company', 'CÔNG TY CỔ PHẦN CẢNG HÒN LA')}</h4><p>Khu kinh tế Hòn La, Xã Phú Trạch, Tỉnh Quảng Trị</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
+            <div class="footer-col"><h4 style="font-size:0.95rem; white-space:nowrap;">{text.get('footer_company', 'CÔNG TY CỔ PHẦN CẢNG HÒN LA')}</h4><p>{text.get('footer_address', 'Khu kinh tế Hòn La, Xã Phú Trạch, Tỉnh Quảng Trị')}</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
             <div class="footer-col"><h4>{text.get('footer_quick_links', 'Liên kết nhanh')}</h4><a href="#home">{text.get('nav_home', 'Trang chủ')}</a><a href="#about">{text.get('nav_about', 'Về chúng tôi')}</a><a href="#services">{text.get('nav_services', 'Dịch vụ')}</a><a href="#infrastructure">{text.get('nav_infrastructure', 'Hạ tầng')}</a><a href="#careers">{text.get('nav_careers', 'Tuyển dụng')}</a></div>
             <div class="footer-col"><h4>{text.get('footer_support', 'Hỗ trợ')}</h4><a href="#">{text.get('footer_faq', 'Câu hỏi thường gặp')}</a><a href="#">{text.get('footer_privacy', 'Chính sách bảo mật')}</a><a href="#">{text.get('footer_terms', 'Điều khoản sử dụng')}</a></div>
             <div class="footer-col"><h4>{text.get('footer_working_hours', 'Giờ làm việc')}</h4><p>🚢 {text.get('footer_working_hours_port', 'Bến cảng: 24/7')}</p><p>🏢 {text.get('footer_working_hours_office', 'Văn phòng: 7:30 - 17:00')}</p><p>📅 {text.get('footer_working_days', 'Thứ 2 - Thứ 7')}</p></div>
@@ -1287,6 +1287,21 @@ def show_landing_page():
             // reload để Streamlit server nhận ?lang= và rerun
             topWin.location.reload();
         }}
+
+        // Listener nhận postMessage từ hrm_html iframe (khi window.top bị chặn cross-origin)
+        window.addEventListener('message', function(e) {{
+            if (e.data === 'goto_hrm') {{
+                try {{
+                    var topWin = window.top || window.parent || window;
+                    var url = new URL(topWin.location.href);
+                    url.searchParams.set('goto', 'hrm');
+                    topWin.location.href = url.toString();
+                }} catch(err) {{
+                    // Nếu vẫn bị chặn, thử reload với param
+                    window.location.href = window.location.href.split('?')[0] + '?goto=hrm';
+                }}
+            }}
+        }});
     </script>
     </body>
     </html>
@@ -1333,12 +1348,17 @@ body {
         🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
     </button>
     <script>
-    // Nút HRM click
+    // Nút HRM click - thử window.top trước, fallback postMessage nếu bị chặn cross-origin
     document.getElementById('hrmBtn').addEventListener('click', function() {
-        var topWin = window.top || window.parent || window;
-        var url = new URL(topWin.location.href);
-        url.searchParams.set('goto', 'hrm');
-        topWin.location.href = url.toString();
+        try {
+            var topWin = window.top;
+            var url = new URL(topWin.location.href);
+            url.searchParams.set('goto', 'hrm');
+            topWin.location.href = url.toString();
+        } catch(e) {
+            // Fallback: postMessage lên landing_html iframe (tầng cha)
+            window.parent.postMessage('goto_hrm', '*');
+        }
     });
     </script>
 </body>

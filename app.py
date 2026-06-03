@@ -25,7 +25,7 @@ import pathlib
 import streamlit.components.v1 as components
 import urllib.parse
 
-# Xử lý đổi ngôn ngữ từ request (Lấy từ app_cu.py - hoạt động tốt)
+# Xử lý đổi ngôn ngữ từ request
 def handle_language_change():
     """Xử lý thay đổi ngôn ngữ từ query params"""
     query_params = st.query_params
@@ -144,7 +144,6 @@ def show_landing_page():
     vi_active = 'active' if lang == 'vi' else ''
     en_active = 'active' if lang == 'en' else ''
     
-    # Lấy HTML từ app.py (đã sửa lỗi URL + chuyển ngữ bằng JS)
     landing_html = f"""
     <!DOCTYPE html>
     <html lang="{lang}">
@@ -267,7 +266,6 @@ def show_landing_page():
                 border-radius: 40px;
                 transition: all 0.3s;
                 background: transparent !important;
-                cursor: pointer;
             }}
             .lang-link:hover {{
                 background: #f59e0b !important;
@@ -304,7 +302,6 @@ def show_landing_page():
                 padding: 4px 8px;
                 border-radius: 20px;
                 transition: all 0.2s;
-                cursor: pointer;
             }}
             .mobile-lang a:hover {{
                 background: rgba(255,255,255,0.2);
@@ -642,7 +639,6 @@ def show_landing_page():
                 display: inline-block;
                 margin-top: 20px;
                 text-decoration: none;
-                cursor: pointer;
             }}
             
             /* ===== FOOTER ===== */
@@ -1108,38 +1104,6 @@ def show_landing_page():
     </footer>
     
     <script>
-        // ===== CLEAN URL ON LOAD - Tránh tích tụ params =====
-        (function cleanURL() {{
-            if (window.location.search) {{
-                var params = new URLSearchParams(window.location.search);
-                var lang = params.get('lang');
-                if (lang && (lang === 'vi' || lang === 'en')) {{
-                    var newUrl = window.location.pathname + '?lang=' + lang;
-                    if (window.location.search !== '?lang=' + lang) {{
-                        window.history.replaceState({{}}, '', newUrl);
-                    }}
-                }} else {{
-                    window.history.replaceState({{}}, '', window.location.pathname);
-                }}
-            }}
-        }})();
-
-        // ===== SWITCH LANGUAGE - Thay thế URL thay vì append =====
-        function switchLanguage(lang) {{
-            var url = new URL(window.location.href);
-            url.search = '';
-            url.searchParams.set('lang', lang);
-            window.location.href = url.toString();
-        }}
-
-        // ===== GO TO HRM =====
-        function goToHRM() {{
-            var url = new URL(window.location.href);
-            url.search = '';
-            url.searchParams.set('goto', 'hrm');
-            window.location.href = url.toString();
-        }}
-
         // Slider tự động
         let currentSlide = 0;
         const slides = document.querySelectorAll('.slide');
@@ -1287,6 +1251,14 @@ def show_landing_page():
                 alert('Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
             }});
         }}
+
+        // Language switcher - dùng replaceState để tránh URL bị kéo dài vô hạn
+        function switchLanguage(lang) {{
+            var url = new URL(window.parent.location.href);
+            url.searchParams.set('lang', lang);
+            window.parent.history.replaceState({{}}, '', url.toString());
+            window.parent.location.href = url.toString();
+        }}
     </script>
     </body>
     </html>
@@ -1295,7 +1267,8 @@ def show_landing_page():
     # Render landing page
     components.html(landing_html, height=3150, scrolling=False)
     
-    # Nút HRM dùng components.html
+    # Nút HRM dùng components.html (nhận HTML string, script chạy được)
+    # components.html tạo iframe riêng nên script hoạt động bình thường
     hrm_html = """<!DOCTYPE html>
 <html>
 <head>
@@ -1328,12 +1301,20 @@ body {
 </style>
 </head>
 <body>
-    <button class="hrm-button" id="hrmBtn" onclick="goToHRM(); return false;">
+    <button class="hrm-button" id="hrmBtn">
         🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
     </button>
+    <script>
+    // Nút HRM click
+    document.getElementById('hrmBtn').addEventListener('click', function() {
+        var url = new URL(window.parent.location.href);
+        url.searchParams.set('goto', 'hrm');
+        window.parent.location.href = url.toString();
+    });
+    </script>
 </body>
 </html>"""
-
+ 
     st.markdown("""
         <style>
             .hrm-button-container {
@@ -1447,7 +1428,7 @@ if not st.session_state.logged_in and not st.session_state.get('show_hrm', False
 # Nếu show_hrm=True hoặc logged_in=True → chạy tiếp HRM, sidebar tự hiện
 
 # ========== PHẦN CODE HRM BẮT ĐẦU TỪ ĐÂY ==========
-# (Phần code HRM quá dài, giữ nguyên từ file gốc - không thay đổi)
+
 st.markdown("""
     <style>
         /* ===== ẨN MANAGE APP - dùng mọi selector có thể ===== */
@@ -1522,8 +1503,6 @@ st.markdown("""
     </script>
 """, unsafe_allow_html=True)
 
-# === Các hàm xử lý (to_float_or_none, format_date, parse_date, ...) ===
-# (Giữ nguyên toàn bộ các hàm phía sau từ file gốc)
 def to_float_or_none(val):
     """Chuyển đổi giá trị sang float hoặc None, tránh lỗi numeric"""
     if val is None or str(val).strip() == '':

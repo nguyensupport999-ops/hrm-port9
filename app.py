@@ -3401,20 +3401,20 @@ elif menu == "👤 Ứng viên":
                         st.session_state['edit_uv_id'] = selected_uv_id
                         st.rerun()
                     
-                    # Viewer: thêm ứng viên mới
+                    # Viewer: thêm ứng viên mới (dùng key riêng để tránh trùng với form của admin)
                     with st.expander("➕ THÊM ỨNG VIÊN MỚI", expanded=False):
-                        with st.form("add_uv_form_viewer"):
+                        with st.form(f"add_uv_form_viewer_{tn}"):  # Key động theo tab
                             col1, col2, col3 = st.columns(3)
                             with col1:
-                                ho_ten_uv = st.text_input("Họ và tên *", key="viewer_ho_ten")
-                                vi_tri_uv = st.selectbox("Vị trí dự tuyển", [""] + ds_vi_tri, key="viewer_vi_tri")
-                                dien_thoai_uv = st.text_input("SĐT", key="viewer_dien_thoai")
+                                ho_ten_uv = st.text_input("Họ và tên *", key=f"viewer_ho_ten_{tn}")
+                                vi_tri_uv = st.selectbox("Vị trí dự tuyển", [""] + ds_vi_tri, key=f"viewer_vi_tri_{tn}")
+                                dien_thoai_uv = st.text_input("SĐT", key=f"viewer_dien_thoai_{tn}")
                             with col2:
-                                ngay_sinh_uv = st.text_input("Ngày sinh (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key="viewer_ngay_sinh")
-                                gioi_tinh_uv = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"], key="viewer_gioi_tinh")
+                                ngay_sinh_uv = st.text_input("Ngày sinh (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key=f"viewer_ngay_sinh_{tn}")
+                                gioi_tinh_uv = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"], key=f"viewer_gioi_tinh_{tn}")
                             with col3:
-                                ngay_vao_lam_uv = st.text_input("Ngày vào làm (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key="viewer_ngay_vao_lam")
-                                ghi_chu_uv = st.text_area("Ghi chú", key="viewer_ghi_chu")
+                                ngay_vao_lam_uv = st.text_input("Ngày vào làm (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key=f"viewer_ngay_vao_lam_{tn}")
+                                ghi_chu_uv = st.text_area("Ghi chú", key=f"viewer_ghi_chu_{tn}")
                             
                             if st.form_submit_button("💾 LƯU", width='stretch'):
                                 if ho_ten_uv:

@@ -4585,38 +4585,24 @@ elif menu == "✅ Nhân viên":
             "loai_hop_dong":      "Loại HĐ",
             "ngay_vao_lam":       "Ngày vào làm",
             "ngay_ky_hd":         "Ngày ký HĐ",
-            "ngay_ket_thuc":      "Ngày kết thúc",
             "so_hdld":            "Số HĐLĐ",
             "so_cccd":            "Số CCCD",
-            "ngay_cap_cccd":      "Ngày cấp CCCD",
-            "noi_cap_cccd":       "Nơi cấp CCCD",
-            "nguyen_quan":        "Nguyên quán",
             "thuong_tru":         "Thường trú",
             "dien_thoai":         "Điện thoại",
-            "email":              "Email",
             "ma_so_bhxh":         "Mã BHXH",
             "thang_bat_dau_bh":   "BĐ đóng BH",
-            "thang_ket_thuc_bh":  "KT đóng BH",
-            "luong_bao_hiem":     "Lương BH",
-            "he_so_luong":        "Hệ số lương",
-            "phu_cap_chuc_vu":    "PC chức vụ",
-            "phu_cap_tnvk":       "PC TNVK",
-            "phu_cap_tnn":        "PC TNN",
-            "muc_huong_bhyt":     "Mức hưởng BHYT",
             "so_tai_khoan_nh":    "STK",
             "chi_nhanh_nh":       "Chi nhánh NH",
-            "noi_lam_viec":       "Nơi làm việc",
-            "quoc_tich":          "Quốc tịch",
-            "dan_toc":            "Dân tộc",
             "ho_so":              "Hồ sơ",
-            "trang_thai":         "Trạng thái",
         }
 
-        # Thứ tự ưu tiên mặc định
+        # Thứ tự ưu tiên mặc định (tất cả tích mặc định)
         DEFAULT_PRIORITY = [
             "ma_nv", "ho_ten", "ngay_sinh", "gioi_tinh",
             "chuc_danh_nghe", "phong_ban_lam_viec", "loai_hop_dong",
-            "ngay_vao_lam", "ngay_ky_hd", "ngay_ket_thuc"
+            "ngay_vao_lam", "ngay_ky_hd", "so_hdld",
+            "so_cccd", "thuong_tru", "dien_thoai", "ma_so_bhxh",
+            "thang_bat_dau_bh", "so_tai_khoan_nh", "chi_nhanh_nh", "ho_so",
         ]
         DEFAULT_CHECKED = set(DEFAULT_PRIORITY)
 

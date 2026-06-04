@@ -1168,7 +1168,7 @@ def show_landing_page():
                         <img src="{chu_tich_img}" alt="Chủ tịch HĐQT">
                     </div>
                     <div class="a4-chairman-info">
-                        <h2>Ông Phùng Gia Phát</h2>
+                        <h2>Ông Phùng Văn Phát</h2>
                         <p class="title">{text.get('modal_chairman_title', 'Chủ tịch Hội đồng Quản trị')}</p>
                         <p class="company">Công ty Cổ phần Cảng Hòn La</p>
                         <p class="company">Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình</p>

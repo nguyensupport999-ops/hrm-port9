@@ -183,7 +183,7 @@ LANGUAGES = {
         'modal_wishes': 'Wishing our partners prosperity and all employees health and success!',
         
         # Modal - header & signature lines (newly added)
-        'modal_chairman_name': 'Mr. Phung Gia Phat',
+        'modal_chairman_name': 'Mr. Phung Van Phat',
         'modal_company': 'Hon La Port Joint Stock Company',
         'modal_address': 'Hon La Economic Zone, Quang Dong Commune, Quang Trach District, Quang Binh Province',
         'modal_date': 'Quang Binh, March 21, 2025',

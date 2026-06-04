@@ -1169,7 +1169,7 @@ def show_landing_page():
                         <img src="{chu_tich_img}" alt="Chủ tịch HĐQT">
                     </div>
                     <div class="a4-chairman-info">
-                        <h2>Ông Phùng Gia Phát</h2>
+                        <h2>Ông Phùng Văn Phát</h2>
                         <p class="title">{text.get('modal_chairman_title', 'Chủ tịch Hội đồng Quản trị')}</p>
                         <p class="company">Công ty Cổ phần Cảng Hòn La</p>
                         <p class="company">Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình</p>
@@ -4791,9 +4791,254 @@ elif menu == "✅ Nhân viên":
     
     st.divider()
     
-    # ========== BÁO CÁO THỐNG KÊ NHÂN SỰ (CHO TẤT CẢ MỌI NGƯỜI) ==========
-    st.subheader("📊 BÁO CÁO THỐNG KÊ NHÂN SỰ")
-    st.caption("Xuất báo cáo tổng hợp danh sách nhân viên đang làm việc")
+    # ========== HÀM TẠO BÁO CÁO THỐNG KÊ NHÂN SỰ (TÙY CHỈNH CỘT) ==========
+def tao_bao_cao_thong_ke_nhan_su_tuy_chinh(tu_ngay, den_ngay, ds_nhan_vien, selected_columns, column_display_names, loai_hd_filter):
+    """
+    Tạo báo cáo thống kê nhân sự với các cột tùy chỉnh
+    """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+    from openpyxl.utils import get_column_letter
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Thong_ke_nhan_su"
+    
+    # Định nghĩa border
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # Header thông tin đơn vị
+    ten_cong_ty = COMPANY_CONFIG.get("ten_cong_ty", "CÔNG TY CỔ PHẦN CẢNG HÒN LA")
+    
+    # Dòng 1: Tên công ty
+    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(selected_columns) + 2)
+    ws['A1'] = ten_cong_ty
+    ws['A1'].font = Font(bold=True, size=14, name='Times New Roman')
+    ws['A1'].alignment = Alignment(horizontal='center')
+    
+    # Dòng 2: Tiêu đề báo cáo
+    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(selected_columns) + 2)
+    ws['A2'] = "BÁO CÁO THỐNG KÊ NHÂN SỰ"
+    ws['A2'].font = Font(bold=True, size=16, name='Times New Roman')
+    ws['A2'].alignment = Alignment(horizontal='center')
+    
+    # Dòng 3: Thời gian và bộ lọc
+    filter_text = f"Loại HĐ: {loai_hd_filter}"
+    ws.merge_cells(start_row=3, start_column=1, end_row=3, end_column=len(selected_columns) + 2)
+    ws['A3'] = f"(Từ ngày {tu_ngay.strftime('%d/%m/%Y')} đến ngày {den_ngay.strftime('%d/%m/%Y')}) - {filter_text}"
+    ws['A3'].font = Font(size=12, name='Times New Roman')
+    ws['A3'].alignment = Alignment(horizontal='center')
+    
+    # Dòng 4: Ngày lập báo cáo
+    ws.merge_cells(start_row=4, start_column=1, end_row=4, end_column=len(selected_columns) + 2)
+    ws['A4'] = f"Ngày lập báo cáo: {date.today().strftime('%d/%m/%Y')}"
+    ws['A4'].font = Font(size=11, name='Times New Roman', italic=True)
+    ws['A4'].alignment = Alignment(horizontal='right')
+    
+    # Dòng 5 trống
+    ws.merge_cells(start_row=5, start_column=1, end_row=5, end_column=len(selected_columns) + 2)
+    
+    # Header của bảng (theo thứ tự ưu tiên)
+    header_order = ["ma_nv", "ho_ten", "ngay_sinh", "gioi_tinh", "chuc_danh_nghe", 
+                   "phong_ban_lam_viec", "loai_hop_dong", "ngay_vao_lam", "ngay_ky_hd", "ngay_ket_thuc"]
+    
+    # Thêm các cột khác vào cuối
+    ordered_columns = []
+    for col in header_order:
+        if col in selected_columns:
+            ordered_columns.append(col)
+    for col in selected_columns:
+        if col not in ordered_columns:
+            ordered_columns.append(col)
+    
+    header_row = 6
+    # Tạo header
+    for col_idx, col_name in enumerate(ordered_columns, 1):
+        cell = ws.cell(row=header_row, column=col_idx, value=column_display_names.get(col_name, col_name))
+        cell.font = Font(bold=True, size=11, name='Times New Roman')
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.border = thin_border
+        cell.fill = PatternFill(start_color="E6F3FF", end_color="E6F3FF", fill_type="solid")
+    
+    # Đổ dữ liệu
+    data_row = header_row + 1
+    for idx, nv in enumerate(ds_nhan_vien, 1):
+        row = data_row + idx - 1
+        
+        # STT
+        ws.cell(row=row, column=1, value=idx)
+        ws.cell(row=row, column=1).alignment = Alignment(horizontal='center', vertical='center')
+        ws.cell(row=row, column=1).border = thin_border
+        ws.cell(row=row, column=1).font = Font(size=10, name='Times New Roman')
+        
+        # Các cột dữ liệu
+        for col_idx, col_name in enumerate(ordered_columns, 2):
+            value = nv.get(col_name, '')
+            cell = ws.cell(row=row, column=col_idx, value=value)
+            cell.border = thin_border
+            cell.font = Font(size=10, name='Times New Roman')
+            
+            # Căn chỉnh theo loại dữ liệu
+            if col_name in ["ma_nv", "so_cccd", "dien_thoai", "ma_so_bhxh", "so_tai_khoan_nh", "so_hdld"]:
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+            elif col_name in ["ngay_sinh", "ngay_vao_lam", "ngay_ky_hd", "ngay_ket_thuc", "thang_bat_dau_bh"]:
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+            elif col_name == "gioi_tinh":
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+            elif col_name == "loai_hop_dong":
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+            else:
+                cell.alignment = Alignment(horizontal='left', vertical='center')
+    
+    # Tổng số nhân viên
+    total_row = data_row + len(ds_nhan_vien)
+    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=2)
+    ws.cell(row=total_row, column=1, value=f"Tổng số nhân viên: {len(ds_nhan_vien)}")
+    ws.cell(row=total_row, column=1).font = Font(bold=True, size=11, name='Times New Roman')
+    ws.cell(row=total_row, column=1).border = thin_border
+    
+    # Thống kê theo giới tính
+    male_count = len([nv for nv in ds_nhan_vien if nv.get('gioi_tinh') == 'Nam'])
+    female_count = len([nv for nv in ds_nhan_vien if nv.get('gioi_tinh') == 'Nữ'])
+    other_count = len(ds_nhan_vien) - male_count - female_count
+    
+    stats_row = total_row + 2
+    ws.cell(row=stats_row, column=1, value="Thống kê theo giới tính:")
+    ws.cell(row=stats_row, column=1).font = Font(bold=True, size=11, name='Times New Roman')
+    ws.merge_cells(start_row=stats_row, start_column=2, end_row=stats_row, end_column=3)
+    ws.cell(row=stats_row, column=2, value=f"Nam: {male_count} người")
+    ws.merge_cells(start_row=stats_row, start_column=4, end_row=stats_row, end_column=5)
+    ws.cell(row=stats_row, column=4, value=f"Nữ: {female_count} người")
+    ws.merge_cells(start_row=stats_row, start_column=6, end_row=stats_row, end_column=7)
+    ws.cell(row=stats_row, column=6, value=f"Khác: {other_count} người")
+    
+    # Thống kê theo loại hợp đồng
+    stats_row += 1
+    ws.cell(row=stats_row, column=1, value="Thống kê theo loại hợp đồng:")
+    ws.cell(row=stats_row, column=1).font = Font(bold=True, size=11, name='Times New Roman')
+    
+    # Lấy các loại hợp đồng khác nhau
+    loai_hd_list = list(set([nv.get('loai_hop_dong', '') for nv in ds_nhan_vien]))
+    col_start = 2
+    for loai_hd in loai_hd_list:
+        if loai_hd:
+            count = len([nv for nv in ds_nhan_vien if nv.get('loai_hop_dong') == loai_hd])
+            ws.merge_cells(start_row=stats_row, start_column=col_start, end_row=stats_row, end_column=col_start+2)
+            ws.cell(row=stats_row, column=col_start, value=f"{loai_hd}: {count} người")
+            col_start += 3
+    
+    # Footer ký tên (chỉ Người lập báo cáo, không có Người đại diện)
+    sign_row = stats_row + 4
+    ws.merge_cells(start_row=sign_row, start_column=len(ordered_columns) - 2, end_row=sign_row, end_column=len(ordered_columns) + 1)
+    ws.cell(row=sign_row, column=len(ordered_columns) - 2, value="NGƯỜI LẬP BÁO CÁO")
+    ws.cell(row=sign_row, column=len(ordered_columns) - 2).font = Font(bold=True, size=11, name='Times New Roman')
+    ws.cell(row=sign_row, column=len(ordered_columns) - 2).alignment = Alignment(horizontal='center')
+    
+    sign_row += 1
+    ws.merge_cells(start_row=sign_row, start_column=len(ordered_columns) - 2, end_row=sign_row, end_column=len(ordered_columns) + 1)
+    ws.cell(row=sign_row, column=len(ordered_columns) - 2, value="(Ký, ghi rõ họ tên)")
+    ws.cell(row=sign_row, column=len(ordered_columns) - 2).font = Font(size=10, name='Times New Roman', italic=True)
+    ws.cell(row=sign_row, column=len(ordered_columns) - 2).alignment = Alignment(horizontal='center')
+    
+    # Điều chỉnh độ rộng cột
+    for col_idx in range(1, len(ordered_columns) + 2):
+        ws.column_dimensions[get_column_letter(col_idx)].width = 18
+    
+    # Lưu file
+    filename = f"Bao_cao_thong_ke_nhan_su_{tu_ngay.strftime('%d%m%Y')}_{den_ngay.strftime('%d%m%Y')}.xlsx"
+    wb.save(filename)
+    return filename
+    
+       # ========== BÁO CÁO THỐNG KÊ NHÂN SỰ (CHO TẤT CẢ MỌI NGƯỜI) ==========
+    st.subheader("📊 Báo cáo Thống kê nhân sự")
+    st.caption("Xuất báo cáo tổng hợp danh sách nhân viên theo các tùy chọn")
+    
+    col_filter1, col_filter2 = st.columns(2)
+    with col_filter1:
+        # Lọc theo loại hợp đồng
+        loai_hd_filter = st.selectbox(
+            "🔍 Lọc theo loại hợp đồng:",
+            ["Tất cả", "Không xác định thời hạn", "Thử việc"],
+            key="bc_thongke_loai_hd"
+        )
+    
+    with col_filter2:
+        # Chọn các cột hiển thị
+        st.markdown("**📋 Chọn các cột cần lấy thông tin:**")
+        
+        # Danh sách các cột trong bảng nhan_vien (trừ id)
+        all_columns = [
+            "ma_nv", "ho_ten", "ngay_sinh", "gioi_tinh", "chuc_danh_nghe", 
+            "phong_ban_lam_viec", "loai_hop_dong", "ngay_vao_lam", "ngay_ky_hd", 
+            "ngay_ket_thuc", "so_cccd", "dien_thoai", "email_lien_he", 
+            "ma_so_bhxh", "thang_bat_dau_bh", "thuong_tru", "nguyen_quan", 
+            "noi_lam_viec", "so_tai_khoan_nh", "chi_nhanh_nh", "so_hdld",
+            "he_so_luong", "luong_bao_hiem", "phu_cap_chuc_vu", "phu_cap_tnvk", 
+            "phu_cap_tnn", "nhom_bhxh", "muc_huong_bhyt", "trang_thai_bhxh"
+        ]
+        
+        # Tên hiển thị cho các cột
+        column_display_names = {
+            "ma_nv": "Mã NV",
+            "ho_ten": "Họ và tên",
+            "ngay_sinh": "Ngày sinh",
+            "gioi_tinh": "Giới tính",
+            "chuc_danh_nghe": "Chức danh",
+            "phong_ban_lam_viec": "Phòng ban",
+            "loai_hop_dong": "Loại HĐ",
+            "ngay_vao_lam": "Ngày vào làm",
+            "ngay_ky_hd": "Ngày ký HĐ",
+            "ngay_ket_thuc": "Ngày kết thúc",
+            "so_cccd": "CCCD",
+            "dien_thoai": "SĐT",
+            "email_lien_he": "Email",
+            "ma_so_bhxh": "Mã số BHXH",
+            "thang_bat_dau_bh": "Bắt đầu BH",
+            "thuong_tru": "Thường trú",
+            "nguyen_quan": "Nguyên quán",
+            "noi_lam_viec": "Nơi làm việc",
+            "so_tai_khoan_nh": "STK",
+            "chi_nhanh_nh": "Chi nhánh NH",
+            "so_hdld": "Số HĐLĐ",
+            "he_so_luong": "Hệ số lương",
+            "luong_bao_hiem": "Lương BH",
+            "phu_cap_chuc_vu": "PC chức vụ",
+            "phu_cap_tnvk": "PC TNVK (%)",
+            "phu_cap_tnn": "PC TNN (%)",
+            "nhom_bhxh": "Nhóm BHXH",
+            "muc_huong_bhyt": "Mức hưởng BHYT",
+            "trang_thai_bhxh": "Trạng thái BHXH"
+        }
+        
+        # Các cột mặc định được chọn (theo thứ tự ưu tiên)
+        default_columns = ["ma_nv", "ho_ten", "ngay_sinh", "gioi_tinh", "chuc_danh_nghe", 
+                          "phong_ban_lam_viec", "loai_hop_dong", "ngay_vao_lam", "ngay_ky_hd", "ngay_ket_thuc"]
+        
+        # Tạo checkbox cho từng cột
+        selected_columns = []
+        with st.container():
+            # Chia thành 2 cột để hiển thị checkbox gọn hơn
+            col_check1, col_check2 = st.columns(2)
+            for i, col_name in enumerate(all_columns):
+                is_checked = col_name in default_columns
+                if i % 2 == 0:
+                    with col_check1:
+                        if st.checkbox(column_display_names.get(col_name, col_name), value=is_checked, key=f"col_{col_name}"):
+                            selected_columns.append(col_name)
+                else:
+                    with col_check2:
+                        if st.checkbox(column_display_names.get(col_name, col_name), value=is_checked, key=f"col_{col_name}"):
+                            selected_columns.append(col_name)
+        
+        # Đảm bảo có ít nhất 1 cột được chọn
+        if not selected_columns:
+            st.warning("⚠️ Vui lòng chọn ít nhất một cột để xuất báo cáo!")
+            selected_columns = default_columns
     
     col_from, col_to, col_btn = st.columns([2, 2, 1])
     with col_from:
@@ -4803,22 +5048,52 @@ elif menu == "✅ Nhân viên":
     with col_btn:
         xuat_bc_thongke = st.button("📄 XUẤT BÁO CÁO THỐNG KÊ", width='stretch')
     
-    if xuat_bc_thongke:
+    if xuat_bc_thongke and selected_columns:
         db = get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        # Lấy danh sách nhân viên đang làm việc trong kỳ
-        c.execute("""
-            SELECT ma_nv, ho_ten, ngay_sinh, gioi_tinh, chuc_danh_nghe, phong_ban_lam_viec,
-                   loai_hop_dong, ngay_vao_lam, ngay_ky_hd, ngay_ket_thuc
+        
+        # Xây dựng câu lệnh SQL theo các cột được chọn
+        select_clause = "ma_nv, ho_ten, ngay_sinh, gioi_tinh, chuc_danh_nghe, phong_ban_lam_viec, loai_hop_dong, ngay_vao_lam, ngay_ky_hd, ngay_ket_thuc"
+        # Thêm các cột khác nếu được chọn
+        extra_cols = [col for col in selected_columns if col not in ["ma_nv", "ho_ten", "ngay_sinh", "gioi_tinh", "chuc_danh_nghe", 
+                                                                       "phong_ban_lam_viec", "loai_hop_dong", "ngay_vao_lam", "ngay_ky_hd", "ngay_ket_thuc"]]
+        if extra_cols:
+            select_clause = select_clause + ", " + ", ".join(extra_cols)
+        
+        # Xây dựng điều kiện WHERE
+        sql = f"""
+            SELECT {select_clause}
             FROM nhan_vien 
             WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
-            ORDER BY ho_ten ASC
-        """)
+        """
+        params = []
+        
+        # Lọc theo loại hợp đồng
+        if loai_hd_filter != "Tất cả":
+            sql += " AND loai_hop_dong = %s"
+            params.append(loai_hd_filter)
+        
+        # Lọc theo thời gian
+        sql += " AND ngay_vao_lam <= %s AND (ngay_ket_thuc IS NULL OR ngay_ket_thuc >= %s)"
+        params.extend([den_ngay_bc, tu_ngay_bc])
+        
+        sql += " ORDER BY ho_ten ASC"
+        
+        c.execute(sql, tuple(params))
         ds_thongke = c.fetchall()
         db.close()
         
         if ds_thongke:
-            file_path = tao_bao_cao_thong_ke_nhan_su(tu_ngay_bc, den_ngay_bc, ds_thongke)
+            # Chuyển đổi định dạng ngày tháng
+            for nv in ds_thongke:
+                for key in nv:
+                    if 'ngay' in key.lower() and nv[key]:
+                        nv[key] = format_date(nv[key])
+            
+            # Tạo file Excel
+            file_path = tao_bao_cao_thong_ke_nhan_su_tuy_chinh(
+                tu_ngay_bc, den_ngay_bc, ds_thongke, selected_columns, column_display_names, loai_hd_filter
+            )
             with open(file_path, "rb") as f:
                 st.download_button(
                     label="📥 TẢI FILE BÁO CÁO THỐNG KÊ (Excel)",
@@ -4829,51 +5104,6 @@ elif menu == "✅ Nhân viên":
             st.success(f"✅ Đã xuất báo cáo thống kê với {len(ds_thongke)} nhân viên")
         else:
             st.info("📭 Không có nhân viên đang làm việc trong kỳ báo cáo!")
-    
-    st.divider()
-    st.subheader("📊 Báo cáo tăng/giảm nhân sự trong kỳ")
-    
-    col_from, col_to, col_btn = st.columns([2, 2, 1])
-    with col_from:
-        tu_ngay_bc = st.date_input("Từ ngày:", value=date.today().replace(day=1), key="bc_tu")
-    with col_to:
-        den_ngay_bc = st.date_input("Đến ngày:", value=date.today(), key="bc_den")
-    with col_btn:
-        xuat_bc = st.button("📄 XUẤT BÁO CÁO TĂNG/GIẢM", width='stretch')
-    
-    if xuat_bc:
-        db = get_connection()
-        c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        c.execute("""
-            SELECT ho_ten, chuc_danh_nghe, phong_ban_lam_viec, loai_hop_dong, ngay_vao_lam,
-                   ngay_sinh, so_hdld, ngay_ky_hd
-            FROM nhan_vien 
-            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
-            AND ngay_vao_lam BETWEEN %s AND %s
-            ORDER BY ngay_vao_lam ASC
-        """, (tu_ngay_bc, den_ngay_bc))
-        tang_list = c.fetchall()
-        c.execute("""
-            SELECT ho_ten, chuc_danh_nghe, phong_ban_lam_viec, loai_hop_dong, ngay_vao_lam, ngay_ket_thuc,
-                   ngay_sinh, so_hdld, ngay_ky_hd
-            FROM nhan_vien 
-            WHERE trang_thai = 'NGHI_VIEC'
-            AND ngay_ket_thuc BETWEEN %s AND %s
-            ORDER BY ngay_ket_thuc ASC
-        """, (tu_ngay_bc, den_ngay_bc))
-        giam_list = c.fetchall()
-        db.close()
-        if tang_list or giam_list:
-            file_path = tao_bao_cao_tang_giam(tang_list, giam_list, tu_ngay_bc, den_ngay_bc)
-            with open(file_path, "rb") as f:
-                st.download_button(
-                    label="📥 TẢI FILE BÁO CÁO TĂNG/GIẢM (Word)",
-                    data=f,
-                    file_name=f"Bao_cao_tang_giam_{tu_ngay_bc.strftime('%d%m%Y')}_{den_ngay_bc.strftime('%d%m%Y')}.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
-        else:
-            st.info("Không có biến động nhân sự trong kỳ.")
 
 # ========== CHẤM CÔNG (FACE ID) ==========
 elif menu == "👆 Chấm công (Face ID)":

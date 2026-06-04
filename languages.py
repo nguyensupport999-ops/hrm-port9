@@ -86,12 +86,12 @@ LANGUAGES = {
         'modal_wishes': 'Chúc Quý đối tác thịnh vượng, toàn thể cán bộ nhân viên sức khỏe và thành công!',
         
         # Modal - các dòng header & chữ ký (mới bổ sung)
-        'modal_chairman_name': 'Ông Phùng Gia Phát',
+        'modal_chairman_name': 'Ông Phùng Văn Phát',
         'modal_company': 'Công ty Cổ phần Cảng Hòn La',
         'modal_address': 'Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình',
         'modal_date': 'Quảng Bình, ngày 21 tháng 3 năm 2025',
         'modal_closing': 'Trân trọng,',
-        'modal_sign_name': 'Phùng Gia Phát',
+        'modal_sign_name': 'Phùng Văn Phát',
         'modal_sign_title': 'Chủ tịch Hội đồng Quản trị',
         
         'btn_login': '🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên',

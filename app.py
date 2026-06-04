@@ -1168,7 +1168,7 @@ def show_landing_page():
                         <img src="{chu_tich_img}" alt="Chủ tịch HĐQT">
                     </div>
                     <div class="a4-chairman-info">
-                        <h2>Ông Phùng Gia Phát</h2>
+                        <h2>Ông Phùng Văn Phát</h2>
                         <p class="title">{text.get('modal_chairman_title', 'Chủ tịch Hội đồng Quản trị')}</p>
                         <p class="company">Công ty Cổ phần Cảng Hòn La</p>
                         <p class="company">Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình</p>
@@ -4566,13 +4566,20 @@ elif menu == "✅ Nhân viên":
 
     # ── Tùy chọn bộ lọc ──
     with st.expander("⚙️ Tùy chọn xuất báo cáo thống kê nhân sự", expanded=True):
-        col_tk1, col_tk2 = st.columns([1, 2])
-        with col_tk1:
+        col_tk_date1, col_tk_date2, col_tk_date3 = st.columns([1, 1, 1])
+        with col_tk_date1:
+            tk_tu_ngay = st.date_input("📅 Từ ngày:", value=date(date.today().year, 1, 1), key="tk_tu_ngay")
+        with col_tk_date2:
+            tk_den_ngay = st.date_input("📅 Đến ngày:", value=date.today(), key="tk_den_ngay")
+        with col_tk_date3:
             loai_hd_filter = st.selectbox(
                 "Loại hợp đồng:",
                 ["Tất cả", "Không xác định thời hạn", "Thử việc"],
                 key="tk_loai_hd"
             )
+        col_tk1, col_tk2 = st.columns([1, 2])
+        with col_tk1:
+            pass  # placeholder
 
         # Danh sách tất cả cột bảng nhan_vien (trừ id)
         ALL_COLUMNS_LABELS = {
@@ -4632,8 +4639,8 @@ elif menu == "✅ Nhân viên":
                 selected_cols_sorted = sorted(selected_cols, key=lambda x: priority_order.index(x) if x in priority_order else 999)
 
                 sql_cols = ", ".join(selected_cols_sorted)
-                sql_tk = f"SELECT {sql_cols} FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')"
-                params_tk = []
+                sql_tk = f"SELECT {sql_cols} FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') AND ngay_vao_lam BETWEEN %s AND %s"
+                params_tk = [tk_tu_ngay, tk_den_ngay]
                 if loai_hd_filter == "Không xác định thời hạn":
                     sql_tk += " AND loai_hop_dong = %s"
                     params_tk.append("Không xác định thời hạn")
@@ -4682,7 +4689,7 @@ elif menu == "✅ Nhân viên":
                     ws_tk['A4'].alignment = Alignment(horizontal='center')
 
                     ws_tk.merge_cells(start_row=5, start_column=1, end_row=5, end_column=n_cols)
-                    ws_tk['A5'] = f"Thời điểm xuất: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+                    ws_tk['A5'] = f"Từ ngày {tk_tu_ngay.strftime('%d/%m/%Y')} đến ngày {tk_den_ngay.strftime('%d/%m/%Y')}  |  Xuất lúc: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
                     ws_tk['A5'].font = Font(size=10, name='Times New Roman', italic=True)
                     ws_tk['A5'].alignment = Alignment(horizontal='center')
 
@@ -4805,7 +4812,7 @@ elif menu == "✅ Nhân viên":
 
                     ws_tk.row_dimensions[header_row_tk].height = 30
 
-                    fname_tk = f"ThongKe_NhanSu_{datetime.now().strftime('%d%m%Y_%H%M')}.xlsx"
+                    fname_tk = f"ThongKe_NhanSu_{tk_tu_ngay.strftime('%d%m%Y')}_{tk_den_ngay.strftime('%d%m%Y')}.xlsx"
                     wb_tk.save(fname_tk)
                     with open(fname_tk, "rb") as f:
                         st.download_button(

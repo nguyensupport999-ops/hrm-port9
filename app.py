@@ -1168,7 +1168,7 @@ def show_landing_page():
                         <img src="{chu_tich_img}" alt="Chủ tịch HĐQT">
                     </div>
                     <div class="a4-chairman-info">
-                        <h2>Ông Phùng Văn Phát</h2>
+                        <h2>Ông Phùng Gia Phát</h2>
                         <p class="title">{text.get('modal_chairman_title', 'Chủ tịch Hội đồng Quản trị')}</p>
                         <p class="company">Công ty Cổ phần Cảng Hòn La</p>
                         <p class="company">Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình</p>
@@ -2273,22 +2273,15 @@ if not st.session_state.logged_in:
             else:
                 st.sidebar.error("❌ Sai tài khoản hoặc mật khẩu!")
     with c2:
-        if st.button("👁️ Xem thử", width='stretch'):
-            st.session_state.logged_in = True
-            st.session_state.role = "viewer"
-            st.session_state.username = "guest"
-            st.rerun()
-    
-    # Nút Back cho Guest
-    if st.session_state.get('show_hrm', False) and not st.session_state.get('logged_in', False):
-        st.markdown("<br><br><br>", unsafe_allow_html=True)  # Thêm khoảng trống
-        if st.button("🔙 Quay lại Landing Page", width='stretch'):
+        # Nút Back to Home - thay thế vị trí của nút Xem thử
+        if st.button("🏠 Back to Home", width='stretch'):
             st.session_state.show_hrm = False
             st.session_state.pop('last_birthday_check', None)
             st.session_state.pop('sinh_nhat_hom_nay_list', None)
             st.rerun()
     
-    st.stop()  
+    # ĐÃ XÓA phần nút Back cũ ở giữa UI
+    st.stop()
     
 # Menu theo role
 if st.session_state.role == "admin":

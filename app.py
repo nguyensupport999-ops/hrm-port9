@@ -2574,7 +2574,8 @@ if menu == "📊 Dashboard":
                                          key=f"zalo_sn_{sn['id']}", 
                                          width='stretch', 
                                          type="primary"):
-                                tuoi_nv = date.today().year - sn['ngay_sinh'].year                                loi_chuc_nv = get_loi_chuc_sinh_nhat(sn['ho_ten'], sn.get('gioi_tinh'), tuoi_nv)
+                                tuoi_nv = date.today().year - sn['ngay_sinh'].year                                
+                                loi_chuc_nv = get_loi_chuc_sinh_nhat(sn['ho_ten'], sn.get('gioi_tinh'), tuoi_nv)
                                 st.code(loi_chuc_nv)
                                 st.markdown(f"[👉 NHẤN ĐỂ GỬI QUA ZALO CHO {sn['ho_ten']}](https://zalo.me/{sdt})")
                         else:

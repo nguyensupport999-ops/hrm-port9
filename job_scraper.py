@@ -7,11 +7,9 @@ from datetime import datetime
 import time
 
 # ========== CẤU HÌNH API ==========
-# CareerViet (miễn phí, không cần key)
 CAREERVIET_API_BASE = "https://api.careerviet.vn/v1"
-
-# VietnamWorks cần API key
 VIETNAMWORKS_API_BASE = "https://api.vietnamworks.com/v1"
+
 
 class CareerVietScraper:
     """Scraper cho CareerViet.vn - Miễn phí, không cần API key"""
@@ -21,28 +19,19 @@ class CareerVietScraper:
         self.search_url = "https://www.careerviet.vn/viec-lam/tim-kiem"
         
     def search(self, keyword: str, location: str = "", page: int = 1) -> List[Dict]:
-        """
-        Tìm kiếm job trên CareerViet
-        Trả về list các job với thông tin cơ bản
-        """
+        """Tìm kiếm job trên CareerViet"""
         try:
-            # CareerViet không có public API, dùng RSS feed
-            # Thay vào đó dùng search URL và parse HTML (cần requests-html)
-            # Hoặc dùng RSS feed đơn giản hơn
-            
-            # Cách 1: Dùng RSS feed (recommended - không cần parse HTML)
             rss_url = f"https://www.careerviet.vn/rss/job.rss?keyword={keyword}"
             if location:
                 rss_url += f"&location={location}"
             
             response = requests.get(rss_url, timeout=15)
             if response.status_code == 200:
-                # Parse XML RSS
                 import xml.etree.ElementTree as ET
                 root = ET.fromstring(response.content)
                 
                 jobs = []
-                for item in root.findall('.//item')[:30]:  # Giới hạn 30 kết quả
+                for item in root.findall('.//item')[:30]:
                     job = {
                         'source': 'CareerViet',
                         'title': item.find('title').text if item.find('title') is not None else '',
@@ -55,42 +44,40 @@ class CareerVietScraper:
                     jobs.append(job)
                 return jobs
             else:
-                # Fallback: Mock data cho demo
                 return self._get_mock_jobs(keyword, location, 'CareerViet')
                 
         except Exception as e:
-            st.warning(f"⚠️ Không thể kết nối CareerViet: {e}")
             return self._get_mock_jobs(keyword, location, 'CareerViet')
     
     def _get_mock_jobs(self, keyword: str, location: str, source: str) -> List[Dict]:
-        """Mock data khi API không hoạt động (chỉ cho demo)"""
+        """Mock data khi API không hoạt động"""
         mock_jobs = [
             {
                 'source': source,
-                'title': f"{keyword} Senior Level",
+                'title': f"{keyword} - Chuyên viên cao cấp",
                 'company': 'Công ty Cổ phần Công Nghệ ABC',
                 'location': location or 'Hà Nội',
-                'url': 'https://www.careerviet.vn/example-job-1',
+                'url': 'https://www.careerviet.vn',
                 'published_date': datetime.now().strftime('%d/%m/%Y'),
-                'description': f'Mô tả: Đang tìm kiếm {keyword} có kinh nghiệm 3-5 năm...'
+                'description': f'Mô tả: Đang tìm kiếm {keyword} có kinh nghiệm 3-5 năm, làm việc tại văn phòng Hà Nội.'
             },
             {
                 'source': source,
-                'title': f"{keyword} Junior Level",
+                'title': f"{keyword} - Nhân viên",
                 'company': 'Tập đoàn XYZ',
                 'location': location or 'Hồ Chí Minh',
-                'url': 'https://www.careerviet.vn/example-job-2',
+                'url': 'https://www.careerviet.vn',
                 'published_date': datetime.now().strftime('%d/%m/%Y'),
-                'description': f'Mô tả: Cần tuyển {keyword} mới ra trường hoặc có 1 năm kinh nghiệm...'
+                'description': f'Mô tả: Cần tuyển {keyword} mới ra trường hoặc có 1 năm kinh nghiệm.'
             },
             {
                 'source': source,
-                'title': f"{keyword} Manager",
+                'title': f"{keyword} - Trưởng phòng",
                 'company': 'Công ty TNHH Giải Pháp Phần Mềm',
                 'location': location or 'Đà Nẵng',
-                'url': 'https://www.careerviet.vn/example-job-3',
+                'url': 'https://www.careerviet.vn',
                 'published_date': datetime.now().strftime('%d/%m/%Y'),
-                'description': f'Mô tả: Tìm {keyword} cấp quản lý, có 7+ năm kinh nghiệm...'
+                'description': f'Mô tả: Tìm {keyword} cấp quản lý, có 7+ năm kinh nghiệm.'
             }
         ]
         return mock_jobs
@@ -108,13 +95,10 @@ class VietnamWorksScraper:
         } if api_key else {}
     
     def is_configured(self) -> bool:
-        return bool(self.api_key)
+        return bool(self.api_key and self.api_key.strip())
     
     def search(self, keyword: str, location: str = "", page: int = 1) -> List[Dict]:
-        """
-        Tìm kiếm job trên VietnamWorks
-        Yêu cầu API key hợp lệ
-        """
+        """Tìm kiếm job trên VietnamWorks"""
         if not self.is_configured():
             return [{
                 'source': 'VietnamWorks',
@@ -127,7 +111,6 @@ class VietnamWorksScraper:
             }]
         
         try:
-            # VietnamWorks API endpoint (theo tài liệu)
             endpoint = f"{self.base_url}/job/search"
             params = {
                 'q': keyword,
@@ -160,7 +143,7 @@ class VietnamWorksScraper:
                     'location': '',
                     'url': '',
                     'published_date': '',
-                    'description': response.text[:200] if response.text else 'Không thể kết nối API'
+                    'description': 'Không thể kết nối API VietnamWorks'
                 }]
                 
         except Exception as e:
@@ -192,39 +175,24 @@ class JobSearchManager:
             self.vietnamworks = None
     
     def search(self, criteria: Dict) -> pd.DataFrame:
-        """
-        Tìm kiếm job theo tiêu chí
-        criteria = {
-            'keyword': str,
-            'location': str,
-            'sources': List[str],  # ['CareerViet', 'VietnamWorks']
-            'max_results': int
-        }
-        """
+        """Tìm kiếm job theo tiêu chí"""
         all_jobs = []
         
-        # Search CareerViet (luôn có)
         if 'CareerViet' in criteria.get('sources', ['CareerViet']):
-            with st.spinner("Đang tìm trên CareerViet..."):
-                jobs = self.careerviet.search(
+            jobs = self.careerviet.search(
+                keyword=criteria.get('keyword', ''),
+                location=criteria.get('location', '')
+            )
+            all_jobs.extend(jobs)
+        
+        if 'VietnamWorks' in criteria.get('sources', []):
+            if self.vietnamworks and self.vietnamworks.is_configured():
+                jobs = self.vietnamworks.search(
                     keyword=criteria.get('keyword', ''),
                     location=criteria.get('location', '')
                 )
                 all_jobs.extend(jobs)
         
-        # Search VietnamWorks (nếu được chọn và có key)
-        if 'VietnamWorks' in criteria.get('sources', []):
-            if self.vietnamworks and self.vietnamworks.is_configured():
-                with st.spinner("Đang tìm trên VietnamWorks..."):
-                    jobs = self.vietnamworks.search(
-                        keyword=criteria.get('keyword', ''),
-                        location=criteria.get('location', '')
-                    )
-                    all_jobs.extend(jobs)
-            else:
-                st.warning("⚠️ VietnamWorks chưa được cấu hình API key. Vào menu ⚙️ để cập nhật.")
-        
-        # Giới hạn số lượng kết quả
         max_results = criteria.get('max_results', 50)
         all_jobs = all_jobs[:max_results]
         
@@ -238,28 +206,24 @@ def show_job_search_interface(job_manager: JobSearchManager):
     st.subheader("🔍 TÌM KIẾM ỨNG VIÊN TỪ CÁC TRANG TUYỂN DỤNG")
     st.caption("Tìm kiếm job phù hợp với tiêu chí tuyển dụng của bạn")
     
-    # Bộ lọc tìm kiếm
     col1, col2 = st.columns(2)
     
     with col1:
         keyword = st.text_input(
             "📌 Từ khóa (chức danh/kỹ năng)", 
-            placeholder="VD: Kế toán trưởng, IT Manager, Kỹ sư cầu cảng",
-            help="Nhập chức danh hoặc kỹ năng cần tìm"
+            placeholder="VD: Kế toán trưởng, IT Manager, Kỹ sư cầu cảng"
         )
         
         sources = st.multiselect(
             "🌐 Nguồn dữ liệu",
             options=["CareerViet", "VietnamWorks"],
-            default=["CareerViet"],
-            help="Chọn nguồn trang tuyển dụng để tìm kiếm"
+            default=["CareerViet"]
         )
     
     with col2:
         location = st.text_input(
             "📍 Địa điểm", 
-            placeholder="VD: Hà Nội, Hồ Chí Minh, Đà Nẵng (để trống nếu tất cả)",
-            help="Để trống để tìm kiếm toàn quốc"
+            placeholder="VD: Hà Nội, Hồ Chí Minh, Đà Nẵng (để trống nếu tất cả)"
         )
         
         max_results = st.slider(
@@ -267,7 +231,6 @@ def show_job_search_interface(job_manager: JobSearchManager):
             min_value=10, max_value=100, value=30, step=10
         )
     
-    # Nút tìm kiếm
     st.divider()
     
     col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
@@ -275,15 +238,13 @@ def show_job_search_interface(job_manager: JobSearchManager):
         search_clicked = st.button(
             "🚀 TÌM KIẾM ỨNG VIÊN", 
             type="primary", 
-            width='stretch',
             use_container_width=True
         )
     
     if search_clicked:
         if not keyword:
-            st.warning("⚠️ Vui lòng nhập từ khóa tìm kiếm (chức danh/kỹ năng)")
+            st.warning("⚠️ Vui lòng nhập từ khóa tìm kiếm")
         else:
-            # Thực hiện tìm kiếm
             criteria = {
                 'keyword': keyword,
                 'location': location,
@@ -291,66 +252,39 @@ def show_job_search_interface(job_manager: JobSearchManager):
                 'max_results': max_results
             }
             
-            df_results = job_manager.search(criteria)
+            with st.spinner("Đang tìm kiếm..."):
+                df_results = job_manager.search(criteria)
             
             if df_results.empty:
-                st.info("📭 Không tìm thấy kết quả nào. Vui lòng thử từ khóa khác.")
+                st.info("📭 Không tìm thấy kết quả nào.")
             else:
-                st.success(f"✅ Tìm thấy {len(df_results)} kết quả phù hợp")
+                st.success(f"✅ Tìm thấy {len(df_results)} kết quả")
                 
-                # Hiển thị kết quả
                 for idx, row in df_results.iterrows():
                     with st.container():
                         st.markdown(f"""
-                        <div style='border: 1px solid #e0e0e0; border-radius: 10px; padding: 15px; margin: 10px 0; background: #fafafa;'>
-                            <div style='display: flex; justify-content: space-between; align-items: center;'>
-                                <div>
-                                    <span style='background: {"#2E7D32" if row["source"] == "CareerViet" else "#1565C0"}; 
-                                                 color: white; padding: 3px 10px; border-radius: 20px; font-size: 12px;'>
-                                        📌 {row['source']}
-                                    </span>
-                                </div>
+                        <div style='border:1px solid #e0e0e0;border-radius:10px;padding:15px;margin:10px 0;background:#fafafa'>
+                            <div style='display:flex;justify-content:space-between;align-items:center'>
+                                <span style='background:#2E7D32;color:white;padding:3px 10px;border-radius:20px;font-size:12px'>
+                                    📌 {row['source']}
+                                </span>
                             </div>
-                            <h4 style='margin: 10px 0 5px 0; color: #0f3b5c;'>{row['title']}</h4>
-                            <p style='margin: 5px 0; color: #555;'>
-                                🏢 <strong>{row['company']}</strong> &nbsp;|&nbsp; 
-                                📍 {row['location']}
+                            <h4 style='margin:10px 0 5px 0;color:#0f3b5c'>{row['title']}</h4>
+                            <p style='margin:5px 0;color:#555'>
+                                🏢 <strong>{row['company']}</strong> &nbsp;|&nbsp; 📍 {row['location']}
                             </p>
-                            <p style='margin: 5px 0; color: #888; font-size: 13px;'>
-                                📅 {row['published_date']}
-                            </p>
-                            <p style='margin: 10px 0; color: #333;'>
-                                {row['description'][:300]}...
-                            </p>
+                            <p style='margin:5px 0;color:#888;font-size:13px'>📅 {row['published_date']}</p>
+                            <p style='margin:10px 0;color:#333'>{str(row['description'])[:300]}...</p>
                         </div>
                         """, unsafe_allow_html=True)
                         
-                        # Nút xem chi tiết (mở tab mới)
                         if row['url'] and row['url'].startswith('http'):
-                            st.markdown(f"""
-                            <a href="{row['url']}" target="_blank" style='
-                                display: inline-block;
-                                background: #f59e0b;
-                                color: white;
-                                padding: 8px 20px;
-                                border-radius: 25px;
-                                text-decoration: none;
-                                margin-top: 10px;
-                                font-weight: bold;
-                            '>
-                                👁️ Xem chi tiết trên {row['source']}
-                            </a>
-                            """, unsafe_allow_html=True)
-                        else:
-                            st.caption("🔗 Không có link chi tiết")
+                            st.markdown(f'<a href="{row["url"]}" target="_blank" style="display:inline-block;background:#f59e0b;color:white;padding:8px 20px;border-radius:25px;text-decoration:none;margin-top:10px;font-weight:bold">👁️ Xem chi tiết trên {row["source"]}</a>', unsafe_allow_html=True)
                         
                         st.divider()
                 
-                # Xuất Excel nếu có kết quả
                 with st.expander("📥 Xuất kết quả tìm kiếm", expanded=False):
-                    st.caption("Xuất danh sách ứng viên tìm được ra file Excel")
-                    if st.button("📊 XUẤT FILE EXCEL", width='stretch'):
-                        # Loại bỏ cột url khỏi file export (chỉ để tham khảo)
+                    if st.button("📊 XUẤT FILE EXCEL", use_container_width=True):
                         export_df = df_results.drop(columns=['url'], errors='ignore')
                         filename = f"tim_kiem_ung_vien_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
                         export_df.to_excel(filename, index=False)
@@ -372,8 +306,6 @@ def show_api_settings(job_manager: JobSearchManager):
         1. Đăng ký tài khoản tại [VietnamWorks Developer Portal](https://developer.vietnamworks.com)
         2. Tạo ứng dụng mới để nhận API key
         3. Copy API key và dán vào ô bên dưới
-        
-        *Lưu ý: API key chỉ lưu trong phiên làm việc hiện tại, không lưu vào database.*
         """)
         
         col_key1, col_key2 = st.columns([3, 1])
@@ -381,21 +313,19 @@ def show_api_settings(job_manager: JobSearchManager):
             api_key = st.text_input(
                 "API Key VietnamWorks",
                 type="password",
-                placeholder="Nhập API key của bạn tại đây",
-                help="API key được cấp bởi VietnamWorks Developer Portal"
+                placeholder="Nhập API key của bạn tại đây"
             )
         with col_key2:
-            if st.button("💾 LƯU KEY", width='stretch'):
+            if st.button("💾 LƯU KEY", use_container_width=True):
                 if api_key and api_key.strip():
                     job_manager.set_vietnamworks_key(api_key.strip())
                     st.session_state['vnworks_api_key'] = api_key.strip()
-                    st.success("✅ Đã lưu API key! Bạn có thể sử dụng VietnamWorks ngay.")
+                    st.success("✅ Đã lưu API key!")
                     st.rerun()
                 else:
                     st.warning("⚠️ Vui lòng nhập API key hợp lệ")
         
-        # Hiển thị trạng thái hiện tại
         if job_manager.vietnamworks and job_manager.vietnamworks.is_configured():
-            st.success("✅ VietnamWorks đã được cấu hình API key và sẵn sàng hoạt động")
+            st.success("✅ VietnamWorks đã được cấu hình")
         else:
             st.info("ℹ️ VietnamWorks chưa được cấu hình. Chỉ sử dụng được CareerViet.")

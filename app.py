@@ -3415,74 +3415,79 @@ elif menu == "✅ Nhân viên":
         
         if st.session_state.role == "admin":
             with st.expander("➕ THÊM NHÂN VIÊN MỚI", expanded=False):
-                # Lấy danh sách ngân hàng cho dropdown
-                bank_list = get_bank_list()
+                # Dùng key động để reset form
+                form_key = st.session_state.get('add_nv_form_key', 0)
                 
-                with st.form("add_nv"):
+                with st.form(key=f"add_nv_form_{form_key}"):
                     db = get_connection()
                     c = db.cursor()
                     c.execute("SELECT DISTINCT ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
                     dcv = [row[0] for row in c.fetchall()]
                     db.close()
+                    
                     st.caption("📝 Thông tin cá nhân")
                     c1, c2, c3 = st.columns(3)
                     with c1:
-                        htn = st.text_input("Họ và tên *")
-                        nsn = st.text_input("Ngày sinh (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
-                        gtn = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"])
-                        qtn = st.text_input("Quốc tịch", value="Việt Nam")
-                        dtn = st.text_input("Dân tộc", value="Kinh")
+                        htn = st.text_input("Họ và tên *", key="htn_input")
+                        nsn = st.text_input("Ngày sinh (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key="nsn_input")
+                        gtn = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"], key="gtn_input")
+                        qtn = st.text_input("Quốc tịch", value="Việt Nam", key="qtn_input")
+                        dtn = st.text_input("Dân tộc", value="Kinh", key="dtn_input")
                     with c2:
-                        scc = st.text_input("CCCD")
-                        ncc = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
-                        ncc2 = st.text_input("Nơi cấp CCCD")
-                        nqn = st.text_input("Nguyên quán")
-                        ttn = st.text_input("Thường trú")
+                        scc = st.text_input("CCCD", key="scc_input")
+                        ncc = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key="ncc_input")
+                        ncc2 = st.text_input("Nơi cấp CCCD", key="ncc2_input")
+                        nqn = st.text_input("Nguyên quán", key="nqn_input")
+                        ttn = st.text_input("Thường trú", key="ttn_input")
                     with c3:
-                        dtn2 = st.text_input("SĐT")
-                        emn = st.text_input("Email")
-                        cdn = st.selectbox("Chức danh", [""] + dcv)
-                        pbn = st.text_input("Phòng ban")
-                        nlv = st.text_input("Nơi làm việc", value="Cảng THQT Hòn La")
+                        dtn2 = st.text_input("SĐT", key="dtn2_input")
+                        emn = st.text_input("Email", key="emn_input")
+                        cdn = st.selectbox("Chức danh", [""] + dcv, key="cdn_input")
+                        pbn = st.text_input("Phòng ban", key="pbn_input")
+                        nlv = st.text_input("Nơi làm việc", value="Cảng THQT Hòn La", key="nlv_input")
+                    
                     st.divider()
                     st.caption("💼 Hợp đồng & BHXH")
                     c4, c5, c6 = st.columns(3)
                     with c4:
-                        lhd = st.selectbox("Loại HĐ *", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"])
-                        nvl = st.text_input("Ngày vào làm (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
-                        nkt = st.text_input("Ngày kết thúc", placeholder="dd/mm/yyyy", max_chars=10)
-                        mbh = st.text_input("Mã BHXH")
-                        tbd = st.text_input("Bắt đầu BH (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
+                        lhd = st.selectbox("Loại HĐ *", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"], key="lhd_input")
+                        nvl = st.text_input("Ngày vào làm (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key="nvl_input")
+                        nkt = st.text_input("Ngày kết thúc", placeholder="dd/mm/yyyy", max_chars=10, key="nkt_input")
+                        mbh = st.text_input("Mã BHXH", key="mbh_input")
+                        tbd = st.text_input("Bắt đầu BH (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key="tbd_input")
                     with c5:
-                        lbh = st.text_input("Lương BH")
-                        hsl = st.text_input("Hệ số lương")
-                        pcv = st.text_input("PC chức vụ")
-                        ptv = st.text_input("PC TNVK (%)")
-                        ptn = st.text_input("PC TNN (%)")
+                        lbh = st.text_input("Lương BH", key="lbh_input")
+                        hsl = st.text_input("Hệ số lương", key="hsl_input")
+                        pcv = st.text_input("PC chức vụ", key="pcv_input")
+                        ptv = st.text_input("PC TNVK (%)", key="ptv_input")
+                        ptn = st.text_input("PC TNN (%)", key="ptn_input")
                     with c6:
-                        mhb = st.selectbox("Mức hưởng BHYT", ["80%", "95%", "100%"])
-                        tld = st.text_input("Tỷ lệ đóng (%)")
-                        mtd = st.text_input("Mức tiền đóng")
-                        ptd = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"])
-                        nbh = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"])
+                        mhb = st.selectbox("Mức hưởng BHYT", ["80%", "95%", "100%"], key="mhb_input")
+                        tld = st.text_input("Tỷ lệ đóng (%)", key="tld_input")
+                        mtd = st.text_input("Mức tiền đóng", key="mtd_input")
+                        ptd = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"], key="ptd_input")
+                        nbh = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"], key="nbh_input")
+                    
                     st.divider()
                     st.caption("🏦 Ngân hàng & KCB")
+                    bank_list = get_bank_list()
                     c7, c8, c9 = st.columns(3)
                     with c7:
-                        stk = st.text_input("STK")
-                        # Đã thay bằng selectbox
-                        cnh = st.selectbox("Chi nhánh NH", options=[""] + bank_list, key="bank_add_nv")
-                        tkb = st.text_input("Tỉnh KCB")
-                        nkb = st.text_input("Nơi KCB")
+                        stk = st.text_input("STK", key="stk_input")
+                        cnh = st.selectbox("Chi nhánh NH", options=[""] + bank_list, key="cnh_input")
+                        tkb = st.text_input("Tỉnh KCB", key="tkb_input")
+                        nkb = st.text_input("Nơi KCB", key="nkb_input")
                     with c8:
-                        ths = st.text_input("Tỉnh/TP nhận HS")
-                        phs = st.text_input("Phường/Xã nhận HS")
-                        dhs = st.text_area("Địa chỉ nhận HS", height=100)
+                        ths = st.text_input("Tỉnh/TP nhận HS", key="ths_input")
+                        phs = st.text_input("Phường/Xã nhận HS", key="phs_input")
+                        dhs = st.text_area("Địa chỉ nhận HS", height=100, key="dhs_input")
                     with c9:
-                        dks = st.selectbox("ĐK nhận sổ", ["Có", "Không"])
-                        hso = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"])
+                        dks = st.selectbox("ĐK nhận sổ", ["Có", "Không"], key="dks_input")
+                        hso = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"], key="hso_input")
                     
-                    if st.form_submit_button("💾 LƯU"):
+                    submitted = st.form_submit_button("💾 LƯU")
+                    
+                    if submitted:
                         if htn:
                             # Tạo tên đơn vị thụ hưởng
                             ten_don_vi_thu_huong = normalize_name_to_beneficiary(htn)
@@ -3498,6 +3503,7 @@ elif menu == "✅ Nhân viên":
                                 ngay_loi.append("Ngày kết thúc")
                             if tbd and not parse_date(tbd):
                                 ngay_loi.append("Bắt đầu BH")
+                            
                             if ngay_loi:
                                 st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
                             else:
@@ -3510,6 +3516,7 @@ elif menu == "✅ Nhân viên":
                                     c.execute("SELECT COALESCE(MAX(STT),0)+1 FROM nhan_vien")
                                     stt_moi = c.fetchone()[0]
                                     nhl = parse_date(nvl) or date.today()
+                                    
                                     if lhd == "Thử việc":
                                         ttnv, ttbh, tbd_val = 'THU_VIEC', 'CHUA_DONG', None
                                         c.execute("""
@@ -3532,7 +3539,7 @@ elif menu == "✅ Nhân viên":
                                         """)
                                         so_hd_cnt = c.fetchone()[0] or 0
                                         so_hd = f"{so_hd_cnt + 1:02d}/{nhl.year}/HĐLĐ-CHL"
-                                    # Câu lệnh INSERT đã thêm ten_don_vi_thu_huong
+                                    
                                     c.execute("""INSERT INTO nhan_vien (STT, ma_nv, so_hdld, ho_ten, chuc_danh_nghe, ngay_sinh, gioi_tinh,
                                     so_cccd, ngay_cap_cccd, noi_cap_cccd, nguyen_quan, thuong_tru,
                                     dien_thoai, email, email_lien_he, ho_so, luong_bao_hiem, ma_so_bhxh, ngay_vao_lam,
@@ -3545,20 +3552,31 @@ elif menu == "✅ Nhân viên":
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                     %s, %s, %s, %s, %s, %s, %s)""",
-                                      (stt_moi, ma_nv, so_hd, htn, cdn, parse_date(nsn), gtn, scc, parse_date(ncc), ncc2, nqn, ttn,
-                                       dtn2, emn, emn, hso, lbh, mbh, parse_date(nvl), nlv, stk, cnh, parse_date(nvl), lhd,
-                                       nbh, tbd_val, None, ttnv, ttbh, pbn, parse_date(nkt), qtn, dtn, 
-                                       to_float_or_none(hsl), to_float_or_none(pcv), to_float_or_none(ptv), to_float_or_none(ptn),
-                                       mhb, to_float_or_none(tld), to_float_or_none(mtd), ptd, ths, phs, dhs, tkb, nkb, dks,
-                                       ten_don_vi_thu_huong))
+                                                      (stt_moi, ma_nv, so_hd, htn, cdn, parse_date(nsn), gtn, scc, parse_date(ncc), ncc2, nqn, ttn,
+                                                       dtn2, emn, emn, hso, lbh, mbh, parse_date(nvl), nlv, stk, cnh, parse_date(nvl), lhd,
+                                                       nbh, tbd_val, None, ttnv, ttbh, pbn, parse_date(nkt), qtn, dtn, 
+                                                       to_float_or_none(hsl), to_float_or_none(pcv), to_float_or_none(ptv), to_float_or_none(ptn),
+                                                       mhb, to_float_or_none(tld), to_float_or_none(mtd), ptd, ths, phs, dhs, tkb, nkb, dks,
+                                                       ten_don_vi_thu_huong))
+                                    
                                     db.commit()
                                     db.close()
+                                    
+                                    # RESET FORM: Tăng key để tạo form mới hoàn toàn
+                                    if 'add_nv_form_key' not in st.session_state:
+                                        st.session_state.add_nv_form_key = 0
+                                    st.session_state.add_nv_form_key += 1
+                                    
                                     st.success(f"✅ Đã lưu nhân viên mới thành công! {htn} - {ma_nv}")
                                     st.rerun()
+                                    
                                 except Exception as e:
+                                    db.rollback()
+                                    db.close()
                                     st.error(f"❌ Lỗi: {e}")
                         else:
                             st.error("Họ tên không được để trống!")
+                
                 st.divider()
         
         db_f = get_connection()

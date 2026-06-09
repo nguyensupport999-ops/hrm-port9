@@ -5066,6 +5066,31 @@ elif menu == "💰 Tính thu nhập":
         else:
             st.warning("Chưa có nhân viên nào trong hệ thống để thử nghiệm!")
 
+# ========== TÌM ỨNG VIÊN TỪ CÁC TRANG TUYỂN DỤNG ==========
+elif menu == "🔍 Tìm ứng viên":
+    st.title("🔍 Tìm kiếm ứng viên tiềm năng")
+    
+    # Khởi tạo JobSearchManager nếu chưa có
+    if 'job_search_manager' not in st.session_state:
+        from job_scraper import JobSearchManager
+        st.session_state.job_search_manager = JobSearchManager()
+        
+        # Khôi phục API key nếu có
+        if 'vnworks_api_key' in st.session_state and st.session_state.vnworks_api_key:
+            st.session_state.job_search_manager.set_vietnamworks_key(st.session_state.vnworks_api_key)
+    
+    job_manager = st.session_state.job_search_manager
+    
+    # Hiển thị cài đặt API
+    from job_scraper import show_api_settings
+    show_api_settings(job_manager)
+    
+    st.divider()
+    
+    # Hiển thị giao diện tìm kiếm
+    from job_scraper import show_job_search_interface
+    show_job_search_interface(job_manager)
+    
 # ========== UPLOAD ==========
 elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
     st.title("📁 Quản lý hồ sơ nhân viên")

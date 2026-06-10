@@ -1,3 +1,10 @@
+# ==================================================
+# FILE: app.py (Landing Page Redesigned)
+# Version: 2.0 - HonLa Port Interactive Landing Page
+# Description: Tích hợp câu chuyện lịch sử (21/3) và
+# thành tựu mới (tàu SUN GOLD 45.585 DWT)
+# ==================================================
+
 '''Tóm lại bài học rút ra từ ca này: khi HTML nằm trong components.html (iframe), việc giao tiếp với trang Streamlit cha luôn phải dùng window.top thay vì window.parent — đặc biệt trên Streamlit Cloud nơi có thể có nhiều tầng iframe lồng nhau. Và không bao giờ dùng replaceState rồi lại location.href cùng lúc vì chúng triệt tiêu nhau.
 Nếu sau này cần thêm tính năng hay gặp bug mới, cứ ping lại nhé!
 '''
@@ -90,7 +97,7 @@ def handle_language_change():
 handle_language_change()
 
 def show_landing_page():
-    """Hiển thị Landing Page với chuyển ngữ Việt/Anh"""
+    """Hiển thị Landing Page với bố cục hiện đại, tích hợp timeline và thành tựu"""
     
     # Import languages
     try:
@@ -158,7 +165,7 @@ def show_landing_page():
         with open(logo_path, "rb") as f:
             logo_base64 = base64.b64encode(f.read()).decode()
     
-    # Đọc ảnh slider
+    # Đọc ảnh slider và các ảnh khác
     def load_img_b64(filename):
         path = os.path.join(os.path.dirname(__file__), "static", filename)
         if os.path.exists(path):
@@ -178,227 +185,14 @@ def show_landing_page():
     vi_active = 'active' if lang == 'vi' else ''
     en_active = 'active' if lang == 'en' else ''
     
-    # JavaScript riêng biệt (không có {} để tránh xung đột)
-    landing_js = """
-    <script>
-        // Hàm cuộn mượt đến section bằng window.top
-        function scrollToSection(sectionId) {
-            var topWin = window.top || window.parent || window;
-            var targetElement = document.getElementById(sectionId);
-            if (targetElement) {
-                var targetRect = targetElement.getBoundingClientRect();
-                var offsetTop = targetRect.top + (topWin.scrollY || topWin.pageYOffset);
-                topWin.scrollTo({
-                    top: offsetTop - 80,
-                    behavior: 'smooth'
-                });
-            }
-        }
-        
-        function handleNavClick(e) {
-            e.preventDefault();
-            var section = this.getAttribute('data-section');
-            if (section) {
-                scrollToSection(section);
-            }
-        }
-        
-        function initNavigation() {
-            var navLinks = document.querySelectorAll('.nav-link');
-            for (var i = 0; i < navLinks.length; i++) {
-                navLinks[i].removeEventListener('click', handleNavClick);
-                navLinks[i].addEventListener('click', handleNavClick);
-            }
-        }
-        
-        // Slider
-        var currentSlide = 0;
-        var slides = document.querySelectorAll('.slide');
-        var dots = document.querySelectorAll('.slider-dot');
-        var totalSlides = slides.length;
-        var autoSlideInterval;
-        var progressInterval;
-        var progressValue = 0;
-        var SLIDE_DURATION = 5000;
-        var progressBar = document.getElementById('sliderProgress');
-        
-        function showSlide(index) {
-            for (var i = 0; i < slides.length; i++) {
-                slides[i].classList.remove('active');
-                if (dots[i]) dots[i].classList.remove('active');
-            }
-            slides[index].classList.add('active');
-            if (dots[index]) dots[index].classList.add('active');
-            currentSlide = index;
-            resetProgress();
-        }
-        
-        function nextSlide() {
-            showSlide((currentSlide + 1) % totalSlides);
-        }
-        
-        function prevSlide() {
-            showSlide((currentSlide - 1 + totalSlides) % totalSlides);
-        }
-        
-        function resetProgress() {
-            progressValue = 0;
-            if (progressBar) progressBar.style.width = '0%';
-        }
-        
-        function startProgress() {
-            if (progressInterval) clearInterval(progressInterval);
-            progressValue = 0;
-            progressInterval = setInterval(function() {
-                progressValue += 100 / (SLIDE_DURATION / 100);
-                if (progressBar) progressBar.style.width = Math.min(progressValue, 100) + '%';
-                if (progressValue >= 100) resetProgress();
-            }, 100);
-        }
-        
-        function startAutoSlide() {
-            if (autoSlideInterval) clearInterval(autoSlideInterval);
-            autoSlideInterval = setInterval(nextSlide, SLIDE_DURATION);
-            startProgress();
-        }
-        
-        if (totalSlides > 0) {
-            for (var i = 0; i < dots.length; i++) {
-                dots[i].addEventListener('click', (function(idx) {
-                    return function() {
-                        showSlide(idx);
-                        if (autoSlideInterval) clearInterval(autoSlideInterval);
-                        if (progressInterval) clearInterval(progressInterval);
-                        startAutoSlide();
-                    };
-                })(i));
-            }
-            
-            var prevBtn = document.getElementById('prevBtn');
-            var nextBtn = document.getElementById('nextBtn');
-            if (prevBtn) {
-                prevBtn.addEventListener('click', function() {
-                    prevSlide();
-                    if (autoSlideInterval) clearInterval(autoSlideInterval);
-                    if (progressInterval) clearInterval(progressInterval);
-                    startAutoSlide();
-                });
-            }
-            if (nextBtn) {
-                nextBtn.addEventListener('click', function() {
-                    nextSlide();
-                    if (autoSlideInterval) clearInterval(autoSlideInterval);
-                    if (progressInterval) clearInterval(progressInterval);
-                    startAutoSlide();
-                });
-            }
-            
-            var touchStartX = 0;
-            var heroSlider = document.querySelector('.hero-slider');
-            if (heroSlider) {
-                heroSlider.addEventListener('touchstart', function(e) {
-                    touchStartX = e.touches[0].clientX;
-                });
-                heroSlider.addEventListener('touchend', function(e) {
-                    var diff = touchStartX - e.changedTouches[0].clientX;
-                    if (Math.abs(diff) > 50) {
-                        diff > 0 ? nextSlide() : prevSlide();
-                        startAutoSlide();
-                    }
-                });
-            }
-            startAutoSlide();
-        }
-        
-        // Scroll reveal
-        var revealObserver = new IntersectionObserver(function(entries) {
-            entries.forEach(function(entry) {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('visible');
-                    revealObserver.unobserve(entry.target);
-                }
-            });
-        }, { threshold: 0.15 });
-        document.querySelectorAll('.reveal').forEach(function(el) {
-            revealObserver.observe(el);
-        });
-        
-        // Navbar scroll effect
-        window.addEventListener('scroll', function() {
-            var navbar = document.getElementById('navbar');
-            if (navbar) {
-                if (window.scrollY > 50) {
-                    navbar.style.background = 'rgba(15, 59, 92, 0.98)';
-                    navbar.style.boxShadow = '0 4px 20px rgba(0,0,0,0.2)';
-                } else {
-                    navbar.style.background = 'rgba(15, 59, 92, 0.95)';
-                    navbar.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-                }
-            }
-        });
-        
-        // Modal
-        var modal = document.getElementById('thuNgoModal');
-        var thuNgoBtn = document.getElementById('thuNgoBtn');
-        var closeModalBtn = document.getElementById('closeModalBtn');
-        
-        if (thuNgoBtn && modal) {
-            thuNgoBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                modal.classList.add('active');
-                document.body.style.overflow = 'hidden';
-            });
-            
-            var closeModal = function() {
-                modal.classList.remove('active');
-                document.body.style.overflow = '';
-            };
-            
-            if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
-            modal.addEventListener('click', function(e) {
-                if (e.target === modal) closeModal();
-            });
-            document.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape' && modal.classList.contains('active')) closeModal();
-            });
-        }
-        
-        // Career link
-        var careerLink = document.getElementById('careerLink');
-        if (careerLink) {
-            careerLink.addEventListener('click', function(e) {
-                e.preventDefault();
-                alert('Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
-            });
-        }
-        
-        // Language switcher
-        function switchLanguage(lang) {
-            var topWin = window.top || window.parent || window;
-            var url = new URL(topWin.location.href);
-            url.searchParams.set('lang', lang);
-            topWin.history.replaceState(null, '', url.toString());
-            topWin.location.reload();
-        }
-        
-        // Khởi tạo navigation
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', function() {
-                initNavigation();
-            });
-        } else {
-            initNavigation();
-        }
-    </script>
-    """
-    
+    # Nội dung HTML mới (đã được thiết kế lại hoàn toàn)
     landing_html = f"""
     <!DOCTYPE html>
     <html lang="{lang}">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-        <title>Cảng Quốc tế Hòn La</title>
+        <title>Cảng Quốc tế Hòn La - Cửa ngõ hàng hải chiến lược</title>
         <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
         <style>
@@ -438,6 +232,7 @@ def show_landing_page():
                 background: rgba(15, 59, 92, 0.95);
                 backdrop-filter: blur(10px);
                 box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                transition: all 0.3s ease;
             }}
             .nav-container {{
                 display: flex;
@@ -562,40 +357,9 @@ def show_landing_page():
                 color: #0f3b5c;
             }}
             
-            .dropdown {{
-                position: relative;
-            }}
-            .dropdown-content {{
-                display: none;
-                position: absolute;
-                background: white;
-                min-width: 200px;
-                box-shadow: 0 8px 16px rgba(0,0,0,0.1);
-                border-radius: 8px;
-                padding: 0.5rem 0;
-                top: 100%;
-                left: 0;
-                z-index: 1;
-            }}
-            .dropdown:hover .dropdown-content {{
-                display: block;
-            }}
-            .dropdown-content a {{
-                color: #333 !important;
-                padding: 8px 16px;
-                display: block;
-                font-size: 0.85rem;
-                background: transparent;
-                cursor: pointer;
-            }}
-            .dropdown-content a:hover {{
-                background: #f8fafc;
-                color: #f59e0b !important;
-            }}
-            
-            /* ===== HERO SLIDER ===== */
+            /* ===== HERO SLIDER MỚI - TỐI GIẢN & HIỆN ĐẠI ===== */
             .hero-slider {{
-                height: 550px;
+                height: 650px;
                 width: 100%;
                 position: relative;
                 overflow: hidden;
@@ -629,7 +393,7 @@ def show_landing_page():
                 justify-content: center;
             }}
             .slide-image {{
-                flex: 1;
+                flex: 1.2;
                 height: 100%;
                 background-size: cover;
                 background-position: center center;
@@ -637,36 +401,35 @@ def show_landing_page():
             }}
             .slide-content {{
                 flex: 1;
-                padding: 50px 40px;
+                padding: 50px 60px;
                 color: white;
                 z-index: 3;
-                text-align: center;
+                text-align: left;
             }}
             .slide-content h1 {{
-                font-size: 2.8rem;
+                font-size: 3.2rem;
                 font-weight: 800;
-                margin-bottom: 1.2rem;
-                letter-spacing: -0.5px;
+                margin-bottom: 1.5rem;
+                letter-spacing: -1px;
                 text-shadow: 0 2px 5px rgba(0,0,0,0.4);
                 line-height: 1.3;
             }}
             .slide-content p {{
-                font-size: 1.15rem;
-                margin-bottom: 0.8rem;
-                line-height: 1.5;
+                font-size: 1.2rem;
+                margin-bottom: 1rem;
+                line-height: 1.6;
                 text-shadow: 0 1px 3px rgba(0,0,0,0.3);
             }}
             .slide-content .highlight {{
-                font-size: clamp(0.85rem, 1.1vw, 1.2rem);
+                font-size: 1rem;
                 font-weight: 700;
                 color: #f59e0b;
-                margin-top: 1.2rem;
+                margin-top: 1.5rem;
                 display: inline-block;
                 background: rgba(0,0,0,0.25);
-                padding: 6px 18px;
+                padding: 8px 20px;
                 border-radius: 40px;
                 backdrop-filter: blur(4px);
-                white-space: nowrap;
             }}
             .slider-progress {{
                 position: absolute;
@@ -680,7 +443,7 @@ def show_landing_page():
             }}
             .slider-nav {{
                 position: absolute;
-                bottom: 20px;
+                bottom: 30px;
                 left: 50%;
                 transform: translateX(-50%);
                 display: flex;
@@ -708,14 +471,14 @@ def show_landing_page():
                 background: rgba(255,255,255,0.15);
                 border: 2px solid rgba(255,255,255,0.4);
                 color: white;
-                width: 45px;
-                height: 45px;
+                width: 50px;
+                height: 50px;
                 border-radius: 50%;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 cursor: pointer;
-                font-size: 1.2rem;
+                font-size: 1.4rem;
                 transition: all 0.3s;
                 backdrop-filter: blur(4px);
             }}
@@ -724,8 +487,8 @@ def show_landing_page():
                 border-color: #f59e0b;
                 color: #1e293b;
             }}
-            .slider-arrow.prev {{ left: 20px; }}
-            .slider-arrow.next {{ right: 20px; }}
+            .slider-arrow.prev {{ left: 30px; }}
+            .slider-arrow.next {{ right: 30px; }}
             
             /* ===== SCROLL REVEAL ===== */
             .reveal {{
@@ -736,6 +499,81 @@ def show_landing_page():
             .reveal.visible {{
                 opacity: 1;
                 transform: translateY(0);
+            }}
+            
+            /* ===== TIMELINE SECTION (MỚI) ===== */
+            .timeline-section {{
+                padding: 80px 30px;
+                background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
+            }}
+            .section-header {{
+                text-align: center;
+                margin-bottom: 60px;
+            }}
+            .section-header h2 {{
+                font-size: 2.5rem;
+                color: #0f3b5c;
+                font-weight: 700;
+                margin-bottom: 15px;
+            }}
+            .section-header p {{
+                color: #64748b;
+                font-size: 1.1rem;
+                max-width: 700px;
+                margin: 0 auto;
+            }}
+            .timeline {{
+                display: flex;
+                justify-content: space-between;
+                max-width: 1280px;
+                margin: 0 auto;
+                flex-wrap: wrap;
+                gap: 30px;
+            }}
+            .timeline-item {{
+                flex: 1;
+                background: white;
+                border-radius: 20px;
+                padding: 30px 25px;
+                text-align: center;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+                transition: all 0.3s;
+                border: 1px solid #e2e8f0;
+                position: relative;
+                overflow: hidden;
+            }}
+            .timeline-item::before {{
+                content: '';
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 4px;
+                background: linear-gradient(90deg, #f59e0b, #0f3b5c);
+            }}
+            .timeline-item:hover {{
+                transform: translateY(-8px);
+                box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            }}
+            .timeline-date {{
+                font-size: 2rem;
+                font-weight: 800;
+                color: #f59e0b;
+                margin-bottom: 15px;
+            }}
+            .timeline-icon {{
+                font-size: 2.5rem;
+                color: #0f3b5c;
+                margin-bottom: 15px;
+            }}
+            .timeline-item h3 {{
+                font-size: 1.4rem;
+                margin-bottom: 15px;
+                color: #0f3b5c;
+            }}
+            .timeline-item p {{
+                color: #64748b;
+                line-height: 1.6;
             }}
             
             /* ===== STATS SECTION ===== */
@@ -763,7 +601,7 @@ def show_landing_page():
             .stat-card:hover {{ transform: translateY(-5px); }}
             .stat-card:last-child {{ border-right: none; }}
             .stat-number {{
-                font-size: clamp(1.4rem, 2.2vw, 2.4rem);
+                font-size: clamp(1.8rem, 2.5vw, 2.8rem);
                 font-weight: 800;
                 color: #f59e0b;
                 margin-bottom: 8px;
@@ -771,11 +609,69 @@ def show_landing_page():
                 line-height: 1.2;
             }}
             .stat-label {{
-                font-size: clamp(0.7rem, 1vw, 0.85rem);
+                font-size: clamp(0.75rem, 1vw, 0.9rem);
                 text-transform: uppercase;
                 letter-spacing: 1px;
                 font-weight: 500;
                 white-space: nowrap;
+            }}
+            
+            /* ===== ACHIEVEMENT SECTION (THÀNH TỰU MỚI) ===== */
+            .achievement-section {{
+                padding: 80px 30px;
+                background: white;
+            }}
+            .achievement-grid {{
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 50px;
+                max-width: 1280px;
+                margin: 0 auto;
+                align-items: center;
+            }}
+            .achievement-badge {{
+                background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
+                display: inline-block;
+                padding: 5px 15px;
+                border-radius: 30px;
+                color: white;
+                font-weight: 600;
+                font-size: 0.8rem;
+                margin-bottom: 20px;
+            }}
+            .achievement-title {{
+                font-size: 2.2rem;
+                color: #0f3b5c;
+                margin-bottom: 20px;
+                font-weight: 700;
+            }}
+            .achievement-desc {{
+                color: #64748b;
+                line-height: 1.7;
+                margin-bottom: 25px;
+                font-size: 1.05rem;
+            }}
+            .achievement-stats {{
+                display: flex;
+                gap: 30px;
+                margin-top: 30px;
+            }}
+            .achievement-stat {{
+                text-align: center;
+            }}
+            .achievement-stat .number {{
+                font-size: 2rem;
+                font-weight: 800;
+                color: #f59e0b;
+            }}
+            .achievement-stat .label {{
+                font-size: 0.8rem;
+                color: #64748b;
+            }}
+            .achievement-img {{
+                width: 100%;
+                border-radius: 24px;
+                box-shadow: 0 20px 30px -15px rgba(0,0,0,0.15);
             }}
             
             /* ===== ABOUT & SERVICES ===== */
@@ -823,14 +719,6 @@ def show_landing_page():
                 padding: 80px 30px;                                         
                 background: white;
             }}
-            .section-header {{
-                text-align: center;
-                margin-bottom: 50px;
-            }}
-            .section-header h2 {{
-                font-size: 2.2rem;
-                color: #0f3b5c;
-            }}
             .services-grid {{
                 display: grid;
                 grid-template-columns: repeat(4, 1fr);
@@ -856,6 +744,8 @@ def show_landing_page():
                 color: #f59e0b;
                 margin-bottom: 20px;
             }}
+            
+            /* ===== INFRASTRUCTURE ===== */
             .infra-section {{
                 padding: 80px 30px;                                         
                 background: #f8fafc;
@@ -876,6 +766,8 @@ def show_landing_page():
                 font-size: 1.8rem;
                 color: #f59e0b;
             }}
+            
+            /* ===== CAREERS ===== */
             .careers-section {{
                 padding: 80px 30px;                                             
                 background: linear-gradient(135deg, #0f3b5c 0%, #1e4a76 100%);
@@ -892,6 +784,11 @@ def show_landing_page():
                 margin-top: 20px;
                 text-decoration: none;
                 cursor: pointer;
+                transition: all 0.3s;
+            }}
+            .btn-white:hover {{
+                transform: translateY(-3px);
+                box-shadow: 0 10px 20px rgba(0,0,0,0.2);
             }}
             
             /* ===== FOOTER ===== */
@@ -1096,6 +993,17 @@ def show_landing_page():
             }}
             
             /* ===== RESPONSIVE ===== */
+            @media (max-width: 992px) {{
+                .achievement-grid, .about-grid, .infra-grid {{
+                    grid-template-columns: 1fr;
+                }}
+                .services-grid {{
+                    grid-template-columns: repeat(2, 1fr);
+                }}
+                .timeline {{
+                    flex-direction: column;
+                }}
+            }}
             @media (max-width: 768px) {{
                 .slide-layout {{
                     flex-direction: column;
@@ -1107,6 +1015,7 @@ def show_landing_page():
                 }}
                 .slide-content {{
                     padding: 25px 20px;
+                    text-align: center;
                 }}
                 .slide-content h1 {{
                     font-size: 1.6rem;
@@ -1116,9 +1025,9 @@ def show_landing_page():
                 }}
                 .hero-slider {{
                     height: auto;
-                    min-height: 480px;
+                    min-height: 500px;
                 }}
-                .stats-grid, .about-grid, .services-grid, .infra-grid, .footer-grid {{
+                .stats-grid, .footer-grid {{
                     grid-template-columns: 1fr;
                 }}
                 .stat-card {{
@@ -1146,6 +1055,16 @@ def show_landing_page():
                 .nav-links .lang-switch {{
                     display: none;
                 }}
+                .services-grid {{
+                    grid-template-columns: 1fr;
+                }}
+                .section-header h2 {{
+                    font-size: 1.8rem;
+                }}
+                .achievement-stats {{
+                    flex-direction: column;
+                    gap: 15px;
+                }}
             }}
         </style>
     </head>
@@ -1166,6 +1085,7 @@ def show_landing_page():
                         <a href="#" id="thuNgoBtn">{text.get('chairman_letter', 'Thư ngỏ của Chủ tịch HĐQT')}</a>
                     </div>
                 </div>
+                <a class="nav-link" data-section="timeline">{text.get('nav_timeline', 'Dấu mốc phát triển')}</a>
                 <a class="nav-link" data-section="services">{text.get('nav_services', 'Dịch vụ')}</a>
                 <a class="nav-link" data-section="infrastructure">{text.get('nav_infrastructure', 'Vị trí & Hạ tầng')}</a>
                 <a class="nav-link" data-section="careers">{text.get('nav_careers', 'Tuyển dụng')}</a>
@@ -1250,7 +1170,7 @@ def show_landing_page():
                     <div class="slide-content">
                         <h1>{text.get('hero_title_1', 'CẢNG TỔNG HỢP QUỐC TẾ HÒN LA')}</h1>
                         <p>{text.get('hero_desc_1_1', 'Chính thức khởi công ngày 21 tháng 3 năm 2025')}</p>
-                        <p>{text.get('hero_desc_1_2', 'Đưa vào khai thác từ Tháng 5 năm 2026')}</p>
+                        <p>{text.get('hero_desc_1_2', 'Dự án trọng điểm Quốc gia, kỳ vọng kiến tạo kỷ nguyên mới cho hàng hải miền Trung')}</p>
                         <div class="highlight">{text.get('hero_tag_1', '🚢 Cửa ngõ hàng hải chiến lược của Miền Trung')}</div>
                     </div>
                 </div>
@@ -1288,6 +1208,34 @@ def show_landing_page():
         <div class="slider-progress" id="sliderProgress"></div>
     </section>
     
+    <!-- Timeline Section - Dấu mốc phát triển (MỚI) -->
+    <section id="timeline" class="timeline-section">
+        <div class="section-header reveal">
+            <h2>{text.get('timeline_title', '📅 Dấu mốc phát triển')}</h2>
+            <p>{text.get('timeline_sub', 'Hành trình kiến tạo cảng biển tầm cỡ quốc tế')}</p>
+        </div>
+        <div class="timeline">
+            <div class="timeline-item reveal">
+                <div class="timeline-date">21/03/2025</div>
+                <div class="timeline-icon"><i class="fas fa-hard-hat"></i></div>
+                <h3>{text.get('timeline_groundbreak', 'KHỞI CÔNG DỰ ÁN')}</h3>
+                <p>{text.get('timeline_groundbreak_desc', 'Dự án trọng điểm Quốc gia chính thức khởi công, mở ra chương mới cho kinh tế hàng hải miền Trung.')}</p>
+            </div>
+            <div class="timeline-item reveal">
+                <div class="timeline-date">14/05/2026</div>
+                <div class="timeline-icon"><i class="fas fa-ship"></i></div>
+                <h3>{text.get('timeline_sungold', 'TIẾP NHẬN TÀU SUN GOLD')}</h3>
+                <p>{text.get('timeline_sungold_desc', 'Tiếp nhận thành công tàu SUN GOLD tải trọng 45.585 DWT - tàu có tải trọng lớn nhất từ trước đến nay, khẳng định năng lực khai thác vượt trội.')}</p>
+            </div>
+            <div class="timeline-item reveal">
+                <div class="timeline-date">05/2026</div>
+                <div class="timeline-icon"><i class="fas fa-check-circle"></i></div>
+                <h3>{text.get('timeline_operation', 'ĐƯA VÀO KHAI THÁC')}</h3>
+                <p>{text.get('timeline_operation_desc', 'Dự kiến đưa cảng vào khai thác chính thức, sẵn sàng phục vụ nhu cầu vận tải biển và hậu cần cảng biển.')}</p>
+            </div>
+        </div>
+    </section>
+    
     <!-- Statistics -->
     <section id="stats" class="stats-section">
         <div class="stats-grid">
@@ -1298,58 +1246,92 @@ def show_landing_page():
         </div>
     </section>
     
+    <!-- Achievement Section - Thành tựu nổi bật (MỚI từ Fanpage) -->
+    <section id="achievement" class="achievement-section">
+        <div class="achievement-grid">
+            <div class="reveal">
+                <span class="achievement-badge">{text.get('achievement_badge', 'THÀNH TỰU NỔI BẬT')}</span>
+                <h2 class="achievement-title">{text.get('achievement_title', 'Tiếp nhận thành công tàu trọng tải lớn SUN GOLD')}</h2>
+                <p class="achievement-desc">{text.get('achievement_desc', 'Vào ngày 14 tháng 5 năm 2026, Cảng tổng hợp quốc tế Hòn La đã ghi dấu cột mốc quan trọng khi chính thức tiếp nhận thành công tàu SUN GOLD với tải trọng 45.585 DWT - con tàu có tải trọng lớn nhất từ trước đến nay cập cảng. Sự kiện này khẳng định năng lực khai thác vượt trội và vị thế ngày càng được khẳng định của cảng trên bản đồ hàng hải khu vực.')}</p>
+                <div class="achievement-stats">
+                    <div class="achievement-stat">
+                        <div class="number">45.585</div>
+                        <div class="label">{text.get('achievement_dwt', 'DWT (Trọng tải)')}</div>
+                    </div>
+                    <div class="achievement-stat">
+                        <div class="number">14/05/2026</div>
+                        <div class="label">{text.get('achievement_date', 'Ngày cập cảng')}</div>
+                    </div>
+                    <div class="achievement-stat">
+                        <div class="number">100%</div>
+                        <div class="label">{text.get('achievement_success', 'Thành công')}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="reveal">
+                <img src="{slide2_src}" alt="Tàu SUN GOLD tại Cảng Hòn La" class="achievement-img">
+            </div>
+        </div>
+    </section>
+    
     <!-- About -->
     <section id="about" class="about-section">
         <div class="about-grid">
-            <div>
+            <div class="reveal">
                 <div class="about-tag">{text.get('about_tag', 'CHÀO MỪNG ĐẾN VỚI CẢNG QUỐC TẾ HÒN LA')}</div>
                 <h2 class="about-title">{text.get('about_title', 'Cửa ngõ hàng hải chiến lược của Miền Trung')}</h2>
-                <p class="about-text">{text.get('about_text', 'Cảng tổng hợp Quốc tế Hòn La được đầu tư bài bản với hệ thống cơ sở hạ tầng đồng bộ, hiện đại, đáp ứng nhu cầu bốc xếp hàng hóa, trung chuyển container và đón tàu du lịch quốc tế.')}</p>
+                <p class="about-text">{text.get('about_text', 'Cảng tổng hợp Quốc tế Hòn La được đầu tư bài bản với hệ thống cơ sở hạ tầng đồng bộ, hiện đại, đáp ứng nhu cầu bốc xếp hàng hóa, trung chuyển container và đón tàu du lịch quốc tế. Với vị thế nằm trong Khu kinh tế Hòn La, cảng là điểm kết nối lý tưởng trên hành lang kinh tế Đông - Tây, mở ra cơ hội giao thương trực tiếp với các nước trong khu vực và toàn cầu.')}</p>
                 <div class="about-highlight"><i class="fas fa-trophy" style="color:#f59e0b"></i> <strong>{text.get('about_highlight', 'Dự án trọng điểm Quốc gia')}</strong></div>
             </div>
-            <div><img src="https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070" class="about-img"></div>
+            <div class="reveal"><img src="https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070" class="about-img"></div>
         </div>
     </section>
     
     <!-- Services -->
     <section id="services" class="services-section">
-        <div class="section-header"><h2>{text.get('services_title', 'Dịch vụ của chúng tôi')}</h2></div>
+        <div class="section-header reveal">
+            <h2>{text.get('services_title', 'Dịch vụ của chúng tôi')}</h2>
+            <p>{text.get('services_sub', 'Giải pháp toàn diện cho mọi nhu cầu logistics và hàng hải')}</p>
+        </div>
         <div class="services-grid">
-            <div class="service-card"><div class="service-icon"><i class="fas fa-ship"></i></div><h3>{text.get('service_bulk', 'Hàng rời & Hàng khô')}</h3></div>
-            <div class="service-card"><div class="service-icon"><i class="fas fa-boxes"></i></div><h3>{text.get('service_container', 'Hàng container')}</h3></div>
-            <div class="service-card"><div class="service-icon"><i class="fas fa-umbrella-beach"></i></div><h3>{text.get('service_cruise', 'Du lịch tàu biển')}</h3></div>
-            <div class="service-card"><div class="service-icon"><i class="fas fa-warehouse"></i></div><h3>{text.get('service_logistics', 'Logistics & Kho bãi')}</h3></div>
+            <div class="service-card reveal"><div class="service-icon"><i class="fas fa-ship"></i></div><h3>{text.get('service_bulk', 'Hàng rời & Hàng khô')}</h3><p>{text.get('service_bulk_desc', 'Bốc xếp hàng rời, hàng khô, hàng bao với năng suất cao')}</p></div>
+            <div class="service-card reveal"><div class="service-icon"><i class="fas fa-boxes"></i></div><h3>{text.get('service_container', 'Hàng container')}</h3><p>{text.get('service_container_desc', 'Khai thác container nội địa và quốc tế')}</p></div>
+            <div class="service-card reveal"><div class="service-icon"><i class="fas fa-umbrella-beach"></i></div><h3>{text.get('service_cruise', 'Du lịch tàu biển')}</h3><p>{text.get('service_cruise_desc', 'Đón tiếp tàu du lịch quốc tế lên đến 225.000 GT')}</p></div>
+            <div class="service-card reveal"><div class="service-icon"><i class="fas fa-warehouse"></i></div><h3>{text.get('service_logistics', 'Logistics & Kho bãi')}</h3><p>{text.get('service_logistics_desc', 'Hệ thống kho bãi rộng lớn, dịch vụ logistics trọn gói')}</p></div>
         </div>
     </section>
     
     <!-- Infrastructure -->
     <section id="infrastructure" class="infra-section">
         <div class="infra-grid">
-            <div>
+            <div class="reveal">
                 <div class="about-tag">{text.get('infra_tag', 'HẠ TẦNG & VỊ TRÍ')}</div>
                 <h2 class="about-title">{text.get('infra_title', 'Vị thế vàng trên bản đồ logistics')}</h2>
                 <div class="infra-feature"><i class="fas fa-map-marker-alt"></i><div><strong>Quảng Trạch, Quảng Bình</strong><br>{text.get('infra_location', 'Khu kinh tế Hòn La')}</div></div>
-                <div class="infra-feature"><i class="fas fa-road"></i><div><strong>{text.get('infra_connection', 'Kết nối hành lang Đông - Tây (EWEC)')}</strong></div></div>
-                <div class="infra-feature"><i class="fas fa-anchor"></i><div><strong>{text.get('infra_berths', '04 bến cấp tàu')}</strong><br>Tổng chiều dài 970m</div></div>
+                <div class="infra-feature"><i class="fas fa-road"></i><div><strong>{text.get('infra_connection', 'Kết nối hành lang Đông - Tây (EWEC)')}</strong><br>{text.get('infra_connection_desc', 'Cửa ngõ kết nối Việt Nam - Lào - Thái Lan - Myanmar')}</div></div>
+                <div class="infra-feature"><i class="fas fa-anchor"></i><div><strong>{text.get('infra_berths', '04 bến cấp tàu')}</strong><br>{text.get('infra_berths_desc', 'Tổng chiều dài 970m, đáp ứng tàu 70.000 DWT')}</div></div>
             </div>
-            <div><img src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070" class="about-img"></div>
+            <div class="reveal"><img src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070" class="about-img"></div>
         </div>
     </section>
     
     <!-- Careers -->
     <section id="careers" class="careers-section">
-        <h2>{text.get('careers_title', 'GIA NHẬP ĐỘI NGŨ NHÂN SỰ CỦA CHÚNG TÔI')}</h2>
-        <p>{text.get('careers_subtitle', 'Chúng tôi luôn tìm kiếm những nhân tài')}</p>
-        <a href="#" class="btn-white" id="careerLink">{text.get('careers_button', '📢 Xem cơ hội việc làm tại đây')}</a>
+        <div class="reveal">
+            <h2>{text.get('careers_title', 'GIA NHẬP ĐỘI NGŨ NHÂN SỰ CỦA CHÚNG TÔI')}</h2>
+            <p>{text.get('careers_subtitle', 'Chúng tôi luôn tìm kiếm những nhân tài để cùng kiến tạo kỷ nguyên mới cho ngành hàng hải Việt Nam')}</p>
+            <a href="#" class="btn-white" id="careerLink">{text.get('careers_button', '📢 Xem cơ hội việc làm tại đây')}</a>
+        </div>
     </section>
     
     <!-- Footer -->
     <footer id="contact" class="footer">
         <div class="footer-grid">
-            <div class="footer-col"><h4 style="font-size:0.95rem; white-space:nowrap;">{text.get('footer_company', 'CÔNG TY CỔ PHẦN CẢNG HÒN LA')}</h4><p>Khu kinh tế Hòn La, Xã Phú Trạch, Tỉnh Quảng Trị</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
+            <div class="footer-col"><h4 style="font-size:0.95rem; white-space:nowrap;">{text.get('footer_company', 'CÔNG TY CỔ PHẦN CẢNG HÒN LA')}</h4><p>Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình</p><p>📞 +84 896 682 528</p><p>📧 info@honlaport.com.vn</p><p>🌐 honlaport.com.vn</p></div>
             <div class="footer-col"><h4>{text.get('footer_quick_links', 'Liên kết nhanh')}</h4>
                 <a class="nav-link" data-section="home">{text.get('nav_home', 'Trang chủ')}</a>
                 <a class="nav-link" data-section="about">{text.get('nav_about', 'Về chúng tôi')}</a>
+                <a class="nav-link" data-section="timeline">{text.get('nav_timeline', 'Dấu mốc phát triển')}</a>
                 <a class="nav-link" data-section="services">{text.get('nav_services', 'Dịch vụ')}</a>
                 <a class="nav-link" data-section="infrastructure">{text.get('nav_infrastructure', 'Hạ tầng')}</a>
                 <a class="nav-link" data-section="careers">{text.get('nav_careers', 'Tuyển dụng')}</a>
@@ -1363,13 +1345,222 @@ def show_landing_page():
         </div>
     </footer>
     
-    {landing_js}
+    <script>
+        // Hàm cuộn mượt đến section bằng window.top
+        function scrollToSection(sectionId) {{
+            var topWin = window.top || window.parent || window;
+            var targetElement = document.getElementById(sectionId);
+            if (targetElement) {{
+                var targetRect = targetElement.getBoundingClientRect();
+                var offsetTop = targetRect.top + (topWin.scrollY || topWin.pageYOffset);
+                topWin.scrollTo({{
+                    top: offsetTop - 80,
+                    behavior: 'smooth'
+                }});
+            }}
+        }}
+        
+        function handleNavClick(e) {{
+            e.preventDefault();
+            var section = this.getAttribute('data-section');
+            if (section) {{
+                scrollToSection(section);
+            }}
+        }}
+        
+        function initNavigation() {{
+            var navLinks = document.querySelectorAll('.nav-link');
+            for (var i = 0; i < navLinks.length; i++) {{
+                navLinks[i].removeEventListener('click', handleNavClick);
+                navLinks[i].addEventListener('click', handleNavClick);
+            }}
+        }}
+        
+        // Slider
+        var currentSlide = 0;
+        var slides = document.querySelectorAll('.slide');
+        var dots = document.querySelectorAll('.slider-dot');
+        var totalSlides = slides.length;
+        var autoSlideInterval;
+        var progressInterval;
+        var progressValue = 0;
+        var SLIDE_DURATION = 5000;
+        var progressBar = document.getElementById('sliderProgress');
+        
+        function showSlide(index) {{
+            for (var i = 0; i < slides.length; i++) {{
+                slides[i].classList.remove('active');
+                if (dots[i]) dots[i].classList.remove('active');
+            }}
+            slides[index].classList.add('active');
+            if (dots[index]) dots[index].classList.add('active');
+            currentSlide = index;
+            resetProgress();
+        }}
+        
+        function nextSlide() {{
+            showSlide((currentSlide + 1) % totalSlides);
+        }}
+        
+        function prevSlide() {{
+            showSlide((currentSlide - 1 + totalSlides) % totalSlides);
+        }}
+        
+        function resetProgress() {{
+            progressValue = 0;
+            if (progressBar) progressBar.style.width = '0%';
+        }}
+        
+        function startProgress() {{
+            if (progressInterval) clearInterval(progressInterval);
+            progressValue = 0;
+            progressInterval = setInterval(function() {{
+                progressValue += 100 / (SLIDE_DURATION / 100);
+                if (progressBar) progressBar.style.width = Math.min(progressValue, 100) + '%';
+                if (progressValue >= 100) resetProgress();
+            }}, 100);
+        }}
+        
+        function startAutoSlide() {{
+            if (autoSlideInterval) clearInterval(autoSlideInterval);
+            autoSlideInterval = setInterval(nextSlide, SLIDE_DURATION);
+            startProgress();
+        }}
+        
+        if (totalSlides > 0) {{
+            for (var i = 0; i < dots.length; i++) {{
+                dots[i].addEventListener('click', (function(idx) {{
+                    return function() {{
+                        showSlide(idx);
+                        if (autoSlideInterval) clearInterval(autoSlideInterval);
+                        if (progressInterval) clearInterval(progressInterval);
+                        startAutoSlide();
+                    }};
+                }})(i));
+            }}
+            
+            var prevBtn = document.getElementById('prevBtn');
+            var nextBtn = document.getElementById('nextBtn');
+            if (prevBtn) {{
+                prevBtn.addEventListener('click', function() {{
+                    prevSlide();
+                    if (autoSlideInterval) clearInterval(autoSlideInterval);
+                    if (progressInterval) clearInterval(progressInterval);
+                    startAutoSlide();
+                }});
+            }}
+            if (nextBtn) {{
+                nextBtn.addEventListener('click', function() {{
+                    nextSlide();
+                    if (autoSlideInterval) clearInterval(autoSlideInterval);
+                    if (progressInterval) clearInterval(progressInterval);
+                    startAutoSlide();
+                }});
+            }}
+            
+            var touchStartX = 0;
+            var heroSlider = document.querySelector('.hero-slider');
+            if (heroSlider) {{
+                heroSlider.addEventListener('touchstart', function(e) {{
+                    touchStartX = e.touches[0].clientX;
+                }});
+                heroSlider.addEventListener('touchend', function(e) {{
+                    var diff = touchStartX - e.changedTouches[0].clientX;
+                    if (Math.abs(diff) > 50) {{
+                        diff > 0 ? nextSlide() : prevSlide();
+                        startAutoSlide();
+                    }}
+                }});
+            }}
+            startAutoSlide();
+        }}
+        
+        // Scroll reveal
+        var revealObserver = new IntersectionObserver(function(entries) {{
+            entries.forEach(function(entry) {{
+                if (entry.isIntersecting) {{
+                    entry.target.classList.add('visible');
+                    revealObserver.unobserve(entry.target);
+                }}
+            }});
+        }}, {{ threshold: 0.15 }});
+        document.querySelectorAll('.reveal').forEach(function(el) {{
+            revealObserver.observe(el);
+        }});
+        
+        // Navbar scroll effect
+        window.addEventListener('scroll', function() {{
+            var navbar = document.getElementById('navbar');
+            if (navbar) {{
+                if (window.scrollY > 50) {{
+                    navbar.style.background = 'rgba(15, 59, 92, 0.98)';
+                    navbar.style.boxShadow = '0 4px 20px rgba(0,0,0,0.2)';
+                }} else {{
+                    navbar.style.background = 'rgba(15, 59, 92, 0.95)';
+                    navbar.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+                }}
+            }}
+        }});
+        
+        // Modal
+        var modal = document.getElementById('thuNgoModal');
+        var thuNgoBtn = document.getElementById('thuNgoBtn');
+        var closeModalBtn = document.getElementById('closeModalBtn');
+        
+        if (thuNgoBtn && modal) {{
+            thuNgoBtn.addEventListener('click', function(e) {{
+                e.preventDefault();
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }});
+            
+            var closeModal = function() {{
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            }};
+            
+            if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+            modal.addEventListener('click', function(e) {{
+                if (e.target === modal) closeModal();
+            }});
+            document.addEventListener('keydown', function(e) {{
+                if (e.key === 'Escape' && modal.classList.contains('active')) closeModal();
+            }});
+        }}
+        
+        // Career link
+        var careerLink = document.getElementById('careerLink');
+        if (careerLink) {{
+            careerLink.addEventListener('click', function(e) {{
+                e.preventDefault();
+                alert('Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
+            }});
+        }}
+        
+        // Language switcher
+        function switchLanguage(lang) {{
+            var topWin = window.top || window.parent || window;
+            var url = new URL(topWin.location.href);
+            url.searchParams.set('lang', lang);
+            topWin.history.replaceState(null, '', url.toString());
+            topWin.location.reload();
+        }}
+        
+        // Khởi tạo navigation
+        if (document.readyState === 'loading') {{
+            document.addEventListener('DOMContentLoaded', function() {{
+                initNavigation();
+            }});
+        }} else {{
+            initNavigation();
+        }}
+    </script>
     </body>
     </html>
     """
     
     # Render landing page
-    components.html(landing_html, height=3150, scrolling=False)
+    components.html(landing_html, height=3500, scrolling=False)
     
     # Nút HRM dùng components.html (giữ nguyên phần còn lại)
     hrm_html = """<!DOCTYPE html>
@@ -4051,12 +4242,12 @@ elif menu == "✅ Nhân viên":
                                                     phu_cap_tnvk=%s,phu_cap_tnn=%s,muc_huong_bhyt=%s,ty_le_dong=%s,muc_tien_dong=%s,
                                                     phuong_thuc_dong=%s,tinh_nhan_hs=%s,phuong_nhan_hs=%s,dia_chi_nhan_hs=%s,
                                                     tinh_kcb=%s,noi_dang_ky_kcb=%s,dang_ky_nhan_so=%s WHERE id=%s""",
-                                                      (hnv, cdnv, parse_date(nsnv), gtnv, sccv, parse_date(nccv), ncv, nqnv, ttnv, dtnv2,
-                                                       emnv, emnv, hsov, lbhv, mbhv, parse_date(nvlv), nlv2, stkv, cnhv, parse_date(nvlv), lhdv,
-                                                       nbhv, tbd_val, tt_nv, tt_bh, pbnv, parse_date(nktv), qtnv, dtnv,
-                                                       to_float_or_none(hslv), to_float_or_none(pcvv), to_float_or_none(ptvv), to_float_or_none(ptnv),
-                                                       mhbv, to_float_or_none(tldv), to_float_or_none(mtdv), ptdv, thsv, phsv, dhsv,
-                                                       tkbv, nkbv, dksv, nid))
+                                                          (hnv, cdnv, parse_date(nsnv), gtnv, sccv, parse_date(nccv), ncv, nqnv, ttnv, dtnv2,
+                                                           emnv, emnv, hsov, lbhv, mbhv, parse_date(nvlv), nlv2, stkv, cnhv, parse_date(nvlv), lhdv,
+                                                           nbhv, tbd_val, tt_nv, tt_bh, pbnv, parse_date(nktv), qtnv, dtnv,
+                                                           to_float_or_none(hslv), to_float_or_none(pcvv), to_float_or_none(ptvv), to_float_or_none(ptnv),
+                                                           mhbv, to_float_or_none(tldv), to_float_or_none(mtdv), ptdv, thsv, phsv, dhsv,
+                                                           tkbv, nkbv, dksv, nid))
                                                 db_upd.commit()
                                                 db_upd.close()
                                                 st.success(f"✅ Đã cập nhật: {hnv}")

@@ -1619,7 +1619,7 @@ def show_landing_page():
     """
     
     # Render landing page
-    components.html(landing_html, height=4100, scrolling=False)
+    components.html(landing_html, height=4600, scrolling=False)
     
     # Nút HRM dùng components.html (giữ nguyên phần còn lại)
     hrm_html = """<!DOCTYPE html>

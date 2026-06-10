@@ -1078,18 +1078,24 @@ def show_landing_page():
             </div>
             <div class="nav-links">
                 <a class="nav-link" data-section="home">{text.get('nav_home', 'Trang chủ')}</a>
+                
+                <!-- Dropdown GIỚI THIỆU - chứa Về chúng tôi + Thư ngỏ -->
                 <div class="dropdown">
-                    <a class="nav-link" data-section="about">{text.get('nav_about', 'Giới thiệu')} <i class="fas fa-chevron-down"></i></a>
+                    <a class="nav-link" data-section="about" style="cursor: pointer;">
+                        {text.get('nav_about', 'Giới thiệu')} <i class="fas fa-chevron-down"></i>
+                    </a>
                     <div class="dropdown-content">
                         <a class="nav-link" data-section="about">{text.get('about_us', 'Về chúng tôi')}</a>
                         <a href="#" id="thuNgoBtn">{text.get('chairman_letter', 'Thư ngỏ của Chủ tịch HĐQT')}</a>
                     </div>
                 </div>
+                
                 <a class="nav-link" data-section="timeline">{text.get('nav_timeline', 'Dấu mốc phát triển')}</a>
                 <a class="nav-link" data-section="services">{text.get('nav_services', 'Dịch vụ')}</a>
                 <a class="nav-link" data-section="infrastructure">{text.get('nav_infrastructure', 'Vị trí & Hạ tầng')}</a>
                 <a class="nav-link" data-section="careers">{text.get('nav_careers', 'Tuyển dụng')}</a>
                 <a class="nav-link" data-section="contact">{text.get('nav_contact', 'Liên hệ')}</a>
+                
                 <span class="nav-divider">|</span>
                 <div class="lang-switch">
                     <a href="#" class="lang-link {vi_active}" onclick="switchLanguage('vi'); return false;">🇻🇳 VI</a>

@@ -1315,31 +1315,32 @@ def show_landing_page():
         </div>
     </section>
     
-    <!-- Careers - TUYỂN DỤNG CHI TIẾT -->
+    <!-- Careers - TUYỂN DỤNG CHI TIẾT (Dạng Collapsible / Click để hiện) -->
     <section id="careers" class="careers-section">
         <div class="reveal">
             <h2>{text.get('careers_title', 'GIA NHẬP ĐỘI NGŨ NHÂN SỰ CỦA CHÚNG TÔI')}</h2>
             <p>{text.get('careers_subtitle', 'Chúng tôi luôn tìm kiếm những nhân tài để cùng kiến tạo kỷ nguyên mới cho ngành hàng hải Việt Nam')}</p>
             
-            <!-- Thông tin tuyển dụng chi tiết đã được thêm lại -->
-            <div style="max-width: 800px; margin: 40px auto 0; background: rgba(255,255,255,0.1); border-radius: 20px; padding: 30px; text-align: left;">
+            <!-- Nút xem chi tiết - Bấm vào sẽ hiện bảng thông tin -->
+            <a href="#" class="btn-white" id="careerDetailBtn" style="margin-top: 20px; display: inline-block;">📢 Xem chi tiết & Ứng tuyển ngay</a>
+
+            <!-- Phần nội dung chi tiết (bị ẩn ban đầu) -->
+            <div id="careerDetails" style="display: none; max-width: 800px; margin: 40px auto 0; background: rgba(255,255,255,0.1); border-radius: 20px; padding: 30px; text-align: left; transition: all 0.3s ease;">
                 <h3 style="color: #f59e0b; margin-bottom: 20px;">📢 CƠ HỘI VIỆC LÀM HẤP DẪN</h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
-                    <div>✅ Kỹ sư cảng biển</div>
-                    <div>✅ Chuyên viên Logistics</div>
-                    <div>✅ Hoa tiêu hàng hải</div>
-                    <div>✅ Nhân viên bốc xếp</div>
-                    <div>✅ Kế toán trưởng</div>
-                    <div>✅ Nhân viên IT</div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;">
+                    <div>✅ Lái máy xúc lật: 03 </div>
+                    <div>✅ Lái cẩu Leebher: 03</div>
+                    <div>✅ Vận hành băng tải: 02</div>
+                    <div>✅ Điều độ: 02</div>
+                    <div>✅ Lao động phổ thông: 05</div>
+                    <div>✅ Trạm cân: 02</div>
                 </div>
                 <div style="margin-top: 25px; padding: 15px; background: #0f3b5c; border-radius: 12px;">
                     <p><i class="fas fa-envelope"></i> <strong>HR@honlaport.com.vn</strong> (Gửi CV kèm tiêu đề [Vị trí ứng tuyển])</p>
                     <p style="margin-top: 10px;"><i class="fas fa-phone-alt"></i> <strong>📞 0232.xxxx.xxx (Phòng Nhân sự)</strong></p>
-                    <p style="margin-top: 10px; font-size: 0.9rem;">📍 Địa điểm làm việc: Khu kinh tế Hòn La, Quảng Trạch, Quảng Bình</p>
+                    <p style="margin-top: 10px; font-size: 0.9rem;"><i class="fas fa-map-marker-alt"></i> 📍 Địa điểm làm việc: Khu kinh tế Hòn La, Quảng Trạch, Quảng Bình</p>
                 </div>
             </div>
-
-            <a href="#" class="btn-white" id="careerLink" style="margin-top: 30px;">📢 Xem chi tiết & Ứng tuyển ngay</a>
         </div>
     </section>
     
@@ -1565,14 +1566,35 @@ def show_landing_page():
             }});
         }}
         
-        // Career link
-        var careerLink = document.getElementById('careerLink');
-        if (careerLink) {{
-            careerLink.addEventListener('click', function(e) {{
+        // Career link - XỬ LÝ NÚT HIỆN CHI TIẾT TUYỂN DỤNG
+        var careerDetailBtn = document.getElementById('careerDetailBtn');
+        var careerDetailsDiv = document.getElementById('careerDetails');
+        
+        if (careerDetailBtn && careerDetailsDiv) {
+            careerDetailBtn.addEventListener('click', function(e) {
                 e.preventDefault();
-                alert('Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
-            }});
-        }}
+                // Kiểm tra trạng thái hiển thị
+                if (careerDetailsDiv.style.display === 'none' || careerDetailsDiv.style.display === '') {
+                    careerDetailsDiv.style.display = 'block';
+                    // Cuộn mượt đến phần vừa hiện ra
+                    setTimeout(function() {
+                        careerDetailsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 100);
+                } else {
+                    careerDetailsDiv.style.display = 'none';
+                }
+            });
+        }
+        
+        // Giữ lại xử lý cũ cho careerLink nếu có (để tránh lỗi)
+        var careerLink = document.getElementById('careerLink');
+        if (careerLink) {
+            careerLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                // Nếu nút này tồn tại, kích hoạt click vào nút mới
+                if (careerDetailBtn) careerDetailBtn.click();
+            });
+        }
         
         // Language switcher
         function switchLanguage(lang) {{
@@ -1597,7 +1619,7 @@ def show_landing_page():
     """
     
     # Render landing page
-    components.html(landing_html, height=4600, scrolling=False)
+    components.html(landing_html, height=4100, scrolling=False)
     
     # Nút HRM dùng components.html (giữ nguyên phần còn lại)
     hrm_html = """<!DOCTYPE html>

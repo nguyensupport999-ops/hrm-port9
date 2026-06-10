@@ -1566,35 +1566,35 @@ def show_landing_page():
             }});
         }}
         
-        // Career link - XỬ LÝ NÚT HIỆN CHI TIẾT TUYỂN DỤNG
+        // Career link - XỬ LÝ NÚT HIỆN CHI TIẾT TUYỂN DỤNG (ĐÃ SỬA LỖI F-STRING)
         var careerDetailBtn = document.getElementById('careerDetailBtn');
         var careerDetailsDiv = document.getElementById('careerDetails');
         
-        if (careerDetailBtn && careerDetailsDiv) {
-            careerDetailBtn.addEventListener('click', function(e) {
+        if (careerDetailBtn && careerDetailsDiv) {{
+            careerDetailBtn.addEventListener('click', function(e) {{
                 e.preventDefault();
                 // Kiểm tra trạng thái hiển thị
-                if (careerDetailsDiv.style.display === 'none' || careerDetailsDiv.style.display === '') {
+                if (careerDetailsDiv.style.display === 'none' || careerDetailsDiv.style.display === '') {{
                     careerDetailsDiv.style.display = 'block';
                     // Cuộn mượt đến phần vừa hiện ra
-                    setTimeout(function() {
-                        careerDetailsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    }, 100);
-                } else {
+                    setTimeout(function() {{
+                        careerDetailsDiv.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
+                    }}, 100);
+                }} else {{
                     careerDetailsDiv.style.display = 'none';
-                }
-            });
-        }
+                }}
+            }});
+        }}
         
         // Giữ lại xử lý cũ cho careerLink nếu có (để tránh lỗi)
         var careerLink = document.getElementById('careerLink');
-        if (careerLink) {
-            careerLink.addEventListener('click', function(e) {
+        if (careerLink) {{
+            careerLink.addEventListener('click', function(e) {{
                 e.preventDefault();
                 // Nếu nút này tồn tại, kích hoạt click vào nút mới
                 if (careerDetailBtn) careerDetailBtn.click();
-            });
-        }
+            }});
+        }}
         
         // Language switcher
         function switchLanguage(lang) {{

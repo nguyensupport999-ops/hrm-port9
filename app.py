@@ -1315,20 +1315,46 @@ def show_landing_page():
         </div>
     </section>
     
-    <!-- Careers -->
+    <!-- Careers - TUYỂN DỤNG CHI TIẾT -->
     <section id="careers" class="careers-section">
         <div class="reveal">
             <h2>{text.get('careers_title', 'GIA NHẬP ĐỘI NGŨ NHÂN SỰ CỦA CHÚNG TÔI')}</h2>
             <p>{text.get('careers_subtitle', 'Chúng tôi luôn tìm kiếm những nhân tài để cùng kiến tạo kỷ nguyên mới cho ngành hàng hải Việt Nam')}</p>
-            <a href="#" class="btn-white" id="careerLink">{text.get('careers_button', '📢 Xem cơ hội việc làm tại đây')}</a>
+            
+            <!-- Thông tin tuyển dụng chi tiết đã được thêm lại -->
+            <div style="max-width: 800px; margin: 40px auto 0; background: rgba(255,255,255,0.1); border-radius: 20px; padding: 30px; text-align: left;">
+                <h3 style="color: #f59e0b; margin-bottom: 20px;">📢 CƠ HỘI VIỆC LÀM HẤP DẪN</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                    <div>✅ Kỹ sư cảng biển</div>
+                    <div>✅ Chuyên viên Logistics</div>
+                    <div>✅ Hoa tiêu hàng hải</div>
+                    <div>✅ Nhân viên bốc xếp</div>
+                    <div>✅ Kế toán trưởng</div>
+                    <div>✅ Nhân viên IT</div>
+                </div>
+                <div style="margin-top: 25px; padding: 15px; background: #0f3b5c; border-radius: 12px;">
+                    <p><i class="fas fa-envelope"></i> <strong>HR@honlaport.com.vn</strong> (Gửi CV kèm tiêu đề [Vị trí ứng tuyển])</p>
+                    <p style="margin-top: 10px;"><i class="fas fa-phone-alt"></i> <strong>📞 0232.xxxx.xxx (Phòng Nhân sự)</strong></p>
+                    <p style="margin-top: 10px; font-size: 0.9rem;">📍 Địa điểm làm việc: Khu kinh tế Hòn La, Quảng Trạch, Quảng Bình</p>
+                </div>
+            </div>
+
+            <a href="#" class="btn-white" id="careerLink" style="margin-top: 30px;">📢 Xem chi tiết & Ứng tuyển ngay</a>
         </div>
     </section>
     
-    <!-- Footer -->
+    <!-- Footer - ĐẦY ĐỦ THÔNG TIN LIÊN HỆ -->
     <footer id="contact" class="footer">
         <div class="footer-grid">
-            <div class="footer-col"><h4 style="font-size:0.95rem; white-space:nowrap;">{text.get('footer_company', 'CÔNG TY CỔ PHẦN CẢNG HÒN LA')}</h4><p>Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình</p><p>📞 +84 896 682 528</p><p>📧 info@honlaport.com.vn</p><p>🌐 honlaport.com.vn</p></div>
-            <div class="footer-col"><h4>{text.get('footer_quick_links', 'Liên kết nhanh')}</h4>
+            <div class="footer-col">
+                <h4 style="font-size:0.95rem; white-space:nowrap;">{text.get('footer_company', 'CÔNG TY CỔ PHẦN CẢNG HÒN LA')}</h4>
+                <p><i class="fas fa-map-marker-alt"></i> Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình</p>
+                <p><i class="fas fa-phone-alt"></i> 📞 +84 896 682 528</p>
+                <p><i class="fas fa-envelope"></i> 📧 info@honlaport.com.vn</p>
+                <p><i class="fas fa-globe"></i> 🌐 honlaport.com.vn</p>
+            </div>
+            <div class="footer-col">
+                <h4>{text.get('footer_quick_links', 'Liên kết nhanh')}</h4>
                 <a class="nav-link" data-section="home">{text.get('nav_home', 'Trang chủ')}</a>
                 <a class="nav-link" data-section="about">{text.get('nav_about', 'Về chúng tôi')}</a>
                 <a class="nav-link" data-section="timeline">{text.get('nav_timeline', 'Dấu mốc phát triển')}</a>
@@ -1336,8 +1362,19 @@ def show_landing_page():
                 <a class="nav-link" data-section="infrastructure">{text.get('nav_infrastructure', 'Hạ tầng')}</a>
                 <a class="nav-link" data-section="careers">{text.get('nav_careers', 'Tuyển dụng')}</a>
             </div>
-            <div class="footer-col"><h4>{text.get('footer_support', 'Hỗ trợ')}</h4><a href="#">{text.get('footer_faq', 'Câu hỏi thường gặp')}</a><a href="#">{text.get('footer_privacy', 'Chính sách bảo mật')}</a><a href="#">{text.get('footer_terms', 'Điều khoản sử dụng')}</a></div>
-            <div class="footer-col"><h4>{text.get('footer_working_hours', 'Giờ làm việc')}</h4><p>🚢 {text.get('footer_working_hours_port', 'Bến cảng: 24/7')}</p><p>🏢 {text.get('footer_working_hours_office', 'Văn phòng: 7:30 - 17:00')}</p><p>📅 {text.get('footer_working_days', 'Thứ 2 - Thứ 7')}</p></div>
+            <div class="footer-col">
+                <h4>{text.get('footer_support', 'Hỗ trợ')}</h4>
+                <a href="#">{text.get('footer_faq', 'Câu hỏi thường gặp')}</a>
+                <a href="#">{text.get('footer_privacy', 'Chính sách bảo mật')}</a>
+                <a href="#">{text.get('footer_terms', 'Điều khoản sử dụng')}</a>
+            </div>
+            <div class="footer-col">
+                <h4>{text.get('footer_working_hours', 'Giờ làm việc')}</h4>
+                <p><i class="fas fa-ship"></i> 🚢 {text.get('footer_working_hours_port', 'Bến cảng: 24/7')}</p>
+                <p><i class="fas fa-building"></i> 🏢 {text.get('footer_working_hours_office', 'Văn phòng: 7:30 - 17:00')}</p>
+                <p><i class="fas fa-calendar-alt"></i> 📅 {text.get('footer_working_days', 'Thứ 2 - Thứ 7')}</p>
+                <p style="margin-top:15px;"><i class="fab fa-facebook"></i> <a href="https://www.facebook.com/profile.php?id=61586283052263" target="_blank">Fanpage Cảng Hòn La</a></p>
+            </div>
         </div>
         <div class="copyright">
             <p>© 2026 - Công ty Cổ phần Cảng Hòn La. All rights reserved.</p>

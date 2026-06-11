@@ -3772,12 +3772,13 @@ elif menu == "✅ Nhân viên":
                                                     """, (so_hd_moi, ngay_quyet_dinh, ngay_hieu_luc, ngay_bat_dau_bh, int(selected_nv['id'])))
                                                     
                                                     # Lưu quyết định chuyển đổi (có lưu kèm số HĐ cũ)
+                                                    
                                                     c.execute("""
                                                         INSERT INTO quyet_dinh_nhan_su (
                                                             nhan_vien_id, loai_quyet_dinh, ngay_quyet_dinh, ngay_hieu_luc,
                                                             noi_dung, so_quyet_dinh, loai_hop_dong_cu, loai_hop_dong_moi,
-                                                            he_so_luong_cu, he_so_luong_moi, so_hd_cu, so_hd_moi
-                                                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                                            he_so_luong_cu, he_so_luong_moi, so_hd_cu
+                                                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                                     """, (
                                                         int(selected_nv['id']),
                                                         'CHINH_THUC',
@@ -3789,8 +3790,7 @@ elif menu == "✅ Nhân viên":
                                                         'Không xác định thời hạn',
                                                         nv_data.get('he_so_luong', 0),
                                                         nv_data.get('he_so_luong', 0),
-                                                        so_hd_tv_cu,   # LƯU SỐ HĐTV CŨ
-                                                        so_hd_moi       # LƯU SỐ HĐLĐ MỚI
+                                                        so_hd_tv_cu   # CHỈ LƯU SỐ HĐ CŨ
                                                     ))
                                                     
                                                     # Cập nhật lịch sử công tác: kết thúc giai đoạn thử việc
@@ -4043,27 +4043,25 @@ elif menu == "✅ Nhân viên":
                                 da_chuyen_doi, quyet_dinh = da_chuyen_doi_chinh_thuc(nid)
                                 
                                 if da_chuyen_doi:
-                                    # Lấy quyết định chuyển đổi (đã có từ hàm da_chuyen_doi_chinh_thuc)
                                     if st.form_submit_button("🔄 XÓA QUYẾT ĐỊNH CHUYỂN ĐỔI", width='stretch', type="secondary"):
                                         try:
                                             db_xoa = get_connection()
                                             c_xoa = db_xoa.cursor()
                                             
-                                            # Lấy số HĐTV cũ từ bảng quyet_dinh_nhan_su (đã lưu khi chuyển đổi)
+                                            # Lấy số HĐTV cũ từ bảng quyet_dinh_nhan_su
                                             c_xoa.execute("""
-                                                SELECT so_hd_cu, so_hd_moi, ngay_hieu_luc 
+                                                SELECT so_hd_cu, ngay_hieu_luc 
                                                 FROM quyet_dinh_nhan_su 
                                                 WHERE nhan_vien_id = %s AND loai_quyet_dinh = 'CHINH_THUC'
                                                 ORDER BY ngay_quyet_dinh DESC LIMIT 1
                                             """, (nid,))
                                             qd_info = c_xoa.fetchone()
                                             
-                                            if qd_info and qd_info[0]:  # Có lưu số HĐ cũ
-                                                so_hd_tv_cu = qd_info[0]  # Số HĐTV cũ
-                                                so_hd_moi = qd_info[1]    # Số HĐLĐ mới
-                                                ngay_hieu_luc_cu = qd_info[2]  # Ngày hiệu lực của quyết định
-                                                
-                                                # Cập nhật lại nhân viên về trạng thái Thử việc với đúng số HĐ cũ
+                                            so_hd_tv_cu = qd_info[0] if qd_info and qd_info[0] else None
+                                            
+                                            # Nếu có so_hd_cu thì dùng, không thì fallback
+                                            if so_hd_tv_cu:
+                                                # Khôi phục với số HĐ cũ đã lưu
                                                 c_xoa.execute("""
                                                     UPDATE nhan_vien SET 
                                                         trang_thai = 'THU_VIEC',
@@ -4076,86 +4074,59 @@ elif menu == "✅ Nhân viên":
                                                     WHERE id = %s
                                                 """, (so_hd_tv_cu, nid))
                                                 
-                                                # Xóa quyết định chuyển đổi
-                                                c_xoa.execute("DELETE FROM quyet_dinh_nhan_su WHERE nhan_vien_id = %s AND loai_quyet_dinh = 'CHINH_THUC'", (nid,))
-                                                
-                                                # Xóa lịch sử HĐLĐ mới (Không xác định thời hạn)
-                                                c_xoa.execute("""
-                                                    DELETE FROM lich_su_cong_tac 
-                                                    WHERE nhan_vien_id = %s AND loai_hop_dong = 'Không xác định thời hạn'
-                                                """, (nid,))
-                                                
-                                                # Cập nhật lại lịch sử thử việc: đặt lại den_ngay = NULL
-                                                c_xoa.execute("""
-                                                    UPDATE lich_su_cong_tac 
-                                                    SET den_ngay = NULL,
-                                                        so_hop_dong = %s
-                                                    WHERE nhan_vien_id = %s AND loai_hop_dong = 'Thử việc'
-                                                """, (so_hd_tv_cu, nid))
-                                                
-                                                # Nếu không có bản ghi thử việc nào, tạo mới
-                                                if c_xoa.rowcount == 0:
-                                                    c_xoa.execute("""
-                                                        INSERT INTO lich_su_cong_tac (nhan_vien_id, tu_ngay, chuc_danh, phong_ban, noi_lam_viec, loai_hop_dong, he_so_luong, so_hop_dong)
-                                                        SELECT %s, ngay_vao_lam, chuc_danh_nghe, phong_ban_lam_viec, noi_lam_viec, 'Thử việc', he_so_luong, %s
-                                                        FROM nhan_vien WHERE id = %s
-                                                    """, (nid, so_hd_tv_cu, nid))
-                                                
-                                                db_xoa.commit()
-                                                db_xoa.close()
-                                                
-                                                st.success(f"✅ Đã xóa quyết định chuyển đổi!")
-                                                st.info(f"📄 Khôi phục số HĐTV: {so_hd_tv_cu}")
-                                                st.info(f"🗑️ Đã xóa số HĐLĐ: {so_hd_moi}")
-                                                
-                                                # Xóa session state và refresh
-                                                st.session_state[f'convert_open_{nid}'] = False
-                                                if 'selected_nv_id' in st.session_state:
-                                                    del st.session_state['selected_nv_id']
-                                                st.rerun()
+                                                st.success(f"✅ Đã khôi phục số HĐTV: {so_hd_tv_cu}")
                                                 
                                             else:
-                                                # Fallback: Nếu không tìm thấy trong quyet_dinh_nhan_su (dữ liệu cũ)
-                                                st.warning("⚠️ Không tìm thấy số HĐTV cũ trong quyết định. Đang thử khôi phục từ lịch sử...")
-                                                
-                                                # Thử lấy từ lich_su_cong_tac
+                                                # Fallback: tạo mới số HĐTV
+                                                st.warning("⚠️ Không tìm thấy số HĐTV cũ, đang tạo số mới...")
+                                                current_year = datetime.now().year
                                                 c_xoa.execute("""
-                                                    SELECT so_hop_dong FROM lich_su_cong_tac 
-                                                    WHERE nhan_vien_id = %s AND loai_hop_dong = 'Thử việc'
-                                                    ORDER BY tu_ngay ASC LIMIT 1
-                                                """, (nid,))
-                                                ls_info = c_xoa.fetchone()
+                                                    SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) 
+                                                    FROM nhan_vien WHERE so_hdld LIKE '%/HĐTV-CHL'
+                                                """)
+                                                max_tv = c_xoa.fetchone()[0] or 0
+                                                so_hd_tv_cu = f"{max_tv + 1:02d}/{current_year}/HĐTV-CHL"
                                                 
-                                                if ls_info and ls_info[0]:
-                                                    so_hd_tv_cu = ls_info[0]
-                                                    # Thực hiện khôi phục tương tự như trên...
-                                                    c_xoa.execute("""
-                                                        UPDATE nhan_vien SET 
-                                                            trang_thai = 'THU_VIEC',
-                                                            loai_hop_dong = 'Thử việc',
-                                                            so_hdld = %s,
-                                                            trang_thai_bhxh = 'CHUA_DONG',
-                                                            ngay_chinh_thuc = NULL,
-                                                            thang_bat_dau_bh = NULL
-                                                        WHERE id = %s
-                                                    """, (so_hd_tv_cu, nid))
-                                                    
-                                                    c_xoa.execute("DELETE FROM quyet_dinh_nhan_su WHERE nhan_vien_id = %s", (nid,))
-                                                    c_xoa.execute("DELETE FROM lich_su_cong_tac WHERE nhan_vien_id = %s AND loai_hop_dong = 'Không xác định thời hạn'", (nid,))
-                                                    
-                                                    db_xoa.commit()
-                                                    db_xoa.close()
-                                                    st.success(f"✅ Đã khôi phục (từ lịch sử) với số HĐTV: {so_hd_tv_cu}")
-                                                    st.rerun()
-                                                else:
-                                                    db_xoa.rollback()
-                                                    db_xoa.close()
-                                                    st.error("❌ Không thể khôi phục: Không tìm thấy số HĐTV cũ trong hệ thống!")
-                                                    
+                                                c_xoa.execute("""
+                                                    UPDATE nhan_vien SET 
+                                                        trang_thai = 'THU_VIEC',
+                                                        loai_hop_dong = 'Thử việc',
+                                                        so_hdld = %s,
+                                                        trang_thai_bhxh = 'CHUA_DONG',
+                                                        ngay_chinh_thuc = NULL,
+                                                        thang_bat_dau_bh = NULL
+                                                    WHERE id = %s
+                                                """, (so_hd_tv_cu, nid))
+                                            
+                                            # Xóa quyết định chuyển đổi
+                                            c_xoa.execute("DELETE FROM quyet_dinh_nhan_su WHERE nhan_vien_id = %s AND loai_quyet_dinh = 'CHINH_THUC'", (nid,))
+                                            
+                                            # Xóa lịch sử HĐLĐ mới
+                                            c_xoa.execute("""
+                                                DELETE FROM lich_su_cong_tac 
+                                                WHERE nhan_vien_id = %s AND loai_hop_dong = 'Không xác định thời hạn'
+                                            """, (nid,))
+                                            
+                                            # Cập nhật lịch sử thử việc
+                                            c_xoa.execute("""
+                                                UPDATE lich_su_cong_tac 
+                                                SET den_ngay = NULL
+                                                WHERE nhan_vien_id = %s AND loai_hop_dong = 'Thử việc'
+                                            """, (nid,))
+                                            
+                                            db_xoa.commit()
+                                            db_xoa.close()
+                                            
+                                            st.success("✅ Đã xóa quyết định chuyển đổi thành công!")
+                                            st.session_state[f'convert_open_{nid}'] = False
+                                            if 'selected_nv_id' in st.session_state:
+                                                del st.session_state['selected_nv_id']
+                                            st.rerun()
+                                            
                                         except Exception as e:
                                             db_xoa.rollback()
                                             db_xoa.close()
-                                            st.error(f"❌ Lỗi khi xóa quyết định chuyển đổi: {str(e)}")
+                                            st.error(f"❌ Lỗi: {str(e)}")
                         
                         # Nút hủy sửa (đặt ngoài form)
                         if st.button("❌ HỦY SỬA", width='stretch'):

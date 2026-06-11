@@ -1,10 +1,3 @@
-# ==================================================
-# FILE: app.py (Landing Page Redesigned)
-# Version: 2.0 - HonLa Port Interactive Landing Page
-# Description: Tích hợp câu chuyện lịch sử (21/3) và
-# thành tựu mới (tàu SUN GOLD 45.585 DWT)
-# ==================================================
-
 '''Tóm lại bài học rút ra từ ca này: khi HTML nằm trong components.html (iframe), việc giao tiếp với trang Streamlit cha luôn phải dùng window.top thay vì window.parent — đặc biệt trên Streamlit Cloud nơi có thể có nhiều tầng iframe lồng nhau. Và không bao giờ dùng replaceState rồi lại location.href cùng lúc vì chúng triệt tiêu nhau.
 Nếu sau này cần thêm tính năng hay gặp bug mới, cứ ping lại nhé!
 '''
@@ -34,37 +27,6 @@ import os
 import pathlib
 import streamlit.components.v1 as components
 import urllib.parse
-import unicodedata
-import re
-
-# ========== HÀM CHUẨN HÓA TÊN ĐƠN VỊ THỤ HƯỞNG ==========
-def normalize_name_to_beneficiary(name):
-    """
-    Chuyển đổi tên nhân viên thành tên đơn vị thụ hưởng:
-    - Viết hoa toàn bộ
-    - Bỏ dấu tiếng Việt
-    - Chỉ giữ 1 khoảng trắng giữa các từ
-    """
-    if not name:
-        return ''
-    
-    # Bỏ dấu tiếng Việt
-    name = unicodedata.normalize('NFKD', name)
-    name = ''.join([c for c in name if not unicodedata.combining(c)])
-    
-    # Chuyển thành chữ hoa
-    name = name.upper()
-    
-    # Thay thế Đ -> D (sau khi bỏ dấu)
-    name = name.replace('Đ', 'D')
-    
-    # Loại bỏ các ký tự đặc biệt, chỉ giữ chữ cái, số và khoảng trắng
-    name = re.sub(r'[^A-Z0-9\s]', '', name)
-    
-    # Chuẩn hóa khoảng trắng: xóa khoảng trắng đầu/cuối, chỉ giữ 1 khoảng trắng giữa các từ
-    name = ' '.join(name.split())
-    
-    return name
 
 # Xử lý đổi ngôn ngữ từ request
 def handle_language_change():
@@ -97,7 +59,7 @@ def handle_language_change():
 handle_language_change()
 
 def show_landing_page():
-    """Hiển thị Landing Page với bố cục hiện đại, tích hợp timeline và thành tựu"""
+    """Hiển thị Landing Page với chuyển ngữ Việt/Anh"""
     
     # Import languages
     try:
@@ -165,7 +127,7 @@ def show_landing_page():
         with open(logo_path, "rb") as f:
             logo_base64 = base64.b64encode(f.read()).decode()
     
-    # Đọc ảnh slider và các ảnh khác
+    # Đọc ảnh slider
     def load_img_b64(filename):
         path = os.path.join(os.path.dirname(__file__), "static", filename)
         if os.path.exists(path):
@@ -185,14 +147,227 @@ def show_landing_page():
     vi_active = 'active' if lang == 'vi' else ''
     en_active = 'active' if lang == 'en' else ''
     
-    # Nội dung HTML mới (đã được thiết kế lại hoàn toàn)
+    # JavaScript riêng biệt (không có {} để tránh xung đột)
+    landing_js = """
+    <script>
+        // Hàm cuộn mượt đến section bằng window.top
+        function scrollToSection(sectionId) {
+            var topWin = window.top || window.parent || window;
+            var targetElement = document.getElementById(sectionId);
+            if (targetElement) {
+                var targetRect = targetElement.getBoundingClientRect();
+                var offsetTop = targetRect.top + (topWin.scrollY || topWin.pageYOffset);
+                topWin.scrollTo({
+                    top: offsetTop - 80,
+                    behavior: 'smooth'
+                });
+            }
+        }
+        
+        function handleNavClick(e) {
+            e.preventDefault();
+            var section = this.getAttribute('data-section');
+            if (section) {
+                scrollToSection(section);
+            }
+        }
+        
+        function initNavigation() {
+            var navLinks = document.querySelectorAll('.nav-link');
+            for (var i = 0; i < navLinks.length; i++) {
+                navLinks[i].removeEventListener('click', handleNavClick);
+                navLinks[i].addEventListener('click', handleNavClick);
+            }
+        }
+        
+        // Slider
+        var currentSlide = 0;
+        var slides = document.querySelectorAll('.slide');
+        var dots = document.querySelectorAll('.slider-dot');
+        var totalSlides = slides.length;
+        var autoSlideInterval;
+        var progressInterval;
+        var progressValue = 0;
+        var SLIDE_DURATION = 5000;
+        var progressBar = document.getElementById('sliderProgress');
+        
+        function showSlide(index) {
+            for (var i = 0; i < slides.length; i++) {
+                slides[i].classList.remove('active');
+                if (dots[i]) dots[i].classList.remove('active');
+            }
+            slides[index].classList.add('active');
+            if (dots[index]) dots[index].classList.add('active');
+            currentSlide = index;
+            resetProgress();
+        }
+        
+        function nextSlide() {
+            showSlide((currentSlide + 1) % totalSlides);
+        }
+        
+        function prevSlide() {
+            showSlide((currentSlide - 1 + totalSlides) % totalSlides);
+        }
+        
+        function resetProgress() {
+            progressValue = 0;
+            if (progressBar) progressBar.style.width = '0%';
+        }
+        
+        function startProgress() {
+            if (progressInterval) clearInterval(progressInterval);
+            progressValue = 0;
+            progressInterval = setInterval(function() {
+                progressValue += 100 / (SLIDE_DURATION / 100);
+                if (progressBar) progressBar.style.width = Math.min(progressValue, 100) + '%';
+                if (progressValue >= 100) resetProgress();
+            }, 100);
+        }
+        
+        function startAutoSlide() {
+            if (autoSlideInterval) clearInterval(autoSlideInterval);
+            autoSlideInterval = setInterval(nextSlide, SLIDE_DURATION);
+            startProgress();
+        }
+        
+        if (totalSlides > 0) {
+            for (var i = 0; i < dots.length; i++) {
+                dots[i].addEventListener('click', (function(idx) {
+                    return function() {
+                        showSlide(idx);
+                        if (autoSlideInterval) clearInterval(autoSlideInterval);
+                        if (progressInterval) clearInterval(progressInterval);
+                        startAutoSlide();
+                    };
+                })(i));
+            }
+            
+            var prevBtn = document.getElementById('prevBtn');
+            var nextBtn = document.getElementById('nextBtn');
+            if (prevBtn) {
+                prevBtn.addEventListener('click', function() {
+                    prevSlide();
+                    if (autoSlideInterval) clearInterval(autoSlideInterval);
+                    if (progressInterval) clearInterval(progressInterval);
+                    startAutoSlide();
+                });
+            }
+            if (nextBtn) {
+                nextBtn.addEventListener('click', function() {
+                    nextSlide();
+                    if (autoSlideInterval) clearInterval(autoSlideInterval);
+                    if (progressInterval) clearInterval(progressInterval);
+                    startAutoSlide();
+                });
+            }
+            
+            var touchStartX = 0;
+            var heroSlider = document.querySelector('.hero-slider');
+            if (heroSlider) {
+                heroSlider.addEventListener('touchstart', function(e) {
+                    touchStartX = e.touches[0].clientX;
+                });
+                heroSlider.addEventListener('touchend', function(e) {
+                    var diff = touchStartX - e.changedTouches[0].clientX;
+                    if (Math.abs(diff) > 50) {
+                        diff > 0 ? nextSlide() : prevSlide();
+                        startAutoSlide();
+                    }
+                });
+            }
+            startAutoSlide();
+        }
+        
+        // Scroll reveal
+        var revealObserver = new IntersectionObserver(function(entries) {
+            entries.forEach(function(entry) {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    revealObserver.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.15 });
+        document.querySelectorAll('.reveal').forEach(function(el) {
+            revealObserver.observe(el);
+        });
+        
+        // Navbar scroll effect
+        window.addEventListener('scroll', function() {
+            var navbar = document.getElementById('navbar');
+            if (navbar) {
+                if (window.scrollY > 50) {
+                    navbar.style.background = 'rgba(15, 59, 92, 0.98)';
+                    navbar.style.boxShadow = '0 4px 20px rgba(0,0,0,0.2)';
+                } else {
+                    navbar.style.background = 'rgba(15, 59, 92, 0.95)';
+                    navbar.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+                }
+            }
+        });
+        
+        // Modal
+        var modal = document.getElementById('thuNgoModal');
+        var thuNgoBtn = document.getElementById('thuNgoBtn');
+        var closeModalBtn = document.getElementById('closeModalBtn');
+        
+        if (thuNgoBtn && modal) {
+            thuNgoBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            });
+            
+            var closeModal = function() {
+                modal.classList.remove('active');
+                document.body.style.overflow = '';
+            };
+            
+            if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) closeModal();
+            });
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && modal.classList.contains('active')) closeModal();
+            });
+        }
+        
+        // Career link
+        var careerLink = document.getElementById('careerLink');
+        if (careerLink) {
+            careerLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                alert('Vui lòng liên hệ HR qua email: hr@honlaport.com.vn');
+            });
+        }
+        
+        // Language switcher
+        function switchLanguage(lang) {
+            var topWin = window.top || window.parent || window;
+            var url = new URL(topWin.location.href);
+            url.searchParams.set('lang', lang);
+            topWin.history.replaceState(null, '', url.toString());
+            topWin.location.reload();
+        }
+        
+        // Khởi tạo navigation
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', function() {
+                initNavigation();
+            });
+        } else {
+            initNavigation();
+        }
+    </script>
+    """
+    
     landing_html = f"""
     <!DOCTYPE html>
     <html lang="{lang}">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-        <title>Cảng Quốc tế Hòn La - Cửa ngõ hàng hải chiến lược</title>
+        <title>Cảng Quốc tế Hòn La</title>
         <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
         <style>
@@ -232,7 +407,6 @@ def show_landing_page():
                 background: rgba(15, 59, 92, 0.95);
                 backdrop-filter: blur(10px);
                 box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                transition: all 0.3s ease;
             }}
             .nav-container {{
                 display: flex;
@@ -357,9 +531,40 @@ def show_landing_page():
                 color: #0f3b5c;
             }}
             
-            /* ===== HERO SLIDER MỚI - TỐI GIẢN & HIỆN ĐẠI ===== */
+            .dropdown {{
+                position: relative;
+            }}
+            .dropdown-content {{
+                display: none;
+                position: absolute;
+                background: white;
+                min-width: 200px;
+                box-shadow: 0 8px 16px rgba(0,0,0,0.1);
+                border-radius: 8px;
+                padding: 0.5rem 0;
+                top: 100%;
+                left: 0;
+                z-index: 1;
+            }}
+            .dropdown:hover .dropdown-content {{
+                display: block;
+            }}
+            .dropdown-content a {{
+                color: #333 !important;
+                padding: 8px 16px;
+                display: block;
+                font-size: 0.85rem;
+                background: transparent;
+                cursor: pointer;
+            }}
+            .dropdown-content a:hover {{
+                background: #f8fafc;
+                color: #f59e0b !important;
+            }}
+            
+            /* ===== HERO SLIDER ===== */
             .hero-slider {{
-                height: 650px;
+                height: 550px;
                 width: 100%;
                 position: relative;
                 overflow: hidden;
@@ -393,7 +598,7 @@ def show_landing_page():
                 justify-content: center;
             }}
             .slide-image {{
-                flex: 1.2;
+                flex: 1;
                 height: 100%;
                 background-size: cover;
                 background-position: center center;
@@ -401,35 +606,36 @@ def show_landing_page():
             }}
             .slide-content {{
                 flex: 1;
-                padding: 50px 60px;
+                padding: 50px 40px;
                 color: white;
                 z-index: 3;
-                text-align: left;
+                text-align: center;
             }}
             .slide-content h1 {{
-                font-size: 3.2rem;
+                font-size: 2.8rem;
                 font-weight: 800;
-                margin-bottom: 1.5rem;
-                letter-spacing: -1px;
+                margin-bottom: 1.2rem;
+                letter-spacing: -0.5px;
                 text-shadow: 0 2px 5px rgba(0,0,0,0.4);
                 line-height: 1.3;
             }}
             .slide-content p {{
-                font-size: 1.2rem;
-                margin-bottom: 1rem;
-                line-height: 1.6;
+                font-size: 1.15rem;
+                margin-bottom: 0.8rem;
+                line-height: 1.5;
                 text-shadow: 0 1px 3px rgba(0,0,0,0.3);
             }}
             .slide-content .highlight {{
-                font-size: 1rem;
+                font-size: clamp(0.85rem, 1.1vw, 1.2rem);
                 font-weight: 700;
                 color: #f59e0b;
-                margin-top: 1.5rem;
+                margin-top: 1.2rem;
                 display: inline-block;
                 background: rgba(0,0,0,0.25);
-                padding: 8px 20px;
+                padding: 6px 18px;
                 border-radius: 40px;
                 backdrop-filter: blur(4px);
+                white-space: nowrap;
             }}
             .slider-progress {{
                 position: absolute;
@@ -443,7 +649,7 @@ def show_landing_page():
             }}
             .slider-nav {{
                 position: absolute;
-                bottom: 30px;
+                bottom: 20px;
                 left: 50%;
                 transform: translateX(-50%);
                 display: flex;
@@ -471,14 +677,14 @@ def show_landing_page():
                 background: rgba(255,255,255,0.15);
                 border: 2px solid rgba(255,255,255,0.4);
                 color: white;
-                width: 50px;
-                height: 50px;
+                width: 45px;
+                height: 45px;
                 border-radius: 50%;
                 display: flex;
                 align-items: center;
                 justify-content: center;
                 cursor: pointer;
-                font-size: 1.4rem;
+                font-size: 1.2rem;
                 transition: all 0.3s;
                 backdrop-filter: blur(4px);
             }}
@@ -487,8 +693,8 @@ def show_landing_page():
                 border-color: #f59e0b;
                 color: #1e293b;
             }}
-            .slider-arrow.prev {{ left: 30px; }}
-            .slider-arrow.next {{ right: 30px; }}
+            .slider-arrow.prev {{ left: 20px; }}
+            .slider-arrow.next {{ right: 20px; }}
             
             /* ===== SCROLL REVEAL ===== */
             .reveal {{
@@ -499,81 +705,6 @@ def show_landing_page():
             .reveal.visible {{
                 opacity: 1;
                 transform: translateY(0);
-            }}
-            
-            /* ===== TIMELINE SECTION (MỚI) ===== */
-            .timeline-section {{
-                padding: 80px 30px;
-                background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
-            }}
-            .section-header {{
-                text-align: center;
-                margin-bottom: 60px;
-            }}
-            .section-header h2 {{
-                font-size: 2.5rem;
-                color: #0f3b5c;
-                font-weight: 700;
-                margin-bottom: 15px;
-            }}
-            .section-header p {{
-                color: #64748b;
-                font-size: 1.1rem;
-                max-width: 700px;
-                margin: 0 auto;
-            }}
-            .timeline {{
-                display: flex;
-                justify-content: space-between;
-                max-width: 1280px;
-                margin: 0 auto;
-                flex-wrap: wrap;
-                gap: 30px;
-            }}
-            .timeline-item {{
-                flex: 1;
-                background: white;
-                border-radius: 20px;
-                padding: 30px 25px;
-                text-align: center;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.05);
-                transition: all 0.3s;
-                border: 1px solid #e2e8f0;
-                position: relative;
-                overflow: hidden;
-            }}
-            .timeline-item::before {{
-                content: '';
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 4px;
-                background: linear-gradient(90deg, #f59e0b, #0f3b5c);
-            }}
-            .timeline-item:hover {{
-                transform: translateY(-8px);
-                box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            }}
-            .timeline-date {{
-                font-size: 2rem;
-                font-weight: 800;
-                color: #f59e0b;
-                margin-bottom: 15px;
-            }}
-            .timeline-icon {{
-                font-size: 2.5rem;
-                color: #0f3b5c;
-                margin-bottom: 15px;
-            }}
-            .timeline-item h3 {{
-                font-size: 1.4rem;
-                margin-bottom: 15px;
-                color: #0f3b5c;
-            }}
-            .timeline-item p {{
-                color: #64748b;
-                line-height: 1.6;
             }}
             
             /* ===== STATS SECTION ===== */
@@ -601,7 +732,7 @@ def show_landing_page():
             .stat-card:hover {{ transform: translateY(-5px); }}
             .stat-card:last-child {{ border-right: none; }}
             .stat-number {{
-                font-size: clamp(1.8rem, 2.5vw, 2.8rem);
+                font-size: clamp(1.4rem, 2.2vw, 2.4rem);
                 font-weight: 800;
                 color: #f59e0b;
                 margin-bottom: 8px;
@@ -609,69 +740,11 @@ def show_landing_page():
                 line-height: 1.2;
             }}
             .stat-label {{
-                font-size: clamp(0.75rem, 1vw, 0.9rem);
+                font-size: clamp(0.7rem, 1vw, 0.85rem);
                 text-transform: uppercase;
                 letter-spacing: 1px;
                 font-weight: 500;
                 white-space: nowrap;
-            }}
-            
-            /* ===== ACHIEVEMENT SECTION (THÀNH TỰU MỚI) ===== */
-            .achievement-section {{
-                padding: 80px 30px;
-                background: white;
-            }}
-            .achievement-grid {{
-                display: grid;
-                grid-template-columns: 1fr 1fr;
-                gap: 50px;
-                max-width: 1280px;
-                margin: 0 auto;
-                align-items: center;
-            }}
-            .achievement-badge {{
-                background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
-                display: inline-block;
-                padding: 5px 15px;
-                border-radius: 30px;
-                color: white;
-                font-weight: 600;
-                font-size: 0.8rem;
-                margin-bottom: 20px;
-            }}
-            .achievement-title {{
-                font-size: 2.2rem;
-                color: #0f3b5c;
-                margin-bottom: 20px;
-                font-weight: 700;
-            }}
-            .achievement-desc {{
-                color: #64748b;
-                line-height: 1.7;
-                margin-bottom: 25px;
-                font-size: 1.05rem;
-            }}
-            .achievement-stats {{
-                display: flex;
-                gap: 30px;
-                margin-top: 30px;
-            }}
-            .achievement-stat {{
-                text-align: center;
-            }}
-            .achievement-stat .number {{
-                font-size: 2rem;
-                font-weight: 800;
-                color: #f59e0b;
-            }}
-            .achievement-stat .label {{
-                font-size: 0.8rem;
-                color: #64748b;
-            }}
-            .achievement-img {{
-                width: 100%;
-                border-radius: 24px;
-                box-shadow: 0 20px 30px -15px rgba(0,0,0,0.15);
             }}
             
             /* ===== ABOUT & SERVICES ===== */
@@ -719,6 +792,14 @@ def show_landing_page():
                 padding: 80px 30px;                                         
                 background: white;
             }}
+            .section-header {{
+                text-align: center;
+                margin-bottom: 50px;
+            }}
+            .section-header h2 {{
+                font-size: 2.2rem;
+                color: #0f3b5c;
+            }}
             .services-grid {{
                 display: grid;
                 grid-template-columns: repeat(4, 1fr);
@@ -744,8 +825,6 @@ def show_landing_page():
                 color: #f59e0b;
                 margin-bottom: 20px;
             }}
-            
-            /* ===== INFRASTRUCTURE ===== */
             .infra-section {{
                 padding: 80px 30px;                                         
                 background: #f8fafc;
@@ -766,8 +845,6 @@ def show_landing_page():
                 font-size: 1.8rem;
                 color: #f59e0b;
             }}
-            
-            /* ===== CAREERS ===== */
             .careers-section {{
                 padding: 80px 30px;                                             
                 background: linear-gradient(135deg, #0f3b5c 0%, #1e4a76 100%);
@@ -784,11 +861,6 @@ def show_landing_page():
                 margin-top: 20px;
                 text-decoration: none;
                 cursor: pointer;
-                transition: all 0.3s;
-            }}
-            .btn-white:hover {{
-                transform: translateY(-3px);
-                box-shadow: 0 10px 20px rgba(0,0,0,0.2);
             }}
             
             /* ===== FOOTER ===== */
@@ -993,17 +1065,6 @@ def show_landing_page():
             }}
             
             /* ===== RESPONSIVE ===== */
-            @media (max-width: 992px) {{
-                .achievement-grid, .about-grid, .infra-grid {{
-                    grid-template-columns: 1fr;
-                }}
-                .services-grid {{
-                    grid-template-columns: repeat(2, 1fr);
-                }}
-                .timeline {{
-                    flex-direction: column;
-                }}
-            }}
             @media (max-width: 768px) {{
                 .slide-layout {{
                     flex-direction: column;
@@ -1015,7 +1076,6 @@ def show_landing_page():
                 }}
                 .slide-content {{
                     padding: 25px 20px;
-                    text-align: center;
                 }}
                 .slide-content h1 {{
                     font-size: 1.6rem;
@@ -1025,9 +1085,9 @@ def show_landing_page():
                 }}
                 .hero-slider {{
                     height: auto;
-                    min-height: 500px;
+                    min-height: 480px;
                 }}
-                .stats-grid, .footer-grid {{
+                .stats-grid, .about-grid, .services-grid, .infra-grid, .footer-grid {{
                     grid-template-columns: 1fr;
                 }}
                 .stat-card {{
@@ -1055,16 +1115,6 @@ def show_landing_page():
                 .nav-links .lang-switch {{
                     display: none;
                 }}
-                .services-grid {{
-                    grid-template-columns: 1fr;
-                }}
-                .section-header h2 {{
-                    font-size: 1.8rem;
-                }}
-                .achievement-stats {{
-                    flex-direction: column;
-                    gap: 15px;
-                }}
             }}
         </style>
     </head>
@@ -1078,24 +1128,17 @@ def show_landing_page():
             </div>
             <div class="nav-links">
                 <a class="nav-link" data-section="home">{text.get('nav_home', 'Trang chủ')}</a>
-                
-                <!-- Dropdown GIỚI THIỆU - chứa Về chúng tôi + Thư ngỏ -->
                 <div class="dropdown">
-                    <a class="nav-link" data-section="about" style="cursor: pointer;">
-                        {text.get('nav_about', 'Giới thiệu')} <i class="fas fa-chevron-down"></i>
-                    </a>
+                    <a class="nav-link" data-section="about">{text.get('nav_about', 'Giới thiệu')} <i class="fas fa-chevron-down"></i></a>
                     <div class="dropdown-content">
                         <a class="nav-link" data-section="about">{text.get('about_us', 'Về chúng tôi')}</a>
                         <a href="#" id="thuNgoBtn">{text.get('chairman_letter', 'Thư ngỏ của Chủ tịch HĐQT')}</a>
                     </div>
                 </div>
-                
-                <a class="nav-link" data-section="timeline">{text.get('nav_timeline', 'Dấu mốc phát triển')}</a>
                 <a class="nav-link" data-section="services">{text.get('nav_services', 'Dịch vụ')}</a>
                 <a class="nav-link" data-section="infrastructure">{text.get('nav_infrastructure', 'Vị trí & Hạ tầng')}</a>
                 <a class="nav-link" data-section="careers">{text.get('nav_careers', 'Tuyển dụng')}</a>
                 <a class="nav-link" data-section="contact">{text.get('nav_contact', 'Liên hệ')}</a>
-                
                 <span class="nav-divider">|</span>
                 <div class="lang-switch">
                     <a href="#" class="lang-link {vi_active}" onclick="switchLanguage('vi'); return false;">🇻🇳 VI</a>
@@ -1176,7 +1219,7 @@ def show_landing_page():
                     <div class="slide-content">
                         <h1>{text.get('hero_title_1', 'CẢNG TỔNG HỢP QUỐC TẾ HÒN LA')}</h1>
                         <p>{text.get('hero_desc_1_1', 'Chính thức khởi công ngày 21 tháng 3 năm 2025')}</p>
-                        <p>{text.get('hero_desc_1_2', 'Dự án trọng điểm Quốc gia, kỳ vọng kiến tạo kỷ nguyên mới cho hàng hải miền Trung')}</p>
+                        <p>{text.get('hero_desc_1_2', 'Đưa vào khai thác từ Tháng 5 năm 2026')}</p>
                         <div class="highlight">{text.get('hero_tag_1', '🚢 Cửa ngõ hàng hải chiến lược của Miền Trung')}</div>
                     </div>
                 </div>
@@ -1214,34 +1257,6 @@ def show_landing_page():
         <div class="slider-progress" id="sliderProgress"></div>
     </section>
     
-    <!-- Timeline Section - Dấu mốc phát triển (MỚI) -->
-    <section id="timeline" class="timeline-section">
-        <div class="section-header reveal">
-            <h2>{text.get('timeline_title', '📅 Dấu mốc phát triển')}</h2>
-            <p>{text.get('timeline_sub', 'Hành trình kiến tạo cảng biển tầm cỡ quốc tế')}</p>
-        </div>
-        <div class="timeline">
-            <div class="timeline-item reveal">
-                <div class="timeline-date">21/03/2025</div>
-                <div class="timeline-icon"><i class="fas fa-hard-hat"></i></div>
-                <h3>{text.get('timeline_groundbreak', 'KHỞI CÔNG DỰ ÁN')}</h3>
-                <p>{text.get('timeline_groundbreak_desc', 'Dự án trọng điểm Quốc gia chính thức khởi công, mở ra chương mới cho kinh tế hàng hải miền Trung.')}</p>
-            </div>
-            <div class="timeline-item reveal">
-                <div class="timeline-date">14/05/2026</div>
-                <div class="timeline-icon"><i class="fas fa-ship"></i></div>
-                <h3>{text.get('timeline_sungold', 'TIẾP NHẬN TÀU SUN GOLD')}</h3>
-                <p>{text.get('timeline_sungold_desc', 'Tiếp nhận thành công tàu SUN GOLD tải trọng 45.585 DWT - tàu có tải trọng lớn nhất từ trước đến nay, khẳng định năng lực khai thác vượt trội.')}</p>
-            </div>
-            <div class="timeline-item reveal">
-                <div class="timeline-date">05/2026</div>
-                <div class="timeline-icon"><i class="fas fa-check-circle"></i></div>
-                <h3>{text.get('timeline_operation', 'ĐƯA VÀO KHAI THÁC')}</h3>
-                <p>{text.get('timeline_operation_desc', 'Dự kiến đưa cảng vào khai thác chính thức, sẵn sàng phục vụ nhu cầu vận tải biển và hậu cần cảng biển.')}</p>
-            </div>
-        </div>
-    </section>
-    
     <!-- Statistics -->
     <section id="stats" class="stats-section">
         <div class="stats-grid">
@@ -1252,136 +1267,64 @@ def show_landing_page():
         </div>
     </section>
     
-    <!-- Achievement Section - Thành tựu nổi bật (MỚI từ Fanpage) -->
-    <section id="achievement" class="achievement-section">
-        <div class="achievement-grid">
-            <div class="reveal">
-                <span class="achievement-badge">{text.get('achievement_badge', 'THÀNH TỰU NỔI BẬT')}</span>
-                <h2 class="achievement-title">{text.get('achievement_title', 'Tiếp nhận thành công tàu trọng tải lớn SUN GOLD')}</h2>
-                <p class="achievement-desc">{text.get('achievement_desc', 'Vào ngày 14 tháng 5 năm 2026, Cảng tổng hợp quốc tế Hòn La đã ghi dấu cột mốc quan trọng khi chính thức tiếp nhận thành công tàu SUN GOLD với tải trọng 45.585 DWT - con tàu có tải trọng lớn nhất từ trước đến nay cập cảng. Sự kiện này khẳng định năng lực khai thác vượt trội và vị thế ngày càng được khẳng định của cảng trên bản đồ hàng hải khu vực.')}</p>
-                <div class="achievement-stats">
-                    <div class="achievement-stat">
-                        <div class="number">45.585</div>
-                        <div class="label">{text.get('achievement_dwt', 'DWT (Trọng tải)')}</div>
-                    </div>
-                    <div class="achievement-stat">
-                        <div class="number">14/05/2026</div>
-                        <div class="label">{text.get('achievement_date', 'Ngày cập cảng')}</div>
-                    </div>
-                    <div class="achievement-stat">
-                        <div class="number">100%</div>
-                        <div class="label">{text.get('achievement_success', 'Thành công')}</div>
-                    </div>
-                </div>
-            </div>
-            <div class="reveal">
-                <img src="{slide2_src}" alt="Tàu SUN GOLD tại Cảng Hòn La" class="achievement-img">
-            </div>
-        </div>
-    </section>
-    
     <!-- About -->
     <section id="about" class="about-section">
         <div class="about-grid">
-            <div class="reveal">
+            <div>
                 <div class="about-tag">{text.get('about_tag', 'CHÀO MỪNG ĐẾN VỚI CẢNG QUỐC TẾ HÒN LA')}</div>
                 <h2 class="about-title">{text.get('about_title', 'Cửa ngõ hàng hải chiến lược của Miền Trung')}</h2>
-                <p class="about-text">{text.get('about_text', 'Cảng tổng hợp Quốc tế Hòn La được đầu tư bài bản với hệ thống cơ sở hạ tầng đồng bộ, hiện đại, đáp ứng nhu cầu bốc xếp hàng hóa, trung chuyển container và đón tàu du lịch quốc tế. Với vị thế nằm trong Khu kinh tế Hòn La, cảng là điểm kết nối lý tưởng trên hành lang kinh tế Đông - Tây, mở ra cơ hội giao thương trực tiếp với các nước trong khu vực và toàn cầu.')}</p>
+                <p class="about-text">{text.get('about_text', 'Cảng tổng hợp Quốc tế Hòn La được đầu tư bài bản với hệ thống cơ sở hạ tầng đồng bộ, hiện đại, đáp ứng nhu cầu bốc xếp hàng hóa, trung chuyển container và đón tàu du lịch quốc tế.')}</p>
                 <div class="about-highlight"><i class="fas fa-trophy" style="color:#f59e0b"></i> <strong>{text.get('about_highlight', 'Dự án trọng điểm Quốc gia')}</strong></div>
             </div>
-            <div class="reveal"><img src="https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070" class="about-img"></div>
+            <div><img src="https://images.unsplash.com/photo-1562329264-a2c2d4112b8d?q=80&w=2070" class="about-img"></div>
         </div>
     </section>
     
     <!-- Services -->
     <section id="services" class="services-section">
-        <div class="section-header reveal">
-            <h2>{text.get('services_title', 'Dịch vụ của chúng tôi')}</h2>
-            <p>{text.get('services_sub', 'Giải pháp toàn diện cho mọi nhu cầu logistics và hàng hải')}</p>
-        </div>
+        <div class="section-header"><h2>{text.get('services_title', 'Dịch vụ của chúng tôi')}</h2></div>
         <div class="services-grid">
-            <div class="service-card reveal"><div class="service-icon"><i class="fas fa-ship"></i></div><h3>{text.get('service_bulk', 'Hàng rời & Hàng khô')}</h3><p>{text.get('service_bulk_desc', 'Bốc xếp hàng rời, hàng khô, hàng bao với năng suất cao')}</p></div>
-            <div class="service-card reveal"><div class="service-icon"><i class="fas fa-boxes"></i></div><h3>{text.get('service_container', 'Hàng container')}</h3><p>{text.get('service_container_desc', 'Khai thác container nội địa và quốc tế')}</p></div>
-            <div class="service-card reveal"><div class="service-icon"><i class="fas fa-umbrella-beach"></i></div><h3>{text.get('service_cruise', 'Du lịch tàu biển')}</h3><p>{text.get('service_cruise_desc', 'Đón tiếp tàu du lịch quốc tế lên đến 225.000 GT')}</p></div>
-            <div class="service-card reveal"><div class="service-icon"><i class="fas fa-warehouse"></i></div><h3>{text.get('service_logistics', 'Logistics & Kho bãi')}</h3><p>{text.get('service_logistics_desc', 'Hệ thống kho bãi rộng lớn, dịch vụ logistics trọn gói')}</p></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-ship"></i></div><h3>{text.get('service_bulk', 'Hàng rời & Hàng khô')}</h3></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-boxes"></i></div><h3>{text.get('service_container', 'Hàng container')}</h3></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-umbrella-beach"></i></div><h3>{text.get('service_cruise', 'Du lịch tàu biển')}</h3></div>
+            <div class="service-card"><div class="service-icon"><i class="fas fa-warehouse"></i></div><h3>{text.get('service_logistics', 'Logistics & Kho bãi')}</h3></div>
         </div>
     </section>
     
     <!-- Infrastructure -->
     <section id="infrastructure" class="infra-section">
         <div class="infra-grid">
-            <div class="reveal">
+            <div>
                 <div class="about-tag">{text.get('infra_tag', 'HẠ TẦNG & VỊ TRÍ')}</div>
                 <h2 class="about-title">{text.get('infra_title', 'Vị thế vàng trên bản đồ logistics')}</h2>
                 <div class="infra-feature"><i class="fas fa-map-marker-alt"></i><div><strong>Quảng Trạch, Quảng Bình</strong><br>{text.get('infra_location', 'Khu kinh tế Hòn La')}</div></div>
-                <div class="infra-feature"><i class="fas fa-road"></i><div><strong>{text.get('infra_connection', 'Kết nối hành lang Đông - Tây (EWEC)')}</strong><br>{text.get('infra_connection_desc', 'Cửa ngõ kết nối Việt Nam - Lào - Thái Lan - Myanmar')}</div></div>
-                <div class="infra-feature"><i class="fas fa-anchor"></i><div><strong>{text.get('infra_berths', '04 bến cấp tàu')}</strong><br>{text.get('infra_berths_desc', 'Tổng chiều dài 970m, đáp ứng tàu 70.000 DWT')}</div></div>
+                <div class="infra-feature"><i class="fas fa-road"></i><div><strong>{text.get('infra_connection', 'Kết nối hành lang Đông - Tây (EWEC)')}</strong></div></div>
+                <div class="infra-feature"><i class="fas fa-anchor"></i><div><strong>{text.get('infra_berths', '04 bến cấp tàu')}</strong><br>Tổng chiều dài 970m</div></div>
             </div>
-            <div class="reveal"><img src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070" class="about-img"></div>
+            <div><img src="https://images.unsplash.com/photo-1578575437130-527eed3abbec?q=80&w=2070" class="about-img"></div>
         </div>
     </section>
     
-    <!-- Careers - TUYỂN DỤNG CHI TIẾT (Dạng Collapsible / Click để hiện) -->
+    <!-- Careers -->
     <section id="careers" class="careers-section">
-        <div class="reveal">
-            <h2>{text.get('careers_title', 'GIA NHẬP ĐỘI NGŨ NHÂN SỰ CỦA CHÚNG TÔI')}</h2>
-            <p>{text.get('careers_subtitle', 'Chúng tôi luôn tìm kiếm những nhân tài để cùng kiến tạo kỷ nguyên mới cho ngành hàng hải Việt Nam')}</p>
-            
-            <!-- Nút xem chi tiết - Bấm vào sẽ hiện bảng thông tin -->
-            <a href="#" class="btn-white" id="careerDetailBtn" style="margin-top: 20px; display: inline-block;">📢 Xem chi tiết & Ứng tuyển ngay</a>
-
-            <!-- Phần nội dung chi tiết (bị ẩn ban đầu) -->
-            <div id="careerDetails" style="display: none; max-width: 800px; margin: 40px auto 0; background: rgba(255,255,255,0.1); border-radius: 20px; padding: 30px; text-align: left; transition: all 0.3s ease;">
-                <h3 style="color: #f59e0b; margin-bottom: 20px;">📢 CƠ HỘI VIỆC LÀM HẤP DẪN</h3>
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;">
-                    <div>✅ Lái máy xúc lật: 03 </div>
-                    <div>✅ Lái cẩu Leebher: 03</div>
-                    <div>✅ Vận hành băng tải: 02</div>
-                    <div>✅ Điều độ: 02</div>
-                    <div>✅ Lao động phổ thông: 05</div>
-                    <div>✅ Trạm cân: 02</div>
-                </div>
-                <div style="margin-top: 25px; padding: 15px; background: #0f3b5c; border-radius: 12px;">
-                    <p><i class="fas fa-envelope"></i> <strong>HR@honlaport.com.vn</strong> (Gửi CV kèm tiêu đề [Vị trí ứng tuyển])</p>
-                    <p style="margin-top: 10px;"><i class="fas fa-phone-alt"></i> <strong>📞 0232.xxxx.xxx (Phòng Nhân sự)</strong></p>
-                    <p style="margin-top: 10px; font-size: 0.9rem;"><i class="fas fa-map-marker-alt"></i> 📍 Địa điểm làm việc: Khu kinh tế Hòn La, Quảng Trạch, Quảng Bình</p>
-                </div>
-            </div>
-        </div>
+        <h2>{text.get('careers_title', 'GIA NHẬP ĐỘI NGŨ NHÂN SỰ CỦA CHÚNG TÔI')}</h2>
+        <p>{text.get('careers_subtitle', 'Chúng tôi luôn tìm kiếm những nhân tài')}</p>
+        <a href="#" class="btn-white" id="careerLink">{text.get('careers_button', '📢 Xem cơ hội việc làm tại đây')}</a>
     </section>
     
-    <!-- Footer - ĐẦY ĐỦ THÔNG TIN LIÊN HỆ -->
+    <!-- Footer -->
     <footer id="contact" class="footer">
         <div class="footer-grid">
-            <div class="footer-col">
-                <h4 style="font-size:0.95rem; white-space:nowrap;">{text.get('footer_company', 'CÔNG TY CỔ PHẦN CẢNG HÒN LA')}</h4>
-                <p><i class="fas fa-map-marker-alt"></i> Khu kinh tế Hòn La, Xã Quảng Đông, Huyện Quảng Trạch, Tỉnh Quảng Bình</p>
-                <p><i class="fas fa-phone-alt"></i> 📞 +84 896 682 528</p>
-                <p><i class="fas fa-envelope"></i> 📧 info@honlaport.com.vn</p>
-                <p><i class="fas fa-globe"></i> 🌐 honlaport.com.vn</p>
-            </div>
-            <div class="footer-col">
-                <h4>{text.get('footer_quick_links', 'Liên kết nhanh')}</h4>
+            <div class="footer-col"><h4 style="font-size:0.95rem; white-space:nowrap;">{text.get('footer_company', 'CÔNG TY CỔ PHẦN CẢNG HÒN LA')}</h4><p>Khu kinh tế Hòn La, Xã Phú Trạch, Tỉnh Quảng Trị</p><p>📞 0232.xxxx.xxx</p><p>📧 info@honlaport.com.vn</p></div>
+            <div class="footer-col"><h4>{text.get('footer_quick_links', 'Liên kết nhanh')}</h4>
                 <a class="nav-link" data-section="home">{text.get('nav_home', 'Trang chủ')}</a>
                 <a class="nav-link" data-section="about">{text.get('nav_about', 'Về chúng tôi')}</a>
-                <a class="nav-link" data-section="timeline">{text.get('nav_timeline', 'Dấu mốc phát triển')}</a>
                 <a class="nav-link" data-section="services">{text.get('nav_services', 'Dịch vụ')}</a>
                 <a class="nav-link" data-section="infrastructure">{text.get('nav_infrastructure', 'Hạ tầng')}</a>
                 <a class="nav-link" data-section="careers">{text.get('nav_careers', 'Tuyển dụng')}</a>
             </div>
-            <div class="footer-col">
-                <h4>{text.get('footer_support', 'Hỗ trợ')}</h4>
-                <a href="#">{text.get('footer_faq', 'Câu hỏi thường gặp')}</a>
-                <a href="#">{text.get('footer_privacy', 'Chính sách bảo mật')}</a>
-                <a href="#">{text.get('footer_terms', 'Điều khoản sử dụng')}</a>
-            </div>
-            <div class="footer-col">
-                <h4>{text.get('footer_working_hours', 'Giờ làm việc')}</h4>
-                <p><i class="fas fa-ship"></i> 🚢 {text.get('footer_working_hours_port', 'Bến cảng: 24/7')}</p>
-                <p><i class="fas fa-building"></i> 🏢 {text.get('footer_working_hours_office', 'Văn phòng: 7:30 - 17:00')}</p>
-                <p><i class="fas fa-calendar-alt"></i> 📅 {text.get('footer_working_days', 'Thứ 2 - Thứ 7')}</p>
-                <p style="margin-top:15px;"><i class="fab fa-facebook"></i> <a href="https://www.facebook.com/profile.php?id=61586283052263" target="_blank">Fanpage Cảng Hòn La</a></p>
-            </div>
+            <div class="footer-col"><h4>{text.get('footer_support', 'Hỗ trợ')}</h4><a href="#">{text.get('footer_faq', 'Câu hỏi thường gặp')}</a><a href="#">{text.get('footer_privacy', 'Chính sách bảo mật')}</a><a href="#">{text.get('footer_terms', 'Điều khoản sử dụng')}</a></div>
+            <div class="footer-col"><h4>{text.get('footer_working_hours', 'Giờ làm việc')}</h4><p>🚢 {text.get('footer_working_hours_port', 'Bến cảng: 24/7')}</p><p>🏢 {text.get('footer_working_hours_office', 'Văn phòng: 7:30 - 17:00')}</p><p>📅 {text.get('footer_working_days', 'Thứ 2 - Thứ 7')}</p></div>
         </div>
         <div class="copyright">
             <p>© 2026 - Công ty Cổ phần Cảng Hòn La. All rights reserved.</p>
@@ -1389,243 +1332,13 @@ def show_landing_page():
         </div>
     </footer>
     
-    <script>
-        // Hàm cuộn mượt đến section bằng window.top
-        function scrollToSection(sectionId) {{
-            var topWin = window.top || window.parent || window;
-            var targetElement = document.getElementById(sectionId);
-            if (targetElement) {{
-                var targetRect = targetElement.getBoundingClientRect();
-                var offsetTop = targetRect.top + (topWin.scrollY || topWin.pageYOffset);
-                topWin.scrollTo({{
-                    top: offsetTop - 80,
-                    behavior: 'smooth'
-                }});
-            }}
-        }}
-        
-        function handleNavClick(e) {{
-            e.preventDefault();
-            var section = this.getAttribute('data-section');
-            if (section) {{
-                scrollToSection(section);
-            }}
-        }}
-        
-        function initNavigation() {{
-            var navLinks = document.querySelectorAll('.nav-link');
-            for (var i = 0; i < navLinks.length; i++) {{
-                navLinks[i].removeEventListener('click', handleNavClick);
-                navLinks[i].addEventListener('click', handleNavClick);
-            }}
-        }}
-        
-        // Slider
-        var currentSlide = 0;
-        var slides = document.querySelectorAll('.slide');
-        var dots = document.querySelectorAll('.slider-dot');
-        var totalSlides = slides.length;
-        var autoSlideInterval;
-        var progressInterval;
-        var progressValue = 0;
-        var SLIDE_DURATION = 5000;
-        var progressBar = document.getElementById('sliderProgress');
-        
-        function showSlide(index) {{
-            for (var i = 0; i < slides.length; i++) {{
-                slides[i].classList.remove('active');
-                if (dots[i]) dots[i].classList.remove('active');
-            }}
-            slides[index].classList.add('active');
-            if (dots[index]) dots[index].classList.add('active');
-            currentSlide = index;
-            resetProgress();
-        }}
-        
-        function nextSlide() {{
-            showSlide((currentSlide + 1) % totalSlides);
-        }}
-        
-        function prevSlide() {{
-            showSlide((currentSlide - 1 + totalSlides) % totalSlides);
-        }}
-        
-        function resetProgress() {{
-            progressValue = 0;
-            if (progressBar) progressBar.style.width = '0%';
-        }}
-        
-        function startProgress() {{
-            if (progressInterval) clearInterval(progressInterval);
-            progressValue = 0;
-            progressInterval = setInterval(function() {{
-                progressValue += 100 / (SLIDE_DURATION / 100);
-                if (progressBar) progressBar.style.width = Math.min(progressValue, 100) + '%';
-                if (progressValue >= 100) resetProgress();
-            }}, 100);
-        }}
-        
-        function startAutoSlide() {{
-            if (autoSlideInterval) clearInterval(autoSlideInterval);
-            autoSlideInterval = setInterval(nextSlide, SLIDE_DURATION);
-            startProgress();
-        }}
-        
-        if (totalSlides > 0) {{
-            for (var i = 0; i < dots.length; i++) {{
-                dots[i].addEventListener('click', (function(idx) {{
-                    return function() {{
-                        showSlide(idx);
-                        if (autoSlideInterval) clearInterval(autoSlideInterval);
-                        if (progressInterval) clearInterval(progressInterval);
-                        startAutoSlide();
-                    }};
-                }})(i));
-            }}
-            
-            var prevBtn = document.getElementById('prevBtn');
-            var nextBtn = document.getElementById('nextBtn');
-            if (prevBtn) {{
-                prevBtn.addEventListener('click', function() {{
-                    prevSlide();
-                    if (autoSlideInterval) clearInterval(autoSlideInterval);
-                    if (progressInterval) clearInterval(progressInterval);
-                    startAutoSlide();
-                }});
-            }}
-            if (nextBtn) {{
-                nextBtn.addEventListener('click', function() {{
-                    nextSlide();
-                    if (autoSlideInterval) clearInterval(autoSlideInterval);
-                    if (progressInterval) clearInterval(progressInterval);
-                    startAutoSlide();
-                }});
-            }}
-            
-            var touchStartX = 0;
-            var heroSlider = document.querySelector('.hero-slider');
-            if (heroSlider) {{
-                heroSlider.addEventListener('touchstart', function(e) {{
-                    touchStartX = e.touches[0].clientX;
-                }});
-                heroSlider.addEventListener('touchend', function(e) {{
-                    var diff = touchStartX - e.changedTouches[0].clientX;
-                    if (Math.abs(diff) > 50) {{
-                        diff > 0 ? nextSlide() : prevSlide();
-                        startAutoSlide();
-                    }}
-                }});
-            }}
-            startAutoSlide();
-        }}
-        
-        // Scroll reveal
-        var revealObserver = new IntersectionObserver(function(entries) {{
-            entries.forEach(function(entry) {{
-                if (entry.isIntersecting) {{
-                    entry.target.classList.add('visible');
-                    revealObserver.unobserve(entry.target);
-                }}
-            }});
-        }}, {{ threshold: 0.15 }});
-        document.querySelectorAll('.reveal').forEach(function(el) {{
-            revealObserver.observe(el);
-        }});
-        
-        // Navbar scroll effect
-        window.addEventListener('scroll', function() {{
-            var navbar = document.getElementById('navbar');
-            if (navbar) {{
-                if (window.scrollY > 50) {{
-                    navbar.style.background = 'rgba(15, 59, 92, 0.98)';
-                    navbar.style.boxShadow = '0 4px 20px rgba(0,0,0,0.2)';
-                }} else {{
-                    navbar.style.background = 'rgba(15, 59, 92, 0.95)';
-                    navbar.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-                }}
-            }}
-        }});
-        
-        // Modal
-        var modal = document.getElementById('thuNgoModal');
-        var thuNgoBtn = document.getElementById('thuNgoBtn');
-        var closeModalBtn = document.getElementById('closeModalBtn');
-        
-        if (thuNgoBtn && modal) {{
-            thuNgoBtn.addEventListener('click', function(e) {{
-                e.preventDefault();
-                modal.classList.add('active');
-                document.body.style.overflow = 'hidden';
-            }});
-            
-            var closeModal = function() {{
-                modal.classList.remove('active');
-                document.body.style.overflow = '';
-            }};
-            
-            if (closeModalBtn) closeModalBtn.addEventListener('click', closeModal);
-            modal.addEventListener('click', function(e) {{
-                if (e.target === modal) closeModal();
-            }});
-            document.addEventListener('keydown', function(e) {{
-                if (e.key === 'Escape' && modal.classList.contains('active')) closeModal();
-            }});
-        }}
-        
-        // Career link - XỬ LÝ NÚT HIỆN CHI TIẾT TUYỂN DỤNG (ĐÃ SỬA LỖI F-STRING)
-        var careerDetailBtn = document.getElementById('careerDetailBtn');
-        var careerDetailsDiv = document.getElementById('careerDetails');
-        
-        if (careerDetailBtn && careerDetailsDiv) {{
-            careerDetailBtn.addEventListener('click', function(e) {{
-                e.preventDefault();
-                // Kiểm tra trạng thái hiển thị
-                if (careerDetailsDiv.style.display === 'none' || careerDetailsDiv.style.display === '') {{
-                    careerDetailsDiv.style.display = 'block';
-                    // Cuộn mượt đến phần vừa hiện ra
-                    setTimeout(function() {{
-                        careerDetailsDiv.scrollIntoView({{ behavior: 'smooth', block: 'start' }});
-                    }}, 100);
-                }} else {{
-                    careerDetailsDiv.style.display = 'none';
-                }}
-            }});
-        }}
-        
-        // Giữ lại xử lý cũ cho careerLink nếu có (để tránh lỗi)
-        var careerLink = document.getElementById('careerLink');
-        if (careerLink) {{
-            careerLink.addEventListener('click', function(e) {{
-                e.preventDefault();
-                // Nếu nút này tồn tại, kích hoạt click vào nút mới
-                if (careerDetailBtn) careerDetailBtn.click();
-            }});
-        }}
-        
-        // Language switcher
-        function switchLanguage(lang) {{
-            var topWin = window.top || window.parent || window;
-            var url = new URL(topWin.location.href);
-            url.searchParams.set('lang', lang);
-            topWin.history.replaceState(null, '', url.toString());
-            topWin.location.reload();
-        }}
-        
-        // Khởi tạo navigation
-        if (document.readyState === 'loading') {{
-            document.addEventListener('DOMContentLoaded', function() {{
-                initNavigation();
-            }});
-        }} else {{
-            initNavigation();
-        }}
-    </script>
+    {landing_js}
     </body>
     </html>
     """
     
     # Render landing page
-    components.html(landing_html, height=4600, scrolling=False)
+    components.html(landing_html, height=3150, scrolling=False)
     
     # Nút HRM dùng components.html (giữ nguyên phần còn lại)
     hrm_html = """<!DOCTYPE html>
@@ -2516,52 +2229,6 @@ def tao_bao_cao_tang_giam(tang_list, giam_list, tu_ngay, den_ngay):
     doc.save(tf.name)
     return tf.name
     
-# ========== DANH SÁCH NGÂN HÀNG (HARDCODE) ==========
-# Lấy từ file ten_ngan_hang.xlsx ngày 09/06/2026
-BANK_LIST = [
-    "MB - Ngan hang TMCP Quan Doi",
-    "TCB - Ngan hang TMCP Ky Thuong Viet Nam",
-    "ABBANK - Ngan hang TMCP An Binh",
-    "VIB - Ngan hang TMCP Quoc Te",
-    "EIB - Ngan hang TMCP Xuat Nhap Khau Viet Nam",
-    "MSB - Ngan hang TMCP Hang Hai Viet Nam",
-    "SHB - Ngan hang TMCP Sai Gon - Ha Noi",
-    "TPB - Ngan hang TMCP Tien Phong",
-    "GPB - Ngan hang TM TNHH MTV Dau Khi Toan Cau",
-    "HDB - Ngan hang TMCP Phat trien TP Ho Chi Minh",
-    "MBV - Ngan hang TNHH MTV Viet Nam Hien Dai",
-    "BVB - Ngan hang TMCP Bao Viet",
-    "NCB - Ngan hang TMCP Quoc Dan",
-    "BIDV - Ngan hang TMCP Dau Tu va Phat trien Viet Nam",
-    "VPB - Ngan hang TMCP Viet Nam Thinh Vuong",
-    "VAB - Ngan hang TMCP Viet A",
-    "OCB - Ngan hang TMCP Phuong Dong",
-    "VIETINBANK - Ngan hang TMCP Cong Thuong Viet Nam",
-    "SEAB - Ngan hang TMCP Dong Nam A",
-    "SCB - Ngan hang TMCP Sai Gon",
-    "LPB - Ngan hang TMCP Buu Dien Lien Viet",
-    "NASB - Ngan hang TMCP Bac A",
-    "VBA - Ngan hang Nong Nghiep va Phat Trien Nong Thon Viet Nam",
-    "SGB - Ngan hang TMCP Sai Gon Cong Thuong",
-    "VIETBANK - Ngan hang TMCP Viet Nam Thuong Tin",
-    "VCCB - Ngan hang TMCP Ban Viet",
-    "KLB - Ngan hang TMCP Kien Long",
-    "PGB - Ngan hang TMCP Xang Dau Petrolimex",
-    "PVC - Ngan hang TMCP Dai Chung Viet Nam",
-    "VRB - Ngan hang Lien Doanh Viet - Nga",
-    "ACB - Ngan hang TMCP A Chau",
-    "ANZ - Ngan hang TNHH MTV ANZ (Viet Nam)",
-    "CSXH - Ngan hang Chinh sach Xa hoi",
-    "VCB - Ngan hang TMCP Ngoai Thuong Viet Nam",
-    "VDB - Ngan hang Phat trien Viet Nam",
-    "NAMABANK - Ngan hang TMCP Nam A",
-    "STB - Ngan hang TMCP Sai Gon Thuong Tin"
-]
-
-def get_bank_list():
-    """Trả về danh sách ngân hàng (hardcode từ file ten_ngan_hang.xlsx)"""
-    return BANK_LIST.copy()
-
 # ========== SIDEBAR + LOGIN ==========
 st.sidebar.title("🏗️ HRM-Port")
 st.sidebar.caption("Quản lý nhân sự cảng biển")
@@ -2618,9 +2285,9 @@ if not st.session_state.logged_in:
     
 # Menu theo role
 if st.session_state.role == "admin":
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI","👆 Chấm công (Face ID)","💰 Tính thu nhập","🔍 Tìm ứng viên"]
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI","👆 Chấm công (Face ID)","💰 Tính thu nhập"]
 else:  # viewer
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo 01/PLI","👆 Chấm công (Face ID)","💰 Tính thu nhập","🔍 Tìm ứng viên"]
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo 01/PLI","👆 Chấm công (Face ID)","💰 Tính thu nhập"]
 menu = st.sidebar.radio("📋 Menu", menu_options)
 st.sidebar.divider()
 st.sidebar.caption(f"👤 {st.session_state.username} ({st.session_state.role})")
@@ -2806,6 +2473,7 @@ if menu == "📊 Dashboard":
                 </div>
                 """, unsafe_allow_html=True)
                 
+                # Hiển thị thông tin liên hệ
                 # Hiển thị thông tin liên hệ (tất cả đều thấy)
                 col_phone, col_email_info = st.columns(2)
                 with col_phone:
@@ -2830,7 +2498,7 @@ if menu == "📊 Dashboard":
                                          key=f"zalo_sn_{sn['id']}", 
                                          width='stretch', 
                                          type="primary"):
-                                tuoi_nv = date.today().year - sn['ngay_sinh'].year                                
+                                tuoi_nv = date.today().year - sn['ngay_sinh'].year
                                 loi_chuc_nv = get_loi_chuc_sinh_nhat(sn['ho_ten'], sn.get('gioi_tinh'), tuoi_nv)
                                 st.code(loi_chuc_nv)
                                 st.markdown(f"[👉 NHẤN ĐỂ GỬI QUA ZALO CHO {sn['ho_ten']}](https://zalo.me/{sdt})")
@@ -3188,9 +2856,6 @@ elif menu == "👤 Ứng viên":
         dschucdanh = [row[0] for row in c_chuc.fetchall()]
         db_chuc.close()
         
-        # Lấy danh sách ngân hàng cho dropdown
-        bank_list = get_bank_list()
-        
         with st.form("chuyen_uv_to_nv_form"):
             st.markdown(f"**Ứng viên:** {uv_data.get('ho_ten', '')}")
             
@@ -3241,8 +2906,7 @@ elif menu == "👤 Ứng viên":
             col7, col8, col9 = st.columns(3)
             with col7:
                 stk_chuyen = st.text_input("STK")
-                # Thay text_input bằng selectbox cho chi nhánh ngân hàng
-                cnh_chuyen = st.selectbox("Chi nhánh NH", options=[""] + bank_list, key="bank_chuyen")
+                chi_nhanh_nh_chuyen = st.text_input("Chi nhánh NH")
                 tinh_kcb_chuyen = st.text_input("Tỉnh KCB")
                 noi_kcb_chuyen = st.text_input("Nơi KCB")
             with col8:
@@ -3257,9 +2921,6 @@ elif menu == "👤 Ứng viên":
             with col_confirm1:
                 if st.form_submit_button("✅ XÁC NHẬN CHUYỂN", width='stretch', type="primary"):
                     if ho_ten_nv:
-                        # Tạo tên đơn vị thụ hưởng
-                        ten_don_vi_thu_huong = normalize_name_to_beneficiary(ho_ten_nv)
-                        
                         # Kiểm tra định dạng ngày
                         ngay_loi = []
                         if ngay_sinh_nv and not parse_date(ngay_sinh_nv): 
@@ -3314,7 +2975,7 @@ elif menu == "👤 Ứng viên":
                                     so_hd_cnt = c.fetchone()[0] or 0
                                     so_hd = f"{so_hd_cnt + 1:02d}/{nhl.year}/HĐLĐ-CHL"
                                 
-                                # Thêm nhân viên mới - ĐÃ THÊM ten_don_vi_thu_huong
+                                # Thêm nhân viên mới
                                 c.execute("""
                                     INSERT INTO nhan_vien (STT, ma_nv, so_hdld, ho_ten, chuc_danh_nghe, 
                                         ngay_sinh, gioi_tinh, so_cccd, ngay_cap_cccd, noi_cap_cccd,
@@ -3326,24 +2987,24 @@ elif menu == "👤 Ứng viên":
                                         he_so_luong, phu_cap_chuc_vu, phu_cap_tnvk, phu_cap_tnn,
                                         muc_huong_bhyt, ty_le_dong, muc_tien_dong, phuong_thuc_dong,
                                         tinh_nhan_hs, phuong_nhan_hs, dia_chi_nhan_hs, 
-                                        tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so, ten_don_vi_thu_huong)
+                                        tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so)
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                     RETURNING id
                                 """, (
                                     stt_moi, ma_nv, so_hd, ho_ten_nv, chuc_danh_nv,
                                     parse_date(ngay_sinh_nv), gioi_tinh_nv, so_cccd_nv, parse_date(ngay_cap_cccd_nv), noi_cap_cccd_nv,
                                     nguyen_quan_nv, thuong_tru_nv, dien_thoai_nv, email_nv, email_nv, ho_so_chuyen,
                                     luong_bh_chuyen, ma_bhxh_chuyen, ngay_vao_lam_chuyen, noi_lam_viec_nv,
-                                    stk_chuyen, cnh_chuyen, ngay_vao_lam_chuyen, loai_hd_chuyen,
+                                    stk_chuyen, chi_nhanh_nh_chuyen, ngay_vao_lam_chuyen, loai_hd_chuyen,
                                     nhom_bhxh_chuyen, tbd_val, parse_date(ngay_ket_thuc_chuyen), trang_thai_nv, trang_thai_bhxh,
                                     phong_ban_nv, parse_date(ngay_ket_thuc_chuyen), quoc_tich_nv, dan_toc_nv,
                                     to_float_or_none(he_so_luong_chuyen), to_float_or_none(pc_chuc_vu_chuyen),
                                     to_float_or_none(pc_tnvk_chuyen), to_float_or_none(pc_tnn_chuyen),
                                     muc_huong_bhyt_chuyen, to_float_or_none(ty_le_dong_chuyen), to_float_or_none(muc_tien_dong_chuyen),
                                     phuong_thuc_dong_chuyen, tinh_nhan_hs_chuyen, phuong_nhan_hs_chuyen, dia_chi_nhan_hs_chuyen,
-                                    tinh_kcb_chuyen, noi_kcb_chuyen, dk_nhan_so_chuyen, ten_don_vi_thu_huong
+                                    tinh_kcb_chuyen, noi_kcb_chuyen, dk_nhan_so_chuyen
                                 ))
                                 nhan_vien_id_moi = c.fetchone()[0]
                                 # Cập nhật trạng thái ứng viên
@@ -3671,83 +3332,71 @@ elif menu == "✅ Nhân viên":
         
         if st.session_state.role == "admin":
             with st.expander("➕ THÊM NHÂN VIÊN MỚI", expanded=False):
-                # Dùng key động để reset form
-                form_key = st.session_state.get('add_nv_form_key', 0)
-                
-                with st.form(key=f"add_nv_form_{form_key}"):
+                with st.form("add_nv"):
                     db = get_connection()
                     c = db.cursor()
                     c.execute("SELECT DISTINCT ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
                     dcv = [row[0] for row in c.fetchall()]
                     db.close()
-                    
                     st.caption("📝 Thông tin cá nhân")
                     c1, c2, c3 = st.columns(3)
                     with c1:
-                        htn = st.text_input("Họ và tên *", key="htn_input")
-                        nsn = st.text_input("Ngày sinh (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key="nsn_input")
-                        gtn = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"], key="gtn_input")
-                        qtn = st.text_input("Quốc tịch", value="Việt Nam", key="qtn_input")
-                        dtn = st.text_input("Dân tộc", value="Kinh", key="dtn_input")
+                        htn = st.text_input("Họ và tên *")
+                        nsn = st.text_input("Ngày sinh (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
+                        gtn = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"])
+                        qtn = st.text_input("Quốc tịch", value="Việt Nam")
+                        dtn = st.text_input("Dân tộc", value="Kinh")
                     with c2:
-                        scc = st.text_input("CCCD", key="scc_input")
-                        ncc = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key="ncc_input")
-                        ncc2 = st.text_input("Nơi cấp CCCD", key="ncc2_input")
-                        nqn = st.text_input("Nguyên quán", key="nqn_input")
-                        ttn = st.text_input("Thường trú", key="ttn_input")
+                        scc = st.text_input("CCCD")
+                        ncc = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
+                        ncc2 = st.text_input("Nơi cấp CCCD")
+                        nqn = st.text_input("Nguyên quán")
+                        ttn = st.text_input("Thường trú")
                     with c3:
-                        dtn2 = st.text_input("SĐT", key="dtn2_input")
-                        emn = st.text_input("Email", key="emn_input")
-                        cdn = st.selectbox("Chức danh", [""] + dcv, key="cdn_input")
-                        pbn = st.text_input("Phòng ban", key="pbn_input")
-                        nlv = st.text_input("Nơi làm việc", value="Cảng THQT Hòn La", key="nlv_input")
-                    
+                        dtn2 = st.text_input("SĐT")
+                        emn = st.text_input("Email")
+                        cdn = st.selectbox("Chức danh", [""] + dcv)
+                        pbn = st.text_input("Phòng ban")
+                        nlv = st.text_input("Nơi làm việc", value="Cảng THQT Hòn La")
                     st.divider()
                     st.caption("💼 Hợp đồng & BHXH")
                     c4, c5, c6 = st.columns(3)
                     with c4:
-                        lhd = st.selectbox("Loại HĐ *", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"], key="lhd_input")
-                        nvl = st.text_input("Ngày vào làm (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key="nvl_input")
-                        nkt = st.text_input("Ngày kết thúc", placeholder="dd/mm/yyyy", max_chars=10, key="nkt_input")
-                        mbh = st.text_input("Mã BHXH", key="mbh_input")
-                        tbd = st.text_input("Bắt đầu BH (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key="tbd_input")
+                        lhd = st.selectbox("Loại HĐ *", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"])
+                        nvl = st.text_input("Ngày vào làm (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
+                        nkt = st.text_input("Ngày kết thúc", placeholder="dd/mm/yyyy", max_chars=10)
+                        mbh = st.text_input("Mã BHXH")
+                        tbd = st.text_input("Bắt đầu BH (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
                     with c5:
-                        lbh = st.text_input("Lương BH", key="lbh_input")
-                        hsl = st.text_input("Hệ số lương", key="hsl_input")
-                        pcv = st.text_input("PC chức vụ", key="pcv_input")
-                        ptv = st.text_input("PC TNVK (%)", key="ptv_input")
-                        ptn = st.text_input("PC TNN (%)", key="ptn_input")
+                        lbh = st.text_input("Lương BH")
+                        hsl = st.text_input("Hệ số lương")
+                        pcv = st.text_input("PC chức vụ")
+                        ptv = st.text_input("PC TNVK (%)")
+                        ptn = st.text_input("PC TNN (%)")
                     with c6:
-                        mhb = st.selectbox("Mức hưởng BHYT", ["80%", "95%", "100%"], key="mhb_input")
-                        tld = st.text_input("Tỷ lệ đóng (%)", key="tld_input")
-                        mtd = st.text_input("Mức tiền đóng", key="mtd_input")
-                        ptd = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"], key="ptd_input")
-                        nbh = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"], key="nbh_input")
-                    
+                        mhb = st.selectbox("Mức hưởng BHYT", ["80%", "95%", "100%"])
+                        tld = st.text_input("Tỷ lệ đóng (%)")
+                        mtd = st.text_input("Mức tiền đóng")
+                        ptd = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"])
+                        nbh = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"])
                     st.divider()
                     st.caption("🏦 Ngân hàng & KCB")
-                    bank_list = get_bank_list()
                     c7, c8, c9 = st.columns(3)
                     with c7:
-                        stk = st.text_input("STK", key="stk_input")
-                        cnh = st.selectbox("Chi nhánh NH", options=[""] + bank_list, key="cnh_input")
-                        tkb = st.text_input("Tỉnh KCB", key="tkb_input")
-                        nkb = st.text_input("Nơi KCB", key="nkb_input")
+                        stk = st.text_input("STK")
+                        cnh = st.text_input("Chi nhánh NH")
+                        tkb = st.text_input("Tỉnh KCB")
+                        nkb = st.text_input("Nơi KCB")
                     with c8:
-                        ths = st.text_input("Tỉnh/TP nhận HS", key="ths_input")
-                        phs = st.text_input("Phường/Xã nhận HS", key="phs_input")
-                        dhs = st.text_area("Địa chỉ nhận HS", height=100, key="dhs_input")
+                        ths = st.text_input("Tỉnh/TP nhận HS")
+                        phs = st.text_input("Phường/Xã nhận HS")
+                        dhs = st.text_area("Địa chỉ nhận HS", height=100)
                     with c9:
-                        dks = st.selectbox("ĐK nhận sổ", ["Có", "Không"], key="dks_input")
-                        hso = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"], key="hso_input")
+                        dks = st.selectbox("ĐK nhận sổ", ["Có", "Không"])
+                        hso = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"])
                     
-                    submitted = st.form_submit_button("💾 LƯU")
-                    
-                    if submitted:
+                    if st.form_submit_button("💾 LƯU"):
                         if htn:
-                            # Tạo tên đơn vị thụ hưởng
-                            ten_don_vi_thu_huong = normalize_name_to_beneficiary(htn)
-                            
                             ngay_loi = []
                             if nsn and not parse_date(nsn):
                                 ngay_loi.append("Ngày sinh")
@@ -3759,7 +3408,6 @@ elif menu == "✅ Nhân viên":
                                 ngay_loi.append("Ngày kết thúc")
                             if tbd and not parse_date(tbd):
                                 ngay_loi.append("Bắt đầu BH")
-                            
                             if ngay_loi:
                                 st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
                             else:
@@ -3772,7 +3420,6 @@ elif menu == "✅ Nhân viên":
                                     c.execute("SELECT COALESCE(MAX(STT),0)+1 FROM nhan_vien")
                                     stt_moi = c.fetchone()[0]
                                     nhl = parse_date(nvl) or date.today()
-                                    
                                     if lhd == "Thử việc":
                                         ttnv, ttbh, tbd_val = 'THU_VIEC', 'CHUA_DONG', None
                                         c.execute("""
@@ -3795,7 +3442,6 @@ elif menu == "✅ Nhân viên":
                                         """)
                                         so_hd_cnt = c.fetchone()[0] or 0
                                         so_hd = f"{so_hd_cnt + 1:02d}/{nhl.year}/HĐLĐ-CHL"
-                                    
                                     c.execute("""INSERT INTO nhan_vien (STT, ma_nv, so_hdld, ho_ten, chuc_danh_nghe, ngay_sinh, gioi_tinh,
                                     so_cccd, ngay_cap_cccd, noi_cap_cccd, nguyen_quan, thuong_tru,
                                     dien_thoai, email, email_lien_he, ho_so, luong_bao_hiem, ma_so_bhxh, ngay_vao_lam,
@@ -3803,36 +3449,29 @@ elif menu == "✅ Nhân viên":
                                     nhom_bhxh, thang_bat_dau_bh, thang_ket_thuc_bh, trang_thai, trang_thai_bhxh,
                                     phong_ban_lam_viec, ngay_ket_thuc, quoc_tich, dan_toc, he_so_luong, phu_cap_chuc_vu,
                                     phu_cap_tnvk, phu_cap_tnn, muc_huong_bhyt, ty_le_dong, muc_tien_dong, phuong_thuc_dong,
-                                    tinh_nhan_hs, phuong_nhan_hs, dia_chi_nhan_hs, tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so,
-                                    ten_don_vi_thu_huong)
+                                    tinh_nhan_hs, phuong_nhan_hs, dia_chi_nhan_hs, tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so)
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                    %s, %s, %s, %s, %s, %s, %s)""",
-                                                      (stt_moi, ma_nv, so_hd, htn, cdn, parse_date(nsn), gtn, scc, parse_date(ncc), ncc2, nqn, ttn,
-                                                       dtn2, emn, emn, hso, lbh, mbh, parse_date(nvl), nlv, stk, cnh, parse_date(nvl), lhd,
-                                                       nbh, tbd_val, None, ttnv, ttbh, pbn, parse_date(nkt), qtn, dtn, 
-                                                       to_float_or_none(hsl), to_float_or_none(pcv), to_float_or_none(ptv), to_float_or_none(ptn),
-                                                       mhb, to_float_or_none(tld), to_float_or_none(mtd), ptd, ths, phs, dhs, tkb, nkb, dks,
-                                                       ten_don_vi_thu_huong))
-                                    
+                                    %s, %s, %s, %s, %s, %s)""",
+                                      (stt_moi, ma_nv, so_hd, htn, cdn, parse_date(nsn), gtn, scc, parse_date(ncc), ncc2, nqn, ttn,
+                                       dtn2, emn, emn, '', lbh, mbh, parse_date(nvl), nlv, stk, cnh, parse_date(nvl), lhd,
+                                       nbh, tbd_val, None, ttnv, ttbh, pbn, parse_date(nkt), qtn, dtn, 
+                                       to_float_or_none(hsl),   # he_so_luong
+                                       to_float_or_none(pcv),   # phu_cap_chuc_vu
+                                       to_float_or_none(ptv),   # phu_cap_tnvk
+                                       to_float_or_none(ptn),   # phu_cap_tnn
+                                       mhb, 
+                                       to_float_or_none(tld),   # ty_le_dong
+                                       to_float_or_none(mtd),   # muc_tien_dong
+                                       ptd, ths, phs, dhs, tkb, nkb, dks))
                                     db.commit()
                                     db.close()
-                                    
-                                    # RESET FORM: Tăng key để tạo form mới hoàn toàn
-                                    if 'add_nv_form_key' not in st.session_state:
-                                        st.session_state.add_nv_form_key = 0
-                                    st.session_state.add_nv_form_key += 1
-                                    
                                     st.success(f"✅ Đã lưu nhân viên mới thành công! {htn} - {ma_nv}")
                                     st.rerun()
-                                    
                                 except Exception as e:
-                                    db.rollback()
-                                    db.close()
                                     st.error(f"❌ Lỗi: {e}")
                         else:
                             st.error("Họ tên không được để trống!")
-                
                 st.divider()
         
         db_f = get_connection()
@@ -4199,14 +3838,6 @@ elif menu == "✅ Nhân viên":
                     
                     if nd:
                         st.subheader(f"✏️ Cập nhật: {nd.get('ho_ten', '')} ({nd.get('ma_nv', '')})")
-                        
-                        # Lấy danh sách ngân hàng cho dropdown
-                        bank_list = get_bank_list()
-                        current_bank = nd.get('chi_nhanh_nh', '')
-                        bank_index = 0
-                        if current_bank in bank_list:
-                            bank_index = bank_list.index(current_bank) + 1
-                        
                         with st.form("edit_nv"):
                             col1, col2, col3 = st.columns(3)
                             with col1:
@@ -4255,8 +3886,7 @@ elif menu == "✅ Nhân viên":
                             col7, col8, col9 = st.columns(3)
                             with col7:
                                 stkv = st.text_input("STK", value=nd.get('so_tai_khoan_nh', ''))
-                                # Thay text_input bằng selectbox
-                                cnhv = st.selectbox("Chi nhánh NH", options=[""] + bank_list, index=bank_index, key="bank_edit_nv")
+                                cnhv = st.text_input("Chi nhánh NH", value=nd.get('chi_nhanh_nh', ''))
                                 tkbv = st.text_input("Tỉnh KCB", value=nd.get('tinh_kcb', ''))
                                 nkbv = st.text_input("Nơi KCB", value=nd.get('noi_dang_ky_kcb', ''))
                             with col8:
@@ -4307,12 +3937,12 @@ elif menu == "✅ Nhân viên":
                                                     phu_cap_tnvk=%s,phu_cap_tnn=%s,muc_huong_bhyt=%s,ty_le_dong=%s,muc_tien_dong=%s,
                                                     phuong_thuc_dong=%s,tinh_nhan_hs=%s,phuong_nhan_hs=%s,dia_chi_nhan_hs=%s,
                                                     tinh_kcb=%s,noi_dang_ky_kcb=%s,dang_ky_nhan_so=%s WHERE id=%s""",
-                                                          (hnv, cdnv, parse_date(nsnv), gtnv, sccv, parse_date(nccv), ncv, nqnv, ttnv, dtnv2,
-                                                           emnv, emnv, hsov, lbhv, mbhv, parse_date(nvlv), nlv2, stkv, cnhv, parse_date(nvlv), lhdv,
-                                                           nbhv, tbd_val, tt_nv, tt_bh, pbnv, parse_date(nktv), qtnv, dtnv,
-                                                           to_float_or_none(hslv), to_float_or_none(pcvv), to_float_or_none(ptvv), to_float_or_none(ptnv),
-                                                           mhbv, to_float_or_none(tldv), to_float_or_none(mtdv), ptdv, thsv, phsv, dhsv,
-                                                           tkbv, nkbv, dksv, nid))
+                                                      (hnv, cdnv, parse_date(nsnv), gtnv, sccv, parse_date(nccv), ncv, nqnv, ttnv, dtnv2,
+                                                       emnv, emnv, hsov, lbhv, mbhv, parse_date(nvlv), nlv2, stkv, cnhv, parse_date(nvlv), lhdv,
+                                                       nbhv, tbd_val, tt_nv, tt_bh, pbnv, parse_date(nktv), qtnv, dtnv,
+                                                       to_float_or_none(hslv), to_float_or_none(pcvv), to_float_or_none(ptvv), to_float_or_none(ptnv),
+                                                       mhbv, to_float_or_none(tldv), to_float_or_none(mtdv), ptdv, thsv, phsv, dhsv,
+                                                       tkbv, nkbv, dksv, nid))
                                                 db_upd.commit()
                                                 db_upd.close()
                                                 st.success(f"✅ Đã cập nhật: {hnv}")
@@ -4968,7 +4598,6 @@ elif menu == "✅ Nhân viên":
             "so_tai_khoan_nh":    "STK",
             "chi_nhanh_nh":       "Chi nhánh NH",
             "ho_so":              "Hồ sơ",
-            "ten_don_vi_thu_huong": "Tên đơn vị thụ hưởng",
         }
 
         # Thứ tự ưu tiên mặc định (tất cả tích mặc định)
@@ -4977,7 +4606,7 @@ elif menu == "✅ Nhân viên":
             "chuc_danh_nghe", "phong_ban_lam_viec", "loai_hop_dong",
             "ngay_vao_lam", "ngay_ky_hd", "so_hdld",
             "so_cccd", "thuong_tru", "dien_thoai", "ma_so_bhxh",
-            "thang_bat_dau_bh", "so_tai_khoan_nh", "chi_nhanh_nh", "ho_so", "ten_don_vi_thu_huong",
+            "thang_bat_dau_bh", "so_tai_khoan_nh", "chi_nhanh_nh", "ho_so",
         ]
         DEFAULT_CHECKED = set(DEFAULT_PRIORITY)
 
@@ -5322,31 +4951,6 @@ elif menu == "💰 Tính thu nhập":
         else:
             st.warning("Chưa có nhân viên nào trong hệ thống để thử nghiệm!")
 
-# ========== TÌM ỨNG VIÊN TỪ CÁC TRANG TUYỂN DỤNG ==========
-elif menu == "🔍 Tìm ứng viên":
-    st.title("🔍 Tìm kiếm ứng viên tiềm năng")
-    
-    # Khởi tạo JobSearchManager nếu chưa có
-    if 'job_search_manager' not in st.session_state:
-        from job_scraper import JobSearchManager
-        st.session_state.job_search_manager = JobSearchManager()
-        
-        # Khôi phục API key nếu có
-        if 'vnworks_api_key' in st.session_state and st.session_state.vnworks_api_key:
-            st.session_state.job_search_manager.set_vietnamworks_key(st.session_state.vnworks_api_key)
-    
-    job_manager = st.session_state.job_search_manager
-    
-    # Hiển thị cài đặt API
-    from job_scraper import show_api_settings
-    show_api_settings(job_manager)
-    
-    st.divider()
-    
-    # Hiển thị giao diện tìm kiếm
-    from job_scraper import show_job_search_interface
-    show_job_search_interface(job_manager)
-    
 # ========== UPLOAD ==========
 elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
     st.title("📁 Quản lý hồ sơ nhân viên")

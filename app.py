@@ -1436,6 +1436,33 @@ body {
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
+# THÊM ĐOẠN NÀY ĐỂ HIỆN LẠI SIDEBAR (chỉ dùng để khắc phục)
+st.markdown("""
+    <style>
+        /* GHI ĐÈ - HIỆN LẠI SIDEBAR */
+        [data-testid="stSidebar"] { 
+            display: block !important; 
+            min-width: 300px !important;
+        }
+        [data-testid="stSidebar"] > div:first-child {
+            width: 300px !important;
+        }
+        /* ẨN NÚT COLLAPSE NẾU CẦN */
+        [data-testid="collapsedControl"] {
+            display: block !important;
+        }
+    </style>
+    <script>
+        // Tự động mở sidebar khi trang load
+        setTimeout(function() {
+            const sidebar = parent.document.querySelector('[data-testid="stSidebar"]');
+            if (sidebar && sidebar.style.display === 'none') {
+                sidebar.style.display = 'block';
+            }
+        }, 500);
+    </script>
+""", unsafe_allow_html=True)
+
 # ========== XỬ LÝ ĐA NGÔN NGỮ ==========
 def init_language():
     """Khởi tạo và xử lý chuyển đổi ngôn ngữ"""

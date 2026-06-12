@@ -27,6 +27,68 @@ import os
 import pathlib
 import streamlit.components.v1 as components
 import urllib.parse
+import re
+import unicodedata
+
+# ========== HÀM TIỆN ÍCH MỚI ==========
+def remove_accents(text):
+    """Bỏ dấu tiếng Việt, chuyển về chữ hoa không dấu"""
+    if not text:
+        return ""
+    # Chuẩn hóa unicode và loại bỏ dấu
+    text = unicodedata.normalize('NFKD', text)
+    text = re.sub(r'[\u0300-\u036f]', '', text)
+    # Chuyển thành chữ hoa, chỉ giữ chữ cái và số
+    text = text.upper()
+    text = re.sub(r'[^A-Z0-9\s]', '', text)
+    return text.strip()
+
+def generate_ten_don_vi_thu_huong(ho_ten):
+    """Tạo tên đơn vị thụ hưởng từ họ tên (bỏ dấu, in hoa)"""
+    return remove_accents(ho_ten)
+
+# Load danh sách ngân hàng từ file Excel
+def load_bank_list():
+    """Đọc danh sách ngân hàng từ Bank_list.xlsx"""
+    banks = []
+    bank_file_path = os.path.join(os.path.dirname(__file__), "Bank_list.xlsx")
+    
+    if os.path.exists(bank_file_path):
+        try:
+            df_banks = pd.read_excel(bank_file_path, sheet_name=0)
+            # Tìm cột chứa tên ngân hàng
+            for col in df_banks.columns:
+                if 'NGÂN' in col.upper() or 'BANK' in col.upper() or 'TÊN' in col.upper():
+                    banks = df_banks[col].dropna().tolist()
+                    break
+            if not banks:
+                banks = df_banks.iloc[:, 0].dropna().tolist()
+        except Exception as e:
+            print(f"Lỗi đọc Bank_list.xlsx: {e}")
+            banks = []
+    
+    # Fallback: danh sách ngân hàng mặc định
+    if not banks:
+        banks = [
+            "MB - Ngân hàng TMCP Quân Đội",
+            "TCB - Ngân hàng TMCP Kỹ Thương Việt Nam",
+            "VCB - Ngân hàng TMCP Ngoại Thương Việt Nam",
+            "BIDV - Ngân hàng TMCP Đầu Tư và Phát Triển Việt Nam",
+            "VIETINBANK - Ngân hàng TMCP Công Thương Việt Nam",
+            "ACB - Ngân hàng TMCP Á Châu",
+            "VPB - Ngân hàng TMCP Việt Nam Thịnh Vượng",
+            "STB - Ngân hàng TMCP Sài Gòn Thương Tín",
+            "HDB - Ngân hàng TMCP Phát triển TP Hồ Chí Minh",
+            "TPB - Ngân hàng TMCP Tiên Phong",
+            "SHB - Ngân hàng TMCP Sài Gòn - Hà Nội",
+            "MSB - Ngân hàng TMCP Hàng Hải Việt Nam",
+            "VIB - Ngân hàng TMCP Quốc Tế",
+            "OCB - Ngân hàng TMCP Phương Đông",
+            "LPB - Ngân hàng TMCP Bưu Điện Liên Việt",
+        ]
+    return banks
+
+BANK_LIST = load_bank_list()
 
 # Xử lý đổi ngôn ngữ từ request
 def handle_language_change():
@@ -1436,33 +1498,6 @@ body {
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
-# THÊM ĐOẠN NÀY ĐỂ HIỆN LẠI SIDEBAR (chỉ dùng để khắc phục)
-st.markdown("""
-    <style>
-        /* GHI ĐÈ - HIỆN LẠI SIDEBAR */
-        [data-testid="stSidebar"] { 
-            display: block !important; 
-            min-width: 300px !important;
-        }
-        [data-testid="stSidebar"] > div:first-child {
-            width: 300px !important;
-        }
-        /* ẨN NÚT COLLAPSE NẾU CẦN */
-        [data-testid="collapsedControl"] {
-            display: block !important;
-        }
-    </style>
-    <script>
-        // Tự động mở sidebar khi trang load
-        setTimeout(function() {
-            const sidebar = parent.document.querySelector('[data-testid="stSidebar"]');
-            if (sidebar && sidebar.style.display === 'none') {
-                sidebar.style.display = 'block';
-            }
-        }, 500);
-    </script>
-""", unsafe_allow_html=True)
-
 # ========== XỬ LÝ ĐA NGÔN NGỮ ==========
 def init_language():
     """Khởi tạo và xử lý chuyển đổi ngôn ngữ"""
@@ -1875,6 +1910,7 @@ Thông tin đã cập nhật:
 - Số BHXH: {nv.get('ma_so_bhxh','')}
 - TK NH: {nv.get('so_tai_khoan_nh','')}
 - CN NH: {nv.get('chi_nhanh_nh','')}
+- Tên đơn vị thụ hưởng: {nv.get('ten_don_vi_thu_huong','')}
 
 {ZC.get('loi_nhan_zalo','Vui lòng kiểm tra và phản hồi nếu có sai sót. Xin Cảm ơn!')}"""
 
@@ -2933,7 +2969,9 @@ elif menu == "👤 Ứng viên":
             col7, col8, col9 = st.columns(3)
             with col7:
                 stk_chuyen = st.text_input("STK")
-                chi_nhanh_nh_chuyen = st.text_input("Chi nhánh NH")
+                # Tạo dropdown cho chi nhánh ngân hàng
+                bank_chuyen_index = 0
+                chi_nhanh_nh_chuyen = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_chuyen_index, key="chuyen_cnh")
                 tinh_kcb_chuyen = st.text_input("Tỉnh KCB")
                 noi_kcb_chuyen = st.text_input("Nơi KCB")
             with col8:
@@ -2962,6 +3000,9 @@ elif menu == "👤 Ứng viên":
                             st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
                         else:
                             try:
+                                # Tạo ten_don_vi_thu_huong từ ho_ten
+                                ten_don_vi_thu_huong = generate_ten_don_vi_thu_huong(ho_ten_nv)
+                                
                                 db = get_connection()
                                 c = db.cursor()
                                 
@@ -3002,7 +3043,7 @@ elif menu == "👤 Ứng viên":
                                     so_hd_cnt = c.fetchone()[0] or 0
                                     so_hd = f"{so_hd_cnt + 1:02d}/{nhl.year}/HĐLĐ-CHL"
                                 
-                                # Thêm nhân viên mới
+                                # Thêm nhân viên mới (đã thêm trường ten_don_vi_thu_huong)
                                 c.execute("""
                                     INSERT INTO nhan_vien (STT, ma_nv, so_hdld, ho_ten, chuc_danh_nghe, 
                                         ngay_sinh, gioi_tinh, so_cccd, ngay_cap_cccd, noi_cap_cccd,
@@ -3014,10 +3055,10 @@ elif menu == "👤 Ứng viên":
                                         he_so_luong, phu_cap_chuc_vu, phu_cap_tnvk, phu_cap_tnn,
                                         muc_huong_bhyt, ty_le_dong, muc_tien_dong, phuong_thuc_dong,
                                         tinh_nhan_hs, phuong_nhan_hs, dia_chi_nhan_hs, 
-                                        tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so)
+                                        tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so, ten_don_vi_thu_huong)
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                     RETURNING id
                                 """, (
                                     stt_moi, ma_nv, so_hd, ho_ten_nv, chuc_danh_nv,
@@ -3031,7 +3072,7 @@ elif menu == "👤 Ứng viên":
                                     to_float_or_none(pc_tnvk_chuyen), to_float_or_none(pc_tnn_chuyen),
                                     muc_huong_bhyt_chuyen, to_float_or_none(ty_le_dong_chuyen), to_float_or_none(muc_tien_dong_chuyen),
                                     phuong_thuc_dong_chuyen, tinh_nhan_hs_chuyen, phuong_nhan_hs_chuyen, dia_chi_nhan_hs_chuyen,
-                                    tinh_kcb_chuyen, noi_kcb_chuyen, dk_nhan_so_chuyen
+                                    tinh_kcb_chuyen, noi_kcb_chuyen, dk_nhan_so_chuyen, ten_don_vi_thu_huong
                                 ))
                                 nhan_vien_id_moi = c.fetchone()[0]
                                 # Cập nhật trạng thái ứng viên
@@ -3411,7 +3452,9 @@ elif menu == "✅ Nhân viên":
                     c7, c8, c9 = st.columns(3)
                     with c7:
                         stk = st.text_input("STK")
-                        cnh = st.text_input("Chi nhánh NH")
+                        # Tạo dropdown cho chi nhánh ngân hàng
+                        bank_index = 0
+                        cnh = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_index, key="add_cnh")
                         tkb = st.text_input("Tỉnh KCB")
                         nkb = st.text_input("Nơi KCB")
                     with c8:
@@ -3439,6 +3482,9 @@ elif menu == "✅ Nhân viên":
                                 st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
                             else:
                                 try:
+                                    # Tạo ten_don_vi_thu_huong từ ho_ten
+                                    ten_don_vi_thu_huong = generate_ten_don_vi_thu_huong(htn)
+                                    
                                     db = get_connection()
                                     c = db.cursor()
                                     c.execute("SELECT COALESCE(MAX(CAST(SUBSTRING(ma_nv FROM 2) AS INTEGER)), 0)+1 FROM nhan_vien WHERE ma_nv LIKE 'C%'")
@@ -3476,12 +3522,12 @@ elif menu == "✅ Nhân viên":
                                     nhom_bhxh, thang_bat_dau_bh, thang_ket_thuc_bh, trang_thai, trang_thai_bhxh,
                                     phong_ban_lam_viec, ngay_ket_thuc, quoc_tich, dan_toc, he_so_luong, phu_cap_chuc_vu,
                                     phu_cap_tnvk, phu_cap_tnn, muc_huong_bhyt, ty_le_dong, muc_tien_dong, phuong_thuc_dong,
-                                    tinh_nhan_hs, phuong_nhan_hs, dia_chi_nhan_hs, tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so)
+                                    tinh_nhan_hs, phuong_nhan_hs, dia_chi_nhan_hs, tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so, ten_don_vi_thu_huong)
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                    %s, %s, %s, %s, %s, %s)""",
+                                    %s, %s, %s, %s, %s, %s, %s)""",
                                       (stt_moi, ma_nv, so_hd, htn, cdn, parse_date(nsn), gtn, scc, parse_date(ncc), ncc2, nqn, ttn,
-                                       dtn2, emn, emn, '', lbh, mbh, parse_date(nvl), nlv, stk, cnh, parse_date(nvl), lhd,
+                                       dtn2, emn, emn, hso, lbh, mbh, parse_date(nvl), nlv, stk, cnh, parse_date(nvl), lhd,
                                        nbh, tbd_val, None, ttnv, ttbh, pbn, parse_date(nkt), qtn, dtn, 
                                        to_float_or_none(hsl),   # he_so_luong
                                        to_float_or_none(pcv),   # phu_cap_chuc_vu
@@ -3490,7 +3536,7 @@ elif menu == "✅ Nhân viên":
                                        mhb, 
                                        to_float_or_none(tld),   # ty_le_dong
                                        to_float_or_none(mtd),   # muc_tien_dong
-                                       ptd, ths, phs, dhs, tkb, nkb, dks))
+                                       ptd, ths, phs, dhs, tkb, nkb, dks, ten_don_vi_thu_huong))
                                     db.commit()
                                     db.close()
                                     st.success(f"✅ Đã lưu nhân viên mới thành công! {htn} - {ma_nv}")
@@ -3543,7 +3589,8 @@ elif menu == "✅ Nhân viên":
                 df.insert(0, 'selected', False)
             
             display_cols = ['selected', 'ma_nv', 'ho_ten', 'ngay_sinh', 'gioi_tinh', 'so_hdld', 'so_cccd', 'dien_thoai',
-                            'thuong_tru', 'chuc_danh_nghe', 'loai_hop_dong', 'ngay_vao_lam', 'ma_so_bhxh', 'thang_bat_dau_bh']
+                            'thuong_tru', 'chuc_danh_nghe', 'loai_hop_dong', 'ngay_vao_lam', 'ma_so_bhxh', 'thang_bat_dau_bh',
+                            'ten_don_vi_thu_huong']
             available_cols = [c for c in display_cols if c in df.columns]
             df_show = df[available_cols]
             
@@ -3562,6 +3609,7 @@ elif menu == "✅ Nhân viên":
                 'ngay_vao_lam': 'Ngày vào làm',
                 'ma_so_bhxh': 'Mã số BHXH',
                 'thang_bat_dau_bh': 'Bắt đầu BH',
+                'ten_don_vi_thu_huong': 'Tên đơn vị thụ hưởng',
             }
             df_show.rename(columns=col_map, inplace=True)
             
@@ -3930,7 +3978,12 @@ elif menu == "✅ Nhân viên":
                             col7, col8, col9 = st.columns(3)
                             with col7:
                                 stkv = st.text_input("STK", value=nd.get('so_tai_khoan_nh', ''))
-                                cnhv = st.text_input("Chi nhánh NH", value=nd.get('chi_nhanh_nh', ''))
+                                # Tạo dropdown cho chi nhánh ngân hàng
+                                bank_edit_index = 0
+                                old_bank = nd.get('chi_nhanh_nh', '')
+                                if old_bank in BANK_LIST:
+                                    bank_edit_index = BANK_LIST.index(old_bank) + 1
+                                cnhv = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_edit_index, key="edit_cnh")
                                 tkbv = st.text_input("Tỉnh KCB", value=nd.get('tinh_kcb', ''))
                                 nkbv = st.text_input("Nơi KCB", value=nd.get('noi_dang_ky_kcb', ''))
                             with col8:
@@ -3960,6 +4013,9 @@ elif menu == "✅ Nhân viên":
                                             st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
                                         else:
                                             try:
+                                                # Tạo ten_don_vi_thu_huong từ họ tên
+                                                ten_don_vi_thu_huong = generate_ten_don_vi_thu_huong(hnv)
+                                                
                                                 db_upd = get_connection()
                                                 c_upd = db_upd.cursor()
                                                 nhl = parse_date(nvlv) or date.today()
@@ -3980,13 +4036,13 @@ elif menu == "✅ Nhân viên":
                                                     ngay_ket_thuc=%s,quoc_tich=%s,dan_toc=%s,he_so_luong=%s,phu_cap_chuc_vu=%s,
                                                     phu_cap_tnvk=%s,phu_cap_tnn=%s,muc_huong_bhyt=%s,ty_le_dong=%s,muc_tien_dong=%s,
                                                     phuong_thuc_dong=%s,tinh_nhan_hs=%s,phuong_nhan_hs=%s,dia_chi_nhan_hs=%s,
-                                                    tinh_kcb=%s,noi_dang_ky_kcb=%s,dang_ky_nhan_so=%s WHERE id=%s""",
+                                                    tinh_kcb=%s,noi_dang_ky_kcb=%s,dang_ky_nhan_so=%s, ten_don_vi_thu_huong=%s WHERE id=%s""",
                                                       (hnv, cdnv, parse_date(nsnv), gtnv, sccv, parse_date(nccv), ncv, nqnv, ttnv, dtnv2,
                                                        emnv, emnv, hsov, lbhv, mbhv, parse_date(nvlv), nlv2, stkv, cnhv, parse_date(nvlv), lhdv,
                                                        nbhv, tbd_val, tt_nv, tt_bh, pbnv, parse_date(nktv), qtnv, dtnv,
                                                        to_float_or_none(hslv), to_float_or_none(pcvv), to_float_or_none(ptvv), to_float_or_none(ptnv),
                                                        mhbv, to_float_or_none(tldv), to_float_or_none(mtdv), ptdv, thsv, phsv, dhsv,
-                                                       tkbv, nkbv, dksv, nid))
+                                                       tkbv, nkbv, dksv, ten_don_vi_thu_huong, nid))
                                                 db_upd.commit()
                                                 db_upd.close()
                                                 st.success(f"✅ Đã cập nhật: {hnv}")
@@ -4375,7 +4431,7 @@ elif menu == "✅ Nhân viên":
         sql = """
             SELECT id, ma_nv, ho_ten, ngay_sinh, gioi_tinh, so_cccd, dien_thoai, 
                    chuc_danh_nghe, loai_hop_dong, so_hdld, ngay_vao_lam, ngay_ket_thuc,
-                   ma_so_bhxh, thang_bat_dau_bh, ly_do_nghi
+                   ma_so_bhxh, thang_bat_dau_bh, ly_do_nghi, ten_don_vi_thu_huong
             FROM nhan_vien 
             WHERE trang_thai = 'NGHI_VIEC'
         """
@@ -4401,7 +4457,7 @@ elif menu == "✅ Nhân viên":
                     df_nghi[col] = df_nghi[col].apply(format_date)
             
             display_cols_nghi = ['ma_nv', 'ho_ten', 'ngay_sinh', 'gioi_tinh', 'chuc_danh_nghe', 
-                                 'so_hdld', 'ngay_vao_lam', 'ngay_ket_thuc', 'dien_thoai', 'ma_so_bhxh']
+                                 'so_hdld', 'ngay_vao_lam', 'ngay_ket_thuc', 'dien_thoai', 'ma_so_bhxh', 'ten_don_vi_thu_huong']
             available_cols_nghi = [c for c in display_cols_nghi if c in df_nghi.columns]
             df_show_nghi = df_nghi[available_cols_nghi]
             
@@ -4416,6 +4472,7 @@ elif menu == "✅ Nhân viên":
                 'ngay_ket_thuc': '📅 Ngày nghỉ việc',
                 'dien_thoai': 'SĐT',
                 'ma_so_bhxh': 'Mã BHXH',
+                'ten_don_vi_thu_huong': 'Tên đơn vị thụ hưởng',
             }
             df_show_nghi.rename(columns=col_map_nghi, inplace=True)
             
@@ -4446,6 +4503,7 @@ elif menu == "✅ Nhân viên":
                     st.write(f"- **CCCD:** {nv_nghi_detail.get('so_cccd', '')}")
                     st.write(f"- **SĐT:** {nv_nghi_detail.get('dien_thoai', '')}")
                     st.write(f"- **Chức danh:** {nv_nghi_detail.get('chuc_danh_nghe', '')}")
+                    st.write(f"- **Tên đơn vị thụ hưởng:** {nv_nghi_detail.get('ten_don_vi_thu_huong', '')}")
                 
                 with col_detail2:
                     st.markdown("**📅 Thông tin hợp đồng & nghỉ việc**")
@@ -4645,6 +4703,7 @@ elif menu == "✅ Nhân viên":
             "so_tai_khoan_nh":    "STK",
             "chi_nhanh_nh":       "Chi nhánh NH",
             "ho_so":              "Hồ sơ",
+            "ten_don_vi_thu_huong": "Tên đơn vị thụ hưởng",
         }
 
         # Thứ tự ưu tiên mặc định (tất cả tích mặc định)
@@ -4654,6 +4713,7 @@ elif menu == "✅ Nhân viên":
             "ngay_vao_lam", "ngay_ky_hd", "so_hdld",
             "so_cccd", "thuong_tru", "dien_thoai", "ma_so_bhxh",
             "thang_bat_dau_bh", "so_tai_khoan_nh", "chi_nhanh_nh", "ho_so",
+            "ten_don_vi_thu_huong",
         ]
         DEFAULT_CHECKED = set(DEFAULT_PRIORITY)
 
@@ -4844,7 +4904,7 @@ elif menu == "✅ Nhân viên":
                     # ── Độ rộng cột ──
                     ws_tk.column_dimensions['A'].width = 5
                     for col_idx, col_key in enumerate(selected_cols_sorted, 2):
-                        if col_key in ('ho_ten', 'thuong_tru', 'nguyen_quan', 'noi_cap_cccd', 'chuc_danh_nghe'):
+                        if col_key in ('ho_ten', 'thuong_tru', 'nguyen_quan', 'noi_cap_cccd', 'chuc_danh_nghe', 'ten_don_vi_thu_huong'):
                             w = 28
                         elif col_key in ('ma_nv', 'gioi_tinh', 'he_so_luong', 'phu_cap_tnvk', 'phu_cap_tnn'):
                             w = 12
@@ -5566,7 +5626,8 @@ elif menu == "📋 Báo cáo 01/PLI":
             nv.so_cccd, nv.chuc_danh_nghe, nv.luong_bao_hiem, nv.he_so_luong,
             nv.phu_cap_chuc_vu, nv.phu_cap_tnvk, nv.phu_cap_tnn, nv.loai_hop_dong,
             nv.ngay_vao_lam, nv.ngay_ky_hd, nv.ngay_ket_thuc, nv.thang_bat_dau_bh,
-            nv.thang_ket_thuc_bh, nv.so_hdld, nv.phong_ban_lam_viec, nv.noi_lam_viec
+            nv.thang_ket_thuc_bh, nv.so_hdld, nv.phong_ban_lam_viec, nv.noi_lam_viec,
+            nv.ten_don_vi_thu_huong
         FROM nhan_vien nv
         WHERE nv.trang_thai IN ('DANG_LAM', 'THU_VIEC', 'NGHI_VIEC')
         AND nv.ngay_vao_lam <= %s
@@ -5586,7 +5647,7 @@ elif menu == "📋 Báo cáo 01/PLI":
             if 'ngay' in col.lower():
                 df_preview[col] = df_preview[col].apply(format_date)
         
-        preview_cols = ['ma_nv', 'ho_ten', 'chuc_danh_nghe', 'loai_hop_dong', 'ngay_vao_lam', 'ma_so_bhxh']
+        preview_cols = ['ma_nv', 'ho_ten', 'chuc_danh_nghe', 'loai_hop_dong', 'ngay_vao_lam', 'ma_so_bhxh', 'ten_don_vi_thu_huong']
         available_preview = [c for c in preview_cols if c in df_preview.columns]
         df_display = df_preview[available_preview]
         col_map_preview = {
@@ -5595,7 +5656,8 @@ elif menu == "📋 Báo cáo 01/PLI":
             'chuc_danh_nghe': 'Chức danh',
             'loai_hop_dong': 'Loại HĐ',
             'ngay_vao_lam': 'Ngày vào làm',
-            'ma_so_bhxh': 'Mã BHXH'
+            'ma_so_bhxh': 'Mã BHXH',
+            'ten_don_vi_thu_huong': 'Tên đơn vị thụ hưởng',
         }
         df_display.rename(columns=col_map_preview, inplace=True)
         st.dataframe(df_display, width='stretch', hide_index=True, height=400)

@@ -4674,9 +4674,11 @@ elif menu == "✅ Nhân viên":
         else:
             st.info("⚠️ Chưa có nhân viên nào trong hệ thống!")
     
-    # ========== THAY THẾ TOÀN BỘ PHẦN XÓA NHÂN VIÊN TRONG with st.expander ==========
-    with st.expander("🗑️ CÔNG CỤ XÓA NHÂN VIÊN MỚI (CHỈ DÀNH CHO ADMIN)", expanded=False):
-        st.warning("⚠️ **CẢNH BÁO:** Thao tác này sẽ XÓA VĨNH VIỄN nhân viên và tất cả dữ liệu liên quan (lịch sử công tác, quyết định, hồ sơ...). Hãy sao lưu dữ liệu trước khi thực hiện!")
+    # ========== PHẦN XÓA NHÂN VIÊN THEO SỐ HĐ ==========
+    st.divider()
+    
+    with st.expander("🗑️ CÔNG CỤ XÓA NHÂN VIÊN (CHỈ DÀNH CHO ADMIN)", expanded=False):
+        st.warning("⚠️ **CẢNH BÁO:** Thao tác này sẽ XÓA VĨNH VIỄN nhân viên và tất cả dữ liệu liên quan!")
         
         col_hd1, col_hd2 = st.columns([2, 1])
         with col_hd1:
@@ -4687,71 +4689,75 @@ elif menu == "✅ Nhân viên":
             xac_nhan_xoa = st.checkbox("✅ Tôi xác nhận muốn xóa vĩnh viễn", key="xac_nhan_xoa_nv")
         
         if so_hd_can_xoa and xac_nhan_xoa:
-            if st.button("🗑️ XÓA NHÂN VIÊN THEO SỐ HĐ", type="primary", key="btn_xoa_nv_theo_hd"):
-                try:
-                    db = get_connection()
-                    c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            try:
+                db_check = get_connection()
+                c_check = db_check.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                c_check.execute("SELECT id, ho_ten, ma_nv, trang_thai FROM nhan_vien WHERE so_hdld = %s", (so_hd_can_xoa,))
+                nv_info = c_check.fetchone()
+                db_check.close()
+                
+                if nv_info:
+                    st.warning(f"⚠️ Nhân viên: **{nv_info['ho_ten']}** (Mã: {nv_info['ma_nv']}) - Trạng thái: {nv_info['trang_thai']}")
                     
-                    # Kiểm tra tồn tại
-                    c.execute("SELECT id, ho_ten, ma_nv, trang_thai FROM nhan_vien WHERE so_hdld = %s", (so_hd_can_xoa,))
-                    nv = c.fetchone()
+                    # Đếm số bản ghi liên quan
+                    db_count = get_connection()
+                    c_count = db_count.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                    c_count.execute("SELECT COUNT(*) as count FROM lich_su_cong_tac WHERE nhan_vien_id = %s", (nv_info['id'],))
+                    ls_count = c_count.fetchone()['count']
+                    c_count.execute("SELECT COUNT(*) as count FROM quyet_dinh_nhan_su WHERE nhan_vien_id = %s", (nv_info['id'],))
+                    qd_count = c_count.fetchone()['count']
+                    c_count.execute("SELECT COUNT(*) as count FROM ho_so_nhan_vien WHERE nhan_vien_id = %s", (nv_info['id'],))
+                    hs_count = c_count.fetchone()['count']
+                    c_count.execute("SELECT COUNT(*) as count FROM phu_luc_gia_dinh WHERE nhan_vien_id = %s", (nv_info['id'],))
+                    pl_count = c_count.fetchone()['count']
+                    db_count.close()
                     
-                    if nv:
-                        st.warning(f"⚠️ Bạn đang xóa nhân viên: **{nv['ho_ten']}** (Mã: {nv['ma_nv']}) - Trạng thái: {nv['trang_thai']}")
-                        
-                        # Đếm số bản ghi liên quan
-                        c.execute("SELECT COUNT(*) as count FROM lich_su_cong_tac WHERE nhan_vien_id = %s", (nv['id'],))
-                        ls_count = c.fetchone()['count']
-                        
-                        c.execute("SELECT COUNT(*) as count FROM quyet_dinh_nhan_su WHERE nhan_vien_id = %s", (nv['id'],))
-                        qd_count = c.fetchone()['count']
-                        
-                        c.execute("SELECT COUNT(*) as count FROM ho_so_nhan_vien WHERE nhan_vien_id = %s", (nv['id'],))
-                        hs_count = c.fetchone()['count']
-                        
-                        c.execute("SELECT COUNT(*) as count FROM phu_luc_gia_dinh WHERE nhan_vien_id = %s", (nv['id'],))
-                        pl_count = c.fetchone()['count']
-                        
-                        st.info(f"📊 Sẽ xóa: {ls_count} lịch sử công tác, {qd_count} quyết định, {hs_count} hồ sơ, {pl_count} phụ lục gia đình")
-                        
-                        # Xác nhận lần cuối
-                        xac_nhan_cuoi = st.checkbox("⚠️ Tôi hiểu rủi ro và muốn xóa VĨNH VIỄN nhân viên này", key="xac_nhan_cuoi_xoa")
-                        
-                        if xac_nhan_cuoi:
-                            # ✅ SỬA: DÙNG CHUNG 1 KẾT NỐI DB
-                            cur = db.cursor()  # Dùng cursor từ db đã mở
-                            
-                            cur.execute("DELETE FROM lich_su_cong_tac WHERE nhan_vien_id = %s", (nv['id'],))
-                            cur.execute("DELETE FROM quyet_dinh_nhan_su WHERE nhan_vien_id = %s", (nv['id'],))
-                            cur.execute("DELETE FROM ho_so_nhan_vien WHERE nhan_vien_id = %s", (nv['id'],))
-                            cur.execute("DELETE FROM phu_luc_gia_dinh WHERE nhan_vien_id = %s", (nv['id'],))
-                            cur.execute("DELETE FROM nhan_vien WHERE id = %s", (nv['id'],))
-                            
-                            db.commit()  # ✅ Commit trên db chính
-                            db.close()
-                            
-                            st.success(f"✅ Đã XÓA VĨNH VIỄN nhân viên {nv['ho_ten']} (Mã: {nv['ma_nv']})")
-                            st.cache_data.clear()
-                            st.rerun()
-                        else:
-                            db.close()
-                            st.info("Đã hủy thao tác xóa. Tick vào ô xác nhận cuối cùng để xóa.")
+                    st.info(f"📊 Sẽ xóa: {ls_count} lịch sử công tác, {qd_count} quyết định, {hs_count} hồ sơ, {pl_count} phụ lục gia đình")
+                    
+                    # Xác nhận lần cuối
+                    xac_nhan_cuoi = st.checkbox("⚠️ Tôi hiểu rủi ro và muốn xóa VĨNH VIỄN nhân viên này", key="xac_nhan_cuoi_xoa")
+                    
+                    if xac_nhan_cuoi:
+                        col_confirm1, col_confirm2, col_confirm3 = st.columns([1, 2, 1])
+                        with col_confirm2:
+                            if st.button("🗑️ XÁC NHẬN XÓA VĨNH VIỄN", type="primary", key="btn_confirm_xoa"):
+                                try:
+                                    db = get_connection()
+                                    cur = db.cursor()
+                                    
+                                    cur.execute("DELETE FROM lich_su_cong_tac WHERE nhan_vien_id = %s", (nv_info['id'],))
+                                    cur.execute("DELETE FROM quyet_dinh_nhan_su WHERE nhan_vien_id = %s", (nv_info['id'],))
+                                    cur.execute("DELETE FROM ho_so_nhan_vien WHERE nhan_vien_id = %s", (nv_info['id'],))
+                                    cur.execute("DELETE FROM phu_luc_gia_dinh WHERE nhan_vien_id = %s", (nv_info['id'],))
+                                    cur.execute("DELETE FROM nhan_vien WHERE id = %s", (nv_info['id'],))
+                                    
+                                    db.commit()
+                                    db.close()
+                                    
+                                    st.success(f"✅ Đã XÓA VĨNH VIỄN nhân viên {nv_info['ho_ten']} (Mã: {nv_info['ma_nv']})")
+                                    st.balloons()
+                                    st.cache_data.clear()
+                                    st.rerun()
+                                    
+                                except Exception as e:
+                                    st.error(f"❌ Lỗi khi xóa: {str(e)}")
+                                    try:
+                                        db.rollback()
+                                        db.close()
+                                    except:
+                                        pass
                     else:
-                        st.error(f"❌ Không tìm thấy nhân viên có số hợp đồng: {so_hd_can_xoa}")
-                        db.close()
+                        st.info("🔒 **Vui lòng tick vào ô xác nhận 'Tôi hiểu rủi ro...' để kích hoạt nút xóa**")
+                else:
+                    st.error(f"❌ Không tìm thấy nhân viên có số hợp đồng: {so_hd_can_xoa}")
                     
-                except Exception as e:
-                    st.error(f"❌ Lỗi khi xóa: {e}")
-                    try:
-                        db.rollback()
-                        db.close()
-                    except:
-                        pass
-            elif so_hd_can_xoa and not xac_nhan_xoa:
-                st.info("🔒 Vui lòng tick xác nhận 'Tôi xác nhận muốn xóa vĩnh viễn' để kích hoạt nút xóa")
+            except Exception as e:
+                st.error(f"❌ Lỗi khi tìm kiếm: {e}")
+                
+        elif so_hd_can_xoa and not xac_nhan_xoa:
+            st.info("🔒 Vui lòng tick xác nhận 'Tôi xác nhận muốn xóa vĩnh viễn' để tiếp tục")
     
-    st.divider()
-    
+    # ========== PHẦN BÁO CÁO THỐNG KÊ ==========
     st.divider()
     st.subheader("📊 Báo cáo thống kê nhân sự")
 

@@ -3090,7 +3090,7 @@ elif menu == "👤 Ứng viên":
                                 db.close()
                                 
                                 st.success(f"✅ Đã chuyển {ho_ten_nv} thành nhân viên! Mã NV: {ma_nv}")
-                                
+                                st.cache_data.clear()
                                 # Xóa session state
                                 del st.session_state['show_chuyen_nv_form']
                                 del st.session_state['chuyen_uv_id']
@@ -3174,6 +3174,7 @@ elif menu == "👤 Ứng viên":
                                 db.commit()
                                 db.close()
                                 st.success(f"✅ Đã thêm ứng viên: {ho_ten_uv} (Mã: {ma_uv})")
+                                st.cache_data.clear()
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Lỗi khi thêm ứng viên: {e}")
@@ -3339,6 +3340,7 @@ elif menu == "👤 Ứng viên":
                             db.commit()
                             db.close()
                             st.success("✅ Đã cập nhật!")
+                            st.cache_data.clear()
                             del st.session_state['edit_uv_id']
                             st.rerun()
                 with col_del:
@@ -3349,6 +3351,7 @@ elif menu == "👤 Ứng viên":
                         db.commit()
                         db.close()
                         st.success("🗑️ Đã xóa!")
+                        st.cache_data.clear()
                         del st.session_state['edit_uv_id']
                         st.rerun()
                 with col_cancel:
@@ -3540,6 +3543,7 @@ elif menu == "✅ Nhân viên":
                                     db.commit()
                                     db.close()
                                     st.success(f"✅ Đã lưu nhân viên mới thành công! {htn} - {ma_nv}")
+                                    st.cache_data.clear()
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"❌ Lỗi: {e}")
@@ -3901,7 +3905,7 @@ elif menu == "✅ Nhân viên":
                                                     st.success(f"✅ Đã chuyển {nv_data['ho_ten']} sang HĐLĐ không xác định thời hạn!")
                                                     st.info(f"📄 Số HĐTV cũ: {so_hd_tv_cu}")
                                                     st.info(f"📄 Số HĐLĐ mới: {so_hd_moi}")
-                                                    
+                                                    st.cache_data.clear()
                                                     st.session_state[f'convert_open_{nv_id_key}'] = False
                                                     st.rerun()
                                                     
@@ -4046,6 +4050,7 @@ elif menu == "✅ Nhân viên":
                                                 db_upd.commit()
                                                 db_upd.close()
                                                 st.success(f"✅ Đã cập nhật: {hnv}")
+                                                st.cache_data.clear()
                                                 del st.session_state['selected_nv_id']
                                                 st.rerun()
                                             except Exception as e:
@@ -4112,6 +4117,10 @@ elif menu == "✅ Nhân viên":
                                                     del st.session_state['selected_nv_id']
                                                 
                                                 st.success(f"✅ Đã cập nhật nghỉ việc cho {nd.get('ho_ten', '')}!")
+                                                st.cache_data.clear()
+                                                st.session_state[f'nghi_viec_open_{nid}'] = False
+                                                if 'selected_nv_id' in st.session_state:
+                                                    del st.session_state['selected_nv_id']
                                                 st.rerun()
                                             except Exception as e:
                                                 st.error(f"❌ Lỗi khi cập nhật nghỉ việc: {e}")
@@ -4399,6 +4408,7 @@ elif menu == "✅ Nhân viên":
                                 del st.session_state['bhxh_family_nv_name']
                                 del st.session_state['bhxh_family_members']
                                 st.success(f"✅ Đã lưu thông tin hộ gia đình cho nhân viên {nv_name}")
+                                st.cache_data.clear()
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Lỗi khi lưu: {e}")
@@ -4536,6 +4546,7 @@ elif menu == "✅ Nhân viên":
                                 db.commit()
                                 db.close()
                                 st.success(f"✅ Đã khôi phục nhân viên {nv_nghi_detail['ho_ten']}!")
+                                st.cache_data.clear()
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Lỗi khi khôi phục: {e}")
@@ -4723,6 +4734,7 @@ elif menu == "✅ Nhân viên":
                             db_exec.close()
                             
                             st.success(f"✅ Đã XÓA VĨNH VIỄN nhân viên {nv['ho_ten']} (Mã: {nv['ma_nv']})")
+                            st.cache_data.clear()
                             st.rerun()
                     else:
                         st.error(f"❌ Không tìm thấy nhân viên có số hợp đồng: {so_hd_can_xoa}")
@@ -5182,6 +5194,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                 db.close()
                 
                 st.success(f"✅ Đã upload thành công!\n📁 Lưu tại: {fp}")
+                st.cache_data.clear()
                 st.rerun()
         else:
             st.info("⚠️ Chưa có nhân viên nào trong hệ thống!")
@@ -5268,6 +5281,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                             db.commit()
                             db.close()
                             st.success(f"✅ Đã xóa hồ sơ: {selected_hs['ten_file']}")
+                            st.cache_data.clear()
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Lỗi khi xóa: {e}")
@@ -5292,7 +5306,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
                         id_max = c.fetchone()[0]
                         id_moi = id_trong if id_trong <= id_max + 1 else id_max + 1
                         c.execute("INSERT INTO vi_tri_cong_tac (id, ten_vi_tri, ghi_chu) VALUES (%s, %s, %s)", (id_moi, ten_moi, mo_ta))
-                        db.commit(); db.close(); st.success(f"✅ Đã thêm: {ten_moi}"); st.rerun()
+                        db.commit(); db.close(); st.success(f"✅ Đã thêm: {ten_moi}"); st.cache_data.clear(); st.rerun()
                     else: st.error("Tên chức danh không được để trống!")
         st.subheader("📋 Danh sách chức danh")
         db = get_connection(); c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -5303,7 +5317,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
             st.divider(); cdx = st.number_input("Nhập ID cần xóa:", min_value=1, step=1)
             if st.button("🗑️ XÓA", key="del_cd"):
                 db = get_connection(); c = db.cursor()
-                c.execute("DELETE FROM vi_tri_cong_tac WHERE id=%s", (cdx,)); db.commit(); db.close(); st.success("🗑️ Đã xóa!"); st.rerun()
+                c.execute("DELETE FROM vi_tri_cong_tac WHERE id=%s", (cdx,)); db.commit(); db.close(); st.success("🗑️ Đã xóa!"); st.cache_data.clear(); st.rerun()
         else: st.info("Chưa có chức danh nào")
 
 # ========== BHXH ==========
@@ -6087,6 +6101,19 @@ def main():
                         st.session_state['show_login_form'] = False
                         st.rerun()
         st.stop()
+
+def reset_ui_and_cache():
+    """Reset toàn bộ cache và session state để refresh UI"""
+    st.cache_data.clear()
+    st.cache_resource.clear()
+    
+    # Giữ lại các session state quan trọng
+    keep_keys = ['logged_in', 'role', 'username', 'language', 'show_hrm']
+    for key in list(st.session_state.keys()):
+        if key not in keep_keys:
+            del st.session_state[key]
+    
+    st.rerun()
 
 # Chạy ứng dụng
 if __name__ == "__main__":

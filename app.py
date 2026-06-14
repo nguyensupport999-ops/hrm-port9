@@ -4674,9 +4674,7 @@ elif menu == "✅ Nhân viên":
         else:
             st.info("⚠️ Chưa có nhân viên nào trong hệ thống!")
     
-    # ========== THÊM NÚT XÓA NHÂN VIÊN THEO SỐ HĐ ==========
-    st.divider()
-    
+    # ========== THAY THẾ TOÀN BỘ PHẦN XÓA NHÂN VIÊN TRONG with st.expander ==========
     with st.expander("🗑️ CÔNG CỤ XÓA NHÂN VIÊN MỚI (CHỈ DÀNH CHO ADMIN)", expanded=False):
         st.warning("⚠️ **CẢNH BÁO:** Thao tác này sẽ XÓA VĨNH VIỄN nhân viên và tất cả dữ liệu liên quan (lịch sử công tác, quyết định, hồ sơ...). Hãy sao lưu dữ liệu trước khi thực hiện!")
         
@@ -4720,9 +4718,8 @@ elif menu == "✅ Nhân viên":
                         xac_nhan_cuoi = st.checkbox("⚠️ Tôi hiểu rủi ro và muốn xóa VĨNH VIỄN nhân viên này", key="xac_nhan_cuoi_xoa")
                         
                         if xac_nhan_cuoi:
-                            # Thực hiện xóa
-                            db_exec = get_connection()
-                            cur = db_exec.cursor()
+                            # ✅ SỬA: DÙNG CHUNG 1 KẾT NỐI DB
+                            cur = db.cursor()  # Dùng cursor từ db đã mở
                             
                             cur.execute("DELETE FROM lich_su_cong_tac WHERE nhan_vien_id = %s", (nv['id'],))
                             cur.execute("DELETE FROM quyet_dinh_nhan_su WHERE nhan_vien_id = %s", (nv['id'],))
@@ -4730,21 +4727,28 @@ elif menu == "✅ Nhân viên":
                             cur.execute("DELETE FROM phu_luc_gia_dinh WHERE nhan_vien_id = %s", (nv['id'],))
                             cur.execute("DELETE FROM nhan_vien WHERE id = %s", (nv['id'],))
                             
-                            db_exec.commit()
-                            db_exec.close()
+                            db.commit()  # ✅ Commit trên db chính
+                            db.close()
                             
                             st.success(f"✅ Đã XÓA VĨNH VIỄN nhân viên {nv['ho_ten']} (Mã: {nv['ma_nv']})")
                             st.cache_data.clear()
                             st.rerun()
+                        else:
+                            db.close()
+                            st.info("Đã hủy thao tác xóa. Tick vào ô xác nhận cuối cùng để xóa.")
                     else:
                         st.error(f"❌ Không tìm thấy nhân viên có số hợp đồng: {so_hd_can_xoa}")
-                    
-                    db.close()
+                        db.close()
                     
                 except Exception as e:
                     st.error(f"❌ Lỗi khi xóa: {e}")
-        elif so_hd_can_xoa and not xac_nhan_xoa:
-            st.info("🔒 Vui lòng tick xác nhận 'Tôi xác nhận muốn xóa vĩnh viễn' để kích hoạt nút xóa")
+                    try:
+                        db.rollback()
+                        db.close()
+                    except:
+                        pass
+            elif so_hd_can_xoa and not xac_nhan_xoa:
+                st.info("🔒 Vui lòng tick xác nhận 'Tôi xác nhận muốn xóa vĩnh viễn' để kích hoạt nút xóa")
     
     st.divider()
     

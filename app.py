@@ -5481,11 +5481,18 @@ elif menu == "📋 BHXH":
         # Chỉ admin mới được xuất Excel
         if st.session_state.role == "admin":
             if tang_list or giam_list:
-                if st.button("📥 XUẤT EXCEL D02-LT (Mẫu báo cáo BHXH)", type="primary", width='stretch'):
+                def tao_bao_cao_bhxh_d02_lt(tang_list, giam_list, tu_ngay, den_ngay, ten_cong_ty, ma_don_vi_bhxh):
+                    """Tạo báo cáo tăng/giảm BHXH mẫu D02-LT đúng 100% cột theo quy định"""
+                    
                     from openpyxl import Workbook
                     from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
                     from openpyxl.utils import get_column_letter
                     
+                    wb = Workbook()
+                    ws = wb.active
+                    ws.title = "D02-LT"
+                    
+                    # Định nghĩa border
                     thin_border = Border(
                         left=Side(style='thin'),
                         right=Side(style='thin'),
@@ -5493,160 +5500,271 @@ elif menu == "📋 BHXH":
                         bottom=Side(style='thin')
                     )
                     
-                    wb = Workbook()
-                    ws = wb.active
-                    ws.title = "D02-LT"
+                    # Định nghĩa tất cả các cột theo đúng thứ tự file mẫu
+                    columns = [
+                        "STT", "Họ và tên", "Mã số BHXH", "Loại phương án", "Mã loại PA", 
+                        "Loại ngày sinh", "Ngày Sinh", "Giới tính", "Số CMND/ CCCD/Hộ chiếu", 
+                        "Cấp bậc, chức vụ, chức danh nghề", "Phòng ban làm việc", "Nơi Làm Việc", 
+                        "Mức lương", "Phụ cấp lương", "Các khoản bổ sung", "Hệ số lương", 
+                        "Phụ cấp CV", "Phụ cấp TNVK (%)", "Phụ cấp TN nghề (%)", "Phương án điều chỉnh", 
+                        "Mã PA", "Tháng/ năm bắt đầu", "Tháng/ năm kết thúc", 
+                        "Nghỉ ốm đau/Thai sản/không lương", "Ghi chú", "Số sổ BHXH", 
+                        "Mức hưởng BHYT", "Tỷ lệ đóng (%)", "Mã vùng sinh sống", "Mã vùng lương tối thiểu", 
+                        "Có giảm chết", "Ngày chết", "Tính lãi", "Nhóm vị trí việc làm", 
+                        "Ngày bắt đầu giữ vị trí", "Ngày kết thúc giữ vị trí", "Loại HĐLĐ", 
+                        "Hiệu lực từ ngày", "Hiệu lực đến ngày", "Ngày bắt đầu", "Ngày kết thúc", 
+                        "Số", "Ngày ký", "Ngành nghề nặng nhọc, độc hại", "Ngày bắt đầu", 
+                        "Ngày kết thúc", "Hợp đồng lao động", "Số", "Ngày ký", "Quốc tịch", 
+                        "Mã QT", "Dân tộc", "Mã DT", "Điện thoại liên hệ", "Email liên hệ", 
+                        "Tỉnh / Thành phố (Khai sinh)", "Mã Tỉnh (Khai sinh)", "Phường/ Xã (Khai sinh)", 
+                        "Mã xã (Khai sinh)", "Địa chỉ khai sinh", "Tỉnh / Thành phố (Nhận HS)", 
+                        "Mã Tỉnh (Nhận HS)", "Phường/ Xã (Nhận HS)", "Mã xã (Nhận HS)", 
+                        "Địa chỉ nhận hồ sơ", "Tỉnh nơi KCB", "Mã tỉnh (KCB)", "Nơi đăng ký KCB", 
+                        "Mã BV", "Đăng ký nhận sổ và thẻ", "Tỉnh / Thành phố (Nhận sổ thẻ)", 
+                        "Mã Tỉnh (Nhận sổ thẻ)", "Phường/ Xã (Nhận sổ thẻ)", "Mã Xã (Nhận sổ thẻ)", 
+                        "Địa chỉ nhận Sổ thẻ", "Mức tiền đóng", "Phương thức đóng", "Nội dung thay đổi", 
+                        "Hồ sơ kèm theo", "Họ tên người giám hộ", "Mã số hộ gia đình", 
+                        "Họ Tên chủ hộ", "Số CMND/ CCCD/Hộ chiếu (chủ hộ)", "Điện thoại (chủ hộ)", 
+                        "Loại giấy tờ", "Số giấy tờ", "Tỉnh / Thành phố (hộ khẩu)", "Mã Tỉnh (hộ khẩu)", 
+                        "Phường/ Xã (hộ khẩu)", "Mã xã (hộ khẩu)", "Tổ/ Thôn/ Xóm", "Địa chỉ hộ khẩu", 
+                        "Tỉnh / Thành phố thường trú", "Mã Tỉnh (thường trú)", "Phường/ Xã thường trú", 
+                        "Mã xã (thường trú)", "Địa chỉ thường trú", "Mã số hộ gia đình (PL)", 
+                        "Họ và tên (PL)", "Mã số BHXH (PL)", "Loại ngày sinh (PL)", "Ngày sinh (PL)", 
+                        "Giới tính (PL)", "Quốc tịch (PL)", "Mã Quốc tịch (PL)", "Dân tộc (PL)", 
+                        "Mã Dân tộc (PL)", "Số CMND (PL)", "Mối quan hệ với chủ hộ", "Mã MQH", 
+                        "Tỉnh / Thành phố (PL)", "Mã Tỉnh (PL)", "Phường/ Xã (PL)", "Mã xã (PL)", 
+                        "Địa chỉ khai sinh (PL)", "Người tham gia", "Ghi chú (PL)"
+                    ]
                     
-                    # Header thông tin đơn vị
-                    ten_cong_ty = COMPANY_CONFIG.get("ten_cong_ty", "CÔNG TY CỔ PHẦN CẢNG HÒN LA")
-                    ma_don_vi_bhxh = COMPANY_CONFIG.get("ma_don_vi_BHXH", "................")
+                    # Độ rộng cột mặc định
+                    col_widths = [5, 25, 18, 15, 12, 12, 15, 10, 20, 25, 20, 25, 15, 15, 15, 12, 
+                                  15, 12, 12, 15, 12, 15, 15, 15, 20, 15, 15, 12, 12, 12, 12, 12, 
+                                  12, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 
+                                  15, 12, 12, 12, 12, 15, 20, 15, 12, 15, 12, 20, 15, 12, 15, 12, 
+                                  20, 15, 12, 15, 12, 15, 12, 15, 12, 20, 15, 15, 20, 15, 20, 20, 
+                                  15, 15, 15, 15, 15, 15, 15, 15, 15, 20, 15, 15, 15, 20, 20, 15, 
+                                  15, 15, 20, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 20, 20]
                     
-                    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=8)
+                    # Thiết lập độ rộng cột
+                    for idx, width in enumerate(col_widths[:len(columns)], 1):
+                        ws.column_dimensions[get_column_letter(idx)].width = width
+                    
+                    # ===== HEADER =====
+                    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(columns))
                     ws['A1'] = ten_cong_ty
                     ws['A1'].font = Font(bold=True, size=13, name='Times New Roman')
                     ws['A1'].alignment = Alignment(horizontal='center')
                     
-                    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=8)
+                    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(columns))
                     ws['A2'] = f"Mã đơn vị BHXH: {ma_don_vi_bhxh}"
                     ws['A2'].font = Font(size=11, name='Times New Roman')
                     ws['A2'].alignment = Alignment(horizontal='center')
                     
-                    ws.merge_cells(start_row=3, start_column=1, end_row=3, end_column=8)
-                    ws['A3'] = f"BÁO CÁO TĂNG/GIẢM LAO ĐỘNG THAM GIA BHXH (Mẫu D02-LT)"
+                    ws.merge_cells(start_row=3, start_column=1, end_row=3, end_column=len(columns))
+                    ws['A3'] = "DANH SÁCH LAO ĐỘNG THAM GIA BHXH (Mẫu D02-LT)"
                     ws['A3'].font = Font(bold=True, size=12, name='Times New Roman')
                     ws['A3'].alignment = Alignment(horizontal='center')
                     
-                    ws.merge_cells(start_row=4, start_column=1, end_row=4, end_column=8)
+                    ws.merge_cells(start_row=4, start_column=1, end_row=4, end_column=len(columns))
                     ws['A4'] = f"(Từ ngày {tu_ngay.strftime('%d/%m/%Y')} đến ngày {den_ngay.strftime('%d/%m/%Y')})"
                     ws['A4'].font = Font(size=11, name='Times New Roman')
                     ws['A4'].alignment = Alignment(horizontal='center')
                     
-                    # Tạo sheet riêng cho từng loại
-                    current_row = 6
+                    # ===== HEADER BẢNG =====
+                    header_row = 6
                     
-                    # ===== DANH SÁCH TĂNG =====
-                    ws.cell(row=current_row, column=1, value="I. DANH SÁCH LAO ĐỘNG TĂNG MỚI THAM GIA BHXH")
-                    ws.cell(row=current_row, column=1).font = Font(bold=True, size=12, name='Times New Roman')
-                    current_row += 1
+                    # Tạo header 2 dòng
+                    for col_idx, col_name in enumerate(columns, 1):
+                        cell = ws.cell(row=header_row, column=col_idx, value=col_name)
+                        cell.font = Font(bold=True, size=10, name='Times New Roman')
+                        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                        cell.border = thin_border
+                        cell.fill = PatternFill(start_color="E6F3FF", end_color="E6F3FF", fill_type="solid")
                     
-                    if tang_list:
-                        headers = ["STT", "Mã NV", "Họ và tên", "Mã số BHXH", "Ngày sinh", "Giới tính", "Số CCCD", "Ngày bắt đầu BH"]
-                        for col_idx, header in enumerate(headers, 1):
-                            cell = ws.cell(row=current_row, column=col_idx, value=header)
-                            cell.font = Font(bold=True, size=10, name='Times New Roman')
-                            cell.alignment = Alignment(horizontal='center', vertical='center')
+                    # ===== DỮ LIỆU =====
+                    all_data = []
+                    
+                    # Xử lý dữ liệu tăng
+                    for nv in tang_list:
+                        row_data = {}
+                        row_data['STT'] = len(all_data) + 1
+                        row_data['Họ và tên'] = nv.get('ho_ten', '')
+                        row_data['Mã số BHXH'] = nv.get('ma_so_bhxh', '')
+                        row_data['Loại phương án'] = "Tăng lao động"
+                        row_data['Mã loại PA'] = "1"
+                        row_data['Loại ngày sinh'] = "0"
+                        row_data['Ngày Sinh'] = format_date(nv.get('ngay_sinh'))
+                        row_data['Giới tính'] = "1" if nv.get('gioi_tinh') == 'Nam' else "2" if nv.get('gioi_tinh') == 'Nữ' else ""
+                        row_data['Số CMND/ CCCD/Hộ chiếu'] = nv.get('so_cccd', '')
+                        row_data['Cấp bậc, chức vụ, chức danh nghề'] = nv.get('chuc_danh_nghe', '')
+                        row_data['Phòng ban làm việc'] = nv.get('phong_ban_lam_viec', '')
+                        row_data['Nơi Làm Việc'] = nv.get('noi_lam_viec', 'Cảng THQT Hòn La')
+                        row_data['Mức lương'] = nv.get('luong_bao_hiem', '')
+                        row_data['Phụ cấp lương'] = ""
+                        row_data['Các khoản bổ sung'] = ""
+                        row_data['Hệ số lương'] = nv.get('he_so_luong', '')
+                        row_data['Phụ cấp CV'] = nv.get('phu_cap_chuc_vu', '')
+                        row_data['Phụ cấp TNVK (%)'] = nv.get('phu_cap_tnvk', '')
+                        row_data['Phụ cấp TN nghề (%)'] = nv.get('phu_cap_tnn', '')
+                        row_data['Phương án điều chỉnh'] = "TM-Tăng mới chưa có số sổ" if not nv.get('ma_so_bhxh') else "TD-Tăng đến đã có số sổ, di chuyển trong địa bàn tỉnh"
+                        row_data['Mã PA'] = "TM" if not nv.get('ma_so_bhxh') else "TD"
+                        row_data['Tháng/ năm bắt đầu'] = format_date_thang_nam(nv.get('thang_bat_dau_bh')) if nv.get('thang_bat_dau_bh') else ""
+                        row_data['Tháng/ năm kết thúc'] = ""
+                        row_data['Nghỉ ốm đau/Thai sản/không lương'] = ""
+                        row_data['Ghi chú'] = nv.get('ghi_chu', '')
+                        row_data['Số sổ BHXH'] = nv.get('ma_so_bhxh', '')
+                        row_data['Mức hưởng BHYT'] = nv.get('muc_huong_bhyt', '100')
+                        row_data['Tỷ lệ đóng (%)'] = nv.get('ty_le_dong', '')
+                        row_data['Mã vùng sinh sống'] = ""
+                        row_data['Mã vùng lương tối thiểu'] = "03"  # Vùng 3 - Quảng Trị
+                        row_data['Có giảm chết'] = ""
+                        row_data['Ngày chết'] = ""
+                        row_data['Tính lãi'] = ""
+                        row_data['Nhóm vị trí việc làm'] = ""
+                        row_data['Ngày bắt đầu giữ vị trí'] = format_date(nv.get('ngay_vao_lam'))
+                        row_data['Ngày kết thúc giữ vị trí'] = ""
+                        row_data['Loại HĐLĐ'] = nv.get('loai_hop_dong', '')
+                        row_data['Hiệu lực từ ngày'] = format_date(nv.get('ngay_ky_hd')) or format_date(nv.get('ngay_vao_lam'))
+                        row_data['Hiệu lực đến ngày'] = format_date(nv.get('ngay_ket_thuc')) if nv.get('ngay_ket_thuc') else ""
+                        row_data['Ngày bắt đầu'] = format_date(nv.get('thang_bat_dau_bh'))
+                        row_data['Ngày kết thúc'] = ""
+                        row_data['Số'] = nv.get('so_hdld', '')
+                        row_data['Ngày ký'] = format_date(nv.get('ngay_ky_hd')) or format_date(nv.get('ngay_vao_lam'))
+                        row_data['Quốc tịch'] = nv.get('quoc_tich', 'VIET NAM')
+                        row_data['Mã QT'] = "VN"
+                        row_data['Dân tộc'] = nv.get('dan_toc', 'Kinh')
+                        row_data['Mã DT'] = "1"
+                        row_data['Điện thoại liên hệ'] = nv.get('dien_thoai', '')
+                        row_data['Email liên hệ'] = nv.get('email_lien_he', '')
+                        
+                        # Thông tin địa chỉ từ DB
+                        row_data['Tỉnh / Thành phố (Khai sinh)'] = get_tinh_from_ma(nv.get('ma_tinh_khai_sinh')) if nv.get('ma_tinh_khai_sinh') else "Tỉnh Quảng Trị"
+                        row_data['Mã Tỉnh (Khai sinh)'] = nv.get('ma_tinh_khai_sinh', '44')
+                        row_data['Phường/ Xã (Khai sinh)'] = nv.get('phuong_xa_khai_sinh', '')
+                        row_data['Mã xã (Khai sinh)'] = nv.get('ma_xa_khai_sinh', '')
+                        row_data['Địa chỉ khai sinh'] = nv.get('noi_sinh', '')
+                        
+                        row_data['Tỉnh / Thành phố (Nhận HS)'] = nv.get('tinh_nhan_hs', '')
+                        row_data['Mã Tỉnh (Nhận HS)'] = get_ma_tinh_from_name(nv.get('tinh_nhan_hs', ''))
+                        row_data['Phường/ Xã (Nhận HS)'] = nv.get('phuong_nhan_hs', '')
+                        row_data['Mã xã (Nhận HS)'] = nv.get('ma_xa_nhan_hs', '')
+                        row_data['Địa chỉ nhận hồ sơ'] = nv.get('dia_chi_nhan_hs', '')
+                        
+                        row_data['Tỉnh nơi KCB'] = nv.get('tinh_kcb', 'Tỉnh Quảng Trị')
+                        row_data['Mã tỉnh (KCB)'] = "44"
+                        row_data['Nơi đăng ký KCB'] = nv.get('noi_dang_ky_kcb', 'Bệnh viện đa khoa khu vực Bắc Quảng Trị')
+                        row_data['Mã BV'] = "44003"
+                        
+                        row_data['Đăng ký nhận sổ và thẻ'] = nv.get('dang_ky_nhan_so', 'Có')
+                        row_data['Tỉnh / Thành phố (Nhận sổ thẻ)'] = nv.get('tinh_nhan_hs', '')
+                        row_data['Mã Tỉnh (Nhận sổ thẻ)'] = get_ma_tinh_from_name(nv.get('tinh_nhan_hs', ''))
+                        row_data['Phường/ Xã (Nhận sổ thẻ)'] = nv.get('phuong_nhan_hs', '')
+                        row_data['Mã Xã (Nhận sổ thẻ)'] = nv.get('ma_xa_nhan_hs', '')
+                        row_data['Địa chỉ nhận Sổ thẻ'] = nv.get('dia_chi_nhan_hs', '')
+                        
+                        row_data['Mức tiền đóng'] = nv.get('muc_tien_dong', '')
+                        row_data['Phương thức đóng'] = nv.get('phuong_thuc_dong', 'Hàng tháng')
+                        
+                        # Lấy thông tin chủ hộ từ bảng phu_luc_gia_dinh
+                        chủ_hộ = get_chu_ho_info(nv.get('id'))
+                        if chủ_hộ:
+                            row_data['Họ Tên chủ hộ'] = chủ_hộ.get('ho_ten', '')
+                            row_data['Số CMND/ CCCD/Hộ chiếu (chủ hộ)'] = chủ_hộ.get('so_cccd', '')
+                            row_data['Điện thoại (chủ hộ)'] = chủ_hộ.get('dien_thoai', '')
+                        
+                        all_data.append(row_data)
+                    
+                    # Xử lý dữ liệu giảm
+                    for nv in giam_list:
+                        row_data = {}
+                        row_data['STT'] = len(all_data) + 1
+                        row_data['Họ và tên'] = nv.get('ho_ten', '')
+                        row_data['Mã số BHXH'] = nv.get('ma_so_bhxh', '')
+                        row_data['Loại phương án'] = "Giảm lao động"
+                        row_data['Mã loại PA'] = "2"
+                        row_data['Tháng/ năm kết thúc'] = format_date_thang_nam(nv.get('thang_ket_thuc_bh')) if nv.get('thang_ket_thuc_bh') else ""
+                        row_data['Ghi chú'] = nv.get('ly_do_nghi', '')
+                        # Các cột khác để trống hoặc copy từ dữ liệu cũ
+                        all_data.append(row_data)
+                    
+                    # Ghi dữ liệu vào Excel
+                    start_row = header_row + 1
+                    for idx, row_data in enumerate(all_data):
+                        current_row = start_row + idx
+                        for col_idx, col_name in enumerate(columns, 1):
+                            value = row_data.get(col_name, '')
+                            cell = ws.cell(row=current_row, column=col_idx, value=value)
+                            cell.font = Font(size=10, name='Times New Roman')
                             cell.border = thin_border
-                            cell.fill = PatternFill(start_color="E6F3FF", end_color="E6F3FF", fill_type="solid")
-                        
-                        current_row += 1
-                        for idx, nv in enumerate(tang_list, 1):
-                            ws.cell(row=current_row, column=1, value=idx)
-                            ws.cell(row=current_row, column=2, value=nv.get('ma_nv', ''))
-                            ws.cell(row=current_row, column=3, value=nv.get('ho_ten', ''))
-                            ws.cell(row=current_row, column=4, value=nv.get('ma_so_bhxh', ''))
-                            ws.cell(row=current_row, column=5, value=format_date(nv.get('ngay_sinh')))
-                            ws.cell(row=current_row, column=6, value='Nam' if nv.get('gioi_tinh') == 'Nam' else 'Nữ' if nv.get('gioi_tinh') == 'Nữ' else '')
-                            ws.cell(row=current_row, column=7, value=nv.get('so_cccd', ''))
-                            ws.cell(row=current_row, column=8, value=format_date(nv.get('ngay_bat_dau')))
-                            
-                            for col_idx in range(1, 9):
-                                cell = ws.cell(row=current_row, column=col_idx)
-                                cell.border = thin_border
-                                if col_idx == 3:
-                                    cell.alignment = Alignment(horizontal='left', vertical='center')
-                                else:
-                                    cell.alignment = Alignment(horizontal='center', vertical='center')
-                            current_row += 1
-                        
-                        current_row += 1
-                    else:
-                        ws.cell(row=current_row, column=1, value="Không có lao động tăng trong kỳ")
-                        ws.cell(row=current_row, column=1).font = Font(italic=True, size=10, name='Times New Roman')
-                        current_row += 2
-                    
-                    # ===== DANH SÁCH GIẢM =====
-                    ws.cell(row=current_row, column=1, value="II. DANH SÁCH LAO ĐỘNG GIẢM (NGHỈ VIỆC)")
-                    ws.cell(row=current_row, column=1).font = Font(bold=True, size=12, name='Times New Roman')
-                    current_row += 1
-                    
-                    if giam_list:
-                        headers = ["STT", "Mã NV", "Họ và tên", "Mã số BHXH", "Ngày sinh", "Giới tính", "Số CCCD", "Ngày kết thúc BH", "Lý do nghỉ"]
-                        for col_idx, header in enumerate(headers, 1):
-                            cell = ws.cell(row=current_row, column=col_idx, value=header)
-                            cell.font = Font(bold=True, size=10, name='Times New Roman')
-                            cell.alignment = Alignment(horizontal='center', vertical='center')
-                            cell.border = thin_border
-                            cell.fill = PatternFill(start_color="FFE6E6", end_color="FFE6E6", fill_type="solid")
-                        
-                        current_row += 1
-                        for idx, nv in enumerate(giam_list, 1):
-                            ws.cell(row=current_row, column=1, value=idx)
-                            ws.cell(row=current_row, column=2, value=nv.get('ma_nv', ''))
-                            ws.cell(row=current_row, column=3, value=nv.get('ho_ten', ''))
-                            ws.cell(row=current_row, column=4, value=nv.get('ma_so_bhxh', ''))
-                            ws.cell(row=current_row, column=5, value=format_date(nv.get('ngay_sinh')))
-                            ws.cell(row=current_row, column=6, value='Nam' if nv.get('gioi_tinh') == 'Nam' else 'Nữ' if nv.get('gioi_tinh') == 'Nữ' else '')
-                            ws.cell(row=current_row, column=7, value=nv.get('so_cccd', ''))
-                            ws.cell(row=current_row, column=8, value=format_date(nv.get('ngay_ket_thuc')))
-                            ws.cell(row=current_row, column=9, value=nv.get('ly_do_nghi', ''))
-                            
-                            for col_idx in range(1, 10):
-                                cell = ws.cell(row=current_row, column=col_idx)
-                                cell.border = thin_border
-                                if col_idx in [3, 9]:
-                                    cell.alignment = Alignment(horizontal='left', vertical='center')
-                                else:
-                                    cell.alignment = Alignment(horizontal='center', vertical='center')
-                            current_row += 1
-                        
-                        current_row += 1
-                    else:
-                        ws.cell(row=current_row, column=1, value="Không có lao động giảm trong kỳ")
-                        ws.cell(row=current_row, column=1).font = Font(italic=True, size=10, name='Times New Roman')
-                        current_row += 2
+                            if col_idx in [1, 4, 5, 6, 8, 21, 22, 27, 28, 29, 30, 31, 32, 33]:
+                                cell.alignment = Alignment(horizontal='center', vertical='center')
+                            else:
+                                cell.alignment = Alignment(horizontal='left', vertical='center')
                     
                     # Footer
-                    ws.cell(row=current_row, column=1, value=f"Tổng số lao động tăng: {len(tang_list)}")
-                    ws.cell(row=current_row, column=1).font = Font(bold=True, size=11, name='Times New Roman')
-                    current_row += 1
-                    ws.cell(row=current_row, column=1, value=f"Tổng số lao động giảm: {len(giam_list)}")
-                    ws.cell(row=current_row, column=1).font = Font(bold=True, size=11, name='Times New Roman')
-                    current_row += 2
+                    total_row = start_row + len(all_data)
+                    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=5)
+                    ws.cell(row=total_row, column=1, value=f"Tổng số: {len(all_data)} lao động")
+                    ws.cell(row=total_row, column=1).font = Font(bold=True, size=11, name='Times New Roman')
                     
                     # Ký tên
-                    ws.merge_cells(start_row=current_row, start_column=6, end_row=current_row, end_column=8)
-                    ws.cell(row=current_row, column=6, value="NGƯỜI LẬP BÁO CÁO")
-                    ws.cell(row=current_row, column=6).font = Font(bold=True, size=11, name='Times New Roman')
-                    ws.cell(row=current_row, column=6).alignment = Alignment(horizontal='center')
-                    current_row += 1
+                    sign_row = total_row + 3
+                    ws.merge_cells(start_row=sign_row, start_column=len(columns)-3, end_row=sign_row, end_column=len(columns))
+                    ws.cell(row=sign_row, column=len(columns)-3, value="NGƯỜI LẬP BÁO CÁO")
+                    ws.cell(row=sign_row, column=len(columns)-3).font = Font(bold=True, size=11, name='Times New Roman')
+                    ws.cell(row=sign_row, column=len(columns)-3).alignment = Alignment(horizontal='center')
                     
-                    ws.merge_cells(start_row=current_row, start_column=6, end_row=current_row, end_column=8)
-                    ws.cell(row=current_row, column=6, value="(Ký, ghi rõ họ tên)")
-                    ws.cell(row=current_row, column=6).font = Font(size=10, name='Times New Roman', italic=True)
-                    ws.cell(row=current_row, column=6).alignment = Alignment(horizontal='center')
-                    current_row += 2
+                    sign_row += 1
+                    ws.merge_cells(start_row=sign_row, start_column=len(columns)-3, end_row=sign_row, end_column=len(columns))
+                    ws.cell(row=sign_row, column=len(columns)-3, value="(Ký, ghi rõ họ tên)")
+                    ws.cell(row=sign_row, column=len(columns)-3).font = Font(size=10, name='Times New Roman', italic=True)
+                    ws.cell(row=sign_row, column=len(columns)-3).alignment = Alignment(horizontal='center')
                     
-                    ws.merge_cells(start_row=current_row, start_column=6, end_row=current_row, end_column=8)
-                    ws.cell(row=current_row, column=6, value=COMPANY_CONFIG.get('dai_dien', 'GIÁM ĐỐC').upper())
-                    ws.cell(row=current_row, column=6).font = Font(bold=True, size=11, name='Times New Roman')
-                    ws.cell(row=current_row, column=6).alignment = Alignment(horizontal='center')
+                    sign_row += 1
+                    ws.merge_cells(start_row=sign_row, start_column=len(columns)-3, end_row=sign_row, end_column=len(columns))
+                    ws.cell(row=sign_row, column=len(columns)-3, value=COMPANY_CONFIG.get('dai_dien', 'GIÁM ĐỐC').upper())
+                    ws.cell(row=sign_row, column=len(columns)-3).font = Font(bold=True, size=11, name='Times New Roman')
+                    ws.cell(row=sign_row, column=len(columns)-3).alignment = Alignment(horizontal='center')
                     
-                    # Điều chỉnh độ rộng cột
-                    for col_idx in range(1, 10):
-                        ws.column_dimensions[get_column_letter(col_idx)].width = 20
-                    
+                    # Lưu file
                     filename = f"D02-LT_BHXH_{tu_ngay.strftime('%d%m%Y')}_{den_ngay.strftime('%d%m%Y')}.xlsx"
                     wb.save(filename)
-                    
-                    with open(filename, "rb") as f:
-                        st.download_button(
-                            label="📥 TẢI FILE EXCEL D02-LT",
-                            data=f,
-                            file_name=filename,
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            width='stretch'
-                        )
-                    st.success(f"✅ Đã xuất báo cáo D02-LT với {len(tang_list)} lao động tăng và {len(giam_list)} lao động giảm")
+                    return filename
+
+                def format_date_thang_nam(date_obj):
+                    """Định dạng ngày thành MM/YYYY"""
+                    if not date_obj:
+                        return ""
+                    if hasattr(date_obj, 'strftime'):
+                        return date_obj.strftime('%m/%Y')
+                    return str(date_obj)
+
+                def get_ma_tinh_from_name(tinh_name):
+                    """Lấy mã tỉnh từ tên tỉnh"""
+                    ma_tinh_map = {
+                        'Quảng Trị': '44',
+                        'Quảng Bình': '43',
+                        'Huế': '45',
+                        'Đà Nẵng': '48',
+                    }
+                    return ma_tinh_map.get(tinh_name, '44')
+
+                def get_chu_ho_info(nhan_vien_id):
+                    """Lấy thông tin chủ hộ từ bảng phu_luc_gia_dinh"""
+                    try:
+                        db = get_connection()
+                        c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                        c.execute("""
+                            SELECT ho_ten, so_cccd, dien_thoai 
+                            FROM phu_luc_gia_dinh 
+                            WHERE nhan_vien_id = %s AND quan_he_voi_chu_ho = 'Chủ hộ'
+                            LIMIT 1
+                        """, (nhan_vien_id,))
+                        result = c.fetchone()
+                        db.close()
+                        return result
+                    except:
+                        return None
             else:
                 st.info("📭 Không có biến động lao động trong kỳ để xuất báo cáo")
         else:

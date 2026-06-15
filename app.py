@@ -3785,12 +3785,18 @@ elif menu == "✅ Nhân viên":
                                         
                                         st.info(f"📄 **Số HĐLĐ mới:** {so_hd_moi} (tự động sinh)")
                                         
-                                        ngay_bat_dau_bh = st.date_input(
-                                            "📅 Bắt đầu đóng BHXH:", 
-                                            value=ngay_hieu_luc,
-                                            key=f"ngay_bhxh_{nv_id_key}"
+                                        ngay_hieu_luc = st.date_input(
+                                            "📅 Ngày hiệu lực (bắt đầu HĐLĐ):", 
+                                            value=ngay_quyet_dinh,
+                                            key=f"ngay_hl_{nv_id_key}"
                                         )
-                                        st.caption("⚠️ Đây là ngày bắt đầu tính đóng BHXH")
+                                        
+                                        ngay_bat_dau_bh = st.date_input(
+                                            "📅 Ngày bắt đầu đóng BHXH:", 
+                                            value=ngay_hieu_luc,
+                                            key=f"ngay_bhxh_{nv_id_key}",
+                                            help="⚠️ Ngày bắt đầu tham gia BHXH. Thường là ngày hiệu lực HĐLĐ chính thức."
+                                        )
                                         
                                         ly_do_chuyen = st.text_area(
                                             "📝 Lý do/ Nội dung quyết định:", 
@@ -5346,10 +5352,20 @@ elif menu == "📋 BHXH":
         c.execute("SELECT COUNT(*) as tong FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')")
         tong_ld = c.fetchone()['tong']
         
-        c.execute("SELECT COUNT(*) as dang_dong FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') AND trang_thai_bhxh = 'DANG_DONG'")
+        c.execute("""
+            SELECT COUNT(*) as dang_dong 
+            FROM nhan_vien 
+            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') 
+            AND thang_bat_dau_bh IS NOT NULL  -- ĐÃ CÓ NGÀY BẮT ĐẦU = ĐANG THAM GIA
+        """)
         dang_dong = c.fetchone()['dang_dong']
-        
-        c.execute("SELECT COUNT(*) as chua_dong FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') AND trang_thai_bhxh = 'CHUA_DONG'")
+
+        c.execute("""
+            SELECT COUNT(*) as chua_dong 
+            FROM nhan_vien 
+            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') 
+            AND thang_bat_dau_bh IS NULL  -- CHƯA CÓ NGÀY BẮT ĐẦU = CHƯA THAM GIA
+        """)
         chua_dong = c.fetchone()['chua_dong']
         
         c.execute("SELECT COUNT(*) as da_nghi FROM nhan_vien WHERE trang_thai = 'NGHI_VIEC'")
@@ -5371,12 +5387,15 @@ elif menu == "📋 BHXH":
         db = get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c.execute("""
-            SELECT ma_nv, ho_ten, chuc_danh_nghe, ngay_vao_lam, loai_hop_dong, thang_bat_dau_bh
+            SELECT ma_nv, ho_ten, chuc_danh_nghe, ngay_vao_lam, loai_hop_dong, 
+                   thang_bat_dau_bh, trang_thai_bhxh
             FROM nhan_vien 
-            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') AND trang_thai_bhxh = 'CHUA_DONG'
+            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') 
+            AND thang_bat_dau_bh IS NULL
             ORDER BY ngay_vao_lam ASC
         """)
         chua_dong_list = c.fetchall()
+
         db.close()
         
         if chua_dong_list:
@@ -5404,17 +5423,18 @@ elif menu == "📋 BHXH":
         db = get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         
-        # Lao động tăng trong kỳ
+        # Lao động tăng trong kỳ - CHỈ DỰA VÀO NGÀY BẮT ĐẦU BHXH
         c.execute("""
             SELECT 
                 ma_nv, ho_ten, ma_so_bhxh, ngay_sinh, gioi_tinh, so_cccd,
                 chuc_danh_nghe, phong_ban_lam_viec, luong_bao_hiem, he_so_luong,
-                COALESCE(thang_bat_dau_bh, ngay_vao_lam) as ngay_bat_dau,
+                thang_bat_dau_bh as ngay_bat_dau,  -- LẤY ĐÚNG GIÁ TRỊ THỰC TẾ
                 loai_hop_dong, so_hdld, ngay_vao_lam, thuong_tru
             FROM nhan_vien 
-            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
-            AND COALESCE(thang_bat_dau_bh, ngay_vao_lam) BETWEEN %s AND %s
-            ORDER BY COALESCE(thang_bat_dau_bh, ngay_vao_lam) ASC
+            WHERE trang_thai IN ('DANG_LAM')
+            AND thang_bat_dau_bh IS NOT NULL  -- CHỈ CẦN CÓ NGÀY BẮT ĐẦU BHXH
+            AND thang_bat_dau_bh BETWEEN %s AND %s
+            ORDER BY thang_bat_dau_bh ASC
         """, (tu_ngay, den_ngay))
         tang_list = c.fetchall()
         

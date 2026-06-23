@@ -473,6 +473,7 @@ def load_bank_list():
             "VIB - Ngân hàng TMCP Quốc Tế",
             "OCB - Ngân hàng TMCP Phương Đông",
             "LPB - Ngân hàng TMCP Bưu Điện Liên Việt",
+            "VIETBANK - Ngân hàng TMCP Việt Nam Thương Tín",
         ]
     return banks
 

@@ -460,7 +460,7 @@ def load_bank_list():
         banks = [
             "MB - Ngân hàng TMCP Quân Đội",
             "TCB - Ngân hàng TMCP Kỹ Thương Việt Nam",
-            "ABBANK" - Ngân hàng TMCP An Bình",
+            "ABBANK - Ngân hàng TMCP An Bình",
             "EIB - Ngân hàng TMCP Xuất Nhập Khẩu Việt Nam",
             "HDB - Ngân hàng TMCP Phát triển TP Hồ Chí Minh",
             "BVB - Ngân hàng TMCP Bảo Việt",

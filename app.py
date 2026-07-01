@@ -4155,12 +4155,6 @@ elif menu == "✅ Nhân viên":
                                             key=f"ngay_qd_{nv_id_key}"
                                         )
                                         
-                                        ngay_hieu_luc = st.date_input(
-                                            "📅 Ngày hiệu lực (bắt đầu HĐLĐ):", 
-                                            value=ngay_quyet_dinh,
-                                            key=f"ngay_hl_{nv_id_key}"
-                                        )
-                                        
                                         # Trong phần chuyển đổi từ THU_VIEC sang DANG_LAM
                                         current_year = datetime.now().year
 

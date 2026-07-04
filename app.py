@@ -2242,6 +2242,54 @@ def get_connection():
         database=os.getenv('DB_NAME')
     )
 
+# ========== CHẤM CÔNG THỦ CÔNG - HẰNG SỐ & HÀM DÙNG CHUNG ==========
+# Mã công theo đúng bảng chấm công mẫu (sheet T4-2026 / T5-2026 file HLP)
+CHAM_CONG_MA_CODE = {
+    "":    "(Trống) - Nghỉ không lương",
+    "X":   "X - Ngày công thường (8T)",
+    "N":   "N - Ca làm việc 8T - ngày",
+    "D":   "D - Ca làm việc 8T - đêm",
+    "L":   "L - Đi làm ngày lễ",
+    "0.5": "0.5 - Làm nửa ngày công thường",
+    "NL":  "NL - Nghỉ lễ hưởng nguyên lương",
+}
+CHAM_CONG_MA_OPTIONS = list(CHAM_CONG_MA_CODE.keys())
+
+# Những bộ phận (theo mã phong_ban_lam_viec trong bảng nhan_vien) có phát sinh tăng ca
+# theo đúng bản mẫu (nhóm LX-M/LDPT thực tế đang lưu mã "SX" và "LDPT")
+CHAM_CONG_DEPT_TANG_CA = ["SX", "LDPT"]
+
+CHAM_CONG_DEPT_LABEL = {
+    "QL": "QL - Quản lý",
+    "VP": "VP - Văn phòng",
+    "SX": "SX - Sản xuất/Vận hành",
+    "LDPT": "LDPT - Lao động phổ thông",
+}
+
+def ensure_cham_cong_table():
+    """Tạo bảng cham_cong trên Supabase nếu chưa có (idempotent)."""
+    db = get_connection()
+    c = db.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS cham_cong (
+            id SERIAL PRIMARY KEY,
+            nhan_vien_id INTEGER NOT NULL REFERENCES nhan_vien(id) ON DELETE CASCADE,
+            ngay DATE NOT NULL,
+            ma_cong VARCHAR(10),
+            gio_tang_ca NUMERIC(5,2) DEFAULT 0,
+            gio_tang_ca_le NUMERIC(5,2) DEFAULT 0,
+            ghi_chu TEXT,
+            nguon VARCHAR(20) DEFAULT 'THU_CONG',
+            created_by VARCHAR(100),
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            UNIQUE(nhan_vien_id, ngay)
+        )
+    """)
+    db.commit()
+    c.close()
+    db.close()
+
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.role = None
@@ -2746,9 +2794,11 @@ if not st.session_state.logged_in:
     
 # Menu theo role
 if st.session_state.role == "admin":
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI","👆 Chấm công (Face ID)","💰 Tính thu nhập"]
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI","🕒 Chấm công","💰 Tính thu nhập"]
 else:  # viewer
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo 01/PLI","👆 Chấm công (Face ID)","💰 Tính thu nhập"]
+    # NOTE: Menu "Chấm công" đang trong giai đoạn hoàn thiện -> chỉ admin được dùng.
+    # Khi hoàn thiện, bổ sung role "hr" (hoặc tương đương) vào điều kiện phía trên để cấp quyền cho HR.
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo 01/PLI","💰 Tính thu nhập"]
 menu = st.sidebar.radio("📋 Menu", menu_options)
 st.sidebar.divider()
 st.sidebar.caption(f"👤 {st.session_state.username} ({st.session_state.role})")
@@ -5466,34 +5516,204 @@ elif menu == "✅ Nhân viên":
         else:
             st.info("Không có biến động nhân sự trong kỳ.")
 
-# ========== CHẤM CÔNG (FACE ID) ==========
-elif menu == "👆 Chấm công (Face ID)":
-    st.title("👆 Chấm công bằng Face ID")
-    st.caption("Quản lý chấm công nhân viên bằng công nghệ nhận diện khuôn mặt")
-    
-    st.info("""
-    ### 🚧 Tính năng đang hoàn thiện
-    
-    Nội dung đang được phát triển. Các tính năng sắp ra mắt:
-    - ✅ Đăng ký khuôn mặt cho nhân viên
-    - ✅ Chấm công bằng camera
-    - ✅ Lịch sử chấm công theo thời gian thực
-    - ✅ Báo cáo đi muộn, về sớm
-    - ✅ Tổng hợp công theo tháng
-    - ✅ Tích hợp với tính lương tự động
-    
-    ⏳ **Dự kiến hoàn thành: Quý 4/2026**
-    """)
-    
-    # Hiển thị thống kê demo
-    with st.expander("📊 Thống kê chấm công hôm nay (Demo)"):
-        col_demo1, col_demo2, col_demo3 = st.columns(3)
-        col_demo1.metric("Đã chấm công", "0/0", "0%")
-        col_demo2.metric("Đi làm đúng giờ", "0", "---")
-        col_demo3.metric("Đi muộn", "0", "---")
-        
-        st.markdown("**Danh sách nhân viên chưa chấm công:**")
-        st.caption("Chưa có dữ liệu - Tính năng đang phát triển")
+# ========== CHẤM CÔNG ==========
+elif menu == "🕒 Chấm công":
+    st.title("🕒 Chấm công")
+    st.caption("Quản lý chấm công nhân viên - Cảng Hòn La")
+    ensure_cham_cong_table()
+
+    sub_menu = st.radio(
+        "Chọn phương thức chấm công:",
+        ["📝 Chấm công thủ công", "📥 Trích xuất từ máy chấm vân tay", "👤 Chấm công bằng Face ID"],
+        horizontal=True,
+        key="cham_cong_sub_menu"
+    )
+    st.divider()
+
+    # ========== 1. CHẤM CÔNG THỦ CÔNG ==========
+    if sub_menu == "📝 Chấm công thủ công":
+        tab_nhap, tab_tonghop = st.tabs(["📝 Nhập chấm công theo ngày", "📅 Bảng tổng hợp tháng"])
+
+        # ---------- TAB NHẬP THEO NGÀY + BỘ PHẬN ----------
+        with tab_nhap:
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                ngay_cham = st.date_input("📅 Ngày chấm công", value=date.today(), format="DD/MM/YYYY", key="cc_ngay")
+            with col_f2:
+                db_f = get_connection()
+                c_f = db_f.cursor()
+                c_f.execute("""SELECT DISTINCT phong_ban_lam_viec FROM nhan_vien
+                               WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND phong_ban_lam_viec IS NOT NULL
+                               AND phong_ban_lam_viec != '' ORDER BY phong_ban_lam_viec""")
+                dept_rows = [r[0] for r in c_f.fetchall()]
+                c_f.close(); db_f.close()
+                dept_options = ["Tất cả"] + dept_rows
+                dept_labels = {d: CHAM_CONG_DEPT_LABEL.get(d, d) for d in dept_rows}
+                dept_labels["Tất cả"] = "Tất cả các bộ phận"
+                bo_phan_chon = st.selectbox("🏢 Bộ phận", dept_options, format_func=lambda d: dept_labels.get(d, d), key="cc_bo_phan")
+
+            with st.expander("ℹ️ Chú giải mã công"):
+                for k, v in CHAM_CONG_MA_CODE.items():
+                    st.caption(v)
+                st.caption(f"⚙️ Cột 'Giờ tăng ca' áp dụng chính cho bộ phận: {', '.join(CHAM_CONG_DEPT_TANG_CA)} (vẫn có thể nhập cho bộ phận khác nếu phát sinh).")
+
+            db = get_connection()
+            c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            if bo_phan_chon == "Tất cả":
+                c.execute("""SELECT id, ma_nv, ho_ten, chuc_danh_nghe, phong_ban_lam_viec FROM nhan_vien
+                             WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY phong_ban_lam_viec, ho_ten""")
+            else:
+                c.execute("""SELECT id, ma_nv, ho_ten, chuc_danh_nghe, phong_ban_lam_viec FROM nhan_vien
+                             WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND phong_ban_lam_viec = %s ORDER BY ho_ten""", (bo_phan_chon,))
+            nv_list = c.fetchall()
+
+            existing = {}
+            if nv_list:
+                nv_ids = [nv['id'] for nv in nv_list]
+                c.execute("""SELECT nhan_vien_id, ma_cong, gio_tang_ca, gio_tang_ca_le, ghi_chu FROM cham_cong
+                             WHERE ngay = %s AND nhan_vien_id = ANY(%s)""", (ngay_cham, nv_ids))
+                existing = {r['nhan_vien_id']: r for r in c.fetchall()}
+            c.close(); db.close()
+
+            if not nv_list:
+                st.warning("Không có nhân viên nào phù hợp với bộ phận đã chọn.")
+            else:
+                id_list = [nv['id'] for nv in nv_list]
+                rows = []
+                for nv in nv_list:
+                    old = existing.get(nv['id'], {})
+                    rows.append({
+                        "Mã NV": nv['ma_nv'],
+                        "Họ tên": nv['ho_ten'],
+                        "Chức vụ": nv['chuc_danh_nghe'] or "",
+                        "Bộ phận": nv['phong_ban_lam_viec'] or "",
+                        "Mã công": old.get('ma_cong') or "",
+                        "Giờ tăng ca": float(old.get('gio_tang_ca') or 0),
+                        "Giờ tăng ca lễ/tết": float(old.get('gio_tang_ca_le') or 0),
+                        "Ghi chú": old.get('ghi_chu') or "",
+                    })
+                df_input = pd.DataFrame(rows)
+
+                col_config = {
+                    "Mã NV": st.column_config.TextColumn(disabled=True),
+                    "Họ tên": st.column_config.TextColumn(disabled=True),
+                    "Chức vụ": st.column_config.TextColumn(disabled=True),
+                    "Bộ phận": st.column_config.TextColumn(disabled=True),
+                    "Mã công": st.column_config.SelectboxColumn(options=CHAM_CONG_MA_OPTIONS, required=False),
+                    "Giờ tăng ca": st.column_config.NumberColumn(min_value=0, max_value=24, step=0.5),
+                    "Giờ tăng ca lễ/tết": st.column_config.NumberColumn(min_value=0, max_value=24, step=0.5),
+                    "Ghi chú": st.column_config.TextColumn(),
+                }
+
+                edited_df = st.data_editor(
+                    df_input,
+                    column_config=col_config,
+                    hide_index=True,
+                    num_rows="fixed",
+                    width='stretch',
+                    key=f"cc_editor_{ngay_cham}_{bo_phan_chon}"
+                )
+
+                col_sv1, col_sv2 = st.columns([1, 3])
+                with col_sv1:
+                    if st.button("💾 Lưu chấm công", type="primary", key="cc_save_btn"):
+                        db2 = get_connection()
+                        c2 = db2.cursor()
+                        n_saved = 0
+                        for nv_id, (_, row) in zip(id_list, edited_df.iterrows()):
+                            ma_cong_val = (row["Mã công"] or "").strip()
+                            gio_tc = row["Giờ tăng ca"] or 0
+                            gio_tcl = row["Giờ tăng ca lễ/tết"] or 0
+                            ghi_chu_val = row["Ghi chú"] or ""
+                            if not ma_cong_val and gio_tc == 0 and gio_tcl == 0 and not ghi_chu_val:
+                                continue  # bỏ qua dòng chưa nhập gì
+                            c2.execute("""
+                                INSERT INTO cham_cong (nhan_vien_id, ngay, ma_cong, gio_tang_ca, gio_tang_ca_le, ghi_chu, nguon, created_by, updated_at)
+                                VALUES (%s,%s,%s,%s,%s,%s,'THU_CONG',%s, NOW())
+                                ON CONFLICT (nhan_vien_id, ngay) DO UPDATE SET
+                                    ma_cong = EXCLUDED.ma_cong,
+                                    gio_tang_ca = EXCLUDED.gio_tang_ca,
+                                    gio_tang_ca_le = EXCLUDED.gio_tang_ca_le,
+                                    ghi_chu = EXCLUDED.ghi_chu,
+                                    updated_at = NOW()
+                            """, (nv_id, ngay_cham, ma_cong_val or None, gio_tc, gio_tcl, ghi_chu_val, st.session_state.username))
+                            n_saved += 1
+                        db2.commit()
+                        c2.close(); db2.close()
+                        st.success(f"✅ Đã lưu chấm công ngày {ngay_cham.strftime('%d/%m/%Y')} cho {n_saved} nhân viên.")
+                        st.rerun()
+                with col_sv2:
+                    st.caption("💡 Để trống ô 'Mã công' nếu nhân viên nghỉ không lương. Xóa mã công đã lưu rồi bấm Lưu sẽ cập nhật lại thành trống.")
+
+        # ---------- TAB TỔNG HỢP THÁNG ----------
+        with tab_tonghop:
+            col_m1, col_m2 = st.columns(2)
+            with col_m1:
+                thang_tk = st.selectbox("Tháng", list(range(1, 13)), index=date.today().month - 1, key="cc_thang_tk")
+            with col_m2:
+                nam_tk = st.number_input("Năm", min_value=2020, max_value=2100, value=date.today().year, step=1, key="cc_nam_tk")
+
+            db3 = get_connection()
+            c3 = db3.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            c3.execute("""
+                SELECT nv.id, nv.ma_nv, nv.ho_ten, nv.chuc_danh_nghe, nv.phong_ban_lam_viec,
+                       cc.ma_cong, cc.gio_tang_ca, cc.gio_tang_ca_le
+                FROM nhan_vien nv
+                LEFT JOIN cham_cong cc ON cc.nhan_vien_id = nv.id
+                    AND EXTRACT(MONTH FROM cc.ngay) = %s AND EXTRACT(YEAR FROM cc.ngay) = %s
+                WHERE nv.trang_thai IN ('DANG_LAM','THU_VIEC')
+                ORDER BY nv.phong_ban_lam_viec, nv.ho_ten
+            """, (thang_tk, nam_tk))
+            data = c3.fetchall()
+            c3.close(); db3.close()
+
+            if not data:
+                st.info("Chưa có dữ liệu chấm công cho tháng này.")
+            else:
+                df_all = pd.DataFrame(data)
+                summary_rows = []
+                for (nv_id, ma_nv, ho_ten, chuc_vu, bo_phan), grp in df_all.groupby(
+                        ['id', 'ma_nv', 'ho_ten', 'chuc_danh_nghe', 'phong_ban_lam_viec'], dropna=False):
+                    so_cong_thuong = grp['ma_cong'].isin(['X', 'N', 'D']).sum()
+                    so_nua_ngay = (grp['ma_cong'] == '0.5').sum()
+                    so_ngay_le = (grp['ma_cong'] == 'L').sum()
+                    so_nghi_le = (grp['ma_cong'] == 'NL').sum()
+                    tong_cong = so_cong_thuong + so_nua_ngay * 0.5 + so_ngay_le + so_nghi_le
+                    tong_tc = grp['gio_tang_ca'].fillna(0).astype(float).sum()
+                    tong_tcl = grp['gio_tang_ca_le'].fillna(0).astype(float).sum()
+                    summary_rows.append({
+                        "Mã NV": ma_nv, "Họ tên": ho_ten, "Chức vụ": chuc_vu, "Bộ phận": bo_phan,
+                        "Công thường (X/N/D)": int(so_cong_thuong), "Nửa ngày": int(so_nua_ngay),
+                        "Ngày lễ (L)": int(so_ngay_le), "Nghỉ lễ (NL)": int(so_nghi_le),
+                        "Tổng công": tong_cong, "Giờ TC": tong_tc, "Giờ TC lễ/tết": tong_tcl,
+                    })
+                df_summary = pd.DataFrame(summary_rows)
+                st.dataframe(df_summary, hide_index=True, width='stretch')
+                st.caption("📌 Bảng tổng hợp này chính là nguồn dữ liệu chấm công sẽ được liên kết với menu '💰 Tính thu nhập'.")
+
+    # ========== 2. TRÍCH XUẤT TỪ MÁY CHẤM VÂN TAY ==========
+    elif sub_menu == "📥 Trích xuất từ máy chấm vân tay":
+        st.info("""
+        ### 🚧 Tính năng đang phát triển
+
+        Dự kiến sẽ hỗ trợ:
+        - Upload file dữ liệu xuất từ máy chấm vân tay (.xls/.csv)
+        - Ánh xạ mã nhân viên trên máy chấm công với Mã NV trong hệ thống
+        - Tự động quy đổi giờ vào/ra thành mã công (X/N/D...) và lưu vào cùng bảng dữ liệu với Chấm công thủ công
+        """)
+
+    # ========== 3. FACE ID ==========
+    elif sub_menu == "👤 Chấm công bằng Face ID":
+        st.info("""
+        ### 🚧 Tính năng đang phát triển
+
+        Dự kiến sẽ hỗ trợ:
+        - ✅ Đăng ký khuôn mặt cho nhân viên
+        - ✅ Chấm công bằng camera
+        - ✅ Lịch sử chấm công theo thời gian thực
+        - ✅ Báo cáo đi muộn, về sớm
+        - ✅ Tích hợp cùng bảng dữ liệu với Chấm công thủ công
+        """)
 
 # ========== TÍNH THU NHẬP ==========
 elif menu == "💰 Tính thu nhập":

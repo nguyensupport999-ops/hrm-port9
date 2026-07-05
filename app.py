@@ -24,6 +24,8 @@ from PIL import Image
 import qrcode
 from io import BytesIO
 import os
+import sys
+import subprocess
 import pathlib
 import streamlit.components.v1 as components
 import urllib.parse
@@ -2242,6 +2244,46 @@ def get_connection():
         database=os.getenv('DB_NAME')
     )
 
+# ========== SUPABASE STORAGE (lưu trữ file hồ sơ) ==========
+# Tên bucket Storage trên Supabase dùng để lưu hồ sơ nhân viên.
+# Cần tạo trước trên Supabase Dashboard > Storage (khuyến nghị để Private).
+SUPABASE_BUCKET = "ho-so-nhan-vien"
+
+@st.cache_resource(show_spinner=False)
+def get_supabase_storage():
+    """Khởi tạo Supabase Client dùng cho Storage (upload/download/xóa file hồ sơ).
+    Đọc cấu hình từ st.secrets['supabase']['url'] / ['key'], fallback sang .env
+    (SUPABASE_URL / SUPABASE_KEY) khi chạy local.
+    Trả về None nếu chưa cấu hình để nơi gọi tự xử lý báo lỗi phù hợp."""
+    try:
+        from supabase import create_client
+    except ImportError:
+        print("Chưa cài thư viện supabase. Chạy: pip install supabase")
+        return None
+
+    url, key = None, None
+    try:
+        if 'supabase' in st.secrets:
+            url = st.secrets.supabase.get('url')
+            key = st.secrets.supabase.get('key')
+    except Exception:
+        pass
+
+    if not url or not key:
+        from dotenv import load_dotenv
+        load_dotenv()
+        url = url or os.getenv('SUPABASE_URL')
+        key = key or os.getenv('SUPABASE_KEY')
+
+    if not url or not key:
+        return None
+
+    try:
+        return create_client(url, key)
+    except Exception as e:
+        print(f"Lỗi khởi tạo Supabase Storage: {e}")
+        return None
+
 # ========== CHẤM CÔNG THỦ CÔNG - HẰNG SỐ & HÀM DÙNG CHUNG ==========
 # Mã công theo đúng bảng chấm công mẫu (sheet T4-2026 / T5-2026 file HLP)
 # Đây cũng chính là danh sách ký hiệu hợp lệ được liệt kê trong "Chú giải" và
@@ -3413,13 +3455,64 @@ if menu == "📊 Dashboard":
     
     
     if st.session_state.role == "admin":
-        if st.button("💾 BACKUP DỮ LIỆU NGAY", width='stretch'):
-            try:
-                from backup_nv import backup_nhan_vien
-                backup_nhan_vien()
-                st.success("✅ Đã backup! Kiểm tra thư mục D:\\HRM_Port\\backup")
-            except ImportError:
-                st.error("❌ Không tìm thấy module backup_nv. Backup chỉ hoạt động trên local.")
+        st.markdown("#### 💾 Sao lưu dữ liệu")
+        col_bk1, col_bk2 = st.columns(2)
+
+        with col_bk1:
+            if st.button("💾 BACKUP DỮ LIỆU NGAY", width='stretch'):
+                try:
+                    from backup_data import backup_all, BACKUP_ROOT
+                    with st.spinner("⏳ Đang backup bảng Ứng viên, Nhân viên và hồ sơ trên Supabase Storage..."):
+                        result = backup_all()
+                    st.success(f"✅ Đã backup xong! Thư mục: {result['dest_folder']}")
+                    for table, res in result['db'].items():
+                        if res[0]:
+                            st.caption(f"✔️ Bảng `{table}`: {res[1]} dòng")
+                        else:
+                            st.caption(f"❌ Bảng `{table}`: {res[1]}")
+                    if result['storage']['ok']:
+                        st.caption(f"✔️ Storage: đã tải {result['storage']['count']} file hồ sơ")
+                    else:
+                        st.caption(f"❌ Storage: {result['storage']['error']} (đã tải {result['storage']['count']} file)")
+                except ImportError:
+                    st.error("❌ Không tìm thấy `backup_data.py`. Hãy đặt file này cùng thư mục với app.py.")
+                except Exception as e:
+                    st.error(f"❌ Lỗi khi backup: {e}")
+            st.caption("Backup dữ liệu bảng `ung_vien`, `nhan_vien` (Excel) + toàn bộ file hồ sơ trên Supabase Storage → `D:\\hrm-port9\\backup`.")
+
+        with col_bk2:
+            with st.popover("🗓️ Lịch backup tự động", width='stretch'):
+                st.caption("Dùng **Windows Task Scheduler** để tự động chạy backup vào **02:00 sáng Thứ 7 hàng tuần**. "
+                           "Chỉ áp dụng khi app chạy trên máy Windows local (không áp dụng khi deploy trên Streamlit Cloud).")
+                if st.button("✅ BẬT lịch backup tự động", width='stretch'):
+                    try:
+                        python_exe = sys.executable
+                        script_path = os.path.abspath("backup_data.py")
+                        task_cmd = (
+                            'schtasks /Create /TN "HRM_Port_Backup_Weekly" '
+                            f'/TR "\\"{python_exe}\\" \\"{script_path}\\"" '
+                            '/SC WEEKLY /D SAT /ST 02:00 /F'
+                        )
+                        result = subprocess.run(task_cmd, shell=True, capture_output=True, text=True)
+                        if result.returncode == 0:
+                            st.success("✅ Đã tạo lịch: tự động backup 02:00 sáng Thứ 7 hàng tuần.")
+                        else:
+                            st.error(f"❌ Không tạo được lịch: {result.stderr or result.stdout}")
+                    except Exception as e:
+                        st.error(f"❌ Lỗi khi tạo lịch: {e}")
+
+                if st.button("🗑️ TẮT lịch backup tự động", width='stretch'):
+                    try:
+                        result = subprocess.run(
+                            'schtasks /Delete /TN "HRM_Port_Backup_Weekly" /F',
+                            shell=True, capture_output=True, text=True
+                        )
+                        if result.returncode == 0:
+                            st.success("✅ Đã tắt lịch backup tự động.")
+                        else:
+                            st.warning(f"⚠️ {result.stderr or result.stdout}")
+                    except Exception as e:
+                        st.error(f"❌ Lỗi: {e}")
     
     
     
@@ -5740,7 +5833,6 @@ elif menu == "🕒 Chấm công":
                     table_height = CC_HEADER_H + CC_ROW_HEIGHT * min(len(df_month), CC_MAX_VISIBLE_ROWS)
 
                     if not st.session_state.get('cc_edit_mode', False):
-                        sunday_cols = [t for d, t in zip(day_list, col_titles) if d.weekday() >= 5]
                         # Chế độ XEM
                         def _highlight_sunday(s):
                             if s.name in sunday_cols:
@@ -6068,24 +6160,35 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
             if fl and st.button("📤 UPLOAD", type="primary", width='stretch'):
                 nid = nd[cn]
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                fn = f"{nid}_{timestamp}_{lh}_{fl.name}"
-                fp = os.path.join(UPLOAD_FOLDER, fn)
-                
-                with open(fp, "wb") as f:
-                    f.write(fl.getbuffer())
-                
-                db = get_connection()
-                c = db.cursor()
-                c.execute("""
-                    INSERT INTO ho_so_nhan_vien (nhan_vien_id, loai_ho_so, ten_file, duong_dan_file, ngay_upload) 
-                    VALUES (%s, %s, %s, %s, CURRENT_DATE)
-                """, (nid, lh, fl.name, fp))
-                db.commit()
-                db.close()
-                
-                st.success(f"✅ Đã upload thành công!\n📁 Lưu tại: {fp}")
-                st.cache_data.clear()
-                st.rerun()
+                safe_name = re.sub(r'\s+', '_', fl.name)
+                # Đường dẫn trong bucket: gom theo nhân viên để dễ quản lý/backup
+                storage_path = f"{nid}/{lh}_{timestamp}_{safe_name}"
+
+                sb = get_supabase_storage()
+                if not sb:
+                    st.error("❌ Chưa cấu hình Supabase Storage. Vui lòng khai báo `SUPABASE_URL` và `SUPABASE_KEY` trong secrets/.env.")
+                else:
+                    try:
+                        sb.storage.from_(SUPABASE_BUCKET).upload(
+                            path=storage_path,
+                            file=fl.getvalue(),
+                            file_options={"content-type": fl.type or "application/octet-stream"}
+                        )
+
+                        db = get_connection()
+                        c = db.cursor()
+                        c.execute("""
+                            INSERT INTO ho_so_nhan_vien (nhan_vien_id, loai_ho_so, ten_file, duong_dan_file, ngay_upload) 
+                            VALUES (%s, %s, %s, %s, CURRENT_DATE)
+                        """, (nid, lh, fl.name, storage_path))
+                        db.commit()
+                        db.close()
+
+                        st.success(f"✅ Đã upload thành công lên Supabase Storage!\n📁 Đường dẫn: {storage_path}")
+                        st.cache_data.clear()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Lỗi khi upload lên Supabase Storage: {e}")
         else:
             st.info("⚠️ Chưa có nhân viên nào trong hệ thống!")
     
@@ -6146,25 +6249,33 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                     """)
                 
                 with col_download:
-                    if os.path.exists(selected_hs['duong_dan_file']):
-                        with open(selected_hs['duong_dan_file'], "rb") as f:
+                    sb = get_supabase_storage()
+                    if not sb:
+                        st.error("❌ Chưa cấu hình Supabase Storage!")
+                    else:
+                        try:
+                            file_bytes = sb.storage.from_(SUPABASE_BUCKET).download(selected_hs['duong_dan_file'])
                             st.download_button(
                                 label="📥 TẢI HỒ SƠ",
-                                data=f,
+                                data=file_bytes,
                                 file_name=selected_hs['ten_file'],
                                 mime="application/octet-stream",
                                 width='stretch'
                             )
-                    else:
-                        st.error("❌ File không tồn tại trên máy chủ!")
+                        except Exception as e:
+                            st.error(f"❌ File không tồn tại hoặc lỗi khi tải từ Supabase Storage: {e}")
                 
                 st.divider()
                 col_del1, col_del2, col_del3 = st.columns([1, 2, 1])
                 with col_del2:
                     if st.button("🗑️ XÓA HỒ SƠ NÀY", width='stretch', type="secondary"):
                         try:
-                            if os.path.exists(selected_hs['duong_dan_file']):
-                                os.remove(selected_hs['duong_dan_file'])
+                            sb = get_supabase_storage()
+                            if sb:
+                                try:
+                                    sb.storage.from_(SUPABASE_BUCKET).remove([selected_hs['duong_dan_file']])
+                                except Exception as e_storage:
+                                    st.warning(f"⚠️ Không xóa được file trên Storage (vẫn xóa bản ghi): {e_storage}")
                             db = get_connection()
                             c = db.cursor()
                             c.execute("DELETE FROM ho_so_nhan_vien WHERE id = %s", (selected_hs['id'],))

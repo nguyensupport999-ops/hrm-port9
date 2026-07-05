@@ -5740,6 +5740,7 @@ elif menu == "🕒 Chấm công":
                     table_height = CC_HEADER_H + CC_ROW_HEIGHT * min(len(df_month), CC_MAX_VISIBLE_ROWS)
 
                     if not st.session_state.get('cc_edit_mode', False):
+                        sunday_cols = [t for d, t in zip(day_list, col_titles) if d.weekday() >= 5]
                         # Chế độ XEM
                         def _highlight_sunday(s):
                             if s.name in sunday_cols:

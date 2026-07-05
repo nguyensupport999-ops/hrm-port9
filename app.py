@@ -490,6 +490,35 @@ def load_bank_list():
 
 BANK_LIST = load_bank_list()
 
+# ===== CHẤM CÔNG - HẰNG SỐ MỚI =====
+CHAM_CONG_MA_CODE = {
+    "":    "(Trống) - Chưa chấm công",
+    "X":   "X - Ngày công thường (đủ ca)",
+    "P":   "P - Nghỉ phép hưởng lương",
+    "V":   "V - Vắng mặt/nghỉ không lương",
+    "N":   "N - Ca làm việc 8T - ngày",
+    "D":   "D - Ca làm việc 8T - đêm",
+    "L":   "L - Đi làm ngày lễ",
+    "0.5": "0.5 - Làm nửa ngày công thường",
+    "NL":  "NL - Nghỉ lễ hưởng nguyên lương",
+    "CN":  "CN - Chủ nhật (nghỉ) - auto đánh dấu",
+}
+CHAM_CONG_MA_OPTIONS = list(CHAM_CONG_MA_CODE.keys())
+CHAM_CONG_CELL_REGEX = r"^$|^[XxPpVvNnDdLl]$|^[Nn][Ll]$|^[Cc][Nn]$|^\d{1,2}(\.\d)?$"
+
+# Bộ phận chỉ chấm công 1 dòng (Văn phòng)
+CHAM_CONG_DEPT_MOT_DONG = ["VP"]
+
+# Bộ phận có 2 dòng (Ca chính + Tăng ca)
+CHAM_CONG_DEPT_HAI_DONG = ["QL", "SX", "LDPT"]
+
+CHAM_CONG_DEPT_LABEL = {
+    "QL": "QL - Quản lý",
+    "VP": "VP - Văn phòng",
+    "SX": "SX - Sản xuất/Vận hành",
+    "LDPT": "LDPT - Lao động phổ thông",
+}
+
 # Xử lý đổi ngôn ngữ từ request
 def handle_language_change():
     """Xử lý thay đổi ngôn ngữ từ query params"""
@@ -589,6 +618,26 @@ def show_landing_page():
             }
             [data-testid="stDataEditor"] > div {
                 max-height: 700px !important;
+            }
+            [data-testid="stDataFrame"] td:last-child,
+            [data-testid="stDataEditor"] td:last-child {
+                background-color: #E8F5E9 !important;
+                font-weight: bold !important;
+                cursor: pointer !important;
+            }
+            
+            /* ===== Tăng chiều cao bảng chấm công ===== */
+            [data-testid="stDataFrame"] {
+                max-height: 800px !important;
+            }
+            [data-testid="stDataFrame"] > div {
+                max-height: 800px !important;
+            }
+            [data-testid="stDataEditor"] {
+                max-height: 800px !important;
+            }
+            [data-testid="stDataEditor"] > div {
+                max-height: 800px !important;
             }
         </style>
     """, unsafe_allow_html=True)
@@ -5746,7 +5795,7 @@ elif menu == "✅ Nhân viên":
 elif menu == "🕒 Chấm công":
     st.title("🕒 Chấm công")
     
-    # Tối giản: 3 nút lựa chọn phương thức trên cùng 1 hàng, gọn nhẹ
+    # 3 nút lựa chọn phương thức
     col_method1, col_method2, col_method3 = st.columns(3)
     with col_method1:
         if st.button("📝 Thủ công", use_container_width=True, type="primary" if st.session_state.get('cc_method') == 'manual' else "secondary"):
@@ -5767,7 +5816,7 @@ elif menu == "🕒 Chấm công":
     if st.session_state.get('cc_method', 'manual') == 'manual':
         ensure_cham_cong_table()
         
-        # Bố cục cực gọn: chỉ 1 hàng chọn tháng + nút mở
+        # Bố cục chọn tháng/năm/bộ phận
         if not st.session_state.get('cc_full_open', False):
             col_m1, col_m2, col_m3, col_m4 = st.columns([1, 1, 2, 1.5])
             with col_m1:
@@ -5796,6 +5845,7 @@ elif menu == "🕒 Chấm công":
                     st.session_state.cc_view_nam = int(nam_nhap)
                     st.session_state.cc_view_bo_phan = bo_phan_nhap
                     st.session_state.cc_edit_mode = False
+                    st.session_state.cc_data_loaded = False  # Reset để load lại dữ liệu
                     st.rerun()
             
             st.caption("💡 Chọn tháng/năm và bộ phận (để trống = tất cả), sau đó bấm 'Mở BCC'")
@@ -5810,10 +5860,10 @@ elif menu == "🕒 Chấm công":
             day_list = [date(nam_v, thang_v, d) for d in range(1, so_ngay + 1)]
             WD_ABBR = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
             col_titles = [f"{d.day:02d} {WD_ABBR[d.weekday()]}" for d in day_list]
-            weekend_cols = [t for d, t in zip(day_list, col_titles) if d.weekday() >= 5]
+            sunday_cols = [t for d, t in zip(day_list, col_titles) if d.weekday() == 6]
             
-            # Thanh điều khiển cực gọn
-            col_h1, col_h2, col_h3, col_h4 = st.columns([3, 0.7, 0.7, 0.7])
+            # Thanh điều khiển
+            col_h1, col_h2, col_h3, col_h4, col_h5 = st.columns([2.5, 0.7, 0.7, 0.7, 0.7])
             with col_h1:
                 ten_bp = ", ".join(CHAM_CONG_DEPT_LABEL.get(b, b) for b in bp_v) if bp_v else "Tất cả bộ phận"
                 st.markdown(f"**📅 {thang_v}/{nam_v} — {ten_bp}**")
@@ -5833,12 +5883,34 @@ elif menu == "🕒 Chấm công":
                     "💾", key="cc_save_month_btn", type="primary", use_container_width=True,
                     disabled=not st.session_state.get('cc_edit_mode', False)
                 )
+            with col_h5:
+                if st.button("📤 Xuất file", key="cc_export_btn", use_container_width=True):
+                    st.session_state.cc_export_trigger = True
+                    st.rerun()
             
-            # Chú giải dạng tooltip gọn
-            with st.expander("ℹ️ Chú giải", expanded=False):
-                st.caption(" • ".join(f"**{k or '(trống)'}** = {v.split(' - ',1)[-1]}" for k, v in CHAM_CONG_MA_CODE.items()))
-                st.caption("Dòng **TC** nhập số giờ dạng số: 4, 2.5")
-                st.caption("Ô ly chỉ nhập đúng ký hiệu/số; sai định dạng bị từ chối ngay.")
+            # Hướng dẫn (thay vì Chú giải)
+            with st.expander("📖 Hướng dẫn", expanded=False):
+                st.markdown("""
+                **Cách sử dụng bảng chấm công:**
+                
+                1. **Đánh dấu ngày nghỉ:** Nhập các ký hiệu vào ô tương ứng:
+                   - `P` - Nghỉ phép hưởng lương
+                   - `V` - Vắng mặt/Nghỉ không lương
+                   - `NL` - Nghỉ lễ hưởng nguyên lương
+                   - `0.5` - Làm nửa ngày công
+                   - `CN` - Chủ nhật (tự động đánh dấu)
+                
+                2. **Đánh dấu ca làm việc:**
+                   - `N` - Ca ngày (8 tiếng)
+                   - `D` - Ca đêm (8 tiếng)
+                   - `X` - Công thường (đủ ca)
+                
+                3. **Tăng ca:** Nhập số giờ vào dòng Tăng ca (VD: 4, 2.5)
+                
+                4. **🔥 Chấm công full:** Sau khi đánh dấu các ngày nghỉ, bấm nút **"✅ Chấm công full"** ở cuối mỗi dòng để tự động đánh dấu `X` cho tất cả ô còn trống trên dòng đó.
+                
+                5. **Chủ nhật:** Tất cả ngày Chủ nhật được tự động đánh dấu `CN`.
+                """)
             
             # Lấy danh sách nhân viên
             db = get_connection()
@@ -5852,6 +5924,7 @@ elif menu == "🕒 Chấm công":
                              WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY ma_nv ASC""")
             nv_list = c.fetchall()
 
+            # Lấy dữ liệu chấm công hiện có
             existing = {}
             if nv_list:
                 nv_ids = [nv['id'] for nv in nv_list]
@@ -5865,15 +5938,22 @@ elif menu == "🕒 Chấm công":
             if not nv_list:
                 st.warning("Không có nhân viên nào phù hợp với bộ phận đã chọn.")
             else:
-                # Xây dựng dữ liệu
+                # Xây dựng dữ liệu - Mỗi nhân viên có 1 hoặc 2 dòng
                 flat_rows = []
+                nv_row_indices = {}  # Lưu index của từng nhân viên
+                
                 for nv in nv_list:
                     dept = nv['phong_ban_lam_viec']
+                    
+                    # Xác định số dòng cho nhân viên này
                     if dept in CHAM_CONG_DEPT_MOT_DONG:
-                        loai_list = ["Hành chính"]
+                        # Văn phòng: chỉ 1 dòng
+                        loai_list = ["Ca chính"]
                     else:
-                        loai_list = ["Ca ngày (C1,C2)", "Ca đêm (C3)", "Tăng ca (TC)"]
-
+                        # Các bộ phận khác: 2 dòng (Ca chính + Tăng ca)
+                        loai_list = ["Ca chính", "Tăng ca"]
+                    
+                    nv_indices = []
                     for idx, loai in enumerate(loai_list):
                         row = {
                             "Mã NV": nv['ma_nv'] if idx == 0 else "",
@@ -5881,44 +5961,118 @@ elif menu == "🕒 Chấm công":
                             "Chức danh": (nv.get('chuc_danh_nghe') or "") if idx == 0 else "",
                             "Loại": loai,
                         }
+                        # Thêm cột Chấm công full (nút click) - chỉ ở dòng Ca chính
+                        row["Chấm công full"] = "✅" if idx == 0 else ""
+                        
                         for d, title in zip(day_list, col_titles):
                             rec = existing.get((nv['id'], d))
-                            if loai in ("Ca ngày (C1,C2)", "Hành chính"):
-                                row[title] = rec.get('ca_ngay') or "" if rec is not None else ""
-                            elif loai == "Ca đêm (C3)":
-                                row[title] = rec.get('ca_dem') or "" if rec is not None else ""
-                            else:
+                            if loai == "Ca chính":
+                                # Lấy ca_ngay hoặc ca_dem (ưu tiên ca_ngay)
+                                val = rec.get('ca_ngay') if rec is not None else ""
+                                # Nếu là Chủ nhật và chưa có dữ liệu -> tự động đánh dấu CN
+                                if d.weekday() == 6 and not val:
+                                    val = "CN"
+                                row[title] = val
+                            else:  # Tăng ca
                                 tc_val = rec.get('gio_tang_ca') if rec is not None else None
                                 row[title] = "" if not tc_val else str(tc_val)
                         flat_rows.append(row)
+                        nv_indices.append(len(flat_rows) - 1)
+                    
+                    nv_row_indices[nv['ma_nv']] = nv_indices
 
                 flat_rows = [row for row in flat_rows if row.get("Họ tên", "").strip() != ""]
                 df_month = pd.DataFrame(flat_rows)
                 
-                CC_MAX_VISIBLE_ROWS = 25
+                # Thêm cột Chấm công full vào cuối
+                if "Chấm công full" in df_month.columns:
+                    cols = df_month.columns.tolist()
+                    # Đưa cột Chấm công full về cuối
+                    cols.remove("Chấm công full")
+                    cols.append("Chấm công full")
+                    df_month = df_month[cols]
+                
+                CC_MAX_VISIBLE_ROWS = 30
                 CC_HEADER_H = 38
                 table_height = CC_HEADER_H + CC_ROW_HEIGHT * min(len(df_month), CC_MAX_VISIBLE_ROWS)
+
+                # Xử lý export file
+                if st.session_state.get('cc_export_trigger', False):
+                    st.session_state.cc_export_trigger = False
+                    try:
+                        from openpyxl import Workbook
+                        from openpyxl.styles import Font, Alignment, Border, Side
+                        from openpyxl.utils import get_column_letter
+                        
+                        wb = Workbook()
+                        ws = wb.active
+                        ws.title = f"Cham_cong_{thang_v}_{nam_v}"
+                        
+                        # Ghi header
+                        for col_idx, col_name in enumerate(df_month.columns, 1):
+                            cell = ws.cell(row=1, column=col_idx, value=col_name)
+                            cell.font = Font(bold=True, size=10)
+                            cell.alignment = Alignment(horizontal='center', vertical='center')
+                            # Đặt độ rộng cột
+                            if col_name in ["Mã NV", "Loại"]:
+                                ws.column_dimensions[get_column_letter(col_idx)].width = 12
+                            elif col_name == "Họ tên":
+                                ws.column_dimensions[get_column_letter(col_idx)].width = 25
+                            elif col_name == "Chức danh":
+                                ws.column_dimensions[get_column_letter(col_idx)].width = 20
+                            elif col_name == "Chấm công full":
+                                ws.column_dimensions[get_column_letter(col_idx)].width = 15
+                            else:
+                                ws.column_dimensions[get_column_letter(col_idx)].width = 8
+                        
+                        # Ghi dữ liệu
+                        for row_idx, row_data in enumerate(df_month.itertuples(index=False), 2):
+                            for col_idx, val in enumerate(row_data, 1):
+                                cell = ws.cell(row=row_idx, column=col_idx, value=val)
+                                cell.alignment = Alignment(horizontal='center', vertical='center')
+                        
+                        filename = f"Cham_cong_{thang_v}_{nam_v}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                        wb.save(filename)
+                        
+                        with open(filename, "rb") as f:
+                            st.download_button(
+                                label="📥 TẢI FILE EXCEL",
+                                data=f,
+                                file_name=filename,
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                width='stretch'
+                            )
+                        st.success(f"✅ Đã xuất file: {filename}")
+                    except Exception as e:
+                        st.error(f"❌ Lỗi xuất file: {e}")
 
                 if not st.session_state.get('cc_edit_mode', False):
                     # Chế độ XEM
                     def _highlight_sunday(s):
-                        if s.name in weekend_cols:
-                            return ['background-color: #FFF2CC'] * len(s)
+                        if s.name in sunday_cols:
+                            return ['background-color: #FFF2CC; font-weight: bold; color: #999;'] * len(s)
                         return [''] * len(s)
                     
                     def _center_style(s):
                         return ['text-align: center; vertical-align: middle;' for _ in s]
+                    
+                    def _highlight_full_btn(s):
+                        if s.name == "Chấm công full":
+                            return ['background-color: #E8F5E9; font-weight: bold; cursor: pointer;'] * len(s)
+                        return [''] * len(s)
 
                     view_col_cfg = {
                         "Mã NV": cc_pin_col(st.column_config.TextColumn, width="small"),
                         "Họ tên": cc_pin_col(st.column_config.TextColumn, width=180),
                         "Chức danh": cc_pin_col(st.column_config.TextColumn, width=140),
                         "Loại": cc_pin_col(st.column_config.TextColumn, width="small"),
+                        "Chấm công full": cc_pin_col(st.column_config.TextColumn, width="small"),
                     }
                     styled = (
                         df_month.style
                         .apply(_highlight_sunday, axis=0)
                         .apply(_center_style, axis=0)
+                        .apply(_highlight_full_btn, axis=0)
                         .set_properties(**{"text-align": "center", "vertical-align": "middle"})
                         .hide(axis="index")
                     )
@@ -5926,7 +6080,7 @@ elif menu == "🕒 Chấm công":
                         styled, edit=False, width='stretch', height=table_height,
                         column_config=view_col_cfg,
                     )
-                    st.caption("👁️ Xem | ✏️ Bấm nút bút chì để sửa")
+                    st.caption("👁️ Xem | ✏️ Bấm nút bút chì để sửa | 📤 Xuất file Excel")
                 else:
                     # Chế độ SỬA
                     col_cfg = {
@@ -5934,51 +6088,84 @@ elif menu == "🕒 Chấm công":
                         "Họ tên": cc_pin_col(st.column_config.TextColumn, disabled=True, width=180),
                         "Chức danh": cc_pin_col(st.column_config.TextColumn, disabled=True, width=140),
                         "Loại": cc_pin_col(st.column_config.TextColumn, disabled=True, width="small"),
+                        "Chấm công full": cc_pin_col(st.column_config.TextColumn, disabled=True, width="small"),
                     }
                     for t in col_titles:
                         col_cfg[t] = st.column_config.TextColumn(width="small", validate=CHAM_CONG_CELL_REGEX)
 
                     edit_key = f"cc_month_editor_{thang_v}_{nam_v}_{'-'.join(bp_v) if bp_v else 'all'}"
-                    edited_month_df = cc_render_grid(
-                        df_month, edit=True,
+                    
+                    # Hiển thị bảng chỉnh sửa
+                    st.data_editor(
+                        df_month,
                         column_config=col_cfg,
                         hide_index=True,
                         num_rows="fixed",
                         width='stretch',
                         height=table_height,
                         key=edit_key,
+                        use_container_width=True,
                     )
-
-                    # Xử lý lưu
-                    if save_clicked:
-                        # Kiểm tra thiếu dữ liệu
-                        nv_rows_map = {}
-                        current_nv = None
-                        for idx, row in df_month.iterrows():
-                            if row.get("Họ tên", "").strip():
-                                current_nv = row["Mã NV"]
-                                nv_rows_map[current_nv] = []
-                            if current_nv:
-                                nv_rows_map[current_nv].append(idx)
+                    
+                    # Hiển thị nút Chấm công full cho từng nhân viên
+                    st.markdown("---")
+                    st.markdown("### 🔥 Chấm công full cho từng nhân viên")
+                    st.caption("Sau khi đánh dấu các ngày nghỉ (P, V, NL, 0.5), bấm nút bên dưới để tự động đánh dấu X cho các ô còn trống.")
+                    
+                    # Tạo các nút cho từng nhân viên
+                    for nv_ma, indices in nv_row_indices.items():
+                        # Lấy thông tin nhân viên từ dòng đầu tiên
+                        first_row = df_month.iloc[indices[0]]
+                        nv_name = first_row["Họ tên"]
                         
+                        col_btn1, col_btn2 = st.columns([1, 4])
+                        with col_btn1:
+                            if st.button(f"✅ Chấm công full - {nv_ma}", key=f"cc_full_{nv_ma}", use_container_width=True):
+                                # Lấy dữ liệu hiện tại từ session_state
+                                current_df = st.session_state.get(f'cc_editor_data_{edit_key}', df_month.copy())
+                                
+                                # Duyệt qua từng dòng của nhân viên này
+                                for idx in indices:
+                                    row_data = current_df.iloc[idx]
+                                    loai = row_data["Loại"]
+                                    
+                                    for d, title in zip(day_list, col_titles):
+                                        # Chỉ xử lý cho dòng Ca chính
+                                        if loai == "Ca chính":
+                                            current_val = str(row_data[title] or "").strip()
+                                            # Nếu ô trống và không phải Chủ nhật (đã có CN)
+                                            if not current_val and d.weekday() != 6:
+                                                current_df.at[idx, title] = "X"
+                                
+                                # Cập nhật lại data_editor
+                                st.session_state[f'cc_editor_data_{edit_key}'] = current_df
+                                st.rerun()
+                        with col_btn2:
+                            st.caption(f"{nv_ma} - {nv_name}")
+
+                    # Xử lý lưu (tương tự như cũ)
+                    if save_clicked:
+                        # Lấy dữ liệu đã chỉnh sửa từ session_state
+                        edited_df = st.session_state.get(f'cc_editor_data_{edit_key}', df_month)
+                        
+                        # Kiểm tra thiếu dữ liệu
                         missing = []
-                        for nv_ma, row_indices in nv_rows_map.items():
-                            nv_ten = df_month.iloc[row_indices[0]]["Họ tên"]
+                        for nv_ma, indices in nv_row_indices.items():
+                            nv_ten = df_month.iloc[indices[0]]["Họ tên"]
+                            # Chỉ kiểm tra dòng Ca chính
+                            ca_main_idx = indices[0]
                             for d, title in zip(day_list, col_titles):
-                                if d.weekday() == 6:
+                                if d.weekday() == 6:  # Bỏ qua Chủ nhật
                                     continue
-                                if d >= date.today():
+                                if d >= date.today():  # Bỏ qua ngày tương lai
                                     continue
-                                co_gia_tri = any(
-                                    str(edited_month_df.iloc[ridx][title] or "").strip()
-                                    for ridx in row_indices
-                                )
-                                if not co_gia_tri:
+                                val = str(edited_df.iloc[ca_main_idx][title] or "").strip()
+                                if not val:
                                     missing.append((nv_ma, nv_ten, d))
 
                         if missing and not st.session_state.get('cc_force_save_approved', False):
                             st.warning(f"⚠️ Có {len(missing)} lượt chưa chấm công")
-                            with st.expander(f"Xem chi tiết"):
+                            with st.expander("Xem chi tiết"):
                                 for ma_nv, ho_ten, d in missing[:100]:
                                     st.caption(f"- {ma_nv} - {ho_ten}: {d.strftime('%d/%m/%Y')}")
                                 if len(missing) > 100:
@@ -6010,7 +6197,7 @@ elif menu == "🕒 Chấm công":
                             nv_map = {row['ma_nv']: row['id'] for row in c2_nv.fetchall()}
                             c2_nv.close()
                             
-                            for idx, row in df_month.iterrows():
+                            for idx, row in edited_df.iterrows():
                                 nv_ma = row.get("Mã NV", "")
                                 if not nv_ma or nv_ma not in nv_map:
                                     continue
@@ -6018,26 +6205,30 @@ elif menu == "🕒 Chấm công":
                                 loai = row.get("Loại", "")
                                 
                                 for d, title in zip(day_list, col_titles):
-                                    v_ngay_raw = ""
-                                    v_dem_raw = ""
+                                    v_ngay = None
+                                    v_dem = None
                                     v_tc = 0
                                     
-                                    if loai == "Hành chính":
-                                        v_ngay_raw = str(edited_month_df.iloc[idx][title] or "").strip()
-                                    elif loai == "Ca ngày (C1,C2)":
-                                        v_ngay_raw = str(edited_month_df.iloc[idx][title] or "").strip()
-                                    elif loai == "Ca đêm (C3)":
-                                        v_dem_raw = str(edited_month_df.iloc[idx][title] or "").strip()
-                                    elif loai == "Tăng ca (TC)":
-                                        v_tc_raw = str(edited_month_df.iloc[idx][title] or "").strip()
+                                    if loai == "Ca chính":
+                                        val = str(row[title] or "").strip()
+                                        if val:
+                                            # Xác định ca ngày hay ca đêm
+                                            if val.upper() == "N":
+                                                v_ngay = "N"
+                                            elif val.upper() == "D":
+                                                v_dem = "D"
+                                            elif val.upper() == "CN":
+                                                v_ngay = "CN"
+                                            else:
+                                                v_ngay = cc_normalize_marker(val) if val else None
+                                    elif loai == "Tăng ca":
+                                        val = str(row[title] or "").strip()
                                         try:
-                                            v_tc = float(v_tc_raw.replace(",", ".")) if v_tc_raw else 0
+                                            v_tc = float(val.replace(",", ".")) if val else 0
                                         except ValueError:
                                             v_tc = 0
                                     
-                                    v_ngay = cc_normalize_marker(v_ngay_raw) if v_ngay_raw else None
-                                    v_dem = cc_normalize_marker(v_dem_raw) if v_dem_raw else None
-                                    
+                                    # Bỏ qua nếu tất cả đều trống và chưa có trong DB
                                     if v_ngay is None and v_dem is None and v_tc == 0 and (nv_id, d) not in existing:
                                         continue
                                     
@@ -6058,6 +6249,8 @@ elif menu == "🕒 Chấm công":
                             st.session_state.cc_edit_mode = False
                             st.session_state.cc_force_save = False
                             st.session_state.cc_force_save_approved = False
+                            if f'cc_editor_data_{edit_key}' in st.session_state:
+                                del st.session_state[f'cc_editor_data_{edit_key}']
                             st.rerun()
 
     # ========== 2. TRÍCH XUẤT TỪ MÁY CHẤM VÂN TAY ==========

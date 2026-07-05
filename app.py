@@ -5845,7 +5845,7 @@ elif menu == "🕒 Chấm công":
                     st.session_state.cc_view_nam = int(nam_nhap)
                     st.session_state.cc_view_bo_phan = bo_phan_nhap
                     st.session_state.cc_edit_mode = False
-                    st.session_state.cc_data_loaded = False  # Reset để load lại dữ liệu
+                    st.session_state.cc_data_loaded = False
                     st.rerun()
             
             st.caption("💡 Chọn tháng/năm và bộ phận (để trống = tất cả), sau đó bấm 'Mở BCC'")
@@ -5888,7 +5888,7 @@ elif menu == "🕒 Chấm công":
                     st.session_state.cc_export_trigger = True
                     st.rerun()
             
-            # Hướng dẫn (thay vì Chú giải)
+            # Hướng dẫn
             with st.expander("📖 Hướng dẫn", expanded=False):
                 st.markdown("""
                 **Cách sử dụng bảng chấm công:**
@@ -5907,7 +5907,7 @@ elif menu == "🕒 Chấm công":
                 
                 3. **Tăng ca:** Nhập số giờ vào dòng Tăng ca (VD: 4, 2.5)
                 
-                4. **🔥 Chấm công full:** Sau khi đánh dấu các ngày nghỉ, bấm nút **"✅ Chấm công full"** ở cuối mỗi dòng để tự động đánh dấu `X` cho tất cả ô còn trống trên dòng đó.
+                4. **🔥 Chấm công full:** Tại cột cuối cùng **"Chấm công full"**, click vào ô để chuyển thành `✅`, hệ thống sẽ tự động đánh dấu `X` cho tất cả các ô còn trống trên dòng Ca chính của nhân viên đó (trừ ngày Chủ nhật đã có `CN`).
                 
                 5. **Chủ nhật:** Tất cả ngày Chủ nhật được tự động đánh dấu `CN`.
                 """)
@@ -5961,14 +5961,16 @@ elif menu == "🕒 Chấm công":
                             "Chức danh": (nv.get('chuc_danh_nghe') or "") if idx == 0 else "",
                             "Loại": loai,
                         }
-                        # Thêm cột Chấm công full (nút click) - chỉ ở dòng Ca chính
-                        row["Chấm công full"] = "✅" if idx == 0 else ""
+                        # Thêm cột Chấm công full (chỉ ở dòng Ca chính)
+                        row["Chấm công full"] = "" if idx > 0 else "⬜"
                         
                         for d, title in zip(day_list, col_titles):
                             rec = existing.get((nv['id'], d))
                             if loai == "Ca chính":
                                 # Lấy ca_ngay hoặc ca_dem (ưu tiên ca_ngay)
                                 val = rec.get('ca_ngay') if rec is not None else ""
+                                if not val and rec is not None:
+                                    val = rec.get('ca_dem') or ""
                                 # Nếu là Chủ nhật và chưa có dữ liệu -> tự động đánh dấu CN
                                 if d.weekday() == 6 and not val:
                                     val = "CN"
@@ -5979,18 +5981,26 @@ elif menu == "🕒 Chấm công":
                         flat_rows.append(row)
                         nv_indices.append(len(flat_rows) - 1)
                     
-                    nv_row_indices[nv['ma_nv']] = nv_indices
+                    nv_row_indices[nv['ma_nv']] = {
+                        'ca_main': nv_indices[0],  # Index của dòng Ca chính
+                        'tc': nv_indices[1] if len(nv_indices) > 1 else None  # Index của dòng Tăng ca
+                    }
 
                 flat_rows = [row for row in flat_rows if row.get("Họ tên", "").strip() != ""]
-                df_month = pd.DataFrame(flat_rows)
                 
-                # Thêm cột Chấm công full vào cuối
-                if "Chấm công full" in df_month.columns:
+                # Đảm bảo cột "Chấm công full" luôn có mặt
+                df_month = pd.DataFrame(flat_rows)
+                if "Chấm công full" not in df_month.columns:
+                    # Thêm cột vào vị trí sau cột Loại
                     cols = df_month.columns.tolist()
-                    # Đưa cột Chấm công full về cuối
-                    cols.remove("Chấm công full")
-                    cols.append("Chấm công full")
-                    df_month = df_month[cols]
+                    # Tìm vị trí của cột Loại
+                    loai_idx = cols.index("Loại") if "Loại" in cols else 3
+                    cols.insert(loai_idx + 1, "Chấm công full")
+                    df_month = df_month.reindex(columns=cols)
+                    # Điền giá trị mặc định
+                    df_month["Chấm công full"] = df_month.apply(
+                        lambda row: "" if row["Loại"] == "Tăng ca" else "⬜", axis=1
+                    )
                 
                 CC_MAX_VISIBLE_ROWS = 30
                 CC_HEADER_H = 38
@@ -6058,7 +6068,7 @@ elif menu == "🕒 Chấm công":
                     
                     def _highlight_full_btn(s):
                         if s.name == "Chấm công full":
-                            return ['background-color: #E8F5E9; font-weight: bold; cursor: pointer;'] * len(s)
+                            return ['background-color: #E8F5E9; font-weight: bold; text-align: center;'] * len(s)
                         return [''] * len(s)
 
                     view_col_cfg = {
@@ -6082,13 +6092,13 @@ elif menu == "🕒 Chấm công":
                     )
                     st.caption("👁️ Xem | ✏️ Bấm nút bút chì để sửa | 📤 Xuất file Excel")
                 else:
-                    # Chế độ SỬA
+                    # Chế độ SỬA - sử dụng data_editor với cột Chấm công full là checkbox
                     col_cfg = {
                         "Mã NV": cc_pin_col(st.column_config.TextColumn, disabled=True, width="small"),
                         "Họ tên": cc_pin_col(st.column_config.TextColumn, disabled=True, width=180),
                         "Chức danh": cc_pin_col(st.column_config.TextColumn, disabled=True, width=140),
                         "Loại": cc_pin_col(st.column_config.TextColumn, disabled=True, width="small"),
-                        "Chấm công full": cc_pin_col(st.column_config.TextColumn, disabled=True, width="small"),
+                        "Chấm công full": cc_pin_col(st.column_config.CheckboxColumn, width="small"),
                     }
                     for t in col_titles:
                         col_cfg[t] = st.column_config.TextColumn(width="small", validate=CHAM_CONG_CELL_REGEX)
@@ -6096,7 +6106,7 @@ elif menu == "🕒 Chấm công":
                     edit_key = f"cc_month_editor_{thang_v}_{nam_v}_{'-'.join(bp_v) if bp_v else 'all'}"
                     
                     # Hiển thị bảng chỉnh sửa
-                    st.data_editor(
+                    edited_df = st.data_editor(
                         df_month,
                         column_config=col_cfg,
                         hide_index=True,
@@ -6107,53 +6117,43 @@ elif menu == "🕒 Chấm công":
                         use_container_width=True,
                     )
                     
-                    # Hiển thị nút Chấm công full cho từng nhân viên
-                    st.markdown("---")
-                    st.markdown("### 🔥 Chấm công full cho từng nhân viên")
-                    st.caption("Sau khi đánh dấu các ngày nghỉ (P, V, NL, 0.5), bấm nút bên dưới để tự động đánh dấu X cho các ô còn trống.")
-                    
-                    # Tạo các nút cho từng nhân viên
-                    for nv_ma, indices in nv_row_indices.items():
-                        # Lấy thông tin nhân viên từ dòng đầu tiên
-                        first_row = df_month.iloc[indices[0]]
-                        nv_name = first_row["Họ tên"]
-                        
-                        col_btn1, col_btn2 = st.columns([1, 4])
-                        with col_btn1:
-                            if st.button(f"✅ Chấm công full - {nv_ma}", key=f"cc_full_{nv_ma}", use_container_width=True):
-                                # Lấy dữ liệu hiện tại từ session_state
-                                current_df = st.session_state.get(f'cc_editor_data_{edit_key}', df_month.copy())
+                    # Xử lý khi user click vào checkbox "Chấm công full"
+                    # So sánh edited_df với df_month để tìm thay đổi
+                    if edited_df is not None:
+                        # Kiểm tra từng dòng Ca chính
+                        for idx, row in edited_df.iterrows():
+                            if row["Loại"] == "Ca chính":
+                                nv_ma = row["Mã NV"]
+                                # So sánh giá trị checkbox
+                                old_val = df_month.iloc[idx]["Chấm công full"]
+                                new_val = row["Chấm công full"]
                                 
-                                # Duyệt qua từng dòng của nhân viên này
-                                for idx in indices:
-                                    row_data = current_df.iloc[idx]
-                                    loai = row_data["Loại"]
-                                    
+                                # Nếu checkbox được tick (chuyển từ False sang True)
+                                if new_val is True and old_val != True:
+                                    # Tự động đánh dấu X cho tất cả ô trống trên dòng Ca chính
+                                    ca_main_idx = idx
                                     for d, title in zip(day_list, col_titles):
-                                        # Chỉ xử lý cho dòng Ca chính
-                                        if loai == "Ca chính":
-                                            current_val = str(row_data[title] or "").strip()
-                                            # Nếu ô trống và không phải Chủ nhật (đã có CN)
-                                            if not current_val and d.weekday() != 6:
-                                                current_df.at[idx, title] = "X"
-                                
-                                # Cập nhật lại data_editor
-                                st.session_state[f'cc_editor_data_{edit_key}'] = current_df
-                                st.rerun()
-                        with col_btn2:
-                            st.caption(f"{nv_ma} - {nv_name}")
+                                        if d.weekday() == 6:  # Bỏ qua Chủ nhật (đã có CN)
+                                            continue
+                                        current_val = str(edited_df.iloc[ca_main_idx][title] or "").strip()
+                                        if not current_val:
+                                            edited_df.at[ca_main_idx, title] = "X"
+                                    
+                                    # Reset checkbox sau khi đã xử lý
+                                    edited_df.at[idx, "Chấm công full"] = False
+                                    st.rerun()
+                                    
+                            # Nếu checkbox được bỏ tick (chuyển từ True sang False) thì không làm gì
 
-                    # Xử lý lưu (tương tự như cũ)
+                    # Xử lý lưu
                     if save_clicked:
-                        # Lấy dữ liệu đã chỉnh sửa từ session_state
-                        edited_df = st.session_state.get(f'cc_editor_data_{edit_key}', df_month)
-                        
                         # Kiểm tra thiếu dữ liệu
                         missing = []
                         for nv_ma, indices in nv_row_indices.items():
-                            nv_ten = df_month.iloc[indices[0]]["Họ tên"]
-                            # Chỉ kiểm tra dòng Ca chính
-                            ca_main_idx = indices[0]
+                            if 'ca_main' not in indices:
+                                continue
+                            nv_ten = edited_df.iloc[indices['ca_main']]["Họ tên"]
+                            ca_main_idx = indices['ca_main']
                             for d, title in zip(day_list, col_titles):
                                 if d.weekday() == 6:  # Bỏ qua Chủ nhật
                                     continue
@@ -6249,8 +6249,6 @@ elif menu == "🕒 Chấm công":
                             st.session_state.cc_edit_mode = False
                             st.session_state.cc_force_save = False
                             st.session_state.cc_force_save_approved = False
-                            if f'cc_editor_data_{edit_key}' in st.session_state:
-                                del st.session_state[f'cc_editor_data_{edit_key}']
                             st.rerun()
 
     # ========== 2. TRÍCH XUẤT TỪ MÁY CHẤM VÂN TAY ==========

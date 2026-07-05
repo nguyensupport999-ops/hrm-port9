@@ -2244,9 +2244,13 @@ def get_connection():
 
 # ========== CHẤM CÔNG THỦ CÔNG - HẰNG SỐ & HÀM DÙNG CHUNG ==========
 # Mã công theo đúng bảng chấm công mẫu (sheet T4-2026 / T5-2026 file HLP)
+# Đây cũng chính là danh sách ký hiệu hợp lệ được liệt kê trong "Chú giải" và
+# dùng để giới hạn dữ liệu nhập vào các ô ly (row Ca ngày / Ca đêm).
 CHAM_CONG_MA_CODE = {
-    "":    "(Trống) - Nghỉ không lương",
-    "X":   "X - Ngày công thường (8T)",
+    "":    "(Trống) - Chưa chấm công",
+    "X":   "X - Ngày công thường (đủ ca)",
+    "P":   "P - Nghỉ phép hưởng lương",
+    "V":   "V - Vắng mặt/nghỉ không lương",
     "N":   "N - Ca làm việc 8T - ngày",
     "D":   "D - Ca làm việc 8T - đêm",
     "L":   "L - Đi làm ngày lễ",
@@ -2254,6 +2258,21 @@ CHAM_CONG_MA_CODE = {
     "NL":  "NL - Nghỉ lễ hưởng nguyên lương",
 }
 CHAM_CONG_MA_OPTIONS = list(CHAM_CONG_MA_CODE.keys())
+# Regex (dùng bởi Streamlit data_editor) giới hạn ký tự được phép nhập vào ô ly
+# trong bảng chấm công dạng lịch. Vì 1 cột ngày dùng chung cho cả 3 loại dòng
+# (Ca ngày / Ca đêm / Tăng ca) nên regex gộp cả 2 nhóm: mã chữ quy ước
+# (X/P/V/N/D/L/NL/0.5) và số giờ tăng ca 0-9, để chặn ký tự rác mà không chặn
+# nhầm dữ liệu hợp lệ của bất kỳ loại dòng nào.
+CHAM_CONG_CELL_REGEX = r"^$|^[XxPpVvNnDdLl]$|^[Nn][Ll]$|^\d{1,2}(\.\d)?$"
+
+
+def cc_pin_col(col_type, **kwargs):
+    """Tạo column_config, cố gắng ghim (pin) cột vào bên trái khi cuộn ngang.
+    Một số phiên bản Streamlit cũ chưa hỗ trợ tham số `pinned` -> fallback bỏ qua."""
+    try:
+        return col_type(pinned=True, **kwargs)
+    except TypeError:
+        return col_type(**kwargs)
 
 # Những bộ phận (theo mã phong_ban_lam_viec trong bảng nhan_vien) có phát sinh tăng ca
 # theo đúng bản mẫu (nhóm LX-M/LDPT thực tế đang lưu mã "SX" và "LDPT")
@@ -2269,31 +2288,31 @@ CHAM_CONG_DEPT_LABEL = {
 # Bộ phận chỉ chấm công 1 dòng/nhân viên (giờ hành chính, không tách ca ngày/đêm/tăng ca)
 CHAM_CONG_DEPT_MOT_DONG = ["VP"]
 
+CC_ROW_HEIGHT = 24  # giảm size dòng (px) để bảng chấm công hiển thị gọn, nhiều dữ liệu hơn
+
 def cc_render_grid(data, edit=False, **kwargs):
     """Wrapper cho st.dataframe/st.data_editor, cố gắng thu nhỏ chiều cao dòng (row_height)
     nếu phiên bản Streamlit đang chạy hỗ trợ; nếu không thì bỏ qua tham số đó."""
     fn = st.data_editor if edit else st.dataframe
     try:
-        return fn(data, row_height=28, **kwargs)
+        return fn(data, row_height=CC_ROW_HEIGHT, **kwargs)
     except TypeError:
         return fn(data, **kwargs)
 
 def cc_normalize_marker(v):
-    """Chuẩn hoá ký hiệu chấm công: x = có công, P = nghỉ phép có lương, V = nghỉ không lương."""
+    """Chuẩn hoá ký hiệu chấm công theo bảng CHAM_CONG_MA_CODE (không phân biệt hoa/thường).
+    x/X = có công, P = nghỉ phép có lương, V = nghỉ không lương/vắng, N/D/L/NL/0.5 = các mã ca khác."""
     v = (v or "").strip()
     if not v:
         return None
     vu = v.upper()
-    if vu == "P":
-        return "P"
-    if vu == "V":
-        return "V"
-    if vu == "X":
-        return "x"
+    for code in CHAM_CONG_MA_CODE:
+        if code and code.upper() == vu:
+            return code  # trả về đúng dạng chuẩn đã khai báo, vd "X", "P", "V", "0.5"
     return v  # giữ nguyên ký hiệu lạ, không chặn để tránh mất dữ liệu người dùng đã nhập
 
 def cc_is_cong(v):
-    return isinstance(v, str) and v.strip().lower() == "x"
+    return isinstance(v, str) and v.strip().upper() == "X"
 
 def cc_marker_is(v, target):
     return isinstance(v, str) and v.strip().upper() == target
@@ -2366,6 +2385,21 @@ st.markdown("""
     [data-testid="stDataFrame"] table {
         min-width: 2000px !important;
         width: max-content !important;
+    }
+    /* ===== Bảng chấm công (BCC): auto center Horizontal + Vertical, giảm size chữ ===== */
+    [data-testid="stDataFrame"] th,
+    [data-testid="stDataFrame"] td {
+        text-align: center !important;
+        vertical-align: middle !important;
+        font-size: 12px !important;
+    }
+    [data-testid="stDataFrame"] [data-testid="stElementToolbar"] { font-size: 12px !important; }
+    /* st.data_editor (bảng chấm công dạng edit) dùng cùng component nền glide-data-grid */
+    [data-testid="stDataEditor"] th,
+    [data-testid="stDataEditor"] td {
+        text-align: center !important;
+        vertical-align: middle !important;
+        font-size: 12px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -5637,20 +5671,22 @@ elif menu == "🕒 Chấm công":
                     )
 
                 with st.expander("ℹ️ Chú giải"):
-                    st.caption("**x** = có công (đi làm đủ ca). **P** = nghỉ phép hưởng lương. **V** = nghỉ không lương/vắng mặt. Để trống = chưa chấm công.")
-                    st.caption("Dòng **Tăng ca (TC)** nhập số giờ dạng thập phân, VD: 4.0, 2.5 — không dùng ký hiệu x/P/V.")
+                    st.caption(" • ".join(f"**{k or '(trống)'}** = {v.split(' - ',1)[-1]}" for k, v in CHAM_CONG_MA_CODE.items()))
+                    st.caption("Dòng **Tăng ca (TC)** nhập số giờ dạng số, VD: 4, 2.5 — không dùng ký hiệu chữ.")
                     st.caption(f"Bộ phận {', '.join(CHAM_CONG_DEPT_MOT_DONG)} chỉ có 1 dòng chấm công (mặc định ca hành chính); các bộ phận khác có 3 dòng: Ca ngày (C1,C2) / Ca đêm (C3) / Tăng ca (TC).")
                     st.caption("Cột Thứ 7, Chủ nhật được tô màu vàng nhạt để dễ phân biệt cuối tuần.")
+                    st.caption("✅ Các ngày làm việc bình thường (Thứ 2 → Thứ 7) chưa từng chấm công được **tự động đánh dấu X** — admin chỉ cần sửa lại những ngày nghỉ, đổi ca hoặc bổ sung tăng ca.")
+                    st.caption("Ô ly chỉ chấp nhận đúng các ký hiệu/số nêu trên; nhập sai định dạng sẽ bị từ chối ngay khi rời khỏi ô.")
 
                 # Lấy danh sách nhân viên
                 db = get_connection()
                 c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                 if bp_v:
-                    c.execute("""SELECT id, ma_nv, ho_ten, phong_ban_lam_viec FROM nhan_vien
+                    c.execute("""SELECT id, ma_nv, ho_ten, chuc_danh_nghe, phong_ban_lam_viec FROM nhan_vien
                                  WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND phong_ban_lam_viec = ANY(%s)
                                  ORDER BY phong_ban_lam_viec, ho_ten""", (bp_v,))
                 else:
-                    c.execute("""SELECT id, ma_nv, ho_ten, phong_ban_lam_viec FROM nhan_vien
+                    c.execute("""SELECT id, ma_nv, ho_ten, chuc_danh_nghe, phong_ban_lam_viec FROM nhan_vien
                                  WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY phong_ban_lam_viec, ho_ten""")
                 nv_list = c.fetchall()
 
@@ -5668,7 +5704,7 @@ elif menu == "🕒 Chấm công":
                     st.warning("Không có nhân viên nào phù hợp với bộ phận đã chọn.")
                 else:
                     # ---- Xây dựng cấu trúc dòng: VP chỉ 1 dòng, còn lại 3 dòng (Ca ngày/Ca đêm/Tăng ca) ----
-                    # Mã NV/Họ tên chỉ hiển thị ở dòng đầu tiên của mỗi nhân viên -> tạo hiệu ứng "merge" 3 dòng
+                    # Mã NV/Họ tên/Chức danh chỉ hiển thị ở dòng đầu tiên của mỗi nhân viên -> tạo hiệu ứng "merge"
                     employee_blocks = []
                     flat_rows = []
                     row_cursor = 0
@@ -5683,16 +5719,23 @@ elif menu == "🕒 Chấm công":
                             row = {
                                 "Mã NV": nv['ma_nv'] if idx == 0 else "",
                                 "Họ tên": nv['ho_ten'] if idx == 0 else "",
+                                "Chức danh": (nv.get('chuc_danh_nghe') or "") if idx == 0 else "",
                                 "Loại": loai,
                             }
                             for d, title in zip(day_list, col_titles):
-                                rec = existing.get((nv['id'], d), {})
+                                rec = existing.get((nv['id'], d))
                                 if loai in ("Ca ngày (C1,C2)", "Hành chính"):
-                                    row[title] = rec.get('ca_ngay') or ""
+                                    if rec is not None:
+                                        row[title] = rec.get('ca_ngay') or ""
+                                    else:
+                                        # Chưa từng chấm công ngày này -> tự động đánh dấu X
+                                        # cho các ngày làm việc bình thường Thứ 2 -> Thứ 7.
+                                        # weekday(): Thứ 2 = 0 ... Thứ 7 = 5, Chủ nhật = 6
+                                        row[title] = "X" if d.weekday() <= 5 else ""
                                 elif loai == "Ca đêm (C3)":
-                                    row[title] = rec.get('ca_dem') or ""
+                                    row[title] = (rec.get('ca_dem') or "") if rec is not None else ""
                                 else:  # Tăng ca (TC)
-                                    tc_val = rec.get('gio_tang_ca')
+                                    tc_val = rec.get('gio_tang_ca') if rec is not None else None
                                     row[title] = "" if not tc_val else str(tc_val)
                             flat_rows.append(row)
 
@@ -5704,25 +5747,48 @@ elif menu == "🕒 Chấm công":
                         row_cursor += len(loai_list)
 
                     df_month = pd.DataFrame(flat_rows)
-                    table_height = min(750, 60 + 30 * len(df_month))
+                    # Chiều cao cửa sổ BCC: hiển thị tối đa 18 dòng, phần còn lại thao tác
+                    # qua thanh cuộn dọc/ngang của chính bảng để dễ thao tác.
+                    CC_MAX_VISIBLE_ROWS = 18
+                    CC_HEADER_H = 38
+                    table_height = CC_HEADER_H + CC_ROW_HEIGHT * min(len(df_month), CC_MAX_VISIBLE_ROWS)
+
+                    # Các cột cố định (ghim) bên trái khi cuộn ngang: chỉ bảng dữ liệu lịch (theo ngày) mới cuộn
+                    pinned_cols = ["Mã NV", "Họ tên", "Chức danh", "Loại"]
 
                     if not st.session_state.get('cc_edit_mode', False):
                         # ---- Chế độ XEM ----
                         def _highlight_weekend(s):
                             return ['background-color:#FFF2CC' if s.name in weekend_cols else '' for _ in s]
 
-                        styled = df_month.style.apply(_highlight_weekend, axis=0).hide(axis="index")
-                        cc_render_grid(styled, edit=False, width='stretch', height=table_height)
+                        view_col_cfg = {
+                            "Mã NV": cc_pin_col(st.column_config.TextColumn, width="small"),
+                            "Họ tên": cc_pin_col(st.column_config.TextColumn, width=200),
+                            "Chức danh": cc_pin_col(st.column_config.TextColumn, width=160),
+                            "Loại": cc_pin_col(st.column_config.TextColumn, width="small"),
+                        }
+                        styled = (
+                            df_month.style
+                            .apply(_highlight_weekend, axis=0)
+                            .set_properties(**{"text-align": "center", "vertical-align": "middle"})
+                            .hide(axis="index")
+                        )
+                        cc_render_grid(
+                            styled, edit=False, width='stretch', height=table_height,
+                            column_config=view_col_cfg,
+                        )
                         st.caption("👁️ Đang ở chế độ xem. Bấm **✏️ Sửa BCC** ở trên để chỉnh sửa.")
                     else:
                         # ---- Chế độ SỬA ----
                         col_cfg = {
-                            "Mã NV": st.column_config.TextColumn(disabled=True),
-                            "Họ tên": st.column_config.TextColumn(disabled=True),
-                            "Loại": st.column_config.TextColumn(disabled=True),
+                            "Mã NV": cc_pin_col(st.column_config.TextColumn, disabled=True, width="small"),
+                            "Họ tên": cc_pin_col(st.column_config.TextColumn, disabled=True, width=200),
+                            "Chức danh": cc_pin_col(st.column_config.TextColumn, disabled=True, width=160),
+                            "Loại": cc_pin_col(st.column_config.TextColumn, disabled=True, width="small"),
                         }
                         for t in col_titles:
-                            col_cfg[t] = st.column_config.TextColumn(width="small")
+                            # Giới hạn ký tự nhập cho ô ly (X/P/V/N/D/L/NL/0.5 hoặc số giờ tăng ca 0-9)
+                            col_cfg[t] = st.column_config.TextColumn(width="small", validate=CHAM_CONG_CELL_REGEX)
 
                         edit_key = f"cc_month_editor_{thang_v}_{nam_v}_{'-'.join(bp_v) if bp_v else 'all'}"
                         edited_month_df = cc_render_grid(

@@ -5592,7 +5592,6 @@ elif menu == "✅ Nhân viên":
 # ========== CHẤM CÔNG ==========
 elif menu == "🕒 Chấm công":
     st.title("🕒 Chấm công")
-    st.caption("Quản lý chấm công nhân viên - Cảng Hòn La")
     ensure_cham_cong_table()
 
     sub_menu = st.radio(

@@ -5742,7 +5742,9 @@ elif menu == "🕒 Chấm công":
                     if not st.session_state.get('cc_edit_mode', False):
                         # Chế độ XEM
                         def _highlight_sunday(s):
-                            return ['background-color:#FFF2CC' if s.name in sunday_cols else '' for _ in s]
+                            if s.name in sunday_cols:
+                                return ['background-color: #FFF2CC'] * len(s)
+                            return [''] * len(s)
                         
                         def _center_style(s):
                             return ['text-align: center; vertical-align: middle;' for _ in s]

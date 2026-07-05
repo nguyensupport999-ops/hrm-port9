@@ -2266,6 +2266,30 @@ def sanitize_storage_filename(filename):
     safe = re.sub(r'[^A-Za-z0-9_.\-]', '', no_accent)
     return safe or "file"
 
+def upload_to_storage_unique(sb, bucket, base_path, file_bytes, content_type, max_tries=50):
+    """Upload file lên Supabase Storage tại base_path. Nếu path đã tồn tại (trùng
+    Loại hồ sơ + ngày upload + tên file trong cùng ngày), tự thêm hậu tố _2, _3...
+    trước phần mở rộng để không bị lỗi/ghi đè. Trả về path thực tế đã dùng để upload."""
+    path = base_path
+    root, ext = os.path.splitext(base_path)
+    tries = 0
+    while True:
+        try:
+            sb.storage.from_(bucket).upload(
+                path=path,
+                file=file_bytes,
+                file_options={"content-type": content_type or "application/octet-stream"}
+            )
+            return path
+        except Exception as e:
+            msg = str(e).lower()
+            is_duplicate = ('duplicate' in msg or 'exists' in msg or 'already' in msg or '409' in msg)
+            if is_duplicate and tries < max_tries:
+                tries += 1
+                path = f"{root}_{tries + 1}{ext}"
+                continue
+            raise
+
 @st.cache_resource(show_spinner=False)
 def get_supabase_storage():
     """Khởi tạo Supabase Client dùng cho Storage (upload/download/xóa file hồ sơ).
@@ -6179,6 +6203,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
         
         if nvl:
             nd = {f"{x['ma_nv']} - {x['ho_ten']}": x['id'] for x in nvl}
+            id_to_hoten = {x['id']: x['ho_ten'] for x in nvl}
             cn = st.selectbox("📌 Chọn nhân viên:", list(nd.keys()))
             
             col1, col2 = st.columns(2)
@@ -6199,20 +6224,20 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
             
             if fl and st.button("📤 UPLOAD", type="primary", width='stretch'):
                 nid = nd[cn]
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                ngay_upload_str = datetime.now().strftime('%Y%m%d')
                 safe_name = sanitize_storage_filename(fl.name)
-                # Đường dẫn trong bucket: gom theo nhân viên để dễ quản lý/backup
-                storage_path = f"{nid}/{lh}_{timestamp}_{safe_name}"
+                ho_ten_folder = sanitize_storage_filename(id_to_hoten.get(nid, str(nid)))
+                # Cấu trúc: {Họ tên nhân viên}/{Loại hồ sơ}_{ngày upload}_{tên file}
+                base_path = f"{ho_ten_folder}/{lh}_{ngay_upload_str}_{safe_name}"
 
                 sb = get_supabase_storage()
                 if not sb:
                     st.error("❌ Chưa cấu hình Supabase Storage. Vui lòng khai báo `SUPABASE_URL` và `SUPABASE_KEY` trong secrets/.env.")
                 else:
                     try:
-                        sb.storage.from_(SUPABASE_BUCKET).upload(
-                            path=storage_path,
-                            file=fl.getvalue(),
-                            file_options={"content-type": fl.type or "application/octet-stream"}
+                        storage_path = upload_to_storage_unique(
+                            sb, SUPABASE_BUCKET, base_path,
+                            fl.getvalue(), fl.type
                         )
 
                         db = get_connection()

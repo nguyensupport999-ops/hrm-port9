@@ -10,7 +10,7 @@ Module thực hiện backup dữ liệu HRM-Port:
 Kết quả được lưu vào:  D:\\hrm-port9\\backup\\<YYYY-MM-DD_HHMMSS>\\
     ├── DB\\ung_vien.xlsx
     ├── DB\\nhan_vien.xlsx
-    ├── HoSo\\<...cấu trúc thư mục giống trên Storage...>
+    ├── HoSo\\<id_nhan_vien>\\<Họ tên nhân viên>\\<Loại hồ sơ>_<ngày upload>_<tên file>
     └── backup_log.txt
 
 Cách dùng:
@@ -114,7 +114,8 @@ def backup_database_tables(cfg, dest_folder):
 
 def backup_storage_files(cfg, dest_folder):
     """Tải toàn bộ file trong bucket Supabase Storage về dest_folder,
-    giữ nguyên cấu trúc thư mục (mỗi nhân viên 1 thư mục con theo id).
+    giữ nguyên cấu trúc thư mục trên Storage:
+        {id_nhan_vien}/{Họ tên nhân viên}/{Loại hồ sơ}_{ngày upload}_{tên file}
     Trả về dict: {ok, error, count}"""
     os.makedirs(dest_folder, exist_ok=True)
 

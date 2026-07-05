@@ -5589,6 +5589,95 @@ elif menu == "✅ Nhân viên":
         else:
             st.info("Không có biến động nhân sự trong kỳ.")
 
+# ========== CHẤM CÔNG ==========
+elif menu == "🕒 Chấm công":
+    st.title("🕒 Chấm công")
+    st.caption("Quản lý chấm công nhân viên - Cảng Hòn La")
+    ensure_cham_cong_table()
+
+    sub_menu = st.radio(
+        "Chọn phương thức chấm công:",
+        ["📝 Chấm công thủ công", "📥 Trích xuất từ máy chấm vân tay", "👤 Chấm công bằng Face ID"],
+        horizontal=True,
+        key="cham_cong_sub_menu"
+    )
+    st.divider()
+
+    # ========== 1. CHẤM CÔNG THỦ CÔNG ==========
+    if sub_menu == "📝 Chấm công thủ công":
+        tab_nhap, tab_tonghop = st.tabs(["📝 Nhập chấm công tháng", "📅 Bảng tổng hợp tháng"])
+
+        # ---------- TAB NHẬP CHẤM CÔNG THÁNG (dạng lịch, nhiều ca/tăng ca) ----------
+        with tab_nhap:
+            # ===== BƯỚC 1: chọn tháng/năm (+ bộ phận) trước khi mở bảng =====
+            if not st.session_state.get('cc_full_open', False):
+                st.markdown("#### 🗓️ Chọn tháng/năm chấm công")
+                col_m1, col_m2, col_m3 = st.columns([1, 1, 2])
+                with col_m1:
+                    thang_nhap = st.selectbox("Tháng", list(range(1, 13)), index=date.today().month - 1, key="cc_thang_nhap")
+                with col_m2:
+                    nam_nhap = st.number_input("Năm", min_value=2020, max_value=2100, value=date.today().year, step=1, key="cc_nam_nhap")
+                with col_m3:
+                    db_bp = get_connection()
+                    c_bp = db_bp.cursor()
+                    c_bp.execute("""SELECT DISTINCT phong_ban_lam_viec FROM nhan_vien
+                                    WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND phong_ban_lam_viec IS NOT NULL
+                                    AND phong_ban_lam_viec != '' ORDER BY phong_ban_lam_viec""")
+                    all_depts = [r[0] for r in c_bp.fetchall()]
+                    c_bp.close(); db_bp.close()
+                    bo_phan_nhap = st.multiselect(
+                        "Bộ phận (để trống = tất cả nhân viên)", all_depts,
+                        format_func=lambda d: CHAM_CONG_DEPT_LABEL.get(d, d), key="cc_bp_nhap"
+                    )
+                if st.button("📂 Mở bảng chấm công tháng", type="primary", key="cc_open_btn"):
+                    st.session_state.cc_full_open = True
+                    st.session_state.cc_view_thang = thang_nhap
+                    st.session_state.cc_view_nam = int(nam_nhap)
+                    st.session_state.cc_view_bo_phan = bo_phan_nhap
+                    st.session_state.cc_edit_mode = False
+                    st.rerun()
+
+            # ===== BƯỚC 2: bảng chấm công full-width dạng lịch =====
+            else:
+                import calendar as _cal
+                thang_v = st.session_state.cc_view_thang
+                nam_v = st.session_state.cc_view_nam
+                bp_v = st.session_state.cc_view_bo_phan
+                so_ngay = _cal.monthrange(nam_v, thang_v)[1]
+                day_list = [date(nam_v, thang_v, d) for d in range(1, so_ngay + 1)]
+                WD_ABBR = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+                col_titles = [f"{d.day:02d} {WD_ABBR[d.weekday()]}" for d in day_list]
+                weekend_cols = [t for d, t in zip(day_list, col_titles) if d.weekday() >= 5]
+
+                col_h1, col_h2, col_h3, col_h4 = st.columns([3, 1, 1, 1])
+                with col_h1:
+                    ten_bp = ", ".join(CHAM_CONG_DEPT_LABEL.get(b, b) for b in bp_v) if bp_v else "Tất cả bộ phận"
+                    st.markdown(f"### 📅 Chấm công tháng {thang_v}/{nam_v} — {ten_bp}")
+                with col_h2:
+                    if st.button("◀️ Đóng", key="cc_close_btn", width='stretch'):
+                        st.session_state.cc_full_open = False
+                        st.session_state.cc_pending_missing = None
+                        st.rerun()
+                with col_h3:
+                    edit_label = "👁️ Xem" if st.session_state.get('cc_edit_mode') else "✏️ Sửa BCC"
+                    if st.button(edit_label, key="cc_toggle_edit_btn", width='stretch'):
+                        st.session_state.cc_edit_mode = not st.session_state.get('cc_edit_mode', False)
+                        st.session_state.cc_pending_missing = None
+                        st.rerun()
+                with col_h4:
+                    save_clicked = st.button(
+                        "💾 Lưu", key="cc_save_month_btn", type="primary", width='stretch',
+                        disabled=not st.session_state.get('cc_edit_mode', False)
+                    )
+
+                with st.expander("ℹ️ Chú giải"):
+                    st.caption(" • ".join(f"**{k or '(trống)'}** = {v.split(' - ',1)[-1]}" for k, v in CHAM_CONG_MA_CODE.items()))
+                    st.caption("Dòng **Tăng ca (TC)** nhập số giờ dạng số, VD: 4, 2.5 — không dùng ký hiệu chữ.")
+                    st.caption(f"Bộ phận {', '.join(CHAM_CONG_DEPT_MOT_DONG)} chỉ có 1 dòng chấm công (mặc định ca hành chính); các bộ phận khác có 3 dòng: Ca ngày (C1,C2) / Ca đêm (C3) / Tăng ca (TC).")
+                    st.caption("Cột Thứ 7, Chủ nhật được tô màu vàng nhạt để dễ phân biệt cuối tuần.")
+                    st.caption("✅ Các ngày làm việc bình thường (Thứ 2 → Thứ 7) chưa từng chấm công được **tự động đánh dấu X** — admin chỉ cần sửa lại những ngày nghỉ, đổi ca hoặc bổ sung tăng ca.")
+                    st.caption("Ô ly chỉ chấp nhận đúng các ký hiệu/số nêu trên; nhập sai định dạng sẽ bị từ chối ngay khi rời khỏi ô.")
+                    
                 # Lấy danh sách nhân viên
                 db = get_connection()
                 c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)

@@ -167,22 +167,34 @@ def backup_storage_files(cfg, dest_folder):
 
 def backup_all(backup_root=BACKUP_ROOT):
     """Chạy backup toàn bộ: DB (Excel) + Storage (file hồ sơ).
-    Trả về dict kết quả gồm dest_folder, db, storage."""
+
+    Tự nhận diện môi trường đang chạy:
+      - Windows (local, kể cả khi mở Streamlit trên chính máy đó): ghi thẳng
+        kết quả vào ổ đĩa `backup_root` (mặc định D:\\hrm-port9\\backup).
+        Trả về {"mode": "local", "dest_folder": ..., "db": ..., "storage": ...}
+      - Không phải Windows (vd. server Streamlit Cloud - Linux, không có ổ D:
+        và không phải máy của người dùng): build backup vào thư mục tạm rồi
+        nén thành 1 file .zip duy nhất để người dùng bấm tải xuống ngay trên
+        trình duyệt. Trả về {"mode": "cloud", "zip_path": ..., "zip_bytes": ...,
+        "db": ..., "storage": ...}
+    """
     cfg = _load_config()
     timestamp = datetime.now().strftime('%Y-%m-%d_%H%M%S')
-    dest_folder = os.path.join(backup_root, timestamp)
-    os.makedirs(dest_folder, exist_ok=True)
+    is_windows = (os.name == 'nt')
 
-    db_result = backup_database_tables(cfg, os.path.join(dest_folder, "DB"))
-    storage_result = backup_storage_files(cfg, os.path.join(dest_folder, "HoSo"))
+    if is_windows:
+        dest_folder = os.path.join(backup_root, timestamp)
+        os.makedirs(dest_folder, exist_ok=True)
+        work_folder = dest_folder
+    else:
+        import tempfile
+        work_folder = os.path.join(tempfile.mkdtemp(prefix="hrm_backup_"), timestamp)
+        os.makedirs(work_folder, exist_ok=True)
 
-    summary = {
-        "dest_folder": dest_folder,
-        "db": db_result,
-        "storage": storage_result,
-    }
+    db_result = backup_database_tables(cfg, os.path.join(work_folder, "DB"))
+    storage_result = backup_storage_files(cfg, os.path.join(work_folder, "HoSo"))
 
-    log_path = os.path.join(dest_folder, "backup_log.txt")
+    log_path = os.path.join(work_folder, "backup_log.txt")
     with open(log_path, "w", encoding="utf-8") as f:
         f.write(f"BACKUP HRM-PORT - {timestamp}\n")
         f.write("=" * 60 + "\n")
@@ -196,14 +208,42 @@ def backup_all(backup_root=BACKUP_ROOT):
         else:
             f.write(f"[LỖI] Storage: {storage_result['error']} (đã tải được {storage_result['count']} file trước khi lỗi)\n")
 
-    return summary
+    if is_windows:
+        return {
+            "mode": "local",
+            "dest_folder": work_folder,
+            "db": db_result,
+            "storage": storage_result,
+        }
+
+    # Môi trường Cloud/Linux: nén toàn bộ work_folder thành 1 file .zip
+    import shutil
+    zip_base = work_folder  # shutil sẽ tự thêm đuôi .zip
+    zip_path = shutil.make_archive(zip_base, 'zip', work_folder)
+    with open(zip_path, "rb") as f:
+        zip_bytes = f.read()
+
+    return {
+        "mode": "cloud",
+        "zip_path": zip_path,
+        "zip_bytes": zip_bytes,
+        "zip_filename": f"HRM_Port_Backup_{timestamp}.zip",
+        "db": db_result,
+        "storage": storage_result,
+    }
 
 
 if __name__ == "__main__":
     # Cho phép chạy độc lập, ví dụ qua Windows Task Scheduler:
     #   python backup_data.py
+    # LƯU Ý: khi chạy qua Task Scheduler trên máy Windows của bạn, script sẽ
+    # luôn ở "mode": "local" (ghi thẳng vào D:\hrm-port9\backup) vì os.name=='nt'
+    # trên chính máy đó — không liên quan đến việc app Streamlit đang host ở đâu.
     result = backup_all()
-    print(f"Đã backup xong tại: {result['dest_folder']}")
+    if result["mode"] == "local":
+        print(f"Đã backup xong tại: {result['dest_folder']}")
+    else:
+        print(f"Đã backup xong (môi trường Cloud), file zip tại: {result['zip_path']}")
     for table, res in result['db'].items():
         status = "OK" if res[0] else "LỖI"
         print(f"  [{status}] {table}: {res[1]}")

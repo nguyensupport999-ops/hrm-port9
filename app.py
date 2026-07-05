@@ -3478,10 +3478,23 @@ if menu == "📊 Dashboard":
         with col_bk1:
             if st.button("💾 BACKUP DỮ LIỆU NGAY", width='stretch'):
                 try:
-                    from backup_data import backup_all, BACKUP_ROOT
+                    from backup_data import backup_all
                     with st.spinner("⏳ Đang backup bảng Ứng viên, Nhân viên và hồ sơ trên Supabase Storage..."):
                         result = backup_all()
-                    st.success(f"✅ Đã backup xong! Thư mục: {result['dest_folder']}")
+
+                    if result["mode"] == "local":
+                        st.success(f"✅ Đã backup xong! Thư mục: {result['dest_folder']}")
+                    else:
+                        st.success("✅ Đã backup xong! App đang chạy trên môi trường Cloud (không có ổ D: của bạn), "
+                                    "nên kết quả được nén thành file zip — bấm nút bên dưới để tải về máy:")
+                        st.download_button(
+                            label="📥 TẢI FILE BACKUP (.zip)",
+                            data=result["zip_bytes"],
+                            file_name=result["zip_filename"],
+                            mime="application/zip",
+                            width='stretch'
+                        )
+
                     for table, res in result['db'].items():
                         if res[0]:
                             st.caption(f"✔️ Bảng `{table}`: {res[1]} dòng")
@@ -3495,41 +3508,51 @@ if menu == "📊 Dashboard":
                     st.error("❌ Không tìm thấy `backup_data.py`. Hãy đặt file này cùng thư mục với app.py.")
                 except Exception as e:
                     st.error(f"❌ Lỗi khi backup: {e}")
-            st.caption("Backup dữ liệu bảng `ung_vien`, `nhan_vien` (Excel) + toàn bộ file hồ sơ trên Supabase Storage → `D:\\hrm-port9\\backup`.")
+            st.caption("Backup dữ liệu bảng `ung_vien`, `nhan_vien` (Excel) + toàn bộ file hồ sơ trên Supabase Storage. "
+                       "Nếu chạy trên máy Windows local → lưu vào `D:\\hrm-port9\\backup`. Nếu chạy trên Cloud → tải về dạng file zip.")
 
         with col_bk2:
             with st.popover("🗓️ Lịch backup tự động", width='stretch'):
+                is_windows = (os.name == 'nt')
                 st.caption("Dùng **Windows Task Scheduler** để tự động chạy backup vào **02:00 sáng Thứ 7 hàng tuần**. "
-                           "Chỉ áp dụng khi app chạy trên máy Windows local (không áp dụng khi deploy trên Streamlit Cloud).")
-                if st.button("✅ BẬT lịch backup tự động", width='stretch'):
-                    try:
-                        python_exe = sys.executable
-                        script_path = os.path.abspath("backup_data.py")
-                        task_cmd = (
-                            'schtasks /Create /TN "HRM_Port_Backup_Weekly" '
-                            f'/TR "\\"{python_exe}\\" \\"{script_path}\\"" '
-                            '/SC WEEKLY /D SAT /ST 02:00 /F'
-                        )
-                        result = subprocess.run(task_cmd, shell=True, capture_output=True, text=True)
-                        if result.returncode == 0:
-                            st.success("✅ Đã tạo lịch: tự động backup 02:00 sáng Thứ 7 hàng tuần.")
-                        else:
-                            st.error(f"❌ Không tạo được lịch: {result.stderr or result.stdout}")
-                    except Exception as e:
-                        st.error(f"❌ Lỗi khi tạo lịch: {e}")
+                           "Chỉ tạo được lịch khi bấm nút này **ngay trên máy Windows** nơi bạn muốn lưu file backup — "
+                           "không thể bật từ xa qua Streamlit Cloud.")
+                if not is_windows:
+                    st.warning("⚠️ App hiện đang chạy trên môi trường Cloud (không phải Windows), nên không thể tạo "
+                               "lịch Task Scheduler tại đây. Cách làm đúng: copy file `backup_data.py` cùng file cấu "
+                               "hình kết nối (.env) xuống máy Windows của bạn, rồi mở app này **chạy local** "
+                               "(`streamlit run app.py` ngay trên máy đó) để bấm nút BẬT lịch — lúc đó Task Scheduler "
+                               "sẽ được tạo đúng trên máy bạn và tự backup vào D:\\ hàng tuần dù sau đó bạn tắt app đi.")
+                else:
+                    if st.button("✅ BẬT lịch backup tự động", width='stretch'):
+                        try:
+                            python_exe = sys.executable
+                            script_path = os.path.abspath("backup_data.py")
+                            task_cmd = (
+                                'schtasks /Create /TN "HRM_Port_Backup_Weekly" '
+                                f'/TR "\\"{python_exe}\\" \\"{script_path}\\"" '
+                                '/SC WEEKLY /D SAT /ST 02:00 /F'
+                            )
+                            result = subprocess.run(task_cmd, shell=True, capture_output=True, text=True)
+                            if result.returncode == 0:
+                                st.success("✅ Đã tạo lịch: tự động backup 02:00 sáng Thứ 7 hàng tuần.")
+                            else:
+                                st.error(f"❌ Không tạo được lịch: {result.stderr or result.stdout}")
+                        except Exception as e:
+                            st.error(f"❌ Lỗi khi tạo lịch: {e}")
 
-                if st.button("🗑️ TẮT lịch backup tự động", width='stretch'):
-                    try:
-                        result = subprocess.run(
-                            'schtasks /Delete /TN "HRM_Port_Backup_Weekly" /F',
-                            shell=True, capture_output=True, text=True
-                        )
-                        if result.returncode == 0:
-                            st.success("✅ Đã tắt lịch backup tự động.")
-                        else:
-                            st.warning(f"⚠️ {result.stderr or result.stdout}")
-                    except Exception as e:
-                        st.error(f"❌ Lỗi: {e}")
+                    if st.button("🗑️ TẮT lịch backup tự động", width='stretch'):
+                        try:
+                            result = subprocess.run(
+                                'schtasks /Delete /TN "HRM_Port_Backup_Weekly" /F',
+                                shell=True, capture_output=True, text=True
+                            )
+                            if result.returncode == 0:
+                                st.success("✅ Đã tắt lịch backup tự động.")
+                            else:
+                                st.warning(f"⚠️ {result.stderr or result.stdout}")
+                        except Exception as e:
+                            st.error(f"❌ Lỗi: {e}")
     
     
     

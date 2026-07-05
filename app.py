@@ -512,6 +512,19 @@ CHAM_CONG_DEPT_MOT_DONG = ["VP"]
 # Bộ phận có 2 dòng (Ca chính + Tăng ca)
 CHAM_CONG_DEPT_HAI_DONG = ["QL", "SX", "LDPT"]
 
+# === THÊM MỚI: Từ khóa nhận diện Văn phòng ===
+VAN_PHONG_KEYWORDS = ["VP", "VĂN PHÒNG", "ADMIN", "HÀNH CHÍNH"]
+
+def is_van_phong(dept):
+    """Kiểm tra xem bộ phận có thuộc Văn phòng không"""
+    if not dept:
+        return False
+    dept_upper = dept.upper()
+    for kw in VAN_PHONG_KEYWORDS:
+        if kw in dept_upper:
+            return True
+    return False
+
 CHAM_CONG_DEPT_LABEL = {
     "QL": "QL - Quản lý",
     "VP": "VP - Văn phòng",
@@ -5946,7 +5959,7 @@ elif menu == "🕒 Chấm công":
                     dept = nv['phong_ban_lam_viec']
                     
                     # Xác định số dòng cho nhân viên này
-                    if dept in CHAM_CONG_DEPT_MOT_DONG:
+                    if is_van_phong(dept):  # Dùng hàm mới thay vì so sánh in
                         # Văn phòng: chỉ 1 dòng
                         loai_list = ["Ca chính"]
                     else:
@@ -6057,7 +6070,7 @@ elif menu == "🕒 Chấm công":
                         st.error(f"❌ Lỗi xuất file: {e}")
 
                 if not st.session_state.get('cc_edit_mode', False):
-                    # Chế độ XEM
+                    # Chế độ XEM - LOẠI BỎ cột "Chấm công full"
                     def _highlight_sunday(s):
                         if s.name in sunday_cols:
                             return ['background-color: #FFF2CC; font-weight: bold; color: #999;'] * len(s)
@@ -6066,23 +6079,20 @@ elif menu == "🕒 Chấm công":
                     def _center_style(s):
                         return ['text-align: center; vertical-align: middle;' for _ in s]
                     
-                    def _highlight_full_btn(s):
-                        if s.name == "Chấm công full":
-                            return ['background-color: #E8F5E9; font-weight: bold; text-align: center;'] * len(s)
-                        return [''] * len(s)
+                    # Tạo bảng không có cột "Chấm công full"
+                    df_view = df_month.drop(columns=["Chấm công full"], errors='ignore')
 
                     view_col_cfg = {
                         "Mã NV": cc_pin_col(st.column_config.TextColumn, width="small"),
                         "Họ tên": cc_pin_col(st.column_config.TextColumn, width=180),
                         "Chức danh": cc_pin_col(st.column_config.TextColumn, width=140),
                         "Loại": cc_pin_col(st.column_config.TextColumn, width="small"),
-                        "Chấm công full": cc_pin_col(st.column_config.TextColumn, width="small"),
+                        # KHÔNG CÓ "Chấm công full" ở chế độ xem
                     }
                     styled = (
-                        df_month.style
+                        df_view.style
                         .apply(_highlight_sunday, axis=0)
                         .apply(_center_style, axis=0)
-                        .apply(_highlight_full_btn, axis=0)
                         .set_properties(**{"text-align": "center", "vertical-align": "middle"})
                         .hide(axis="index")
                     )
@@ -6118,7 +6128,6 @@ elif menu == "🕒 Chấm công":
                     )
                     
                     # Xử lý khi user click vào checkbox "Chấm công full"
-                    # So sánh edited_df với df_month để tìm thay đổi
                     if edited_df is not None:
                         # Kiểm tra từng dòng Ca chính
                         for idx, row in edited_df.iterrows():
@@ -6129,7 +6138,7 @@ elif menu == "🕒 Chấm công":
                                 new_val = row["Chấm công full"]
                                 
                                 # Nếu checkbox được tick (chuyển từ False sang True)
-                                if new_val is True and old_val != True:
+                                if new_val is True and old_val is not True:  # SỬA: dùng "is not True"
                                     # Tự động đánh dấu X cho tất cả ô trống trên dòng Ca chính
                                     ca_main_idx = idx
                                     for d, title in zip(day_list, col_titles):

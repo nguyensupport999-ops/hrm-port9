@@ -5647,6 +5647,7 @@ elif menu == "🕒 Chấm công":
                 day_list = [date(nam_v, thang_v, d) for d in range(1, so_ngay + 1)]
                 WD_ABBR = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
                 col_titles = [f"{d.day:02d} {WD_ABBR[d.weekday()]}" for d in day_list]
+                # Xác định ngày Chủ nhật (weekday = 6)
                 weekend_cols = [t for d, t in zip(day_list, col_titles) if d.weekday() >= 5]
 
                 col_h1, col_h2, col_h3, col_h4 = st.columns([3, 1, 1, 1])
@@ -5678,16 +5679,16 @@ elif menu == "🕒 Chấm công":
                     st.caption("✅ Các ngày làm việc bình thường (Thứ 2 → Thứ 7) chưa từng chấm công được **tự động đánh dấu X** — admin chỉ cần sửa lại những ngày nghỉ, đổi ca hoặc bổ sung tăng ca.")
                     st.caption("Ô ly chỉ chấp nhận đúng các ký hiệu/số nêu trên; nhập sai định dạng sẽ bị từ chối ngay khi rời khỏi ô.")
 
-                # Lấy danh sách nhân viên
+                # Lấy danh sách nhân viên - Sắp xếp theo mã NV tăng dần
                 db = get_connection()
                 c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                 if bp_v:
                     c.execute("""SELECT id, ma_nv, ho_ten, chuc_danh_nghe, phong_ban_lam_viec FROM nhan_vien
                                  WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND phong_ban_lam_viec = ANY(%s)
-                                 ORDER BY phong_ban_lam_viec, ho_ten""", (bp_v,))
+                                 ORDER BY ma_nv ASC""", (bp_v,))
                 else:
                     c.execute("""SELECT id, ma_nv, ho_ten, chuc_danh_nghe, phong_ban_lam_viec FROM nhan_vien
-                                 WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY phong_ban_lam_viec, ho_ten""")
+                                 WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY ma_nv ASC""")
                 nv_list = c.fetchall()
 
                 existing = {}
@@ -5703,34 +5704,36 @@ elif menu == "🕒 Chấm công":
                 if not nv_list:
                     st.warning("Không có nhân viên nào phù hợp với bộ phận đã chọn.")
                 else:
-                    # ---- Xây dựng cấu trúc dòng: VP chỉ 1 dòng, còn lại 3 dòng (Ca ngày/Ca đêm/Tăng ca) ----
-                    # Mã NV/Họ tên/Chức danh chỉ hiển thị ở dòng đầu tiên của mỗi nhân viên -> tạo hiệu ứng "merge"
-                    employee_blocks = []
+                    # ---- Xây dựng cấu trúc dòng: VP chỉ 1 dòng, còn lại 3 dòng ----
                     flat_rows = []
-                    row_cursor = 0
                     for nv in nv_list:
                         dept = nv['phong_ban_lam_viec']
+                        # Văn phòng chỉ 1 dòng (Hành chính), các bộ phận khác 3 dòng
                         if dept in CHAM_CONG_DEPT_MOT_DONG:
                             loai_list = ["Hành chính"]
                         else:
                             loai_list = ["Ca ngày (C1,C2)", "Ca đêm (C3)", "Tăng ca (TC)"]
 
+                        # Chỉ hiển thị Mã NV/Họ tên/Chức danh ở dòng đầu tiên
                         for idx, loai in enumerate(loai_list):
                             row = {
                                 "Mã NV": nv['ma_nv'] if idx == 0 else "",
                                 "Họ tên": nv['ho_ten'] if idx == 0 else "",
                                 "Chức danh": (nv.get('chuc_danh_nghe') or "") if idx == 0 else "",
                                 "Loại": loai,
+                                "_nv_id": nv['id'],  # Ẩn để dùng khi lưu
+                                "_ma_nv": nv['ma_nv'],  # Ẩn để dùng khi lưu
+                                "_ho_ten": nv['ho_ten'],  # Ẩn để dùng khi lưu
+                                "_dept": dept,
+                                "_row_idx": idx,
                             }
                             for d, title in zip(day_list, col_titles):
                                 rec = existing.get((nv['id'], d))
-                                if loai in ("Ca ngày (C1,C2)", "Hành chính"):
+                                if loai == "Hành chính" or loai == "Ca ngày (C1,C2)":
                                     if rec is not None:
                                         row[title] = rec.get('ca_ngay') or ""
                                     else:
-                                        # Chưa từng chấm công ngày này -> tự động đánh dấu X
-                                        # cho các ngày làm việc bình thường Thứ 2 -> Thứ 7.
-                                        # weekday(): Thứ 2 = 0 ... Thứ 7 = 5, Chủ nhật = 6
+                                        # Tự động đánh dấu X cho ngày làm việc (Thứ 2 -> Thứ 7)
                                         row[title] = "X" if d.weekday() <= 5 else ""
                                 elif loai == "Ca đêm (C3)":
                                     row[title] = (rec.get('ca_dem') or "") if rec is not None else ""
@@ -5739,60 +5742,119 @@ elif menu == "🕒 Chấm công":
                                     row[title] = "" if not tc_val else str(tc_val)
                             flat_rows.append(row)
 
-                        row_indices = list(range(row_cursor, row_cursor + len(loai_list)))
-                        employee_blocks.append({
-                            "nv_id": nv['id'], "ma_nv": nv['ma_nv'], "ho_ten": nv["ho_ten"],
-                            "loai_list": loai_list, "row_indices": row_indices,
-                        })
-                        row_cursor += len(loai_list)
-
                     df_month = pd.DataFrame(flat_rows)
-                    # Chiều cao cửa sổ BCC: hiển thị tối đa 18 dòng, phần còn lại thao tác
-                    # qua thanh cuộn dọc/ngang của chính bảng để dễ thao tác.
-                    CC_MAX_VISIBLE_ROWS = 18
-                    CC_HEADER_H = 38
-                    table_height = CC_HEADER_H + CC_ROW_HEIGHT * min(len(df_month), CC_MAX_VISIBLE_ROWS)
+                    
+                    # Loại bỏ các cột ẩn khỏi hiển thị
+                    hidden_cols = ['_nv_id', '_ma_nv', '_ho_ten', '_dept', '_row_idx']
+                    display_cols = [c for c in df_month.columns if c not in hidden_cols]
+                    df_display = df_month[display_cols].copy()
 
-                    # Các cột cố định (ghim) bên trái khi cuộn ngang: chỉ bảng dữ liệu lịch (theo ngày) mới cuộn
+                    # Chiều cao cửa sổ BCC
+                    CC_MAX_VISIBLE_ROWS = 20
+                    CC_HEADER_H = 38
+                    table_height = CC_HEADER_H + CC_ROW_HEIGHT * min(len(df_display), CC_MAX_VISIBLE_ROWS)
+
+                    # Các cột cố định (ghim) bên trái
                     pinned_cols = ["Mã NV", "Họ tên", "Chức danh", "Loại"]
+
+                    # Màu nền cho toàn bộ bảng (RGB: 202, 237, 251)
+                    bg_color = "#CAEDFB"
+                    
+                    # Hàm tô màu nền và căn giữa
+                    def style_dataframe(df, is_edit=False):
+                        styles = []
+                        # Tô màu nền cho toàn bộ bảng
+                        styles.append({
+                            'selector': 'table',
+                            'props': [('background-color', bg_color)]
+                        })
+                        styles.append({
+                            'selector': 'td, th',
+                            'props': [
+                                ('background-color', bg_color),
+                                ('text-align', 'center'),
+                                ('vertical-align', 'middle')
+                            ]
+                        })
+                        # Tô màu nền vàng cho ngày cuối tuần
+                        for col in df.columns:
+                            if col in weekend_cols:
+                                styles.append({
+                                    'selector': f'td.col_{col}, th.col_{col}',
+                                    'props': [('background-color', '#FFF2CC')]
+                                })
+                        return styles
 
                     if not st.session_state.get('cc_edit_mode', False):
                         # ---- Chế độ XEM ----
-                        def _highlight_weekend(s):
-                            return ['background-color:#FFF2CC' if s.name in weekend_cols else '' for _ in s]
-
                         view_col_cfg = {
-                            "Mã NV": cc_pin_col(st.column_config.TextColumn, width="small"),
-                            "Họ tên": cc_pin_col(st.column_config.TextColumn, width=200),
-                            "Chức danh": cc_pin_col(st.column_config.TextColumn, width=160),
-                            "Loại": cc_pin_col(st.column_config.TextColumn, width="small"),
+                            "Mã NV": st.column_config.TextColumn(width="small", disabled=True),
+                            "Họ tên": st.column_config.TextColumn(width=180, disabled=True),
+                            "Chức danh": st.column_config.TextColumn(width=150, disabled=True),
+                            "Loại": st.column_config.TextColumn(width="small", disabled=True),
                         }
-                        styled = (
-                            df_month.style
-                            .apply(_highlight_weekend, axis=0)
-                            .set_properties(**{"text-align": "center", "vertical-align": "middle"})
-                            .hide(axis="index")
-                        )
+                        # Cấu hình cột ngày với width nhỏ, không sort
+                        for t in col_titles:
+                            view_col_cfg[t] = st.column_config.TextColumn(
+                                width=40,  # Width nhỏ hơn
+                                disabled=True,
+                            )
+                        
+                        # Tạo style cho bảng
+                        styled_df = df_display.style
+                        # Tô màu nền
+                        styled_df = styled_df.set_properties(**{
+                            'background-color': bg_color,
+                            'text-align': 'center',
+                            'vertical-align': 'middle'
+                        })
+                        # Tô màu vàng cho cuối tuần
+                        for col in weekend_cols:
+                            if col in df_display.columns:
+                                styled_df = styled_df.apply(
+                                    lambda x: ['background-color: #FFF2CC' if x.name == col else '' for _ in x],
+                                    axis=0
+                                )
+                        
                         cc_render_grid(
-                            styled, edit=False, width='stretch', height=table_height,
+                            styled_df, edit=False, width='stretch', height=table_height,
                             column_config=view_col_cfg,
+                            use_container_width=True,
                         )
                         st.caption("👁️ Đang ở chế độ xem. Bấm **✏️ Sửa BCC** ở trên để chỉnh sửa.")
+                        
                     else:
                         # ---- Chế độ SỬA ----
                         col_cfg = {
-                            "Mã NV": cc_pin_col(st.column_config.TextColumn, disabled=True, width="small"),
-                            "Họ tên": cc_pin_col(st.column_config.TextColumn, disabled=True, width=200),
-                            "Chức danh": cc_pin_col(st.column_config.TextColumn, disabled=True, width=160),
-                            "Loại": cc_pin_col(st.column_config.TextColumn, disabled=True, width="small"),
+                            "Mã NV": st.column_config.TextColumn(disabled=True, width="small"),
+                            "Họ tên": st.column_config.TextColumn(disabled=True, width=180),
+                            "Chức danh": st.column_config.TextColumn(disabled=True, width=150),
+                            "Loại": st.column_config.TextColumn(disabled=True, width="small"),
                         }
                         for t in col_titles:
-                            # Giới hạn ký tự nhập cho ô ly (X/P/V/N/D/L/NL/0.5 hoặc số giờ tăng ca 0-9)
-                            col_cfg[t] = st.column_config.TextColumn(width="small", validate=CHAM_CONG_CELL_REGEX)
+                            col_cfg[t] = st.column_config.TextColumn(
+                                width=40,  # Width nhỏ hơn
+                                validate=CHAM_CONG_CELL_REGEX,
+                            )
 
                         edit_key = f"cc_month_editor_{thang_v}_{nam_v}_{'-'.join(bp_v) if bp_v else 'all'}"
+                        
+                        # Tạo style cho bảng sửa
+                        styled_edit = df_display.style
+                        styled_edit = styled_edit.set_properties(**{
+                            'background-color': bg_color,
+                            'text-align': 'center',
+                            'vertical-align': 'middle'
+                        })
+                        for col in weekend_cols:
+                            if col in df_display.columns:
+                                styled_edit = styled_edit.apply(
+                                    lambda x: ['background-color: #FFF2CC' if x.name == col else '' for _ in x],
+                                    axis=0
+                                )
+                        
                         edited_month_df = cc_render_grid(
-                            df_month, edit=True,
+                            styled_edit, edit=True,
                             column_config=col_cfg,
                             hide_index=True,
                             num_rows="fixed",
@@ -5803,17 +5865,26 @@ elif menu == "🕒 Chấm công":
 
                         # ---- Kiểm tra các ngày quá khứ còn để trống trước khi lưu ----
                         if save_clicked or st.session_state.get('cc_pending_missing'):
+                            # Lấy dữ liệu từ edited_month_df (đã được style)
+                            # Cần lấy dữ liệu thực từ df_display gốc
                             missing = []
-                            for block in employee_blocks:
+                            # Duyệt qua từng nhân viên
+                            for idx, row in df_display.iterrows():
+                                ma_nv = row.get('Mã NV', '')
+                                ho_ten = row.get('Họ tên', '')
+                                if not ma_nv:
+                                    continue
                                 for d, title in zip(day_list, col_titles):
                                     if d >= date.today():
                                         continue
-                                    co_gia_tri = any(
-                                        str(edited_month_df.iloc[ridx][title] or "").strip()
-                                        for ridx in block["row_indices"]
-                                    )
-                                    if not co_gia_tri:
-                                        missing.append((block["ma_nv"], block["ho_ten"], d))
+                                    # Kiểm tra xem có giá trị nào được nhập không
+                                    # Lấy giá trị từ edited_month_df (đã được style)
+                                    try:
+                                        val = edited_month_df.iloc[idx][title] if idx < len(edited_month_df) else ''
+                                    except:
+                                        val = ''
+                                    if not str(val).strip():
+                                        missing.append((ma_nv, ho_ten, d))
 
                             if missing and not st.session_state.get('cc_force_save'):
                                 st.session_state.cc_pending_missing = missing
@@ -5837,42 +5908,65 @@ elif menu == "🕒 Chấm công":
                                 db2 = get_connection()
                                 c2 = db2.cursor()
                                 n_saved = 0
-                                for block in employee_blocks:
-                                    nv_id = block["nv_id"]
-                                    loai_list = block["loai_list"]
-                                    row_indices = block["row_indices"]
-                                    vals_by_loai = {
-                                        loai: edited_month_df.iloc[ridx] for loai, ridx in zip(loai_list, row_indices)
-                                    }
+                                
+                                # Duyệt qua từng nhân viên trong df_display
+                                for idx, row in df_display.iterrows():
+                                    ma_nv = row.get('Mã NV', '')
+                                    ho_ten = row.get('Họ tên', '')
+                                    if not ma_nv:
+                                        continue
+                                    
+                                    # Lấy nv_id từ df_month gốc
+                                    nv_id = df_month.iloc[idx]['_nv_id'] if idx < len(df_month) else None
+                                    if not nv_id:
+                                        continue
+                                    
+                                    # Xác định loại dòng
+                                    loai = row.get('Loại', '')
+                                    
+                                    # Lấy dữ liệu từ edited_month_df
+                                    try:
+                                        edited_row = edited_month_df.iloc[idx]
+                                    except:
+                                        continue
+                                    
                                     for d, title in zip(day_list, col_titles):
-                                        if "Hành chính" in vals_by_loai:
-                                            v_ngay_raw = str(vals_by_loai["Hành chính"][title] or "").strip()
-                                            v_dem_raw = ""
+                                        val = str(edited_row.get(title, '') or '').strip()
+                                        
+                                        # Xác định giá trị theo loại dòng
+                                        if loai == "Hành chính" or loai == "Ca ngày (C1,C2)":
+                                            v_ngay = cc_normalize_marker(val)
+                                            v_dem = ""
                                             v_tc = 0
-                                        else:
-                                            v_ngay_raw = str(vals_by_loai.get("Ca ngày (C1,C2)", {}).get(title, "") or "").strip()
-                                            v_dem_raw = str(vals_by_loai.get("Ca đêm (C3)", {}).get(title, "") or "").strip()
-                                            v_tc_raw = str(vals_by_loai.get("Tăng ca (TC)", {}).get(title, "") or "").strip()
+                                        elif loai == "Ca đêm (C3)":
+                                            v_ngay = ""
+                                            v_dem = cc_normalize_marker(val)
+                                            v_tc = 0
+                                        else:  # Tăng ca
+                                            v_ngay = ""
+                                            v_dem = ""
                                             try:
-                                                v_tc = float(v_tc_raw.replace(",", ".")) if v_tc_raw else 0
+                                                v_tc = float(val.replace(",", ".")) if val else 0
                                             except ValueError:
                                                 v_tc = 0
-                                        v_ngay = cc_normalize_marker(v_ngay_raw)
-                                        v_dem = cc_normalize_marker(v_dem_raw)
-
-                                        da_co_du_lieu = (nv_id, d) in existing
-                                        if not da_co_du_lieu and v_ngay is None and v_dem is None and v_tc == 0:
-                                            continue  # chưa từng có và cũng không nhập gì mới -> bỏ qua, không tạo dòng rác
+                                        
+                                        # Kiểm tra xem đã có dữ liệu chưa
+                                        da_co = (nv_id, d) in existing
+                                        if not da_co and v_ngay is None and v_dem is None and v_tc == 0:
+                                            continue
+                                        
+                                        # Lưu vào database
                                         c2.execute("""
                                             INSERT INTO cham_cong (nhan_vien_id, ngay, ca_ngay, ca_dem, gio_tang_ca, nguon, created_by, updated_at)
                                             VALUES (%s,%s,%s,%s,%s,'THU_CONG',%s, NOW())
                                             ON CONFLICT (nhan_vien_id, ngay) DO UPDATE SET
-                                                ca_ngay = EXCLUDED.ca_ngay,
-                                                ca_dem = EXCLUDED.ca_dem,
-                                                gio_tang_ca = EXCLUDED.gio_tang_ca,
+                                                ca_ngay = COALESCE(EXCLUDED.ca_ngay, cham_cong.ca_ngay),
+                                                ca_dem = COALESCE(EXCLUDED.ca_dem, cham_cong.ca_dem),
+                                                gio_tang_ca = COALESCE(EXCLUDED.gio_tang_ca, cham_cong.gio_tang_ca),
                                                 updated_at = NOW()
                                         """, (nv_id, d, v_ngay, v_dem, v_tc, st.session_state.username))
                                         n_saved += 1
+                                
                                 db2.commit()
                                 c2.close(); db2.close()
                                 st.success(f"✅ Đã lưu {n_saved} lượt chấm công tháng {thang_v}/{nam_v}.")
@@ -5898,7 +5992,7 @@ elif menu == "🕒 Chấm công":
                 LEFT JOIN cham_cong cc ON cc.nhan_vien_id = nv.id
                     AND EXTRACT(MONTH FROM cc.ngay) = %s AND EXTRACT(YEAR FROM cc.ngay) = %s
                 WHERE nv.trang_thai IN ('DANG_LAM','THU_VIEC')
-                ORDER BY nv.phong_ban_lam_viec, nv.ho_ten
+                ORDER BY nv.ma_nv ASC
             """, (thang_tk, nam_tk))
             data = c3.fetchall()
             c3.close(); db3.close()

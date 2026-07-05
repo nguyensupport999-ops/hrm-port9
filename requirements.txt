@@ -10,3 +10,4 @@ psycopg2-binary>=2.9.0
 python-docx>=0.8.11
 qrcode>=7.4.0
 plotly
+supabase

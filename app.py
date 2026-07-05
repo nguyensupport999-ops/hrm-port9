@@ -2249,6 +2249,23 @@ def get_connection():
 # Cần tạo trước trên Supabase Dashboard > Storage (khuyến nghị để Private).
 SUPABASE_BUCKET = "ho-so-nhan-vien"
 
+def sanitize_storage_filename(filename):
+    """Chuẩn hóa tên file để làm 'key' hợp lệ trên Supabase Storage:
+    - Bỏ dấu tiếng Việt (Lộ_trình_học -> Lo_trinh_hoc)
+    - Thay khoảng trắng bằng '_'
+    - Chỉ giữ lại chữ cái không dấu, số, '_', '-', '.'
+    Supabase Storage sẽ báo lỗi 'InvalidKey' nếu key chứa ký tự có dấu/unicode."""
+    # Bỏ dấu: chuẩn hóa Unicode rồi loại bỏ các ký tự dấu (combining marks)
+    normalized = unicodedata.normalize('NFD', filename)
+    no_accent = ''.join(ch for ch in normalized if unicodedata.category(ch) != 'Mn')
+    # Xử lý riêng chữ đ/Đ vì NFD không tách được
+    no_accent = no_accent.replace('đ', 'd').replace('Đ', 'D')
+    # Thay khoảng trắng bằng '_'
+    no_accent = re.sub(r'\s+', '_', no_accent)
+    # Chỉ giữ ký tự an toàn
+    safe = re.sub(r'[^A-Za-z0-9_.\-]', '', no_accent)
+    return safe or "file"
+
 @st.cache_resource(show_spinner=False)
 def get_supabase_storage():
     """Khởi tạo Supabase Client dùng cho Storage (upload/download/xóa file hồ sơ).
@@ -6160,7 +6177,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
             if fl and st.button("📤 UPLOAD", type="primary", width='stretch'):
                 nid = nd[cn]
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                safe_name = re.sub(r'\s+', '_', fl.name)
+                safe_name = sanitize_storage_filename(fl.name)
                 # Đường dẫn trong bucket: gom theo nhân viên để dễ quản lý/backup
                 storage_path = f"{nid}/{lh}_{timestamp}_{safe_name}"
 

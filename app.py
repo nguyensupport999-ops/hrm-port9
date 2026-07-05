@@ -5592,6 +5592,7 @@ elif menu == "✅ Nhân viên":
 # ========== CHẤM CÔNG ==========
 elif menu == "🕒 Chấm công":
     st.title("🕒 Chấm công")
+    st.caption("Quản lý chấm công nhân viên - Cảng Hòn La")
     ensure_cham_cong_table()
 
     sub_menu = st.radio(
@@ -5649,26 +5650,211 @@ elif menu == "🕒 Chấm công":
                 # Chỉ đánh dấu Chủ nhật (weekday == 6)
                 sunday_cols = [t for d, t in zip(day_list, col_titles) if d.weekday() == 6]
 
-                col_h1, col_h2, col_h3, col_h4 = st.columns([3, 1, 1, 1])
+                # ===== HEADER MỚI: 1 DÒNG NGANG =====
+                ten_bp = ", ".join(CHAM_CONG_DEPT_LABEL.get(b, b) for b in bp_v) if bp_v else "Tất cả bộ phận"
+                
+                # Layout header: Tiêu đề bên trái, các nút bên phải
+                col_h1, col_h2 = st.columns([2, 3])
+                
                 with col_h1:
-                    ten_bp = ", ".join(CHAM_CONG_DEPT_LABEL.get(b, b) for b in bp_v) if bp_v else "Tất cả bộ phận"
                     st.markdown(f"### 📅 Chấm công tháng {thang_v}/{nam_v} — {ten_bp}")
+                
                 with col_h2:
-                    if st.button("◀️ Đóng", key="cc_close_btn", width='stretch'):
-                        st.session_state.cc_full_open = False
-                        st.session_state.cc_pending_missing = None
-                        st.rerun()
-                with col_h3:
-                    edit_label = "👁️ Xem" if st.session_state.get('cc_edit_mode') else "✏️ Sửa BCC"
-                    if st.button(edit_label, key="cc_toggle_edit_btn", width='stretch'):
-                        st.session_state.cc_edit_mode = not st.session_state.get('cc_edit_mode', False)
-                        st.session_state.cc_pending_missing = None
-                        st.rerun()
-                with col_h4:
-                    save_clicked = st.button(
-                        "💾 Lưu", key="cc_save_month_btn", type="primary", width='stretch',
-                        disabled=not st.session_state.get('cc_edit_mode', False)
-                    )
+                    # Các nút chức năng trên cùng 1 dòng
+                    btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
+                    
+                    with btn_col1:
+                        if st.button("◀️ Đóng", key="cc_close_btn", width='stretch'):
+                            st.session_state.cc_full_open = False
+                            st.session_state.cc_pending_missing = None
+                            st.rerun()
+                    
+                    with btn_col2:
+                        edit_label = "👁️ Xem" if st.session_state.get('cc_edit_mode') else "✏️ Sửa BCC"
+                        if st.button(edit_label, key="cc_toggle_edit_btn", width='stretch'):
+                            st.session_state.cc_edit_mode = not st.session_state.get('cc_edit_mode', False)
+                            st.session_state.cc_pending_missing = None
+                            st.rerun()
+                    
+                    with btn_col3:
+                        save_disabled = not st.session_state.get('cc_edit_mode', False)
+                        if st.button("💾 Lưu", key="cc_save_month_btn", type="primary" if not save_disabled else "secondary", width='stretch', disabled=save_disabled):
+                            # Kích hoạt lưu
+                            st.session_state.cc_trigger_save = True
+                            st.rerun()
+                    
+                    with btn_col4:
+                        # Nút Xuất file - luôn hiển thị, xuất BCC đã lưu
+                        if st.button("📤 Xuất file", key="cc_export_btn", width='stretch'):
+                            st.session_state.cc_trigger_export = True
+                            st.rerun()
+
+                # Kiểm tra nếu có yêu cầu xuất file
+                if st.session_state.get('cc_trigger_export', False):
+                    st.session_state.cc_trigger_export = False
+                    # Gọi hàm xuất Excel
+                    try:
+                        from openpyxl import Workbook
+                        from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+                        from openpyxl.utils import get_column_letter
+                        
+                        # Lấy dữ liệu BCC đã lưu
+                        db_export = get_connection()
+                        c_export = db_export.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                        
+                        # Lấy danh sách nhân viên
+                        if bp_v:
+                            c_export.execute("""SELECT id, ma_nv, ho_ten, chuc_danh_nghe, phong_ban_lam_viec FROM nhan_vien
+                                                WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND phong_ban_lam_viec = ANY(%s)
+                                                ORDER BY ma_nv ASC""", (bp_v,))
+                        else:
+                            c_export.execute("""SELECT id, ma_nv, ho_ten, chuc_danh_nghe, phong_ban_lam_viec FROM nhan_vien
+                                                WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY ma_nv ASC""")
+                        nv_export = c_export.fetchall()
+                        
+                        if nv_export:
+                            nv_ids = [nv['id'] for nv in nv_export]
+                            c_export.execute("""SELECT nhan_vien_id, ngay, ca_ngay, ca_dem, gio_tang_ca FROM cham_cong
+                                                WHERE nhan_vien_id = ANY(%s) AND EXTRACT(MONTH FROM ngay) = %s AND EXTRACT(YEAR FROM ngay) = %s""",
+                                              (nv_ids, thang_v, nam_v))
+                            cc_data = c_export.fetchall()
+                        c_export.close(); db_export.close()
+                        
+                        # Tạo file Excel
+                        wb = Workbook()
+                        ws = wb.active
+                        ws.title = f"BCC_{thang_v}_{nam_v}"
+                        
+                        # Border
+                        thin_border = Border(
+                            left=Side(style='thin'), right=Side(style='thin'),
+                            top=Side(style='thin'), bottom=Side(style='thin')
+                        )
+                        header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+                        
+                        # Header
+                        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(col_titles) + 4)
+                        ws['A1'] = f"BẢNG CHẤM CÔNG THÁNG {thang_v}/{nam_v} - {ten_bp}"
+                        ws['A1'].font = Font(bold=True, size=14, name='Times New Roman')
+                        ws['A1'].alignment = Alignment(horizontal='center')
+                        
+                        # Header bảng
+                        header_row = 3
+                        ws.cell(row=header_row, column=1, value="STT").font = Font(bold=True, size=10, name='Times New Roman', color="FFFFFF")
+                        ws.cell(row=header_row, column=1).fill = header_fill
+                        ws.cell(row=header_row, column=1).alignment = Alignment(horizontal='center', vertical='center')
+                        ws.cell(row=header_row, column=1).border = thin_border
+                        
+                        ws.cell(row=header_row, column=2, value="Mã NV").font = Font(bold=True, size=10, name='Times New Roman', color="FFFFFF")
+                        ws.cell(row=header_row, column=2).fill = header_fill
+                        ws.cell(row=header_row, column=2).alignment = Alignment(horizontal='center', vertical='center')
+                        ws.cell(row=header_row, column=2).border = thin_border
+                        
+                        ws.cell(row=header_row, column=3, value="Họ tên").font = Font(bold=True, size=10, name='Times New Roman', color="FFFFFF")
+                        ws.cell(row=header_row, column=3).fill = header_fill
+                        ws.cell(row=header_row, column=3).alignment = Alignment(horizontal='center', vertical='center')
+                        ws.cell(row=header_row, column=3).border = thin_border
+                        
+                        ws.cell(row=header_row, column=4, value="Loại").font = Font(bold=True, size=10, name='Times New Roman', color="FFFFFF")
+                        ws.cell(row=header_row, column=4).fill = header_fill
+                        ws.cell(row=header_row, column=4).alignment = Alignment(horizontal='center', vertical='center')
+                        ws.cell(row=header_row, column=4).border = thin_border
+                        
+                        for idx, title in enumerate(col_titles, 5):
+                            cell = ws.cell(row=header_row, column=idx, value=title)
+                            cell.font = Font(bold=True, size=9, name='Times New Roman', color="FFFFFF")
+                            cell.fill = header_fill
+                            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                            cell.border = thin_border
+                        
+                        # Độ rộng cột
+                        ws.column_dimensions['A'].width = 5
+                        ws.column_dimensions['B'].width = 12
+                        ws.column_dimensions['C'].width = 25
+                        ws.column_dimensions['D'].width = 18
+                        for idx in range(len(col_titles)):
+                            ws.column_dimensions[get_column_letter(idx + 5)].width = 10
+                        
+                        # Dữ liệu
+                        data_row = header_row + 1
+                        row_idx = 0
+                        
+                        for nv in nv_export:
+                            dept = nv['phong_ban_lam_viec']
+                            if dept in CHAM_CONG_DEPT_MOT_DONG:
+                                loai_list = ["Hành chính"]
+                            else:
+                                loai_list = ["Ca ngày", "Ca đêm", "Tăng ca"]
+                            
+                            for loai in loai_list:
+                                row_idx += 1
+                                ws.cell(row=data_row + row_idx - 1, column=1, value=row_idx)
+                                ws.cell(row=data_row + row_idx - 1, column=2, value=nv['ma_nv'])
+                                ws.cell(row=data_row + row_idx - 1, column=3, value=nv['ho_ten'] if loai == loai_list[0] else "")
+                                ws.cell(row=data_row + row_idx - 1, column=4, value=loai)
+                                
+                                for col_idx, d in enumerate(day_list, 5):
+                                    val = ""
+                                    for rec in cc_data:
+                                        if rec['nhan_vien_id'] == nv['id'] and rec['ngay'] == d:
+                                            if loai == "Hành chính" or loai == "Ca ngày":
+                                                val = rec.get('ca_ngay', '') or ""
+                                            elif loai == "Ca đêm":
+                                                val = rec.get('ca_dem', '') or ""
+                                            elif loai == "Tăng ca":
+                                                val = str(rec.get('gio_tang_ca', 0)) if rec.get('gio_tang_ca', 0) > 0 else ""
+                                            break
+                                    cell = ws.cell(row=data_row + row_idx - 1, column=col_idx, value=val)
+                                    cell.alignment = Alignment(horizontal='center', vertical='center')
+                                    cell.border = thin_border
+                                    cell.font = Font(size=10, name='Times New Roman')
+                                
+                                # Border cho các cột đầu
+                                for col in range(1, 5):
+                                    cell = ws.cell(row=data_row + row_idx - 1, column=col)
+                                    cell.border = thin_border
+                                    cell.alignment = Alignment(horizontal='center', vertical='center')
+                                    cell.font = Font(size=10, name='Times New Roman')
+                        
+                        # Footer
+                        total_row = data_row + row_idx
+                        ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=len(col_titles) + 4)
+                        ws.cell(row=total_row, column=1, value=f"Tổng số: {len(nv_export)} nhân viên")
+                        ws.cell(row=total_row, column=1).font = Font(bold=True, size=11, name='Times New Roman')
+                        ws.cell(row=total_row, column=1).alignment = Alignment(horizontal='left')
+                        
+                        # Lưu file
+                        filename = f"Bang_cham_cong_{thang_v}_{nam_v}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                        wb.save(filename)
+                        
+                        # Đọc và tải xuống
+                        with open(filename, "rb") as f:
+                            file_data = f.read()
+                        
+                        # Xóa file tạm
+                        import os
+                        if os.path.exists(filename):
+                            os.remove(filename)
+                        
+                        st.success(f"✅ Đã xuất file BCC tháng {thang_v}/{nam_v}!")
+                        st.download_button(
+                            label="📥 TẢI FILE EXCEL BCC",
+                            data=file_data,
+                            file_name=filename,
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            key="download_cc_export"
+                        )
+                        
+                    except Exception as e:
+                        st.error(f"❌ Lỗi xuất file: {e}")
+                        import traceback
+                        st.code(traceback.format_exc())
+
+                # Xử lý lưu từ nút Lưu
+                if st.session_state.get('cc_trigger_save', False):
+                    st.session_state.cc_trigger_save = False
+                    st.session_state.cc_force_save = True
+                    st.rerun()
 
                 with st.expander("ℹ️ Chú giải"):
                     st.caption(" • ".join(f"**{k or '(trống)'}** = {v.split(' - ',1)[-1]}" for k, v in CHAM_CONG_MA_CODE.items()))

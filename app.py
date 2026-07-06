@@ -32,6 +32,7 @@ import urllib.parse
 import re
 import unicodedata
 import control_plane
+from control_plane import DatabaseEngine, resolve_tenant
 import bcrypt
 
 # ========== HÀM TIỆN ÍCH MỚI ==========
@@ -70,7 +71,7 @@ def get_ma_tinh_from_name(tinh_name):
 def get_chu_ho_info(nhan_vien_id):
     """Lấy thông tin chủ hộ từ bảng phu_luc_gia_dinh"""
     try:
-        db = get_connection()
+        db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c.execute("""
             SELECT ho_ten, so_cccd, dien_thoai 
@@ -399,7 +400,7 @@ def tao_bao_cao_bhxh_d02_lt(tang_list, giam_list, tu_ngay, den_ngay, ten_cong_ty
 def get_family_members(nhan_vien_id):
     """Lấy danh sách thành viên gia đình của nhân viên"""
     try:
-        db = get_connection()
+        db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c.execute("""
             SELECT ho_ten, ngay_sinh, gioi_tinh, quan_he_voi_chu_ho as quan_he
@@ -657,13 +658,32 @@ def show_landing_page():
         </style>
     """, unsafe_allow_html=True)
     
-    # Đọc file logo
+    # Đọc file logo động
     import base64
-    logo_path = os.path.join(os.path.dirname(__file__), "logo_cty.png")
+    import requests
     logo_base64 = ""
-    if os.path.exists(logo_path):
-        with open(logo_path, "rb") as f:
-            logo_base64 = base64.b64encode(f.read()).decode()
+    logo_src = COMPANY_CONFIG.get("logo_url")
+    if logo_src:
+        if logo_src.startswith("http://") or logo_src.startswith("https://"):
+            try:
+                response = requests.get(logo_src, timeout=3)
+                if response.status_code == 200:
+                    logo_base64 = base64.b64encode(response.content).decode()
+            except Exception:
+                pass
+        elif os.path.exists(logo_src):
+            try:
+                with open(logo_src, "rb") as f:
+                    logo_base64 = base64.b64encode(f.read()).decode()
+            except Exception:
+                pass
+    
+    if not logo_base64:
+        # Fallback về logo_cty.png mặc định
+        logo_path = os.path.join(os.path.dirname(__file__), "logo_cty.png")
+        if os.path.exists(logo_path):
+            with open(logo_path, "rb") as f:
+                logo_base64 = base64.b64encode(f.read()).decode()
     
     # Đọc ảnh slider
     def load_img_b64(filename):
@@ -1972,7 +1992,42 @@ body {
 
     st.markdown("</div>", unsafe_allow_html=True)
 
+
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
+
+# Gọi định danh tenant
+resolve_tenant()
+
+# Nạp động cấu hình thương hiệu (Branding) từ tenant
+if st.session_state.get('tenant'):
+    tenant_data = st.session_state.tenant
+    mapping = {
+        "ten_cong_ty": "ten_cty",
+        "dai_dien": "dai_dien",
+        "chuc_vu": "chuc_vu",
+        "ma_so_thue": "ma_so_thue",
+        "dien_thoai_cty": "dien_thoai_cty",
+        "ma_don_vi_BHXH": "ma_don_vi_BHXH",
+        "ma_vung_luong": "ma_vung_luong",
+        "dia_chi": "dia_chi",
+        "loi_nhan_zalo": "loi_nhan_zalo",
+        "zalo_group_link": "zalo_group_link",
+        "zalo_group_name": "zalo_group_name",
+        "logo_url": "logo_url"
+    }
+    for config_key, tenant_key in mapping.items():
+        if tenant_key in tenant_data and tenant_data[tenant_key]:
+            COMPANY_CONFIG[config_key] = tenant_data[tenant_key]
+
+    # Banner chế độ Demo: dữ liệu dùng chung, chỉ xem thử — không lưu/sửa/xoá được
+    if str(tenant_data.get('ma_cty', '')).upper() == 'DEMO':
+        st.info(
+            "🧪 **Chế độ Demo** — Bạn đang xem dữ liệu mẫu dùng chung. "
+            "Mọi thao tác Lưu/Sửa/Xoá sẽ bị chặn để bảo vệ dữ liệu chung. "
+            "Liên hệ để đăng ký dùng thử với dữ liệu riêng của công ty bạn.",
+            icon="🧪"
+        )
+
 
 # ========== XỬ LÝ ĐA NGÔN NGỮ ==========
 def init_language():
@@ -2012,10 +2067,14 @@ if query_params.get('goto') == 'hrm':
 
 
 # ========== HIỂN THỊ LANDING PAGE NẾU CHƯA VÀO HRM ==========
-logo_path = "logo_cty.png"
-if os.path.exists(logo_path):
+logo_url = COMPANY_CONFIG.get("logo_url")
+if logo_url:
     with st.sidebar:
-        st.image(logo_path, width='stretch')
+        st.image(logo_url, width='stretch')
+        st.divider()
+elif os.path.exists("logo_cty.png"):
+    with st.sidebar:
+        st.image("logo_cty.png", width='stretch')
         st.divider()
 
 # Trong phần main hoặc ở cuối file, đảm bảo:
@@ -2217,7 +2276,7 @@ def auto_check_birthday():
         return  # Đã check cho user này hôm nay rồi
     
     try:
-        db = get_connection()
+        db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c.execute("""
             SELECT id, ma_nv, ho_ten, ngay_sinh, gioi_tinh, dien_thoai, email_lien_he
@@ -2261,7 +2320,7 @@ except ImportError:
 def da_chuyen_doi_chinh_thuc(nv_id):
     """Kiểm tra xem nhân viên đã có quyết định chuyển từ thử việc sang chính thức chưa"""
     try:
-        db = get_connection()
+        db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c.execute("""
             SELECT * FROM quyet_dinh_nhan_su 
@@ -2284,7 +2343,7 @@ def da_chuyen_doi_chinh_thuc(nv_id):
 def lay_thong_tin_truoc_chuyen_doi(nv_id):
     """Lấy thông tin nhân viên trước khi chuyển đổi (từ lich_su_cong_tac)"""
     try:
-        db = get_connection()
+        db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         # Lấy lịch sử công tác cũ nhất (thời gian thử việc)
         c.execute("""
@@ -2299,41 +2358,10 @@ def lay_thong_tin_truoc_chuyen_doi(nv_id):
         return None
 # ========== DATABASE CONNECTION (SUPABASE) — ĐA KHÁCH HÀNG (MULTI-TENANT) ==========
 def get_connection():
-    """Kết nối tới Supabase Postgres CỦA ĐÚNG KHÁCH HÀNG đang đăng nhập.
-    Ưu tiên dùng thông tin tenant đã được resolve khi đăng nhập (lưu trong session_state
-    bởi control_plane.get_tenant_by_code). Nếu không có (vd: chạy local dev / chưa có
-    control plane), fallback về st.secrets['connections']['supabase'] hoặc .env như trước
-    để không phá vỡ cách chạy cũ."""
-    tenant = st.session_state.get('tenant')
-    if tenant:
-        return psycopg2.connect(
-            host=tenant['db_host'],
-            port=tenant['db_port'],
-            user=tenant['db_user'],
-            password=tenant['db_password'],
-            database=tenant['db_name'],
-        )
-
-    # Fallback 1: đọc từ st.secrets (không có DB_) — chế độ đơn khách hàng (không SaaS)
-    if 'connections' in st.secrets and 'supabase' in st.secrets.connections:
-        return psycopg2.connect(
-            host=st.secrets.connections.supabase.host,  # không có DB_
-            port=st.secrets.connections.supabase.port,
-            user=st.secrets.connections.supabase.user,
-            password=st.secrets.connections.supabase.password,
-            database=st.secrets.connections.supabase.database
-        )
-    
-    # Fallback 2: đọc từ .env (có DB_) — chạy local dev
-    from dotenv import load_dotenv
-    load_dotenv()
-    return psycopg2.connect(
-        host=os.getenv('DB_HOST'),      # có DB_
-        port=os.getenv('DB_PORT'),
-        user=os.getenv('DB_USER'),
-        password=os.getenv('DB_PASSWORD'),
-        database=os.getenv('DB_NAME')
-    )
+    """Wrapper tương thích ngược, tự động gọi db_engine từ st.session_state."""
+    if 'db_engine' not in st.session_state:
+        st.session_state.db_engine = DatabaseEngine(st.session_state.get('tenant'))
+    return st.session_state.db_engine.get_connection()
 
 # ========== SUPABASE STORAGE (lưu trữ file hồ sơ) ==========
 # Tên bucket Storage trên Supabase dùng để lưu hồ sơ nhân viên.
@@ -2503,7 +2531,7 @@ def cc_marker_is(v, target):
 
 def ensure_cham_cong_table():
     """Tạo bảng cham_cong trên Supabase nếu chưa có, và tự nâng cấp thêm cột mới (idempotent)."""
-    db = get_connection()
+    db = st.session_state.db_engine.get_connection()
     c = db.cursor()
     c.execute("""
         CREATE TABLE IF NOT EXISTS cham_cong (
@@ -3003,38 +3031,62 @@ def show_super_admin_page():
         st.rerun()
     st.divider()
 
-    with st.expander("➕ Thêm khách hàng mới", expanded=False):
+    with st.expander("➕ Thêm khách hàng mới (SaaS)", expanded=False):
         with st.form("add_tenant_form"):
             col1, col2 = st.columns(2)
             with col1:
+                st.markdown("##### 🏢 Thông tin Kết nối & Hệ thống")
                 ma_cty = st.text_input("Mã công ty * (VD: CHL)")
                 ten_cty = st.text_input("Tên công ty *")
                 logo_url = st.text_input("Link logo (tuỳ chọn)")
                 db_host = st.text_input("Supabase DB Host *")
                 db_port = st.text_input("Supabase DB Port", value="5432")
-            with col2:
                 db_user = st.text_input("Supabase DB User", value="postgres")
                 db_password = st.text_input("Supabase DB Password *", type="password")
                 db_name = st.text_input("Supabase DB Name", value="postgres")
-                supabase_url = st.text_input("Supabase Project URL * (vd: https://xxxx.supabase.co)")
+                supabase_url = st.text_input("Supabase Project URL *")
                 supabase_key = st.text_input("Supabase API Key *", type="password")
-            if st.form_submit_button("💾 Lưu khách hàng mới"):
+            with col2:
+                st.markdown("##### 🎨 Cấu hình Thương hiệu & Metadata")
+                dai_dien = st.text_input("Người đại diện (Ký hợp đồng)", placeholder="VD: Nguyễn Đình Thi")
+                chuc_vu = st.text_input("Chức vụ người ký", placeholder="VD: Tổng Giám Đốc")
+                ma_so_thue = st.text_input("Mã số thuế")
+                dien_thoai_cty = st.text_input("Điện thoại công ty")
+                ma_don_vi_BHXH = st.text_input("Mã đơn vị BHXH")
+                ma_vung_luong = st.text_input("Mã vùng lương")
+                dia_chi = st.text_input("Địa chỉ công ty")
+                loi_nhan_zalo = st.text_input("Lời nhắn Zalo sinh nhật")
+                zalo_group_link = st.text_input("Link nhóm Zalo")
+                zalo_group_name = st.text_input("Tên nhóm Zalo")
+            
+            if st.form_submit_button("💾 Lưu khách hàng & Tự động chạy Migration"):
                 if not all([ma_cty, ten_cty, db_host, db_password, supabase_url, supabase_key]):
                     st.error("❌ Vui lòng điền đầy đủ các trường bắt buộc (*)")
                 else:
                     try:
+                        # Đọc file schema.sql từ thư mục hiện tại
+                        migration_sql = None
+                        import os
+                        schema_path = os.path.join(os.path.dirname(__file__), "schema.sql")
+                        if os.path.exists(schema_path):
+                            with open(schema_path, "r", encoding="utf-8") as sf:
+                                migration_sql = sf.read()
+                        
                         control_plane.add_tenant(
                             ma_cty=ma_cty, ten_cty=ten_cty, db_host=db_host, db_port=db_port,
                             db_user=db_user, db_password=db_password, db_name=db_name,
                             supabase_url=supabase_url, supabase_key=supabase_key, logo_url=logo_url,
+                            dai_dien=dai_dien, chuc_vu=chuc_vu, ma_so_thue=ma_so_thue,
+                            dien_thoai_cty=dien_thoai_cty, ma_don_vi_BHXH=ma_don_vi_BHXH,
+                            ma_vung_luong=ma_vung_luong, dia_chi=dia_chi, loi_nhan_zalo=loi_nhan_zalo,
+                            zalo_group_link=zalo_group_link, zalo_group_name=zalo_group_name,
+                            migration_sql=migration_sql
                         )
-                        st.success(f"✅ Đã thêm khách hàng: {ten_cty} (mã: {ma_cty.upper()})")
-                        st.info("👉 Bước tiếp theo: chạy file `migration_tenant_phase0_phase2.sql` trên đúng Supabase "
-                                "của khách hàng này để tạo đủ bảng/cột cần thiết, sau đó tạo tài khoản Admin đầu tiên "
-                                "cho họ (INSERT 1 dòng vào bảng `nhan_vien` với mat_khau_hash và vai_tro='admin').")
+                        st.success(f"✅ Đã thêm khách hàng và tự động chạy migration thành công cho: {ten_cty} (mã: {ma_cty.upper()})")
+                        st.info("👉 Ghi chú: Hệ thống đã tự động chạy script `schema.sql` để tạo toàn bộ bảng trên DB Supabase của khách hàng. Hãy tạo tài khoản nhân viên đầu tiên (admin) cho họ trong bảng `nhan_vien` để đăng nhập.")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"❌ Lỗi khi thêm khách hàng: {e}")
+                        st.error(f"❌ Lỗi khi thêm khách hàng hoặc chạy migration: {e}")
 
     st.subheader("📋 Danh sách khách hàng hiện có")
     try:
@@ -3078,7 +3130,7 @@ def check_login(username, password):
 
     if tenant:
         try:
-            db = get_connection()
+            db = st.session_state.db_engine.get_connection()
             c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             c.execute("""SELECT id, ho_ten, dien_thoai, mat_khau_hash, vai_tro, phai_doi_mat_khau
                          FROM nhan_vien WHERE dien_thoai = %s""", (username.strip(),))
@@ -3134,6 +3186,7 @@ if not st.session_state.logged_in:
                     st.sidebar.error(f"⚠️ Tài khoản của **{tenant['ten_cty']}** đang tạm khoá.")
                 else:
                     st.session_state.tenant = tenant
+                    st.session_state.db_engine = DatabaseEngine(tenant)
                     st.rerun()
 
         with st.sidebar.expander("⚙️ Quản trị hệ thống"):
@@ -3155,6 +3208,7 @@ if not st.session_state.logged_in:
     st.sidebar.success(f"🏢 **{tenant['ten_cty']}**")
     if st.sidebar.button("↩️ Chọn công ty khác"):
         del st.session_state['tenant']
+        st.session_state.db_engine = DatabaseEngine(None)
         st.rerun()
 
     st.sidebar.subheader("🔐 Đăng nhập")
@@ -3207,7 +3261,7 @@ if st.sidebar.button("🚪 Đăng xuất", width='stretch'):
 # ========== DASHBOARD ==========
 if menu == "📊 Dashboard":
     st.title("📊 Dashboard")
-    db = get_connection()
+    db = st.session_state.db_engine.get_connection()
     c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     c.execute("SELECT COUNT(*) t FROM ung_vien")
     tuv = c.fetchone()['t']
@@ -3539,7 +3593,7 @@ if menu == "📊 Dashboard":
                         
                         # Lưu lịch sử
                         try:
-                            db_log = get_connection()
+                            db_log = st.session_state.db_engine.get_connection()
                             cur_log = db_log.cursor()
                             cur_log.execute("""
                                 INSERT INTO lich_su_gui_loi_chuc (nhan_vien_id, loai_chuc, noi_dung, kenh_gui, trang_thai)
@@ -3597,7 +3651,7 @@ if menu == "📊 Dashboard":
                             st.success(f"✅ Đã gửi lời chúc sinh nhật qua email cho {xung_ho} {selected_sn['ho_ten']}!")
                             
                             # Lưu lịch sử
-                            db_log = get_connection()
+                            db_log = st.session_state.db_engine.get_connection()
                             cur_log = db_log.cursor()
                             cur_log.execute("""
                                 INSERT INTO lich_su_gui_loi_chuc (nhan_vien_id, loai_chuc, noi_dung, kenh_gui, trang_thai)
@@ -3619,7 +3673,7 @@ if menu == "📊 Dashboard":
     import plotly.express as px
     import plotly.graph_objects as go
 
-    db2 = get_connection()
+    db2 = st.session_state.db_engine.get_connection()
     c2 = db2.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     c2.execute("""
         SELECT chuc_danh_nghe, COUNT(*) t 
@@ -3680,7 +3734,7 @@ if menu == "📊 Dashboard":
 
     # ── Thông báo ──
     st.subheader("📌 Thông báo")
-    db3 = get_connection()
+    db3 = st.session_state.db_engine.get_connection()
     c3 = db3.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     c3.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE")
     hn = c3.fetchall()
@@ -3810,7 +3864,7 @@ elif menu == "👤 Ứng viên":
         uv_data = st.session_state.get('chuyen_uv_data', {})
         
         # Lấy danh sách chức danh từ database
-        db_chuc = get_connection()
+        db_chuc = st.session_state.db_engine.get_connection()
         c_chuc = db_chuc.cursor()
         c_chuc.execute("SELECT DISTINCT ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
         dschucdanh = [row[0] for row in c_chuc.fetchall()]
@@ -3900,7 +3954,7 @@ elif menu == "👤 Ứng viên":
                                 # Tạo ten_don_vi_thu_huong từ ho_ten
                                 ten_don_vi_thu_huong = generate_ten_don_vi_thu_huong(ho_ten_nv)
                                 
-                                db = get_connection()
+                                db = st.session_state.db_engine.get_connection()
                                 c = db.cursor()
                                 
                                 # Tạo STT và mã nhân viên mới
@@ -4011,7 +4065,7 @@ elif menu == "👤 Ứng viên":
         st.divider()
         st.stop()  # Dừng lại để không hiển thị danh sách ứng viên phía dưới
     
-    db_f = get_connection()
+    db_f = st.session_state.db_engine.get_connection()
     c_f = db_f.cursor()
     c_f.execute("SELECT ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
     ds_vi_tri = [row[0] for row in c_f.fetchall()]
@@ -4029,7 +4083,7 @@ elif menu == "👤 Ứng viên":
     if st.session_state.role == "admin":
         with st.expander("➕ THÊM ỨNG VIÊN MỚI", expanded=False):
             with st.form("add_uv_form"):
-                db_f = get_connection()
+                db_f = st.session_state.db_engine.get_connection()
                 c_f = db_f.cursor()
                 c_f.execute("SELECT ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
                 ds_vt_uv = [row[0] for row in c_f.fetchall()]
@@ -4058,7 +4112,7 @@ elif menu == "👤 Ứng viên":
                             st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
                         else:
                             try:
-                                db = get_connection()
+                                db = st.session_state.db_engine.get_connection()
                                 c = db.cursor()
                                 c.execute("""INSERT INTO ung_vien (ho_ten, vi_tri_du_tuyen, dien_thoai, 
                                     ngay_sinh, gioi_tinh, ngay_vao_lam, luong_bao_hiem, trang_thai)
@@ -4086,7 +4140,7 @@ elif menu == "👤 Ứng viên":
     for tn, tab in zip(tm.keys(), [t1, t2, t3, t4]):
         with tab:
             tt = tm[tn]
-            db = get_connection()
+            db = st.session_state.db_engine.get_connection()
             c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             sql = "SELECT id, ma_uv, ho_ten, vi_tri_du_tuyen, dien_thoai, ngay_vao_lam, luong_bao_hiem, ngay_sinh, trang_thai FROM ung_vien WHERE 1=1"
             params = []
@@ -4160,7 +4214,7 @@ elif menu == "👤 Ứng viên":
                                 with col_btn2:
                                     if st.button(f"👥 CHUYỂN SANG NHÂN VIÊN", type="primary", key=f"chuyen_uv_{tn}"):
                                         try:
-                                            db = get_connection()
+                                            db = st.session_state.db_engine.get_connection()
                                             c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                                             uv_id = int(selected_nv['id'])
                                             c.execute("SELECT * FROM ung_vien WHERE id = %s", (uv_id,))
@@ -4193,7 +4247,7 @@ elif menu == "👤 Ứng viên":
     if 'edit_uv_id' in st.session_state and st.session_state.role == "admin":
         st.divider()
         st.subheader(f"✏️ Sửa ứng viên")
-        db = get_connection()
+        db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c.execute("SELECT * FROM ung_vien WHERE id = %s", (st.session_state['edit_uv_id'],))
         uv_data = c.fetchone()
@@ -4227,7 +4281,7 @@ elif menu == "👤 Ứng viên":
                         if ngay_loi:
                             st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
                         else:
-                            db = get_connection()
+                            db = st.session_state.db_engine.get_connection()
                             c = db.cursor()
                             c.execute("""UPDATE ung_vien SET ho_ten=%s, vi_tri_du_tuyen=%s, dien_thoai=%s,
                                 ngay_sinh=%s, gioi_tinh=%s, ngay_vao_lam=%s, luong_bao_hiem=%s, trang_thai=%s
@@ -4242,7 +4296,7 @@ elif menu == "👤 Ứng viên":
                             st.rerun()
                 with col_del:
                     if st.form_submit_button("🗑️ XÓA"):
-                        db = get_connection()
+                        db = st.session_state.db_engine.get_connection()
                         c = db.cursor()
                         c.execute("DELETE FROM ung_vien WHERE id = %s", (uv_data['id'],))
                         db.commit()
@@ -4264,7 +4318,7 @@ elif menu == "👤 Ứng viên":
                 ten_vt_moi = st.text_input("Tên vị trí dự tuyển mới *")
                 if st.form_submit_button("➕ Thêm"):
                     if ten_vt_moi:
-                        db = get_connection()
+                        db = st.session_state.db_engine.get_connection()
                         c = db.cursor()
                         c.execute("SELECT COUNT(*) FROM vi_tri_cong_tac WHERE ten_vi_tri = %s", (ten_vt_moi,))
                         if c.fetchone()[0] == 0:
@@ -4278,7 +4332,7 @@ elif menu == "👤 Ứng viên":
                     else:
                         st.error("Tên không được để trống!")
             
-            db = get_connection()
+            db = st.session_state.db_engine.get_connection()
             c = db.cursor()
             c.execute("SELECT id, ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
             ds_vt = c.fetchall()
@@ -4301,7 +4355,7 @@ elif menu == "✅ Nhân viên":
         if st.session_state.role == "admin":
             with st.expander("➕ THÊM NHÂN VIÊN MỚI", expanded=False):
                 with st.form("add_nv"):
-                    db = get_connection()
+                    db = st.session_state.db_engine.get_connection()
                     c = db.cursor()
                     c.execute("SELECT DISTINCT ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
                     dcv = [row[0] for row in c.fetchall()]
@@ -4385,7 +4439,7 @@ elif menu == "✅ Nhân viên":
                                     # Tạo ten_don_vi_thu_huong từ ho_ten
                                     ten_don_vi_thu_huong = generate_ten_don_vi_thu_huong(htn)
                                     
-                                    db = get_connection()
+                                    db = st.session_state.db_engine.get_connection()
                                     c = db.cursor()
                                     c.execute("SELECT COALESCE(MAX(CAST(SUBSTRING(ma_nv FROM 2) AS INTEGER)), 0)+1 FROM nhan_vien WHERE ma_nv LIKE 'C%'")
                                     so_moi = c.fetchone()[0]
@@ -4448,7 +4502,7 @@ elif menu == "✅ Nhân viên":
                             st.error("Họ tên không được để trống!")
                 st.divider()
         
-        db_f = get_connection()
+        db_f = st.session_state.db_engine.get_connection()
         c_f = db_f.cursor()
         c_f.execute("SELECT DISTINCT chuc_danh_nghe FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND chuc_danh_nghe IS NOT NULL AND chuc_danh_nghe != '' ORDER BY chuc_danh_nghe")
         ds_chuc_danh = [row[0] for row in c_f.fetchall()]
@@ -4462,7 +4516,7 @@ elif menu == "✅ Nhân viên":
         with col_f2:
             filter_loai_hd = st.selectbox("🔍 Lọc Loại HĐ:", ["Tất cả"] + ds_loai_hd, key="filter_lhd_danglam")
         
-        db = get_connection()
+        db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         sql = "SELECT * FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC')"
         params = []
@@ -4556,7 +4610,7 @@ elif menu == "✅ Nhân viên":
                             trang_thai_nv = selected_nv.get('trang_thai', '')
                             if trang_thai_nv == 'DANG_LAM':
                                 if st.button(f"🖨️ IN HĐLĐ - {selected_nv['ho_ten']}", key=f"print_hdld_btn_{nv_id_key}", width='stretch'):
-                                    db = get_connection()
+                                    db = st.session_state.db_engine.get_connection()
                                     c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                                     c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(selected_nv['id']),))
                                     nv_full = c.fetchone()
@@ -4575,7 +4629,7 @@ elif menu == "✅ Nhân viên":
                                         st.error("Không tìm thấy thông tin nhân viên!")
                             elif trang_thai_nv == 'THU_VIEC':
                                 if st.button(f"🖨️ IN HĐTV - {selected_nv['ho_ten']}", key=f"print_hdtv_btn_{nv_id_key}", width='stretch'):
-                                    db = get_connection()
+                                    db = st.session_state.db_engine.get_connection()
                                     c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                                     c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(selected_nv['id']),))
                                     nv_full = c.fetchone()
@@ -4597,7 +4651,7 @@ elif menu == "✅ Nhân viên":
                         
                         with col_btn3:
                             if st.button(f"📱 GỬI ZALO - {selected_nv['ho_ten']}", key=f"zalo_btn_{nv_id_key}", width='stretch'):
-                                db = get_connection()
+                                db = st.session_state.db_engine.get_connection()
                                 c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                                 c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(selected_nv['id']),))
                                 nv_full = c.fetchone()
@@ -4641,7 +4695,7 @@ elif menu == "✅ Nhân viên":
                                     st.markdown("### 📝 CHUYỂN ĐỔI HỢP ĐỒNG LAO ĐỘNG")
                                     st.caption("Vui lòng nhập đầy đủ thông tin cho quyết định chuyển đổi")
                                     
-                                    db_temp = get_connection()
+                                    db_temp = st.session_state.db_engine.get_connection()
                                     c_temp = db_temp.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                                     c_temp.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(selected_nv['id']),))
                                     nv_data = c_temp.fetchone()
@@ -4657,7 +4711,7 @@ elif menu == "✅ Nhân viên":
                                         # Trong phần chuyển đổi từ THU_VIEC sang DANG_LAM
                                         current_year = datetime.now().year
 
-                                        db_temp2 = get_connection()
+                                        db_temp2 = st.session_state.db_engine.get_connection()
                                         c_temp2 = db_temp2.cursor()
                                         c_temp2.execute("""
                                             SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) as max_stt
@@ -4700,7 +4754,7 @@ elif menu == "✅ Nhân viên":
                                         with col_confirm2:
                                             if st.button("✅ XÁC NHẬN CHUYỂN ĐỔI", key=f"confirm_convert_{nv_id_key}", width='stretch', type="primary"):
                                                 try:
-                                                    db = get_connection()
+                                                    db = st.session_state.db_engine.get_connection()
                                                     c = db.cursor()
                                                     
                                                     # LƯU LẠI SỐ HĐTV CŨ TRƯỚC KHI CẬP NHẬT
@@ -4823,7 +4877,7 @@ elif menu == "✅ Nhân viên":
             if 'selected_nv_id' in st.session_state and st.session_state.selected_nv_id is not None and st.session_state.role == "admin":
                 try:
                     nid = int(st.session_state['selected_nv_id'])
-                    db = get_connection()
+                    db = st.session_state.db_engine.get_connection()
                     c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                     c.execute("SELECT * FROM nhan_vien WHERE id=%s", (nid,))
                     nd = c.fetchone()
@@ -4917,7 +4971,7 @@ elif menu == "✅ Nhân viên":
                                                 # Tạo ten_don_vi_thu_huong từ họ tên
                                                 ten_don_vi_thu_huong = generate_ten_don_vi_thu_huong(hnv)
                                                 
-                                                db_upd = get_connection()
+                                                db_upd = st.session_state.db_engine.get_connection()
                                                 c_upd = db_upd.cursor()
                                                 nhl = parse_date(nvlv) or date.today()
                                                 ngay_bat_dau_bh = parse_date(tbdv) if tbdv and tbdv.strip() else None
@@ -4995,7 +5049,7 @@ elif menu == "✅ Nhân viên":
                                     with col_xac_nhan:
                                         if st.form_submit_button("✅ XÁC NHẬN NGHỈ VIỆC", width='stretch', type="primary"):
                                             try:
-                                                db_nghi = get_connection()
+                                                db_nghi = st.session_state.db_engine.get_connection()
                                                 c_nghi = db_nghi.cursor()
                                                 
                                                 c_nghi.execute("""
@@ -5034,7 +5088,7 @@ elif menu == "✅ Nhân viên":
                                 if da_chuyen_doi:
                                     if st.form_submit_button("🔄 XÓA QUYẾT ĐỊNH CHUYỂN ĐỔI", width='stretch', type="secondary"):
                                         try:
-                                            db_xoa = get_connection()
+                                            db_xoa = st.session_state.db_engine.get_connection()
                                             c_xoa = db_xoa.cursor()
                                             
                                             # Lấy số HĐTV cũ từ bảng quyet_dinh_nhan_su
@@ -5141,14 +5195,14 @@ elif menu == "✅ Nhân viên":
                 st.subheader(f"🏠 NHẬP THÔNG TIN HỘ GIA ĐÌNH CHO: {nv_name}")
                 st.caption("Vui lòng nhập đầy đủ thông tin chủ hộ và các thành viên trong hộ gia đình")
                 
-                db = get_connection()
+                db = st.session_state.db_engine.get_connection()
                 c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                 c.execute("SELECT * FROM nhan_vien WHERE id = %s", (nv_id,))
                 nv_data = c.fetchone()
                 db.close()
                 
                 if 'bhxh_family_members' not in st.session_state:
-                    db_temp = get_connection()
+                    db_temp = st.session_state.db_engine.get_connection()
                     c_temp = db_temp.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                     c_temp.execute("SELECT * FROM phu_luc_gia_dinh WHERE nhan_vien_id = %s", (nv_id,))
                     existing_members = c_temp.fetchall()
@@ -5161,7 +5215,7 @@ elif menu == "✅ Nhân viên":
                             'tinh': tv['tinh_thanh_pho'], 'phuong_xa': tv['phuong_xa']
                         })
                 
-                db_temp = get_connection()
+                db_temp = st.session_state.db_engine.get_connection()
                 c_temp = db_temp.cursor()
                 c_temp.execute("SELECT ma_tinh, ten_tinh FROM danh_muc_tinh ORDER BY ten_tinh")
                 ds_tinh = c_temp.fetchall()
@@ -5200,7 +5254,7 @@ elif menu == "✅ Nhân viên":
                         phuong_xa_current = nv_data.get('phuong_xa_chu_ho', '') if nv_data else ''
                         if tinh_chu_ho and tinh_chu_ho != "":
                             ma_tinh = tinh_options.get(tinh_chu_ho)
-                            db_temp2 = get_connection()
+                            db_temp2 = st.session_state.db_engine.get_connection()
                             c_temp2 = db_temp2.cursor()
                             c_temp2.execute("SELECT ten_xa FROM danh_muc_phuong_xa WHERE ma_tinh = %s ORDER BY ten_xa", (ma_tinh,))
                             phuong_xa_options = [row[0] for row in c_temp2.fetchall()]
@@ -5224,7 +5278,7 @@ elif menu == "✅ Nhân viên":
                         phuong_xa_tt_current = nv_data.get('phuong_xa_thuong_tru', '') if nv_data else ''
                         if tinh_thuong_tru and tinh_thuong_tru != "":
                             ma_tinh_tt = tinh_options.get(tinh_thuong_tru)
-                            db_temp3 = get_connection()
+                            db_temp3 = st.session_state.db_engine.get_connection()
                             c_temp3 = db_temp3.cursor()
                             c_temp3.execute("SELECT ten_xa, ma_xa FROM danh_muc_phuong_xa WHERE ma_tinh = %s ORDER BY ten_xa", (ma_tinh_tt,))
                             phuong_xa_tt_options = c_temp3.fetchall()
@@ -5264,7 +5318,7 @@ elif menu == "✅ Nhân viên":
                         phuong_xa_tv_options = []
                         if tinh_tv and tinh_tv != "":
                             ma_tinh_tv = tinh_options.get(tinh_tv)
-                            db_temp4 = get_connection()
+                            db_temp4 = st.session_state.db_engine.get_connection()
                             c_temp4 = db_temp4.cursor()
                             c_temp4.execute("SELECT ten_xa FROM danh_muc_phuong_xa WHERE ma_tinh = %s ORDER BY ten_xa", (ma_tinh_tv,))
                             phuong_xa_tv_options = [row[0] for row in c_temp4.fetchall()]
@@ -5289,7 +5343,7 @@ elif menu == "✅ Nhân viên":
                     with col_save2:
                         if st.form_submit_button("💾 LƯU THÔNG TIN CHỦ HỘ", width='stretch', type="primary"):
                             try:
-                                db_luu = get_connection()
+                                db_luu = st.session_state.db_engine.get_connection()
                                 c_luu = db_luu.cursor()
                                 c_luu.execute("""UPDATE nhan_vien SET ho_ten_chu_ho=%s, so_cccd_chu_ho=%s, tinh_thanh_pho_chu_ho=%s, phuong_xa_chu_ho=%s,
                                     tinh_thanh_pho_thuong_tru=%s, ma_tinh_thuong_tru=%s, phuong_xa_thuong_tru=%s, ma_phuong_xa_thuong_tru=%s WHERE id=%s""",
@@ -5326,14 +5380,14 @@ elif menu == "✅ Nhân viên":
         with col_filter1:
             search_nghi = st.text_input("🔍 Tìm kiếm (Tên, Mã NV, SĐT, CCCD)", key="search_da_nghi")
         with col_filter2:
-            db_temp = get_connection()
+            db_temp = st.session_state.db_engine.get_connection()
             c_temp = db_temp.cursor()
             c_temp.execute("SELECT DISTINCT EXTRACT(YEAR FROM ngay_ket_thuc) as nam FROM nhan_vien WHERE trang_thai='NGHI_VIEC' AND ngay_ket_thuc IS NOT NULL ORDER BY nam DESC")
             years = [int(row[0]) for row in c_temp.fetchall() if row[0] is not None]
             db_temp.close()
             filter_nam = st.selectbox("📅 Lọc theo năm nghỉ:", ["Tất cả"] + [str(y) for y in years] if years else ["Tất cả"])
         
-        db = get_connection()
+        db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         sql = """
             SELECT id, ma_nv, ho_ten, ngay_sinh, gioi_tinh, so_cccd, dien_thoai, 
@@ -5393,7 +5447,7 @@ elif menu == "✅ Nhân viên":
             selected_nghi_name = st.selectbox("Chọn nhân viên đã nghỉ:", list(nv_options.keys()))
             selected_nghi_id = nv_options[selected_nghi_name]
             
-            db = get_connection()
+            db = st.session_state.db_engine.get_connection()
             c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             c.execute("SELECT * FROM nhan_vien WHERE id = %s", (selected_nghi_id,))
             nv_nghi_detail = c.fetchone()
@@ -5427,7 +5481,7 @@ elif menu == "✅ Nhân viên":
                     with col_restore2:
                         if st.button(f"🔄 KHÔI PHỤC NHÂN VIÊN - {nv_nghi_detail['ho_ten']}", width='stretch', type="primary"):
                             try:
-                                db = get_connection()
+                                db = st.session_state.db_engine.get_connection()
                                 c = db.cursor()
                                 loai_hd = nv_nghi_detail.get('loai_hop_dong', '')
                                 if loai_hd == 'Thử việc':
@@ -5453,7 +5507,7 @@ elif menu == "✅ Nhân viên":
     with tab_qtct:
         st.caption("📜 Lịch sử công tác và quyết định nhân sự")
         
-        db = get_connection()
+        db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c.execute("SELECT id, ma_nv, ho_ten FROM nhan_vien ORDER BY id DESC")
         all_nv = c.fetchall()
@@ -5464,7 +5518,7 @@ elif menu == "✅ Nhân viên":
             selected_nv_history = st.selectbox("🔍 Chọn nhân viên:", list(nv_options.keys()), key="history_nv")
             nv_id_history = nv_options[selected_nv_history]
             
-            db = get_connection()
+            db = st.session_state.db_engine.get_connection()
             c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             c.execute("SELECT * FROM nhan_vien WHERE id = %s", (nv_id_history,))
             nv_current = c.fetchone()
@@ -5587,7 +5641,7 @@ elif menu == "✅ Nhân viên":
         
         if so_hd_can_xoa and xac_nhan_xoa:
             try:
-                db_check = get_connection()
+                db_check = st.session_state.db_engine.get_connection()
                 c_check = db_check.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                 c_check.execute("SELECT id, ho_ten, ma_nv, trang_thai FROM nhan_vien WHERE so_hdld = %s", (so_hd_can_xoa,))
                 nv_info = c_check.fetchone()
@@ -5597,7 +5651,7 @@ elif menu == "✅ Nhân viên":
                     st.warning(f"⚠️ Nhân viên: **{nv_info['ho_ten']}** (Mã: {nv_info['ma_nv']}) - Trạng thái: {nv_info['trang_thai']}")
                     
                     # Đếm số bản ghi liên quan
-                    db_count = get_connection()
+                    db_count = st.session_state.db_engine.get_connection()
                     c_count = db_count.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                     c_count.execute("SELECT COUNT(*) as count FROM lich_su_cong_tac WHERE nhan_vien_id = %s", (nv_info['id'],))
                     ls_count = c_count.fetchone()['count']
@@ -5619,7 +5673,7 @@ elif menu == "✅ Nhân viên":
                         with col_confirm2:
                             if st.button("🗑️ XÁC NHẬN XÓA VĨNH VIỄN", type="primary", key="btn_confirm_xoa"):
                                 try:
-                                    db = get_connection()
+                                    db = st.session_state.db_engine.get_connection()
                                     cur = db.cursor()
                                     
                                     cur.execute("DELETE FROM lich_su_cong_tac WHERE nhan_vien_id = %s", (nv_info['id'],))
@@ -5727,7 +5781,7 @@ elif menu == "✅ Nhân viên":
             if not selected_cols:
                 st.error("⚠️ Vui lòng chọn ít nhất 1 cột!")
             else:
-                db_tk = get_connection()
+                db_tk = st.session_state.db_engine.get_connection()
                 c_tk = db_tk.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
                 # Sắp xếp selected_cols theo thứ tự ưu tiên
@@ -5932,7 +5986,7 @@ elif menu == "✅ Nhân viên":
         xuat_bc = st.button("📄 XUẤT BÁO CÁO WORD", width='stretch')
     
     if xuat_bc:
-        db = get_connection()
+        db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c.execute("""
             SELECT ho_ten, chuc_danh_nghe, phong_ban_lam_viec, loai_hop_dong, ngay_vao_lam,
@@ -5998,7 +6052,7 @@ elif menu == "🕒 Chấm công":
             with col_m2:
                 nam_nhap = st.number_input("Năm", min_value=2020, max_value=2100, value=date.today().year, step=1, key="cc_nam_nhap", label_visibility="collapsed")
             with col_m3:
-                db_bp = get_connection()
+                db_bp = st.session_state.db_engine.get_connection()
                 c_bp = db_bp.cursor()
                 c_bp.execute("""SELECT DISTINCT phong_ban_lam_viec FROM nhan_vien
                                 WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND phong_ban_lam_viec IS NOT NULL
@@ -6087,7 +6141,7 @@ elif menu == "🕒 Chấm công":
                 """)
             
             # Lấy danh sách nhân viên
-            db = get_connection()
+            db = st.session_state.db_engine.get_connection()
             c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             if bp_v:
                 c.execute("""SELECT id, ma_nv, ho_ten, chuc_danh_nghe, phong_ban_lam_viec FROM nhan_vien
@@ -6352,7 +6406,7 @@ elif menu == "🕒 Chấm công":
                                     st.rerun()
                         else:
                             # Thực hiện lưu
-                            db2 = get_connection()
+                            db2 = st.session_state.db_engine.get_connection()
                             c2 = db2.cursor()
                             n_saved = 0
                             
@@ -6465,7 +6519,7 @@ elif menu == "💰 Tính thu nhập":
     
     # Thêm form tính thử nghiệm demo
     with st.expander("🧪 Thử nghiệm tính lương (Demo)"):
-        db_demo = get_connection()
+        db_demo = st.session_state.db_engine.get_connection()
         c_demo = db_demo.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c_demo.execute("SELECT id, ma_nv, ho_ten FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY ho_ten LIMIT 10")
         nv_list = c_demo.fetchall()
@@ -6505,7 +6559,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
     tab_upload, tab_list = st.tabs(["📤 UPLOAD HỒ SƠ", "📋 DANH SÁCH HỒ SƠ"])
     
     with tab_upload:
-        db = get_connection()
+        db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c.execute("SELECT id, ma_nv, ho_ten FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY id DESC")
         nvl = c.fetchall()
@@ -6550,7 +6604,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                             fl.getvalue(), fl.type
                         )
 
-                        db = get_connection()
+                        db = st.session_state.db_engine.get_connection()
                         c = db.cursor()
                         c.execute("""
                             INSERT INTO ho_so_nhan_vien (nhan_vien_id, loai_ho_so, ten_file, duong_dan_file, ngay_upload) 
@@ -6570,7 +6624,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
     with tab_list:
         st.subheader("📋 Danh sách hồ sơ đã upload")
         
-        db = get_connection()
+        db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c.execute("SELECT id, ma_nv, ho_ten FROM nhan_vien ORDER BY id DESC")
         nvl = c.fetchall()
@@ -6581,7 +6635,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
             selected_nv = st.selectbox("🔍 Chọn nhân viên để xem hồ sơ:", list(nd.keys()), key="view_hoso")
             nv_id = nd[selected_nv]
             
-            db = get_connection()
+            db = st.session_state.db_engine.get_connection()
             c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             c.execute("""
                 SELECT id, loai_ho_so, ten_file, duong_dan_file, ngay_upload 
@@ -6651,7 +6705,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                                     sb.storage.from_(SUPABASE_BUCKET).remove([selected_hs['duong_dan_file']])
                                 except Exception as e_storage:
                                     st.warning(f"⚠️ Không xóa được file trên Storage (vẫn xóa bản ghi): {e_storage}")
-                            db = get_connection()
+                            db = st.session_state.db_engine.get_connection()
                             c = db.cursor()
                             c.execute("DELETE FROM ho_so_nhan_vien WHERE id = %s", (selected_hs['id'],))
                             db.commit()
@@ -6679,7 +6733,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
             if st.button("💾 Lưu", key=f"btn_add_{ten_bang}"):
                 if ten_moi.strip():
                     try:
-                        db = get_connection(); c = db.cursor()
+                        db = st.session_state.db_engine.get_connection(); c = db.cursor()
                         c.execute(f"INSERT INTO {ten_bang} ({cot_ten}) VALUES (%s) ON CONFLICT DO NOTHING",
                                   (ten_moi.strip(),))
                         db.commit(); db.close()
@@ -6689,7 +6743,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
                 else:
                     st.error("Vui lòng nhập tên!")
 
-        db = get_connection(); c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        db = st.session_state.db_engine.get_connection(); c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c.execute(f"SELECT id, {cot_ten}, trang_thai FROM {ten_bang} ORDER BY thu_tu, id")
         ds = c.fetchall(); db.close()
         if ds:
@@ -6697,7 +6751,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
             st.dataframe(df, width='stretch', hide_index=True)
             idx_xoa = st.number_input("Nhập ID cần xoá:", min_value=1, step=1, key=f"del_{ten_bang}")
             if st.button("🗑️ Xoá", key=f"btn_del_{ten_bang}"):
-                db = get_connection(); c = db.cursor()
+                db = st.session_state.db_engine.get_connection(); c = db.cursor()
                 c.execute(f"DELETE FROM {ten_bang} WHERE id=%s", (idx_xoa,))
                 db.commit(); db.close(); st.success("🗑️ Đã xoá!"); st.cache_data.clear(); st.rerun()
         else:
@@ -6715,7 +6769,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
                 ten_moi = st.text_input("Tên chức danh *"); mo_ta = st.text_area("Mô tả")
                 if st.form_submit_button("💾 LƯU"):
                     if ten_moi:
-                        db = get_connection(); c = db.cursor()
+                        db = st.session_state.db_engine.get_connection(); c = db.cursor()
                         c.execute("SELECT COALESCE(MIN(t1.id + 1), 1) FROM vi_tri_cong_tac t1 LEFT JOIN vi_tri_cong_tac t2 ON t1.id + 1 = t2.id WHERE t2.id IS NULL AND t1.id >= 1")
                         id_trong = c.fetchone()[0]
                         c.execute("SELECT COALESCE(MAX(id),0) FROM vi_tri_cong_tac")
@@ -6725,14 +6779,14 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
                         db.commit(); db.close(); st.success(f"✅ Đã thêm: {ten_moi}"); st.cache_data.clear(); st.rerun()
                     else: st.error("Tên chức danh không được để trống!")
         st.subheader("📋 Danh sách chức danh")
-        db = get_connection(); c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        db = st.session_state.db_engine.get_connection(); c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c.execute("SELECT id, ten_vi_tri, ghi_chu FROM vi_tri_cong_tac ORDER BY id")
         ds = c.fetchall(); db.close()
         if ds:
             df = pd.DataFrame(ds); df.columns = ['ID', 'Tên chức danh', 'Ghi chú']; st.dataframe(df, width='stretch', hide_index=True)
             st.divider(); cdx = st.number_input("Nhập ID cần xóa:", min_value=1, step=1)
             if st.button("🗑️ XÓA", key="del_cd"):
-                db = get_connection(); c = db.cursor()
+                db = st.session_state.db_engine.get_connection(); c = db.cursor()
                 c.execute("DELETE FROM vi_tri_cong_tac WHERE id=%s", (cdx,)); db.commit(); db.close(); st.success("🗑️ Đã xóa!"); st.cache_data.clear(); st.rerun()
         else: st.info("Chưa có chức danh nào")
 
@@ -6751,7 +6805,7 @@ elif menu == "📋 BHXH":
     with t1:
         st.subheader("📊 Tổng quan tình hình đóng BHXH")
         
-        db = get_connection()
+        db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         
         # Thống kê chung
@@ -6790,7 +6844,7 @@ elif menu == "📋 BHXH":
         # Danh sách lao động chưa đóng BHXH
         st.subheader("⚠️ Lao động chưa đóng BHXH")
         
-        db = get_connection()
+        db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c.execute("""
             SELECT ma_nv, ho_ten, chuc_danh_nghe, ngay_vao_lam, loai_hop_dong, 
@@ -6846,7 +6900,7 @@ elif menu == "📋 BHXH":
         
         # Chỉ truy vấn khi cần (khi người dùng click nút hoặc muốn xem trước)
         # Nhưng để hiển thị preview, chúng ta vẫn chạy truy vấn
-        db = get_connection()
+        db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         
         # Lao động tăng trong kỳ (dựa vào thang_bat_dau_bh)
@@ -7044,7 +7098,7 @@ elif menu == "📋 Báo cáo 01/PLI":
     with col2:
         den_ngay = st.date_input("📅 Đến ngày:", value=date.today(), key="pli_den")
     
-    db = get_connection()
+    db = st.session_state.db_engine.get_connection()
     c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     c.execute("""
         SELECT 

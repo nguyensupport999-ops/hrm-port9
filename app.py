@@ -31,6 +31,8 @@ import streamlit.components.v1 as components
 import urllib.parse
 import re
 import unicodedata
+import control_plane
+import bcrypt
 
 # ========== HÀM TIỆN ÍCH MỚI ==========
 def format_date_thang_nam(date_obj):
@@ -2295,9 +2297,24 @@ def lay_thong_tin_truoc_chuyen_doi(nv_id):
         return result
     except:
         return None
-# ========== DATABASE CONNECTION (SUPABASE) ==========
+# ========== DATABASE CONNECTION (SUPABASE) — ĐA KHÁCH HÀNG (MULTI-TENANT) ==========
 def get_connection():
-    # Đọc từ st.secrets (không có DB_)
+    """Kết nối tới Supabase Postgres CỦA ĐÚNG KHÁCH HÀNG đang đăng nhập.
+    Ưu tiên dùng thông tin tenant đã được resolve khi đăng nhập (lưu trong session_state
+    bởi control_plane.get_tenant_by_code). Nếu không có (vd: chạy local dev / chưa có
+    control plane), fallback về st.secrets['connections']['supabase'] hoặc .env như trước
+    để không phá vỡ cách chạy cũ."""
+    tenant = st.session_state.get('tenant')
+    if tenant:
+        return psycopg2.connect(
+            host=tenant['db_host'],
+            port=tenant['db_port'],
+            user=tenant['db_user'],
+            password=tenant['db_password'],
+            database=tenant['db_name'],
+        )
+
+    # Fallback 1: đọc từ st.secrets (không có DB_) — chế độ đơn khách hàng (không SaaS)
     if 'connections' in st.secrets and 'supabase' in st.secrets.connections:
         return psycopg2.connect(
             host=st.secrets.connections.supabase.host,  # không có DB_
@@ -2307,7 +2324,7 @@ def get_connection():
             database=st.secrets.connections.supabase.database
         )
     
-    # Fallback: đọc từ .env (có DB_)
+    # Fallback 2: đọc từ .env (có DB_) — chạy local dev
     from dotenv import load_dotenv
     load_dotenv()
     return psycopg2.connect(
@@ -2364,37 +2381,46 @@ def upload_to_storage_unique(sb, bucket, base_path, file_bytes, content_type, ma
                 continue
             raise
 
-@st.cache_resource(show_spinner=False)
 def get_supabase_storage():
-    """Khởi tạo Supabase Client dùng cho Storage (upload/download/xóa file hồ sơ).
-    Đọc cấu hình từ st.secrets['supabase']['url'] / ['key'], fallback sang .env
-    (SUPABASE_URL / SUPABASE_KEY) khi chạy local.
-    Trả về None nếu chưa cấu hình để nơi gọi tự xử lý báo lỗi phù hợp."""
+    """Khởi tạo Supabase Client dùng cho Storage (ảnh NV, hồ sơ, file chat...).
+    Ưu tiên url/key của TENANT đang đăng nhập (mô hình SaaS đa khách hàng).
+    Fallback sang st.secrets['supabase'] / .env khi chạy chế độ đơn khách hàng.
+    Không dùng @st.cache_resource nữa vì client giờ có thể khác nhau theo từng tenant
+    trong cùng 1 tiến trình app (nhiều khách hàng dùng chung 1 deployment)."""
     try:
         from supabase import create_client
     except ImportError:
         print("Chưa cài thư viện supabase. Chạy: pip install supabase")
         return None
 
-    url, key = None, None
-    try:
-        if 'supabase' in st.secrets:
-            url = st.secrets.supabase.get('url')
-            key = st.secrets.supabase.get('key')
-    except Exception:
-        pass
-
-    if not url or not key:
-        from dotenv import load_dotenv
-        load_dotenv()
-        url = url or os.getenv('SUPABASE_URL')
-        key = key or os.getenv('SUPABASE_KEY')
+    tenant = st.session_state.get('tenant')
+    if tenant:
+        url, key = tenant['supabase_url'], tenant['supabase_key']
+    else:
+        url, key = None, None
+        try:
+            if 'supabase' in st.secrets:
+                url = st.secrets.supabase.get('url')
+                key = st.secrets.supabase.get('key')
+        except Exception:
+            pass
+        if not url or not key:
+            from dotenv import load_dotenv
+            load_dotenv()
+            url = url or os.getenv('SUPABASE_URL')
+            key = key or os.getenv('SUPABASE_KEY')
 
     if not url or not key:
         return None
 
+    cache_key = f"_sb_client_{url}"
+    if cache_key in st.session_state:
+        return st.session_state[cache_key]
+
     try:
-        return create_client(url, key)
+        client = create_client(url, key)
+        st.session_state[cache_key] = client
+        return client
     except Exception as e:
         print(f"Lỗi khởi tạo Supabase Storage: {e}")
         return None
@@ -2968,70 +2994,205 @@ def tao_bao_cao_tang_giam(tang_list, giam_list, tu_ngay, den_ngay):
     doc.save(tf.name)
     return tf.name
     
-# ========== SIDEBAR + LOGIN ==========
-st.sidebar.title("🏗️ HRM-Port")
-st.sidebar.caption("Quản lý nhân sự cảng biển")
+def show_super_admin_page():
+    """Trang QUẢN TRỊ HỆ THỐNG — chỉ đội vận hành App dùng để thêm/sửa/khoá khách hàng (tenant).
+    Hoàn toàn tách biệt với dữ liệu nhân sự của từng khách hàng."""
+    st.title("⚙️ Quản trị hệ thống — Danh sách khách hàng (Tenants)")
+    if st.button("🚪 Thoát trang quản trị"):
+        st.session_state.super_admin_mode = False
+        st.rerun()
+    st.divider()
 
-# Hàm kiểm tra đăng nhập từ secrets
+    with st.expander("➕ Thêm khách hàng mới", expanded=False):
+        with st.form("add_tenant_form"):
+            col1, col2 = st.columns(2)
+            with col1:
+                ma_cty = st.text_input("Mã công ty * (VD: CHL)")
+                ten_cty = st.text_input("Tên công ty *")
+                logo_url = st.text_input("Link logo (tuỳ chọn)")
+                db_host = st.text_input("Supabase DB Host *")
+                db_port = st.text_input("Supabase DB Port", value="5432")
+            with col2:
+                db_user = st.text_input("Supabase DB User", value="postgres")
+                db_password = st.text_input("Supabase DB Password *", type="password")
+                db_name = st.text_input("Supabase DB Name", value="postgres")
+                supabase_url = st.text_input("Supabase Project URL * (vd: https://xxxx.supabase.co)")
+                supabase_key = st.text_input("Supabase API Key *", type="password")
+            if st.form_submit_button("💾 Lưu khách hàng mới"):
+                if not all([ma_cty, ten_cty, db_host, db_password, supabase_url, supabase_key]):
+                    st.error("❌ Vui lòng điền đầy đủ các trường bắt buộc (*)")
+                else:
+                    try:
+                        control_plane.add_tenant(
+                            ma_cty=ma_cty, ten_cty=ten_cty, db_host=db_host, db_port=db_port,
+                            db_user=db_user, db_password=db_password, db_name=db_name,
+                            supabase_url=supabase_url, supabase_key=supabase_key, logo_url=logo_url,
+                        )
+                        st.success(f"✅ Đã thêm khách hàng: {ten_cty} (mã: {ma_cty.upper()})")
+                        st.info("👉 Bước tiếp theo: chạy file `migration_tenant_phase0_phase2.sql` trên đúng Supabase "
+                                "của khách hàng này để tạo đủ bảng/cột cần thiết, sau đó tạo tài khoản Admin đầu tiên "
+                                "cho họ (INSERT 1 dòng vào bảng `nhan_vien` với mat_khau_hash và vai_tro='admin').")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Lỗi khi thêm khách hàng: {e}")
+
+    st.subheader("📋 Danh sách khách hàng hiện có")
+    try:
+        tenants = control_plane.list_tenants()
+    except Exception as e:
+        tenants = []
+        st.error(f"❌ Không kết nối được Control Plane. Kiểm tra lại st.secrets['control_plane']. Chi tiết: {e}")
+
+    if tenants:
+        df = pd.DataFrame(tenants)
+        st.dataframe(df, width='stretch', hide_index=True)
+        st.divider()
+        col_a, col_b = st.columns(2)
+        with col_a:
+            ma_toggle = st.text_input("Mã công ty cần Khoá/Mở khoá")
+            trang_thai_moi = st.selectbox("Trạng thái mới", ["active", "suspended"])
+            if st.button("🔄 Cập nhật trạng thái"):
+                if ma_toggle:
+                    control_plane.update_tenant_status(ma_toggle, trang_thai_moi)
+                    st.success("✅ Đã cập nhật!"); st.rerun()
+        with col_b:
+            ma_xoa = st.text_input("Mã công ty cần XOÁ vĩnh viễn khỏi hệ thống")
+            if st.button("🗑️ Xoá khách hàng", type="primary"):
+                if ma_xoa:
+                    control_plane.delete_tenant(ma_xoa)
+                    st.success("✅ Đã xoá!"); st.rerun()
+    else:
+        st.info("Chưa có khách hàng nào. Thêm khách hàng đầu tiên ở form phía trên.")
+
+
+# ========== SIDEBAR + LOGIN (ĐA KHÁCH HÀNG) ==========
+st.sidebar.title("🏗️ HRM-Port")
+st.sidebar.caption("Nền tảng Quản lý nhân sự đa doanh nghiệp")
+
+
 def check_login(username, password):
-    # Ưu tiên kiểm tra từ st.secrets trước (Streamlit Cloud)
+    """Xác thực đăng nhập của NHÂN VIÊN thuộc tenant (công ty) đã chọn.
+    Tài khoản = số điện thoại (dien_thoai), mật khẩu hash bằng bcrypt trong cột mat_khau_hash.
+    Trả về (success, role, nhan_vien_row) — nhan_vien_row là dict thông tin NV nếu thành công."""
+    tenant = st.session_state.get('tenant')
+
+    if tenant:
+        try:
+            db = get_connection()
+            c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            c.execute("""SELECT id, ho_ten, dien_thoai, mat_khau_hash, vai_tro, phai_doi_mat_khau
+                         FROM nhan_vien WHERE dien_thoai = %s""", (username.strip(),))
+            row = c.fetchone()
+            db.close()
+            if not row or not row.get('mat_khau_hash'):
+                return False, None, None
+            if bcrypt.checkpw(password.encode(), row['mat_khau_hash'].encode()):
+                return True, row.get('vai_tro') or 'nhan_vien', row
+        except Exception as e:
+            print(f"Lỗi check_login (tenant): {e}")
+        return False, None, None
+
+    # ---- Chế độ KHÔNG có tenant (chạy đơn lẻ / dev local) — giữ cách cũ để không phá vỡ ----
     try:
         if 'users' in st.secrets and username in st.secrets.users:
             if st.secrets.users[username]['password'] == password:
-                return True, st.secrets.users[username]['role']
-    except:
+                return True, st.secrets.users[username]['role'], None
+    except Exception:
         pass
-    
-    # Fallback: kiểm tra từ USERS trong config (local)
     try:
         if username in USERS:
-            return USERS[username]['password'] == password, USERS[username]['role']
-    except:
+            return USERS[username]['password'] == password, USERS[username]['role'], None
+    except Exception:
         pass
-    
-    return False, None
+    return False, None, None
 
-if 'logged_in' not in st.session_state: 
+
+if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.role = None
     st.session_state.username = None
 
 if not st.session_state.logged_in:
+
+    # ---------- Trang quản trị hệ thống (super-admin quản lý danh sách khách hàng) ----------
+    if st.session_state.get('super_admin_mode'):
+        show_super_admin_page()
+        st.stop()
+
+    # ---------- BƯỚC 1: Chọn / xác định công ty (tenant) ----------
+    if not st.session_state.get('tenant'):
+        st.sidebar.subheader("🏢 Chọn công ty")
+        ma_cty = st.sidebar.text_input("Mã công ty", placeholder="VD: CHL")
+        if st.sidebar.button("Tiếp tục ➜", width='stretch'):
+            if not ma_cty.strip():
+                st.sidebar.error("Vui lòng nhập Mã công ty!")
+            else:
+                tenant = control_plane.get_tenant_by_code(ma_cty)
+                if not tenant:
+                    st.sidebar.error("❌ Không tìm thấy công ty với mã này. Vui lòng liên hệ đơn vị triển khai App.")
+                elif tenant.get('error') == 'SUSPENDED':
+                    st.sidebar.error(f"⚠️ Tài khoản của **{tenant['ten_cty']}** đang tạm khoá.")
+                else:
+                    st.session_state.tenant = tenant
+                    st.rerun()
+
+        with st.sidebar.expander("⚙️ Quản trị hệ thống"):
+            st.caption("Chỉ dành cho đội vận hành App (thêm/sửa khách hàng).")
+            sa_u = st.text_input("Tài khoản", key="sa_user")
+            sa_p = st.text_input("Mật khẩu", type="password", key="sa_pass")
+            if st.button("Đăng nhập quản trị", key="sa_login"):
+                if control_plane.check_super_admin(sa_u, sa_p):
+                    st.session_state.super_admin_mode = True
+                    st.rerun()
+                else:
+                    st.error("❌ Sai tài khoản/mật khẩu quản trị hệ thống!")
+        st.stop()
+
+    # ---------- BƯỚC 2: Đăng nhập nhân viên của công ty đã chọn ----------
+    tenant = st.session_state.tenant
+    if tenant.get('logo_url'):
+        st.sidebar.image(tenant['logo_url'], width='stretch')
+    st.sidebar.success(f"🏢 **{tenant['ten_cty']}**")
+    if st.sidebar.button("↩️ Chọn công ty khác"):
+        del st.session_state['tenant']
+        st.rerun()
+
     st.sidebar.subheader("🔐 Đăng nhập")
-    u = st.sidebar.text_input("Tài khoản")
+    u = st.sidebar.text_input("Số điện thoại (tài khoản)")
     p = st.sidebar.text_input("Mật khẩu", type="password")
+    st.sidebar.caption("💡 Mật khẩu mặc định = số điện thoại của bạn. Đổi lại sau khi đăng nhập lần đầu.")
     c1, c2 = st.sidebar.columns(2)
     with c1:
         if st.button("Đăng nhập", width='stretch'):
-            success, role = check_login(u, p)
+            success, role, nv_row = check_login(u, p)
             if success:
                 st.session_state.logged_in = True
                 st.session_state.role = role
                 st.session_state.username = u
+                st.session_state.nhan_vien_id = nv_row['id'] if nv_row else None
+                st.session_state.ho_ten_dang_nhap = nv_row['ho_ten'] if nv_row else u
+                st.session_state.phai_doi_mat_khau = bool(nv_row and nv_row.get('phai_doi_mat_khau'))
                 st.rerun()
             else:
-                st.sidebar.error("❌ Sai tài khoản hoặc mật khẩu!")
+                st.sidebar.error("❌ Sai số điện thoại hoặc mật khẩu!")
     with c2:
-        # Nút Back to Home - thay thế vị trí của nút Xem thử
         if st.button("🏠 Back to Home", width='stretch'):
             st.session_state.show_hrm = False
             st.session_state.pop('last_birthday_check', None)
             st.session_state.pop('sinh_nhat_hom_nay_list', None)
             st.rerun()
-    
-    # ĐÃ XÓA phần nút Back cũ ở giữa UI
     st.stop()
-    
-# Menu theo role
+
+# Menu theo role — mọi nhân viên đều đăng nhập được, quyền thao tác khác nhau theo vai_tro
 if st.session_state.role == "admin":
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI","🕒 Chấm công","💰 Tính thu nhập"]
-else:  # viewer
-    # NOTE: Menu "Chấm công" đang trong giai đoạn hoàn thiện -> chỉ admin được dùng.
-    # Khi hoàn thiện, bổ sung role "hr" (hoặc tương đương) vào điều kiện phía trên để cấp quyền cho HR.
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo 01/PLI","💰 Tính thu nhập"]
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ","🙋 Hồ sơ của tôi"]
+elif st.session_state.role in ("hcns", "ke_toan_luong", "viewer"):
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo 01/PLI","💰 Tính thu nhập","💬 Chat nội bộ","🙋 Hồ sơ của tôi"]
+else:  # 'nhan_vien' thường — chỉ xem hồ sơ bản thân + chat nội bộ
+    menu_options = ["🙋 Hồ sơ của tôi","💬 Chat nội bộ"]
 menu = st.sidebar.radio("📋 Menu", menu_options)
 st.sidebar.divider()
-st.sidebar.caption(f"👤 {st.session_state.username} ({st.session_state.role})")
+st.sidebar.caption(f"👤 {st.session_state.get('ho_ten_dang_nhap', st.session_state.username)} ({st.session_state.role})")
 # MỚI:
 if st.sidebar.button("🚪 Đăng xuất", width='stretch'):
     st.session_state.logged_in = False
@@ -6507,8 +6668,48 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
 
 # ========== DANH MỤC CHỨC DANH ==========
 elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
-    st.title("⚙️ Quản lý danh mục Chức danh")
-    if st.session_state.role == "admin":
+    st.title("⚙️ Danh mục cấu hình theo doanh nghiệp")
+    st.caption("Mỗi khách hàng tự đặt tên Phòng ban, Chức danh, Loại hợp đồng, Trình độ học vấn phù hợp với cơ cấu công ty mình — không ảnh hưởng đến khách hàng khác.")
+
+    def _quan_ly_danh_muc_don_gian(ten_bang, cot_ten, tieu_de, placeholder):
+        """Hàm dùng chung để quản lý CRUD cho các bảng danh mục dạng đơn giản
+        (id, cột tên, thu_tu, trang_thai) — tránh lặp code cho từng loại danh mục."""
+        with st.expander(f"➕ Thêm {tieu_de.lower()} mới", expanded=False):
+            ten_moi = st.text_input("Tên", key=f"add_{ten_bang}", placeholder=placeholder)
+            if st.button("💾 Lưu", key=f"btn_add_{ten_bang}"):
+                if ten_moi.strip():
+                    try:
+                        db = get_connection(); c = db.cursor()
+                        c.execute(f"INSERT INTO {ten_bang} ({cot_ten}) VALUES (%s) ON CONFLICT DO NOTHING",
+                                  (ten_moi.strip(),))
+                        db.commit(); db.close()
+                        st.success(f"✅ Đã thêm: {ten_moi}"); st.cache_data.clear(); st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Lỗi: {e}")
+                else:
+                    st.error("Vui lòng nhập tên!")
+
+        db = get_connection(); c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        c.execute(f"SELECT id, {cot_ten}, trang_thai FROM {ten_bang} ORDER BY thu_tu, id")
+        ds = c.fetchall(); db.close()
+        if ds:
+            df = pd.DataFrame(ds); df.columns = ['ID', tieu_de, 'Trạng thái']
+            st.dataframe(df, width='stretch', hide_index=True)
+            idx_xoa = st.number_input("Nhập ID cần xoá:", min_value=1, step=1, key=f"del_{ten_bang}")
+            if st.button("🗑️ Xoá", key=f"btn_del_{ten_bang}"):
+                db = get_connection(); c = db.cursor()
+                c.execute(f"DELETE FROM {ten_bang} WHERE id=%s", (idx_xoa,))
+                db.commit(); db.close(); st.success("🗑️ Đã xoá!"); st.cache_data.clear(); st.rerun()
+        else:
+            st.info(f"Chưa có {tieu_de.lower()} nào.")
+
+    tab_pb, tab_cd, tab_hd, tab_hv = st.tabs(["🏢 Phòng ban", "💼 Chức danh", "📄 Loại hợp đồng", "🎓 Trình độ học vấn"])
+
+    with tab_pb:
+        _quan_ly_danh_muc_don_gian("danh_muc_phong_ban", "ten_phong_ban", "Phòng ban", "VD: Kinh doanh")
+
+    with tab_cd:
+        # Chức danh tiếp tục dùng bảng vi_tri_cong_tac có sẵn để không phá vỡ dữ liệu cũ
         with st.expander("➕ Thêm chức danh mới", expanded=False):
             with st.form("add_chuc_danh"):
                 ten_moi = st.text_input("Tên chức danh *"); mo_ta = st.text_area("Mô tả")
@@ -6534,6 +6735,12 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
                 db = get_connection(); c = db.cursor()
                 c.execute("DELETE FROM vi_tri_cong_tac WHERE id=%s", (cdx,)); db.commit(); db.close(); st.success("🗑️ Đã xóa!"); st.cache_data.clear(); st.rerun()
         else: st.info("Chưa có chức danh nào")
+
+    with tab_hd:
+        _quan_ly_danh_muc_don_gian("danh_muc_loai_hop_dong", "ten_loai_hd", "Loại hợp đồng", "VD: Hợp đồng thời vụ")
+
+    with tab_hv:
+        _quan_ly_danh_muc_don_gian("danh_muc_trinh_do_hoc_van", "ten_trinh_do", "Trình độ học vấn", "VD: Cử nhân")
 
 # ========== BHXH ==========
 elif menu == "📋 BHXH":
@@ -7169,9 +7376,24 @@ elif menu == "📋 Báo cáo 01/PLI":
             st.caption("💡 Với quyền Viewer, bạn có thể xem danh sách lao động ở trên nhưng không thể tải file Excel.")
     else:
         st.warning("⚠️ Không có lao động nào đang làm việc trong kỳ báo cáo!")
-            
+
+# ========== HỒ SƠ CỦA TÔI (mọi nhân viên tự xem thông tin bản thân) ==========
+elif menu == "🙋 Hồ sơ của tôi":
+    st.title("🙋 Hồ sơ của tôi")
+    if not st.session_state.get('nhan_vien_id'):
+        st.info("Tài khoản quản trị hệ thống (admin/HCNS/KT lương cấu hình sẵn) chưa gắn với 1 hồ sơ nhân viên cụ thể.")
+    else:
+        st.info("🚧 Trang xem/đổi thông tin cá nhân + đổi mật khẩu đang được hoàn thiện ở giai đoạn tiếp theo "
+                "(sẽ dùng chung giao diện với 'Xem Profile nhân viên' đã thiết kế).")
+
+# ========== CHAT NỘI BỘ (placeholder — sẽ triển khai ở giai đoạn sau) ==========
+elif menu == "💬 Chat nội bộ":
+    st.title("💬 Chat nội bộ")
+    st.info("🚧 Chức năng Chat 1-1 / Chat theo phòng ban / Chat toàn công ty đang được phát triển ở giai đoạn tiếp theo. "
+            "Các bảng dữ liệu (chat_rooms, chat_messages...) đã được tạo sẵn trong migration để sẵn sàng triển khai.")
+
 st.sidebar.divider()
-st.sidebar.caption("© 2026 HRM-Port | Cảng biển quốc tế Hòn La")
+st.sidebar.caption("© 2026 HRM-Port | Nền tảng SaaS Quản lý nhân sự đa doanh nghiệp")
 
 
 #===== Hàm xử lý chính =====

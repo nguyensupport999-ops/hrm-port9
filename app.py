@@ -35,6 +35,14 @@ import control_plane
 from control_plane import DatabaseEngine, resolve_tenant
 import bcrypt
 
+# Import config - ưu tiên config.py (local), fallback to config_template (cloud)
+try:
+    from config import COMPANY_CONFIG, BHXH_CONFIG, EMAIL_CONFIG, TELEGRAM_CONFIG, USERS
+    print("Using local config.py")
+except ImportError:
+    from config_template import COMPANY_CONFIG, BHXH_CONFIG, EMAIL_CONFIG, TELEGRAM_CONFIG, USERS
+    print("Using config_template.py")
+
 # ========== HÀM TIỆN ÍCH MỚI ==========
 def format_date_thang_nam(date_obj):
     """Định dạng ngày thành MM/YYYY"""
@@ -2307,15 +2315,6 @@ def auto_check_birthday():
         
     except Exception as e:
         st.warning(f"⚠️ Không thể kiểm tra sinh nhật: {e}")
-
-# Import config - ưu tiên config.py (local), fallback to config_template (cloud)
-try:
-    from config import COMPANY_CONFIG, BHXH_CONFIG, EMAIL_CONFIG, TELEGRAM_CONFIG, USERS
-    print("Using local config.py")
-except ImportError:
-    from config_template import COMPANY_CONFIG, BHXH_CONFIG, EMAIL_CONFIG, TELEGRAM_CONFIG, USERS
-    print("Using config_template.py")
-    
 
 def da_chuyen_doi_chinh_thuc(nv_id):
     """Kiểm tra xem nhân viên đã có quyết định chuyển từ thử việc sang chính thức chưa"""

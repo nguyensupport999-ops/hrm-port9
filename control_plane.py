@@ -417,17 +417,38 @@ def _extract_subdomain_code(hostname: str):
 
 
 def resolve_tenant():
-    """Tự động nhận diện tenant từ subdomain (honla.kendu-ai.com) hoặc từ query
-    param ?tenant=HONLA / ?tenant=DEMO (dùng cho Streamlit Cloud / phương án Iframe),
-    rồi nạp sẵn vào st.session_state.tenant + st.session_state.db_engine.
+    """Tự động nhận diện tenant, theo thứ tự ưu tiên:
+    1) st.secrets['tenant_code'] — dùng cho mô hình "1 app Streamlit / 1 khách hàng":
+       mỗi khách có 1 deployment riêng trên Streamlit Cloud, Secret tenant_code khoá
+       cứng app đó vào đúng 1 công ty, bỏ qua hẳn bước chọn công ty thủ công.
+    2) Subdomain (honla.kendu-ai.com) hoặc query param ?tenant=HONLA — dùng cho app
+       dùng chung nhiều tenant (như app "honla" hiện tại) hoặc phương án Iframe.
 
-    Nếu KHÔNG xác định được tenant (đang ở domain gốc, chưa cấu hình subdomain,
-    hoặc mã công ty không tồn tại/bị khoá), hàm không làm gì cả — luồng chọn
-    công ty thủ công đã có sẵn trong app.py (nhập Mã công ty ở sidebar) sẽ tự
-    xử lý tiếp, nên không phá vỡ hành vi hiện tại."""
+    Nếu KHÔNG xác định được tenant, hàm không làm gì cả — luồng chọn công ty thủ công
+    đã có sẵn trong app.py (nhập Mã công ty ở sidebar) sẽ tự xử lý tiếp."""
     if st.session_state.get("tenant"):
         return
 
+    # ---- Ưu tiên 1: Secret tenant_code (app riêng cho 1 khách) ----
+    try:
+        secret_tenant_code = st.secrets.get("tenant_code")
+    except Exception:
+        secret_tenant_code = None
+    if secret_tenant_code:
+        tenant = get_tenant_by_code(secret_tenant_code.strip())
+        if tenant and tenant.get("error") != "SUSPENDED":
+            st.session_state.tenant = tenant
+            st.session_state.db_engine = DatabaseEngine(tenant)
+            st.session_state["_tenant_locked"] = True  # app.py dùng cờ này để bỏ qua Landing Page
+            return
+        # Nếu Secret có nhưng mã sai/khoá tài khoản -> KHÔNG rơi về chọn công ty thủ công
+        # (vì app này vốn được provision riêng cho 1 khách), mà báo lỗi rõ ràng.
+        st.session_state["_tenant_locked_error"] = (
+            "SUSPENDED" if tenant and tenant.get("error") == "SUSPENDED" else "NOT_FOUND"
+        )
+        return
+
+    # ---- Ưu tiên 2: Subdomain / query param (app dùng chung nhiều tenant) ----
     ma_cty = None
     try:
         qp_tenant = st.query_params.get("tenant")

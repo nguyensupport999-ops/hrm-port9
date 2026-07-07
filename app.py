@@ -3135,7 +3135,14 @@ def check_login(username, password):
                          FROM nhan_vien WHERE dien_thoai = %s""", (username.strip(),))
             row = c.fetchone()
             db.close()
-            if not row or not row.get('mat_khau_hash'):
+            if not row:
+                return False, None, None
+            if not row.get('mat_khau_hash'):
+                # Chưa từng đặt mật khẩu (nhân viên mới) -> cho đăng nhập lần đầu
+                # bằng chính số điện thoại, đúng như thông báo hiển thị trên UI.
+                if password.strip() == (row.get('dien_thoai') or '').strip():
+                    row['phai_doi_mat_khau'] = True
+                    return True, row.get('vai_tro') or 'nhan_vien', row
                 return False, None, None
             if bcrypt.checkpw(password.encode(), row['mat_khau_hash'].encode()):
                 return True, row.get('vai_tro') or 'nhan_vien', row
@@ -3234,6 +3241,36 @@ if not st.session_state.logged_in:
             st.session_state.pop('last_birthday_check', None)
             st.session_state.pop('sinh_nhat_hom_nay_list', None)
             st.rerun()
+    st.stop()
+
+# ---------- Bắt buộc đổi mật khẩu lần đầu (đang dùng mật khẩu mặc định = SĐT) ----------
+if st.session_state.get('phai_doi_mat_khau'):
+    st.title("🔑 Đổi mật khẩu lần đầu")
+    st.warning("Đây là lần đăng nhập đầu tiên (mật khẩu mặc định = số điện thoại của bạn). "
+               "Vui lòng đặt mật khẩu mới trước khi tiếp tục sử dụng hệ thống.")
+    mk_moi = st.text_input("Mật khẩu mới", type="password", key="mk_moi_lan_dau")
+    mk_moi2 = st.text_input("Nhập lại mật khẩu mới", type="password", key="mk_moi_lan_dau_2")
+    if st.button("✅ Xác nhận đổi mật khẩu"):
+        if len(mk_moi) < 6:
+            st.error("Mật khẩu mới phải có ít nhất 6 ký tự.")
+        elif mk_moi != mk_moi2:
+            st.error("Hai mật khẩu nhập lại không khớp.")
+        else:
+            try:
+                db = st.session_state.db_engine.get_connection()
+                c = db.cursor()
+                new_hash = bcrypt.hashpw(mk_moi.encode(), bcrypt.gensalt()).decode()
+                c.execute(
+                    "UPDATE nhan_vien SET mat_khau_hash=%s, phai_doi_mat_khau=FALSE WHERE id=%s",
+                    (new_hash, st.session_state.nhan_vien_id)
+                )
+                db.commit()
+                db.close()
+                st.session_state.phai_doi_mat_khau = False
+                st.success("✅ Đổi mật khẩu thành công! Đang vào hệ thống...")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Lỗi khi đổi mật khẩu: {e}")
     st.stop()
 
 # Menu theo role — mọi nhân viên đều đăng nhập được, quyền thao tác khác nhau theo vai_tro

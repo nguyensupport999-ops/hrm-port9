@@ -3128,6 +3128,7 @@ def check_login(username, password):
     tenant = st.session_state.get('tenant')
 
     if tenant:
+        debug_lines = []
         try:
             db = st.session_state.db_engine.get_connection()
             c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -3135,28 +3136,31 @@ def check_login(username, password):
                          FROM nhan_vien WHERE dien_thoai = %s""", (username.strip(),))
             rows = c.fetchall()
             db.close()
-            print(f"[DEBUG check_login] tenant={tenant.get('ma_cty')} db_host={tenant.get('db_host')} "
-                  f"username='{username.strip()}' so_dong_khop={len(rows)}")
+            debug_lines.append(f"tenant={tenant.get('ma_cty')} db_host={tenant.get('db_host')}")
+            debug_lines.append(f"username_nhap='{username.strip()}' so_dong_khop={len(rows)}")
             for r in rows:
-                print(f"[DEBUG check_login] row id={r.get('id')} dien_thoai='{r.get('dien_thoai')}' "
-                      f"mat_khau_hash_rong={not r.get('mat_khau_hash')} vai_tro={r.get('vai_tro')}")
+                debug_lines.append(
+                    f"row id={r.get('id')} dien_thoai='{r.get('dien_thoai')}' "
+                    f"mat_khau_hash_rong={not r.get('mat_khau_hash')} vai_tro={r.get('vai_tro')}"
+                )
             row = rows[0] if rows else None
             if not row:
+                st.session_state['_debug_login'] = debug_lines
                 return False, None, None
             if not row.get('mat_khau_hash'):
-                # Chưa từng đặt mật khẩu (nhân viên mới) -> cho đăng nhập lần đầu
-                # bằng chính số điện thoại, đúng như thông báo hiển thị trên UI.
                 khop = password.strip() == (row.get('dien_thoai') or '').strip()
-                print(f"[DEBUG check_login] mat_khau_hash rong -> so sanh password voi dien_thoai: khop={khop}")
+                debug_lines.append(f"mat_khau_hash rong -> so sanh password vs dien_thoai: khop={khop}")
+                st.session_state['_debug_login'] = debug_lines
                 if khop:
                     row['phai_doi_mat_khau'] = True
                     return True, row.get('vai_tro') or 'nhan_vien', row
                 return False, None, None
             if bcrypt.checkpw(password.encode(), row['mat_khau_hash'].encode()):
                 return True, row.get('vai_tro') or 'nhan_vien', row
-            print("[DEBUG check_login] mat_khau_hash co gia tri nhung bcrypt.checkpw tra ve False")
+            debug_lines.append("mat_khau_hash co gia tri nhung bcrypt.checkpw tra ve False")
+            st.session_state['_debug_login'] = debug_lines
         except Exception as e:
-            print(f"Lỗi check_login (tenant): {e}")
+            st.session_state['_debug_login'] = debug_lines + [f"EXCEPTION: {e}"]
         return False, None, None
 
     # ---- Chế độ KHÔNG có tenant (chạy đơn lẻ / dev local) — giữ cách cũ để không phá vỡ ----
@@ -3244,6 +3248,10 @@ if not st.session_state.logged_in:
                 st.rerun()
             else:
                 st.sidebar.error("❌ Sai số điện thoại hoặc mật khẩu!")
+                if st.session_state.get('_debug_login'):
+                    with st.sidebar.expander("🔍 Chi tiết debug (tạm thời)"):
+                        for line in st.session_state['_debug_login']:
+                            st.code(line, language=None)
     with c2:
         if st.button("🏠 Back to Home", width='stretch'):
             st.session_state.show_hrm = False

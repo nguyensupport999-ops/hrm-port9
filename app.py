@@ -3133,19 +3133,28 @@ def check_login(username, password):
             c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             c.execute("""SELECT id, ho_ten, dien_thoai, mat_khau_hash, vai_tro, phai_doi_mat_khau
                          FROM nhan_vien WHERE dien_thoai = %s""", (username.strip(),))
-            row = c.fetchone()
+            rows = c.fetchall()
             db.close()
+            print(f"[DEBUG check_login] tenant={tenant.get('ma_cty')} db_host={tenant.get('db_host')} "
+                  f"username='{username.strip()}' so_dong_khop={len(rows)}")
+            for r in rows:
+                print(f"[DEBUG check_login] row id={r.get('id')} dien_thoai='{r.get('dien_thoai')}' "
+                      f"mat_khau_hash_rong={not r.get('mat_khau_hash')} vai_tro={r.get('vai_tro')}")
+            row = rows[0] if rows else None
             if not row:
                 return False, None, None
             if not row.get('mat_khau_hash'):
                 # Chưa từng đặt mật khẩu (nhân viên mới) -> cho đăng nhập lần đầu
                 # bằng chính số điện thoại, đúng như thông báo hiển thị trên UI.
-                if password.strip() == (row.get('dien_thoai') or '').strip():
+                khop = password.strip() == (row.get('dien_thoai') or '').strip()
+                print(f"[DEBUG check_login] mat_khau_hash rong -> so sanh password voi dien_thoai: khop={khop}")
+                if khop:
                     row['phai_doi_mat_khau'] = True
                     return True, row.get('vai_tro') or 'nhan_vien', row
                 return False, None, None
             if bcrypt.checkpw(password.encode(), row['mat_khau_hash'].encode()):
                 return True, row.get('vai_tro') or 'nhan_vien', row
+            print("[DEBUG check_login] mat_khau_hash co gia tri nhung bcrypt.checkpw tra ve False")
         except Exception as e:
             print(f"Lỗi check_login (tenant): {e}")
         return False, None, None

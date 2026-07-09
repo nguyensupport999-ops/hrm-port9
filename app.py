@@ -2289,31 +2289,67 @@ def update_so_max_cong_van(loai, so_moi):
     except:
         return False
 
-# === Hàm sinh số công văn tự động ===
-def generate_so_cong_van(loai_cv):
-    """Sinh số công văn tự động theo cấu hình"""
+# === Ánh xạ mã loại công văn (bảng danh_muc_loai_cong_van) <-> mã loại nội bộ dùng cho cấu hình/đánh số ===
+# Lưu ý: cột ma_loai trong danh_muc_loai_cong_van lưu chính là ký hiệu hiển thị (QĐ, CV, BC, TB, TTr),
+# trong khi bảng cau_hinh_cong_van và bộ lọc loại công văn dùng mã nội bộ (QUYET_DINH, CONG_VAN, ...).
+# Trước đây 2 bộ mã này KHÔNG khớp nhau khiến prefix luôn rơi về mặc định 'CV'.
+MA_LOAI_TO_CODE = {
+    'QĐ': 'QUYET_DINH',
+    'CV': 'CONG_VAN',
+    'BC': 'BAO_CAO',
+    'TB': 'THONG_BAO',
+    'TTr': 'TO_TRINH',
+}
+PREFIX_MAP = {
+    'QUYET_DINH': 'QĐ',
+    'CONG_VAN': 'CV',
+    'BAO_CAO': 'BC',
+    'THONG_BAO': 'TB',
+    'TO_TRINH': 'TTr',
+}
+
+def chuan_hoa_loai_cong_van(ma_loai_raw):
+    """Chuyển mã loại lấy từ dropdown (vd 'QĐ') về mã nội bộ chuẩn (vd 'QUYET_DINH').
+    Nếu đã là mã chuẩn (hoặc không nhận diện được) thì trả về nguyên giá trị."""
+    return MA_LOAI_TO_CODE.get(ma_loai_raw, ma_loai_raw)
+
+# === Hàm XEM TRƯỚC số công văn (KHÔNG ghi/cập nhật cấu hình) ===
+def preview_so_cong_van(loai_cv):
+    """Chỉ tính toán số công văn TIẾP THEO sẽ được cấp để hiển thị cho user xem trước.
+    Hàm này KHÔNG được phép ghi gì vào DB (không tăng số max), vì nó bị gọi lại
+    ở MỌI lần rerun của trang (mỗi khi user click bất kỳ đâu trên màn hình)."""
     option = get_cv_danh_so_option()
     ma_cty = st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL'
     nam_hien_tai = datetime.now().year
-    
-    # Lấy prefix cho loại CV
-    prefix_map = {
-        'QUYET_DINH': 'QĐ',
-        'CONG_VAN': 'CV',
-        'BAO_CAO': 'BC',
-        'THONG_BAO': 'TB',
-        'TO_TRINH': 'TTr'
-    }
-    prefix = prefix_map.get(loai_cv, 'CV')
-    
+
+    prefix = PREFIX_MAP.get(loai_cv, 'CV')
+
+    loai_tim = 'CHUNG' if option == 'CHUNG' else loai_cv
+    so_max = get_so_max_cong_van(loai_tim)
+    so_moi = so_max + 1
+
+    so_cv = f"{so_moi:02d}/{nam_hien_tai}/{prefix}-{ma_cty}"
+    return so_cv
+
+# === Hàm SINH SỐ CHÍNH THỨC + cập nhật số max (chỉ gọi khi user bấm "Lưu công văn đi") ===
+def generate_so_cong_van(loai_cv):
+    """Sinh số công văn chính thức theo cấu hình VÀ cập nhật số max trong DB.
+    CHỈ được gọi trong handler của nút 'Lưu công văn đi', không được gọi khi
+    chỉ render lại form (tránh nhảy số mỗi lần rerun)."""
+    option = get_cv_danh_so_option()
+    ma_cty = st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL'
+    nam_hien_tai = datetime.now().year
+
+    prefix = PREFIX_MAP.get(loai_cv, 'CV')
+
     # Xác định loại để lấy số max
     loai_tim = 'CHUNG' if option == 'CHUNG' else loai_cv
     so_max = get_so_max_cong_van(loai_tim)
     so_moi = so_max + 1
-    
-    # Cập nhật số max
+
+    # Cập nhật số max - CHỈ xảy ra khi hàm này được gọi (tức là khi Lưu)
     update_so_max_cong_van(loai_tim, so_moi)
-    
+
     # Tạo số công văn
     so_cv = f"{so_moi:02d}/{nam_hien_tai}/{prefix}-{ma_cty}"
     return so_cv
@@ -2656,16 +2692,38 @@ def show_quan_ly_cong_van():
                     key="reset_so"
                 )
                 
-                if st.button("🔄 Đặt lại số", type="secondary"):
-                    # Hiển thị checkbox xác nhận
-                    confirm_key = f"confirm_reset_{loai_reset}"
-                    if st.checkbox("✅ Xác nhận đặt lại số", key=confirm_key):
-                        if update_so_max_cong_van(loai_reset, so_moi):
-                            st.success(f"✅ Đã đặt lại số cho {selected_loai_display} từ {current_so} thành {so_moi}")
-                            st.cache_data.clear()
+                # Nguyên tắc: cấu hình (so_max) CHỈ được cập nhật khi user bấm nút "Đặt lại số",
+                # và luôn lấy đúng giá trị đang có trong ô "Số bắt đầu mới:" tại thời điểm bấm.
+                # (Trước đây dùng checkbox xác nhận lồng bên trong if st.button(...) — nhưng vì
+                # Streamlit rerun lại toàn bộ script sau mỗi tương tác, việc tick checkbox ở lần
+                # rerun sau đó lại rơi vào nhánh st.button() == False nên state bị "treo" và
+                # không đáng tin cậy. Dùng session_state để giữ yêu cầu đặt lại qua các lần rerun.)
+                if st.button("🔄 Đặt lại số", type="secondary", key="btn_dat_lai_so"):
+                    st.session_state['cv_pending_reset'] = {'loai': loai_reset, 'so_moi': so_moi}
+
+                pending = st.session_state.get('cv_pending_reset')
+                if pending and pending['loai'] == loai_reset:
+                    st.warning(
+                        f"⚠️ Xác nhận đặt lại số cho **{selected_loai_display}** "
+                        f"từ **{current_so}** thành **{pending['so_moi']}**?"
+                    )
+                    col_confirm, col_cancel = st.columns(2)
+                    with col_confirm:
+                        if st.button("✅ Xác nhận đặt lại số", type="primary", key="confirm_dat_lai_so"):
+                            if update_so_max_cong_van(pending['loai'], pending['so_moi']):
+                                st.success(
+                                    f"✅ Đã đặt lại số cho {selected_loai_display} "
+                                    f"từ {current_so} thành {pending['so_moi']}"
+                                )
+                                del st.session_state['cv_pending_reset']
+                                st.cache_data.clear()
+                                st.rerun()
+                            else:
+                                st.error("❌ Đặt lại số thất bại!")
+                    with col_cancel:
+                        if st.button("✖️ Hủy", key="cancel_dat_lai_so"):
+                            del st.session_state['cv_pending_reset']
                             st.rerun()
-                        else:
-                            st.error("❌ Đặt lại số thất bại!")
     
     # Tabs
     tab1, tab2, tab3 = st.tabs(["📥 Công văn đến", "📤 Công văn đi", "📑 Hợp đồng kinh tế"])
@@ -2721,7 +2779,7 @@ def show_quan_ly_cong_van():
         
         # Tìm kiếm và lọc
         st.divider()
-        col_search1, col_search2, col_search3 = st.columns([2, 2, 2])
+        col_search1, col_search2, col_search3 = st.columns([2, 1, 1])
         with col_search1:
             search_text_cv_den = st.text_input("🔍 Tìm kiếm", placeholder="Theo số, tiêu đề, cơ quan...", key="search_cv_den")
         with col_search2:
@@ -2799,35 +2857,33 @@ def show_quan_ly_cong_van():
         
         # Form thêm mới
         with st.expander("➕ Thêm công văn đi mới", expanded=False):
+            # Lấy danh sách loại công văn
+            db_loai = st.session_state.db_engine.get_connection()
+            c_loai = db_loai.cursor()
+            c_loai.execute("SELECT ma_loai, ten_loai FROM danh_muc_loai_cong_van WHERE trang_thai = TRUE ORDER BY thu_tu")
+            loai_cv_list = c_loai.fetchall()
+            db_loai.close()
+
+            loai_options = {f"{loai[1]} ({loai[0]})": loai[0] for loai in loai_cv_list}
+
+            # QUAN TRỌNG: đặt selectbox "Loại công văn" NGOÀI st.form. Bên trong st.form,
+            # đổi giá trị widget không làm rerun app (chỉ form_submit_button mới rerun),
+            # nên trước đây đổi dropdown KHÔNG cập nhật được ký hiệu/prefix hiển thị.
+            # Đặt ngoài form giúp phần xem trước số/ký hiệu phản ứng ngay khi đổi lựa chọn.
+            selected_loai = st.selectbox("Loại công văn *", list(loai_options.keys()), key="cv_di_loai")
+            loai_cv = chuan_hoa_loai_cong_van(loai_options[selected_loai])
+
+            # CHỈ xem trước số/ký hiệu - hàm này không ghi gì vào cấu hình/DB.
+            so_cv_xem_truoc = preview_so_cong_van(loai_cv)
+            prefix_hien_tai = PREFIX_MAP.get(loai_cv, 'CV')
+            st.info(
+                f"📄 **Số công văn dự kiến:** `{so_cv_xem_truoc}` (Prefix: **{prefix_hien_tai}**) "
+                f"— số chính thức sẽ được cấp khi bấm **Lưu công văn đi**"
+            )
+
             with st.form("add_cong_van_di"):
                 col1, col2 = st.columns(2)
                 with col1:
-                    # Lấy danh sách loại công văn
-                    db_loai = st.session_state.db_engine.get_connection()
-                    c_loai = db_loai.cursor()
-                    c_loai.execute("SELECT ma_loai, ten_loai FROM danh_muc_loai_cong_van WHERE trang_thai = TRUE ORDER BY thu_tu")
-                    loai_cv_list = c_loai.fetchall()
-                    db_loai.close()
-                    
-                    loai_options = {f"{loai[1]} ({loai[0]})": loai[0] for loai in loai_cv_list}
-                    selected_loai = st.selectbox("Loại công văn *", list(loai_options.keys()), key="cv_di_loai")
-                    loai_cv = loai_options[selected_loai]
-                    
-                    # Tự động sinh số công văn (cập nhật mỗi khi chọn loại)
-                    so_cv_tu_dong = generate_so_cong_van(loai_cv)
-                    
-                    # Hiển thị prefix tương ứng
-                    prefix_map = {
-                        'QUYET_DINH': 'QĐ',
-                        'CONG_VAN': 'CV',
-                        'BAO_CAO': 'BC',
-                        'THONG_BAO': 'TB',
-                        'TO_TRINH': 'TTr'
-                    }
-                    prefix_hien_tai = prefix_map.get(loai_cv, 'CV')
-                    
-                    st.info(f"📄 **Số công văn tự động:** `{so_cv_tu_dong}` (Prefix: **{prefix_hien_tai}**)")
-                    
                     phong_phat_hanh = st.text_input("Phòng phát hành *", placeholder="VD: Phòng Hành chính")
                     ngay_phat_hanh = st.date_input("Ngày phát hành *", value=date.today())
                 with col2:
@@ -2849,6 +2905,10 @@ def show_quan_ly_cong_van():
                                 if uploaded_file:
                                     file_url = upload_cong_van_file(uploaded_file, "di")
                                 
+                                # Nguyên tắc: số công văn CHỈ được sinh chính thức (và cấu hình
+                                # so_max CHỈ được cập nhật) tại đây, khi user bấm "Lưu công văn đi".
+                                so_cv_chinh_thuc = generate_so_cong_van(loai_cv)
+
                                 # Lưu vào database
                                 db = st.session_state.db_engine.get_connection()
                                 c = db.cursor()
@@ -2856,12 +2916,12 @@ def show_quan_ly_cong_van():
                                     INSERT INTO cong_van_di (so_cong_van, phong_phat_hanh, ngay_phat_hanh, 
                                     tieu_de, trich_yeu, file_url, loai_cong_van, ghi_chu, nguoi_tao)
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                                """, (so_cv_tu_dong, phong_phat_hanh, ngay_phat_hanh, tieu_de, trich_yeu, 
+                                """, (so_cv_chinh_thuc, phong_phat_hanh, ngay_phat_hanh, tieu_de, trich_yeu, 
                                       file_url, loai_cv, ghi_chu, st.session_state.username))
                                 db.commit()
                                 db.close()
                                 
-                                st.success(f"✅ Đã thêm công văn đi: {so_cv_tu_dong}")
+                                st.success(f"✅ Đã thêm công văn đi: {so_cv_chinh_thuc}")
                                 st.cache_data.clear()
                                 st.rerun()
                             except Exception as e:

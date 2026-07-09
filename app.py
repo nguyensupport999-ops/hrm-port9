@@ -2648,8 +2648,8 @@ def show_quan_ly_cong_van():
             
             st.divider()
             st.markdown("**🔄 Đặt lại số**")
-            col_reset1, col_reset2, col_reset3 = st.columns([2, 1, 2])
-            with col_reset2:
+            col_reset1, col_reset2 = st.columns(2)
+            with col_reset1:
                 # Xác định danh sách loại cho dropdown dựa trên option
                 if option == 'CHUNG':
                     loai_list = ['CHUNG']
@@ -2691,13 +2691,15 @@ def show_quan_ly_cong_van():
                     step=1, 
                     key="reset_so"
                 )
-                
+            
+            with col_reset2:
                 # Nguyên tắc: cấu hình (so_max) CHỈ được cập nhật khi user bấm nút "Đặt lại số",
                 # và luôn lấy đúng giá trị đang có trong ô "Số bắt đầu mới:" tại thời điểm bấm.
                 # (Trước đây dùng checkbox xác nhận lồng bên trong if st.button(...) — nhưng vì
                 # Streamlit rerun lại toàn bộ script sau mỗi tương tác, việc tick checkbox ở lần
                 # rerun sau đó lại rơi vào nhánh st.button() == False nên state bị "treo" và
                 # không đáng tin cậy. Dùng session_state để giữ yêu cầu đặt lại qua các lần rerun.)
+                st.markdown("&nbsp;")  # căn cho nút thẳng hàng với ô nhập bên trái
                 if st.button("🔄 Đặt lại số", type="secondary", key="btn_dat_lai_so"):
                     st.session_state['cv_pending_reset'] = {'loai': loai_reset, 'so_moi': so_moi}
 
@@ -2929,15 +2931,16 @@ def show_quan_ly_cong_van():
         
         # Tìm kiếm và lọc
         st.divider()
-        col_search1, col_search2, col_search3, col_search4 = st.columns([2, 1, 1, 1])
+        col_search1, col_search2 = st.columns([2, 1])
         with col_search1:
             search_text_cv_di = st.text_input("🔍 Tìm kiếm", placeholder="Theo số, tiêu đề, phòng...", key="search_cv_di")
         with col_search2:
-            tu_ngay_cv_di = st.date_input("Từ ngày", value=None, key="tu_ngay_cv_di", label_visibility="collapsed")
-        with col_search3:
-            den_ngay_cv_di = st.date_input("Đến ngày", value=None, key="den_ngay_cv_di", label_visibility="collapsed")
-        with col_search4:
             loai_filter = st.selectbox("Loại", ["Tất cả", "Quyết định", "Công văn", "Báo cáo", "Thông báo", "Tờ trình"], key="loai_filter_cv_di")
+        col_search3, col_search4 = st.columns(2)
+        with col_search3:
+            tu_ngay_cv_di = st.date_input("Từ ngày", value=None, key="tu_ngay_cv_di")
+        with col_search4:
+            den_ngay_cv_di = st.date_input("Đến ngày", value=None, key="den_ngay_cv_di")
         
         # Lấy dữ liệu
         loai_map = {

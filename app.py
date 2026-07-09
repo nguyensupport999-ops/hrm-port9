@@ -4098,25 +4098,45 @@ if menu == "📊 Dashboard":
         with row3_col1:
             st.markdown("**💼 Cơ cấu theo Chức danh (Top 10)**")
             if role_data:
+                import plotly.express as px
+                import plotly.graph_objects as go
+                
                 df_role = pd.DataFrame(role_data)
-                # Sử dụng biểu đồ thanh ngang
-                fig_role = px.bar(
-                    df_role,
-                    x='Số lượng',
-                    y='chuc_danh_nghe',
-                    orientation='h',
-                    color='Số lượng',
-                    color_continuous_scale='Viridis',
-                    text='Số lượng'
-                )
+                total = df_role['Số lượng'].sum()
+                
+                # Tạo labels với format: "Chức danh\nSố lượng (tỷ lệ%)"
+                labels_with_stats = []
+                for _, row in df_role.iterrows():
+                    pct = (row['Số lượng'] / total * 100)
+                    labels_with_stats.append(f"{row['chuc_danh_nghe']}\n{row['Số lượng']} ({pct:.1f}%)")
+                
+                # Sử dụng biểu đồ hình tròn với labels đã format
+                fig_role = go.Figure(data=[go.Pie(
+                    labels=labels_with_stats,
+                    values=df_role['Số lượng'],
+                    hole=0.55,
+                    textinfo='label',
+                    textposition='outside',
+                    textfont=dict(size=11, color='#1e293b'),
+                    marker=dict(
+                        colors=px.colors.qualitative.Safe,
+                        line=dict(color='white', width=2)
+                    ),
+                    hovertemplate='<b>%{label}</b><br>Số lượng: %{value}<br>Tỷ lệ: %{percent:.1f}%<extra></extra>'
+                )])
                 fig_role.update_layout(
-                    margin=dict(t=0, b=0, l=0, r=0),
+                    title=dict(
+                        text=f"<b>Tổng: {total} nhân viên</b>",
+                        x=0.5, y=0.5,
+                        xanchor='center', yanchor='middle',
+                        font=dict(size=14, color='#0f3b5c')
+                    ),
+                    showlegend=False,
+                    margin=dict(t=40, b=40, l=10, r=10),
                     height=280,
-                    xaxis_title="Số lượng",
-                    yaxis_title="",
-                    showlegend=False
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
                 )
-                fig_role.update_traces(textposition='outside')
                 st.plotly_chart(fig_role, use_container_width=True)
             else:
                 st.info("Không có dữ liệu")

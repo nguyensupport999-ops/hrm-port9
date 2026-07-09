@@ -7415,51 +7415,148 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                     if not sb:
                         st.error("❌ Chưa cấu hình Supabase Storage!")
                     else:
+                        # Xác định loại file
+                        file_ext = selected_hs['ten_file'].lower().split('.')[-1]
+                        is_image = file_ext in ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
+                        is_pdf = file_ext == 'pdf'
+                        
+                        # Tạo key riêng cho preview
+                        preview_key = f"preview_{selected_hs['id']}"
+                        if preview_key not in st.session_state:
+                            st.session_state[preview_key] = False
+                        
+                        # Nút Preview
+                        if is_image or is_pdf:
+                            if st.button("👁️ PREVIEW", width='stretch', type="secondary"):
+                                st.session_state[preview_key] = not st.session_state[preview_key]
+                                st.rerun()
+                        else:
+                            st.button("👁️ PREVIEW", disabled=True, width='stretch', 
+                                     help="Không thể preview loại file này")
+                        
+                        # Hiển thị preview nếu đang bật
+                        if st.session_state.get(preview_key, False):
+                            try:
+                                # Tải file từ Storage
+                                file_bytes = sb.storage.from_(SUPABASE_BUCKET).download(selected_hs['duong_dan_file'])
+                                
+                                if is_image:
+                                    import base64
+                                    img_base64 = base64.b64encode(file_bytes).decode()
+                                    st.markdown(f"""
+                                    <div style="text-align: center; margin: 10px 0; padding: 10px; 
+                                                background: #f8f9fa; border-radius: 8px;">
+                                        <img src="data:image/jpeg;base64,{img_base64}" 
+                                             style="max-width: 100%; max-height: 500px; border-radius: 8px; 
+                                                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                elif is_pdf:
+                                    # Chuyển PDF sang base64
+                                    import base64
+                                    pdf_base64 = base64.b64encode(file_bytes).decode()
+                                    
+                                    # Sử dụng PDF.js để hiển thị an toàn
+                                    st.markdown("""
+                                    <style>
+                                    .pdf-container {
+                                        width: 100%;
+                                        height: 600px;
+                                        border: none;
+                                        border-radius: 8px;
+                                        background: #f5f5f5;
+                                    }
+                                    </style>
+                                    """, unsafe_allow_html=True)
+                                    
+                                    # Sử dụng iframe với PDF.js từ CDN
+                                    components.html(f"""
+                                    <!DOCTYPE html>
+                                    <html>
+                                    <head>
+                                        <meta charset="UTF-8">
+                                        <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+                                        <style>
+                                            body {{ margin: 0; padding: 0; background: #f5f5f5; }}
+                                            #pdf-container {{
+                                                width: 100%;
+                                                height: 600px;
+                                                overflow: auto;
+                                                display: flex;
+                                                justify-content: center;
+                                                align-items: flex-start;
+                                                background: #f5f5f5;
+                                            }}
+                                            canvas {{
+                                                max-width: 100%;
+                                                height: auto;
+                                                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                                                margin: 10px auto;
+                                            }}
+                                            .loading {{
+                                                text-align: center;
+                                                padding: 50px;
+                                                font-size: 18px;
+                                                color: #666;
+                                            }}
+                                        </style>
+                                    </head>
+                                    <body>
+                                        <div id="pdf-container">
+                                            <div class="loading">⏳ Đang tải PDF...</div>
+                                        </div>
+                                        <script>
+                                            const pdfData = "{pdf_base64}";
+                                            const loadingTask = pdfjsLib.getDocument({{data: atob(pdfData)}});
+                                            
+                                            loadingTask.promise.then(function(pdf) {{
+                                                const container = document.getElementById('pdf-container');
+                                                container.innerHTML = '';
+                                                
+                                                for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {{
+                                                    pdf.getPage(pageNum).then(function(page) {{
+                                                        const scale = 1.2;
+                                                        const viewport = page.getViewport({{scale: scale}});
+                                                        const canvas = document.createElement('canvas');
+                                                        const context = canvas.getContext('2d');
+                                                        canvas.height = viewport.height;
+                                                        canvas.width = viewport.width;
+                                                        canvas.style.maxWidth = '100%';
+                                                        canvas.style.height = 'auto';
+                                                        
+                                                        const renderContext = {{
+                                                            canvasContext: context,
+                                                            viewport: viewport
+                                                        }};
+                                                        
+                                                        page.render(renderContext);
+                                                        container.appendChild(canvas);
+                                                    }});
+                }}
+                                            }}).catch(function(error) {{
+                                                document.getElementById('pdf-container').innerHTML = 
+                                                    '<div style="text-align:center;padding:50px;color:red;">❌ Không thể hiển thị PDF: ' + error + '</div>';
+                                            }});
+                                        </script>
+                                    </body>
+                                    </html>
+                                    """, height=620, scrolling=False)
+                            except Exception as e:
+                                st.error(f"❌ Lỗi tải file để preview: {str(e)}")
+                        
+                        # Nút Tải hồ sơ
                         try:
                             file_bytes = sb.storage.from_(SUPABASE_BUCKET).download(selected_hs['duong_dan_file'])
-                            
-                            # Kiểm tra loại file
-                            file_ext = selected_hs['ten_file'].lower().split('.')[-1]
-                            is_image = file_ext in ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
-                            
-                            # Nếu là ảnh, hiển thị preview trực tiếp
-                            if is_image:
-                                import base64
-                                img_base64 = base64.b64encode(file_bytes).decode()
-                                st.markdown(f"""
-                                <div style="text-align: center; margin: 5px 0; padding: 5px; 
-                                            background: #f8f9fa; border-radius: 8px;">
-                                    <img src="data:image/jpeg;base64,{img_base64}" 
-                                         style="max-width: 100%; max-height: 200px; border-radius: 8px; 
-                                                box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                                </div>
-                                """, unsafe_allow_html=True)
-                            elif file_ext == 'pdf':
-                                # Hiển thị link mở PDF
-                                import base64
-                                pdf_base64 = base64.b64encode(file_bytes).decode()
-                                st.markdown(f"""
-                                <div style="text-align: center; margin: 5px 0; padding: 10px; 
-                                            background: #e3f2fd; border-radius: 8px; border: 1px solid #2196F3;">
-                                    <a href="data:application/pdf;base64,{pdf_base64}" target="_blank" 
-                                       style="color: #1976D2; font-weight: bold; text-decoration: none; font-size: 14px;">
-                                        📄 Xem PDF (Mở tab mới)
-                                    </a>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            else:
-                                st.info(f"📄 File: {selected_hs['ten_file']}")
-                            
-                            # Nút Tải hồ sơ
                             st.download_button(
                                 label="📥 TẢI HỒ SƠ",
                                 data=file_bytes,
                                 file_name=selected_hs['ten_file'],
                                 mime="application/octet-stream",
-                                width='stretch'
+                                width='stretch',
+                                key=f"download_{selected_hs['id']}"
                             )
                         except Exception as e:
-                            st.error(f"❌ File không tồn tại hoặc lỗi khi tải: {e}")
+                            st.error(f"❌ Không thể tải file: {str(e)}")
                 
                 st.divider()
                 col_del1, col_del2, col_del3 = st.columns([1, 2, 1])

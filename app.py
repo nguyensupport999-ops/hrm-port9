@@ -3804,325 +3804,325 @@ if menu == "📊 Dashboard":
 
     if data:
     # ========== PHẦN DASHBOARD NÂNG CAO ==========
-    st.divider()
-    st.subheader("📊 TỔNG QUAN PHÂN BỐ NHÂN SỰ")
+        st.divider()
+        st.subheader("📊 TỔNG QUAN PHÂN BỐ NHÂN SỰ")
 
-    db_dash = st.session_state.db_engine.get_connection()
-    c_dash = db_dash.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        db_dash = st.session_state.db_engine.get_connection()
+        c_dash = db_dash.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-    # 1. Dữ liệu cho Table "Trạng thái nhân sự các phòng ban"
-    c_dash.execute("""
-        SELECT 
-            phong_ban_lam_viec as "Phòng ban",
-            COUNT(*) as "Tổng số",
-            SUM(CASE WHEN trang_thai = 'DANG_LAM' THEN 1 ELSE 0 END) as "Đang làm",
-            SUM(CASE WHEN trang_thai = 'THU_VIEC' THEN 1 ELSE 0 END) as "Thử việc",
-            SUM(CASE WHEN trang_thai = 'NGHI_VIEC' THEN 1 ELSE 0 END) as "Đã nghỉ"
-        FROM nhan_vien
-        GROUP BY phong_ban_lam_viec
-        ORDER BY "Tổng số" DESC
-    """)
-    table_data = c_dash.fetchall()
+        # 1. Dữ liệu cho Table "Trạng thái nhân sự các phòng ban"
+        c_dash.execute("""
+            SELECT 
+                phong_ban_lam_viec as "Phòng ban",
+                COUNT(*) as "Tổng số",
+                SUM(CASE WHEN trang_thai = 'DANG_LAM' THEN 1 ELSE 0 END) as "Đang làm",
+                SUM(CASE WHEN trang_thai = 'THU_VIEC' THEN 1 ELSE 0 END) as "Thử việc",
+                SUM(CASE WHEN trang_thai = 'NGHI_VIEC' THEN 1 ELSE 0 END) as "Đã nghỉ"
+            FROM nhan_vien
+            GROUP BY phong_ban_lam_viec
+            ORDER BY "Tổng số" DESC
+        """)
+        table_data = c_dash.fetchall()
 
-    # 2. Dữ liệu cho các biểu đồ
-    # a. Tỷ lệ nhân sự mỗi phòng ban
-    c_dash.execute("""
-        SELECT phong_ban_lam_viec as "Phòng ban", COUNT(*) as "Số lượng"
-        FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
-        GROUP BY phong_ban_lam_viec
-        ORDER BY "Số lượng" DESC
-    """)
-    dept_data = c_dash.fetchall()
+        # 2. Dữ liệu cho các biểu đồ
+        # a. Tỷ lệ nhân sự mỗi phòng ban
+        c_dash.execute("""
+            SELECT phong_ban_lam_viec as "Phòng ban", COUNT(*) as "Số lượng"
+            FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            GROUP BY phong_ban_lam_viec
+            ORDER BY "Số lượng" DESC
+        """)
+        dept_data = c_dash.fetchall()
 
-    # b. Cơ cấu theo giới tính
-    c_dash.execute("""
-        SELECT gioi_tinh, COUNT(*) as "Số lượng"
-        FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
-        GROUP BY gioi_tinh
-    """)
-    gender_data = c_dash.fetchall()
+        # b. Cơ cấu theo giới tính
+        c_dash.execute("""
+            SELECT gioi_tinh, COUNT(*) as "Số lượng"
+            FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            GROUP BY gioi_tinh
+        """)
+        gender_data = c_dash.fetchall()
 
-    # c. Cơ cấu theo Trình độ học vấn
-    c_dash.execute("""
-        SELECT trinh_do, COUNT(*) as "Số lượng"
-        FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
-        GROUP BY trinh_do
-        ORDER BY "Số lượng" DESC
-    """)
-    education_data = c_dash.fetchall()
+        # c. Cơ cấu theo Trình độ học vấn
+        c_dash.execute("""
+            SELECT trinh_do, COUNT(*) as "Số lượng"
+            FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            GROUP BY trinh_do
+            ORDER BY "Số lượng" DESC
+        """)
+        education_data = c_dash.fetchall()
 
-    # d. Cơ cấu theo Chức danh (Top 10)
-    c_dash.execute("""
-        SELECT chuc_danh_nghe, COUNT(*) as "Số lượng"
-        FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') 
-        AND chuc_danh_nghe IS NOT NULL AND chuc_danh_nghe != ''
-        GROUP BY chuc_danh_nghe
-        ORDER BY "Số lượng" DESC
-        LIMIT 10
-    """)
-    role_data = c_dash.fetchall()
+        # d. Cơ cấu theo Chức danh (Top 10)
+        c_dash.execute("""
+            SELECT chuc_danh_nghe, COUNT(*) as "Số lượng"
+            FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') 
+            AND chuc_danh_nghe IS NOT NULL AND chuc_danh_nghe != ''
+            GROUP BY chuc_danh_nghe
+            ORDER BY "Số lượng" DESC
+            LIMIT 10
+        """)
+        role_data = c_dash.fetchall()
 
-    # e. Cơ cấu theo Thâm niên
-    c_dash.execute("""
-        SELECT 
-            CASE 
-                WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)) < 1 THEN 'Dưới 1 năm'
-                WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)) BETWEEN 1 AND 3 THEN '1-3 năm'
-                WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)) BETWEEN 3 AND 5 THEN '3-5 năm'
-                WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)) BETWEEN 5 AND 10 THEN '5-10 năm'
-                ELSE 'Trên 10 năm'
-            END as "Thâm niên",
-            COUNT(*) as "Số lượng"
-        FROM nhan_vien
-        WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
-        GROUP BY "Thâm niên"
-        ORDER BY MIN(EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)))
-    """)
-    seniority_data = c_dash.fetchall()
+        # e. Cơ cấu theo Thâm niên
+        c_dash.execute("""
+            SELECT 
+                CASE 
+                    WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)) < 1 THEN 'Dưới 1 năm'
+                    WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)) BETWEEN 1 AND 3 THEN '1-3 năm'
+                    WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)) BETWEEN 3 AND 5 THEN '3-5 năm'
+                    WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)) BETWEEN 5 AND 10 THEN '5-10 năm'
+                    ELSE 'Trên 10 năm'
+                END as "Thâm niên",
+                COUNT(*) as "Số lượng"
+            FROM nhan_vien
+            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            GROUP BY "Thâm niên"
+            ORDER BY MIN(EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)))
+        """)
+        seniority_data = c_dash.fetchall()
 
-    # f. Biểu đồ đường: Xu hướng tuyển dụng theo tháng (6 tháng gần nhất)
-    c_dash.execute("""
-        SELECT 
-            TO_CHAR(DATE_TRUNC('month', ngay_vao_lam), 'MM/YYYY') as "Tháng",
-            COUNT(*) as "Số lượng"
-        FROM nhan_vien
-        WHERE ngay_vao_lam >= (CURRENT_DATE - INTERVAL '6 months')
-        GROUP BY DATE_TRUNC('month', ngay_vao_lam)
-        ORDER BY DATE_TRUNC('month', ngay_vao_lam) ASC
-    """)
-    trend_data = c_dash.fetchall()
+        # f. Biểu đồ đường: Xu hướng tuyển dụng theo tháng (6 tháng gần nhất)
+        c_dash.execute("""
+            SELECT 
+                TO_CHAR(DATE_TRUNC('month', ngay_vao_lam), 'MM/YYYY') as "Tháng",
+                COUNT(*) as "Số lượng"
+            FROM nhan_vien
+            WHERE ngay_vao_lam >= (CURRENT_DATE - INTERVAL '6 months')
+            GROUP BY DATE_TRUNC('month', ngay_vao_lam)
+            ORDER BY DATE_TRUNC('month', ngay_vao_lam) ASC
+        """)
+        trend_data = c_dash.fetchall()
 
-    # g. Biểu đồ thanh ngang: Lương trung bình theo phòng ban
-    c_dash.execute("""
-        SELECT 
-            phong_ban_lam_viec as "Phòng ban",
-            ROUND(AVG(CAST(luong_bao_hiem AS NUMERIC)), 0) as "Lương TB"
-        FROM nhan_vien
-        WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
-        AND phong_ban_lam_viec IS NOT NULL
-        AND phong_ban_lam_viec != ''
-        AND luong_bao_hiem IS NOT NULL
-        AND luong_bao_hiem != ''
-        GROUP BY phong_ban_lam_viec
-        ORDER BY "Lương TB" DESC
-    """)
-    salary_data = c_dash.fetchall()
+        # g. Biểu đồ thanh ngang: Lương trung bình theo phòng ban
+        c_dash.execute("""
+            SELECT 
+                phong_ban_lam_viec as "Phòng ban",
+                ROUND(AVG(CAST(luong_bao_hiem AS NUMERIC)), 0) as "Lương TB"
+            FROM nhan_vien
+            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            AND phong_ban_lam_viec IS NOT NULL
+            AND phong_ban_lam_viec != ''
+            AND luong_bao_hiem IS NOT NULL
+            AND luong_bao_hiem != ''
+            GROUP BY phong_ban_lam_viec
+            ORDER BY "Lương TB" DESC
+        """)
+        salary_data = c_dash.fetchall()
 
-    db_dash.close()
+        db_dash.close()
 
-    # --- RENDER BIỂU ĐỒ ĐA DẠNG ---
-    import plotly.express as px
-    import plotly.graph_objects as go
+        # --- RENDER BIỂU ĐỒ ĐA DẠNG ---
+        import plotly.express as px
+        import plotly.graph_objects as go
 
-    # Hàng 1: Table + Biểu đồ thanh + Biểu đồ tròn
-    row1_col1, row1_col2, row1_col3 = st.columns(3)
+        # Hàng 1: Table + Biểu đồ thanh + Biểu đồ tròn
+        row1_col1, row1_col2, row1_col3 = st.columns(3)
 
-    with row1_col1:
-        st.markdown("**📋 Trạng thái nhân sự các phòng ban**")
-        if table_data:
-            df_table = pd.DataFrame(table_data)
-            # Định dạng số và hiển thị
-            st.dataframe(df_table, hide_index=True, width='stretch', height=280)
-        else:
-            st.info("Không có dữ liệu")
+        with row1_col1:
+            st.markdown("**📋 Trạng thái nhân sự các phòng ban**")
+            if table_data:
+                df_table = pd.DataFrame(table_data)
+                # Định dạng số và hiển thị
+                st.dataframe(df_table, hide_index=True, width='stretch', height=280)
+            else:
+                st.info("Không có dữ liệu")
 
-    with row1_col2:
-        st.markdown("**📊 Biểu đồ thanh - Lương TB theo phòng ban**")
-        if salary_data:
-            df_salary = pd.DataFrame(salary_data)
-            # Tạo biểu đồ thanh ngang
-            fig_salary = px.bar(
-                df_salary, 
-                x='Lương TB', 
-                y='Phòng ban',
-                orientation='h',
-                color='Lương TB',
-                color_continuous_scale='Blues',
-                text='Lương TB'
-            )
-            fig_salary.update_layout(
-                margin=dict(t=0, b=0, l=0, r=0),
-                height=280,
-                xaxis_title="Lương bình quân (VNĐ)",
-                yaxis_title="",
-                showlegend=False,
-                xaxis_tickformat=',.0f'
-            )
-            fig_salary.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
-            st.plotly_chart(fig_salary, use_container_width=True)
-        else:
-            st.info("Không có dữ liệu")
+        with row1_col2:
+            st.markdown("**📊 Biểu đồ thanh - Lương TB theo phòng ban**")
+            if salary_data:
+                df_salary = pd.DataFrame(salary_data)
+                # Tạo biểu đồ thanh ngang
+                fig_salary = px.bar(
+                    df_salary, 
+                    x='Lương TB', 
+                    y='Phòng ban',
+                    orientation='h',
+                    color='Lương TB',
+                    color_continuous_scale='Blues',
+                    text='Lương TB'
+                )
+                fig_salary.update_layout(
+                    margin=dict(t=0, b=0, l=0, r=0),
+                    height=280,
+                    xaxis_title="Lương bình quân (VNĐ)",
+                    yaxis_title="",
+                    showlegend=False,
+                    xaxis_tickformat=',.0f'
+                )
+                fig_salary.update_traces(texttemplate='%{text:,.0f}', textposition='outside')
+                st.plotly_chart(fig_salary, use_container_width=True)
+            else:
+                st.info("Không có dữ liệu")
 
-    with row1_col3:
-        st.markdown("**🥧 Tỷ lệ nhân sự mỗi phòng ban**")
-        if dept_data:
-            df_dept = pd.DataFrame(dept_data)
-            fig_dept = px.pie(
-                df_dept, 
-                names='Phòng ban', 
-                values='Số lượng',
-                hole=0.4,
-                color_discrete_sequence=px.colors.qualitative.Pastel
-            )
-            fig_dept.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=280)
-            st.plotly_chart(fig_dept, use_container_width=True)
-        else:
-            st.info("Không có dữ liệu")
-
-    # Hàng 2: Biểu đồ tròn + Biểu đồ đường + Biểu đồ thanh
-    row2_col1, row2_col2, row2_col3 = st.columns(3)
-
-    with row2_col1:
-        st.markdown("**👫 Cơ cấu theo Giới tính**")
-        if gender_data:
-            df_gender = pd.DataFrame(gender_data)
-            # Sử dụng donut chart với màu sắc nổi bật
-            colors = ['#FF6B6B', '#4ECDC4', '#FFE66D']
-            fig_gender = go.Figure(data=[go.Pie(
-                labels=df_gender['gioi_tinh'],
-                values=df_gender['Số lượng'],
-                hole=0.5,
-                marker=dict(colors=colors[:len(df_gender)]),
-                textinfo='label+percent',
-                textposition='inside'
-            )])
-            fig_gender.update_layout(
-                margin=dict(t=0, b=0, l=0, r=0),
-                height=280,
-                showlegend=False
-            )
-            st.plotly_chart(fig_gender, use_container_width=True)
-        else:
-            st.info("Không có dữ liệu")
-
-    with row2_col2:
-        st.markdown("**📈 Xu hướng tuyển dụng 6 tháng**")
-        if trend_data:
-            df_trend = pd.DataFrame(trend_data)
-            fig_trend = px.line(
-                df_trend,
-                x='Tháng',
-                y='Số lượng',
-                markers=True,
-                line_shape='spline'
-            )
-            fig_trend.update_layout(
-                margin=dict(t=0, b=0, l=0, r=0),
-                height=280,
-                xaxis_title="",
-                yaxis_title="Số lượng",
-                showlegend=False
-            )
-            fig_trend.update_traces(
-                line=dict(color='#f59e0b', width=3),
-                marker=dict(size=10, color='#0f3b5c')
-            )
-            st.plotly_chart(fig_trend, use_container_width=True)
-        else:
-            st.info("Không có dữ liệu")
-
-    with row2_col3:
-        st.markdown("**🎓 Cơ cấu theo Trình độ học vấn**")
-        if education_data:
-            df_edu = pd.DataFrame(education_data)
-            df_edu['trinh_do'] = df_edu['trinh_do'].fillna('Chưa cập nhật')
-            # Sử dụng biểu đồ thanh đứng thay vì tròn
-            fig_edu = px.bar(
-                df_edu,
-                x='trinh_do',
-                y='Số lượng',
-                color='trinh_do',
-                text='Số lượng',
-                color_discrete_sequence=px.colors.qualitative.Set3
-            )
-            fig_edu.update_layout(
-                margin=dict(t=0, b=0, l=0, r=0),
-                height=280,
-                xaxis_title="",
-                yaxis_title="Số lượng",
-                showlegend=False
-            )
-            fig_edu.update_traces(textposition='outside')
-            st.plotly_chart(fig_edu, use_container_width=True)
-        else:
-            st.info("Không có dữ liệu")
-
-    # Hàng 3: 2 biểu đồ còn lại
-    row3_col1, row3_col2, row3_col3 = st.columns(3)
-
-    with row3_col1:
-        st.markdown("**💼 Cơ cấu theo Chức danh (Top 10)**")
-        if role_data:
-            df_role = pd.DataFrame(role_data)
-            # Sử dụng biểu đồ thanh ngang
-            fig_role = px.bar(
-                df_role,
-                x='Số lượng',
-                y='chuc_danh_nghe',
-                orientation='h',
-                color='Số lượng',
-                color_continuous_scale='Viridis',
-                text='Số lượng'
-            )
-            fig_role.update_layout(
-                margin=dict(t=0, b=0, l=0, r=0),
-                height=280,
-                xaxis_title="Số lượng",
-                yaxis_title="",
-                showlegend=False
-            )
-            fig_role.update_traces(textposition='outside')
-            st.plotly_chart(fig_role, use_container_width=True)
-        else:
-            st.info("Không có dữ liệu")
-
-    with row3_col2:
-        st.markdown("**⏳ Cơ cấu theo Thâm niên**")
-        if seniority_data:
-            df_sen = pd.DataFrame(seniority_data)
-            order = ['Dưới 1 năm', '1-3 năm', '3-5 năm', '5-10 năm', 'Trên 10 năm']
-            df_sen['Thâm niên'] = pd.Categorical(df_sen['Thâm niên'], categories=order, ordered=True)
-            df_sen = df_sen.sort_values('Thâm niên')
-            
-            # Sử dụng biểu đồ tròn với màu sắc gradient
-            colors = ['#FFEAA7', '#FDCB6E', '#E17055', '#D63031', '#6C5CE7']
-            fig_sen = go.Figure(data=[go.Pie(
-                labels=df_sen['Thâm niên'],
-                values=df_sen['Số lượng'],
-                marker=dict(colors=colors[:len(df_sen)]),
-                textinfo='label+percent',
-                textposition='auto',
-                hole=0.3
-            )])
-            fig_sen.update_layout(
-                margin=dict(t=0, b=0, l=0, r=0),
-                height=280,
-                showlegend=False
-            )
-            st.plotly_chart(fig_sen, use_container_width=True)
-        else:
-            st.info("Không có dữ liệu")
-
-    with row3_col3:
-        st.markdown("**📊 Tổng hợp nhân sự**")
-        # Hiển thị các chỉ số KPI quan trọng
-        if dept_data:
-            total_employees = sum([d['Số lượng'] for d in dept_data])
-            total_depts = len(dept_data)
-            avg_per_dept = total_employees / total_depts if total_depts > 0 else 0
-            
-            st.metric("🏢 Tổng số phòng ban", total_depts)
-            st.metric("👥 Tổng nhân viên", f"{total_employees:,}")
-            st.metric("📊 Trung bình/phòng", f"{avg_per_dept:.1f}")
-            
-            # Thêm thông tin phòng ban đông nhất
+        with row1_col3:
+            st.markdown("**🥧 Tỷ lệ nhân sự mỗi phòng ban**")
             if dept_data:
-                max_dept = max(dept_data, key=lambda x: x['Số lượng'])
-                st.info(f"🏆 Phòng đông nhất: **{max_dept['Phòng ban']}** ({max_dept['Số lượng']} NV)")
-        else:
-            st.info("Không có dữ liệu")
+                df_dept = pd.DataFrame(dept_data)
+                fig_dept = px.pie(
+                    df_dept, 
+                    names='Phòng ban', 
+                    values='Số lượng',
+                    hole=0.4,
+                    color_discrete_sequence=px.colors.qualitative.Pastel
+                )
+                fig_dept.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=280)
+                st.plotly_chart(fig_dept, use_container_width=True)
+            else:
+                st.info("Không có dữ liệu")
 
-    # ========== KẾT THÚC PHẦN DASHBOARD NÂNG CAO ==========
+        # Hàng 2: Biểu đồ tròn + Biểu đồ đường + Biểu đồ thanh
+        row2_col1, row2_col2, row2_col3 = st.columns(3)
+
+        with row2_col1:
+            st.markdown("**👫 Cơ cấu theo Giới tính**")
+            if gender_data:
+                df_gender = pd.DataFrame(gender_data)
+                # Sử dụng donut chart với màu sắc nổi bật
+                colors = ['#FF6B6B', '#4ECDC4', '#FFE66D']
+                fig_gender = go.Figure(data=[go.Pie(
+                    labels=df_gender['gioi_tinh'],
+                    values=df_gender['Số lượng'],
+                    hole=0.5,
+                    marker=dict(colors=colors[:len(df_gender)]),
+                    textinfo='label+percent',
+                    textposition='inside'
+                )])
+                fig_gender.update_layout(
+                    margin=dict(t=0, b=0, l=0, r=0),
+                    height=280,
+                    showlegend=False
+                )
+                st.plotly_chart(fig_gender, use_container_width=True)
+            else:
+                st.info("Không có dữ liệu")
+
+        with row2_col2:
+            st.markdown("**📈 Xu hướng tuyển dụng 6 tháng**")
+            if trend_data:
+                df_trend = pd.DataFrame(trend_data)
+                fig_trend = px.line(
+                    df_trend,
+                    x='Tháng',
+                    y='Số lượng',
+                    markers=True,
+                    line_shape='spline'
+                )
+                fig_trend.update_layout(
+                    margin=dict(t=0, b=0, l=0, r=0),
+                    height=280,
+                    xaxis_title="",
+                    yaxis_title="Số lượng",
+                    showlegend=False
+                )
+                fig_trend.update_traces(
+                    line=dict(color='#f59e0b', width=3),
+                    marker=dict(size=10, color='#0f3b5c')
+                )
+                st.plotly_chart(fig_trend, use_container_width=True)
+            else:
+                st.info("Không có dữ liệu")
+
+        with row2_col3:
+            st.markdown("**🎓 Cơ cấu theo Trình độ học vấn**")
+            if education_data:
+                df_edu = pd.DataFrame(education_data)
+                df_edu['trinh_do'] = df_edu['trinh_do'].fillna('Chưa cập nhật')
+                # Sử dụng biểu đồ thanh đứng thay vì tròn
+                fig_edu = px.bar(
+                    df_edu,
+                    x='trinh_do',
+                    y='Số lượng',
+                    color='trinh_do',
+                    text='Số lượng',
+                    color_discrete_sequence=px.colors.qualitative.Set3
+                )
+                fig_edu.update_layout(
+                    margin=dict(t=0, b=0, l=0, r=0),
+                    height=280,
+                    xaxis_title="",
+                    yaxis_title="Số lượng",
+                    showlegend=False
+                )
+                fig_edu.update_traces(textposition='outside')
+                st.plotly_chart(fig_edu, use_container_width=True)
+            else:
+                st.info("Không có dữ liệu")
+
+        # Hàng 3: 2 biểu đồ còn lại
+        row3_col1, row3_col2, row3_col3 = st.columns(3)
+
+        with row3_col1:
+            st.markdown("**💼 Cơ cấu theo Chức danh (Top 10)**")
+            if role_data:
+                df_role = pd.DataFrame(role_data)
+                # Sử dụng biểu đồ thanh ngang
+                fig_role = px.bar(
+                    df_role,
+                    x='Số lượng',
+                    y='chuc_danh_nghe',
+                    orientation='h',
+                    color='Số lượng',
+                    color_continuous_scale='Viridis',
+                    text='Số lượng'
+                )
+                fig_role.update_layout(
+                    margin=dict(t=0, b=0, l=0, r=0),
+                    height=280,
+                    xaxis_title="Số lượng",
+                    yaxis_title="",
+                    showlegend=False
+                )
+                fig_role.update_traces(textposition='outside')
+                st.plotly_chart(fig_role, use_container_width=True)
+            else:
+                st.info("Không có dữ liệu")
+
+        with row3_col2:
+            st.markdown("**⏳ Cơ cấu theo Thâm niên**")
+            if seniority_data:
+                df_sen = pd.DataFrame(seniority_data)
+                order = ['Dưới 1 năm', '1-3 năm', '3-5 năm', '5-10 năm', 'Trên 10 năm']
+                df_sen['Thâm niên'] = pd.Categorical(df_sen['Thâm niên'], categories=order, ordered=True)
+                df_sen = df_sen.sort_values('Thâm niên')
+                
+                # Sử dụng biểu đồ tròn với màu sắc gradient
+                colors = ['#FFEAA7', '#FDCB6E', '#E17055', '#D63031', '#6C5CE7']
+                fig_sen = go.Figure(data=[go.Pie(
+                    labels=df_sen['Thâm niên'],
+                    values=df_sen['Số lượng'],
+                    marker=dict(colors=colors[:len(df_sen)]),
+                    textinfo='label+percent',
+                    textposition='auto',
+                    hole=0.3
+                )])
+                fig_sen.update_layout(
+                    margin=dict(t=0, b=0, l=0, r=0),
+                    height=280,
+                    showlegend=False
+                )
+                st.plotly_chart(fig_sen, use_container_width=True)
+            else:
+                st.info("Không có dữ liệu")
+
+        with row3_col3:
+            st.markdown("**📊 Tổng hợp nhân sự**")
+            # Hiển thị các chỉ số KPI quan trọng
+            if dept_data:
+                total_employees = sum([d['Số lượng'] for d in dept_data])
+                total_depts = len(dept_data)
+                avg_per_dept = total_employees / total_depts if total_depts > 0 else 0
+                
+                st.metric("🏢 Tổng số phòng ban", total_depts)
+                st.metric("👥 Tổng nhân viên", f"{total_employees:,}")
+                st.metric("📊 Trung bình/phòng", f"{avg_per_dept:.1f}")
+                
+                # Thêm thông tin phòng ban đông nhất
+                if dept_data:
+                    max_dept = max(dept_data, key=lambda x: x['Số lượng'])
+                    st.info(f"🏆 Phòng đông nhất: **{max_dept['Phòng ban']}** ({max_dept['Số lượng']} NV)")
+            else:
+                st.info("Không có dữ liệu")
+
+        # ========== KẾT THÚC PHẦN DASHBOARD NÂNG CAO ==========
 
     # ── Thông báo ──
     st.subheader("📌 Thông báo")

@@ -35,6 +35,9 @@ import control_plane
 from control_plane import DatabaseEngine, resolve_tenant
 import bcrypt
 import chat_utils
+import base64
+import mimetypes
+from io import BytesIO
 
 # Import config - ưu tiên config.py (local), fallback to config_template (cloud)
 try:
@@ -9361,9 +9364,12 @@ elif menu == "📋 Báo cáo 01/PLI":
 elif menu == "📄 Quản lý Công văn & HĐ kinh tế":
     show_quan_ly_cong_van()
 
-# ========== CHAT NỘI BỘ ==========
+# ========== CHAT NỘI BỘ NÂNG CẤP ==========
 elif menu == "💬 Chat nội bộ":
     st.title("💬 Chat nội bộ")
+    
+    # Khởi tạo bảng chat
+    chat_utils.init_chat_tables()
     
     # Kiểm tra đăng nhập
     if 'nhan_vien_id' not in st.session_state:
@@ -9371,198 +9377,920 @@ elif menu == "💬 Chat nội bộ":
         st.stop()
     
     user_id = st.session_state.nhan_vien_id
+    current_user_name = st.session_state.get('ho_ten_dang_nhap', 'Bạn')
     
-    # Lấy danh sách phòng chat của user
-    rooms = chat_utils.get_user_chat_rooms(user_id)  # <-- Gọi từ chat_utils
+    # ====== CSS CUSTOM ======
+    st.markdown("""
+    <style>
+    /* Reset chat container */
+    .chat-container {
+        display: flex;
+        height: 600px;
+        border-radius: 12px;
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        border: 1px solid #e8ecf1;
+        margin-top: 10px;
+    }
     
-    # Layout 2 cột
-    col_rooms, col_chat = st.columns([1, 3])
+    /* Sidebar rooms */
+    .chat-sidebar {
+        width: 320px;
+        min-width: 260px;
+        background: #f8f9fa;
+        border-right: 1px solid #e8ecf1;
+        overflow-y: auto;
+        padding: 8px 0;
+        flex-shrink: 0;
+    }
     
-    with col_rooms:
-        st.markdown("### 📋 Phòng chat")
+    .chat-main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: #fff;
+        overflow: hidden;
+    }
+    
+    .chat-header {
+        padding: 12px 20px;
+        background: #fff;
+        border-bottom: 1px solid #e8ecf1;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-shrink: 0;
+    }
+    
+    .chat-header h4 {
+        margin: 0;
+        font-weight: 600;
+        color: #1e293b;
+        font-size: 16px;
+    }
+    
+    .chat-header .member-count {
+        font-size: 12px;
+        color: #94a3b8;
+    }
+    
+    .chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 16px 20px;
+        background: #f0f2f5;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    /* Message bubbles */
+    .msg-wrapper {
+        display: flex;
+        margin-bottom: 8px;
+        animation: fadeIn 0.2s ease;
+    }
+    
+    .msg-wrapper.self {
+        justify-content: flex-end;
+    }
+    
+    .msg-wrapper.other {
+        justify-content: flex-start;
+    }
+    
+    .msg-bubble {
+        max-width: 70%;
+        padding: 8px 14px;
+        border-radius: 16px;
+        word-wrap: break-word;
+        font-size: 14px;
+        line-height: 1.5;
+        position: relative;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+    }
+    
+    .msg-wrapper.self .msg-bubble {
+        background: #0084ff;
+        color: #fff;
+        border-bottom-right-radius: 4px;
+    }
+    
+    .msg-wrapper.other .msg-bubble {
+        background: #fff;
+        color: #1e293b;
+        border-bottom-left-radius: 4px;
+        border: 1px solid #e8ecf1;
+    }
+    
+    .msg-sender {
+        font-size: 12px;
+        font-weight: 600;
+        color: #64748b;
+        margin-bottom: 2px;
+        display: block;
+    }
+    
+    .msg-wrapper.self .msg-sender {
+        color: rgba(255,255,255,0.8);
+        text-align: right;
+    }
+    
+    .msg-time {
+        font-size: 10px;
+        color: #94a3b8;
+        margin-top: 2px;
+        display: block;
+        text-align: right;
+    }
+    
+    .msg-wrapper.self .msg-time {
+        color: rgba(255,255,255,0.7);
+    }
+    
+    /* File/Image bubbles */
+    .msg-image {
+        max-width: 300px;
+        max-height: 300px;
+        border-radius: 12px;
+        cursor: pointer;
+        margin: 2px 0;
+        display: block;
+    }
+    
+    .msg-file {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        background: rgba(0,0,0,0.05);
+        border-radius: 8px;
+        text-decoration: none;
+        color: #1e293b;
+        font-size: 13px;
+    }
+    
+    .msg-file:hover {
+        background: rgba(0,0,0,0.08);
+    }
+    
+    .msg-file .file-icon {
+        font-size: 24px;
+    }
+    
+    .msg-file .file-name {
+        flex: 1;
+        word-break: break-all;
+    }
+    
+    .msg-file .file-size {
+        font-size: 11px;
+        color: #94a3b8;
+    }
+    
+    .msg-payslip {
+        background: #f0fdf4;
+        border: 1px solid #bbf7d0;
+        border-radius: 12px;
+        padding: 12px 16px;
+        font-family: monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        min-width: 200px;
+        max-width: 100%;
+    }
+    
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    
+    /* Room item */
+    .room-item {
+        display: flex;
+        align-items: center;
+        padding: 8px 16px;
+        cursor: pointer;
+        transition: background 0.15s;
+        border-radius: 8px;
+        margin: 2px 8px;
+        gap: 12px;
+    }
+    
+    .room-item:hover {
+        background: #e8ecf1;
+    }
+    
+    .room-item.active {
+        background: #dbeafe;
+    }
+    
+    .room-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 16px;
+        color: #fff;
+        flex-shrink: 0;
+        background: #94a3b8;
+    }
+    
+    .room-avatar.broadcast {
+        background: #f59e0b;
+    }
+    
+    .room-avatar.group {
+        background: #8b5cf6;
+    }
+    
+    .room-avatar.private {
+        background: #0ea5e9;
+    }
+    
+    .room-info {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .room-name {
+        font-weight: 500;
+        font-size: 14px;
+        color: #1e293b;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .room-last-msg {
+        font-size: 12px;
+        color: #94a3b8;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .room-badge {
+        background: #ef4444;
+        color: #fff;
+        border-radius: 50%;
+        padding: 2px 8px;
+        font-size: 11px;
+        font-weight: 700;
+        min-width: 20px;
+        text-align: center;
+        flex-shrink: 0;
+    }
+    
+    /* Chat input */
+    .chat-input-area {
+        display: flex;
+        gap: 8px;
+        padding: 12px 16px;
+        background: #fff;
+        border-top: 1px solid #e8ecf1;
+        align-items: flex-end;
+        flex-shrink: 0;
+    }
+    
+    .chat-input-area textarea {
+        flex: 1;
+        border: 1px solid #d1d5db;
+        border-radius: 20px;
+        padding: 8px 16px;
+        resize: none;
+        font-size: 14px;
+        max-height: 100px;
+        min-height: 40px;
+        font-family: inherit;
+        transition: border-color 0.2s;
+        background: #f8f9fa;
+    }
+    
+    .chat-input-area textarea:focus {
+        outline: none;
+        border-color: #0084ff;
+        background: #fff;
+    }
+    
+    .chat-input-area .send-btn {
+        background: #0084ff;
+        color: #fff;
+        border: none;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        font-size: 18px;
+        cursor: pointer;
+        transition: background 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+    
+    .chat-input-area .send-btn:hover {
+        background: #0066cc;
+    }
+    
+    .chat-input-area .send-btn:disabled {
+        background: #94a3b8;
+        cursor: not-allowed;
+    }
+    
+    .chat-input-area .attach-btn {
+        background: none;
+        border: none;
+        font-size: 22px;
+        cursor: pointer;
+        color: #94a3b8;
+        padding: 8px;
+        transition: color 0.2s;
+        flex-shrink: 0;
+    }
+    
+    .chat-input-area .attach-btn:hover {
+        color: #1e293b;
+    }
+    
+    /* Empty state */
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: #94a3b8;
+        text-align: center;
+        padding: 40px;
+    }
+    
+    .empty-state .icon {
+        font-size: 48px;
+        margin-bottom: 12px;
+    }
+    
+    /* Scrollbar */
+    .chat-messages::-webkit-scrollbar,
+    .chat-sidebar::-webkit-scrollbar {
+        width: 4px;
+    }
+    
+    .chat-messages::-webkit-scrollbar-track,
+    .chat-sidebar::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    
+    .chat-messages::-webkit-scrollbar-thumb,
+    .chat-sidebar::-webkit-scrollbar-thumb {
+        background: #d1d5db;
+        border-radius: 4px;
+    }
+    
+    .chat-messages::-webkit-scrollbar-thumb:hover,
+    .chat-sidebar::-webkit-scrollbar-thumb:hover {
+        background: #9ca3af;
+    }
+    
+    @media (max-width: 768px) {
+        .chat-container {
+            flex-direction: column;
+            height: auto;
+            min-height: 500px;
+        }
+        .chat-sidebar {
+            width: 100%;
+            max-height: 200px;
+            border-right: none;
+            border-bottom: 1px solid #e8ecf1;
+        }
+        .chat-main {
+            height: 400px;
+        }
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # ====== XỬ LÝ SESSION STATE ======
+    if 'chat_room_id' not in st.session_state:
+        st.session_state.chat_room_id = None
+    if 'chat_search' not in st.session_state:
+        st.session_state.chat_search = ''
+    if 'chat_msg_input' not in st.session_state:
+        st.session_state.chat_msg_input = ''
+    
+    # ====== LẤY DANH SÁCH PHÒNG ======
+    rooms = chat_utils.get_user_chat_rooms(user_id)
+    
+    # Thêm thông tin bổ sung cho mỗi phòng
+    enriched_rooms = []
+    for room in rooms:
+        if room.get('deleted_at'):
+            continue
+        room_dict = dict(room)
+        room_dict['display_name'] = chat_utils.get_room_display_name(room, user_id)
+        room_dict['unread_count'] = chat_utils.get_room_unread_count(room['id'], user_id)
+        last_msg = chat_utils.get_room_last_message(room['id'])
+        room_dict['last_msg'] = last_msg
+        room_dict['participants'] = chat_utils.get_room_participants(room['id'])
+        enriched_rooms.append(room_dict)
+    
+    # Sắp xếp: broadcast lên đầu, sau đó theo updated_at
+    enriched_rooms.sort(key=lambda r: (
+        0 if r['room_type'] == 'broadcast' else 1,
+        r.get('updated_at') or datetime(1970, 1, 1),
+    ), reverse=True)
+    
+    # ====== LAYOUT CHAT ======
+    col_sidebar, col_main = st.columns([1, 3], gap="small")
+    
+    with col_sidebar:
+        st.markdown("### 💬 Phòng chat")
+        
+        # Ô tìm kiếm
+        search_val = st.text_input(
+            "🔍 Tìm kiếm phòng",
+            value=st.session_state.chat_search,
+            placeholder="Nhập tên phòng...",
+            label_visibility="collapsed",
+            key="chat_search_input"
+        )
+        if search_val != st.session_state.chat_search:
+            st.session_state.chat_search = search_val
+            st.rerun()
         
         # Nút tạo phòng mới
-        with st.expander("➕ Tạo phòng mới"):
-            chat_type = st.radio("Loại phòng", ["1-1", "Nhóm"], horizontal=True)
+        with st.popover("➕ Tạo phòng mới", use_container_width=True):
+            tab_new_private, tab_new_group, tab_new_broadcast = st.tabs(["👤 1-1", "👥 Nhóm", "📢 Broadcast"])
             
-            if chat_type == "1-1":
-                employees = chat_utils.get_all_employees()
+            with tab_new_private:
+                st.caption("Chọn người để bắt đầu chat riêng")
+                
+                # Tìm kiếm nhân viên
+                search_emp = st.text_input("Tìm nhân viên", placeholder="Tên hoặc mã NV...", key="search_emp_private")
+                employees = chat_utils.search_employees(search_emp) if search_emp else chat_utils.get_all_employees()
+                
                 # Lọc bỏ bản thân
                 employees = [e for e in employees if e['id'] != user_id]
                 
                 if employees:
-                    user_options = {f"{e['ho_ten']} ({e['ma_nv']})": e['id'] for e in employees}
-                    selected_user = st.selectbox("Chọn người dùng", list(user_options.keys()))
+                    emp_options = {f"{e['ho_ten']} ({e['ma_nv']})": e['id'] for e in employees}
+                    selected_emp = st.selectbox("Chọn người dùng", list(emp_options.keys()), key="select_emp_private")
                     
                     if st.button("💬 Bắt đầu chat", width='stretch', type="primary"):
-                        target_user_id = user_options[selected_user]
-                        new_room_id = chat_utils.create_private_room(user_id, target_user_id)
-                        if new_room_id:
+                        target_id = emp_options[selected_emp]
+                        room_id = chat_utils.create_private_room(user_id, target_id)
+                        if room_id:
+                            st.session_state.chat_room_id = room_id
                             st.success("✅ Đã tạo phòng chat!")
-                            st.session_state['chat_room_id'] = new_room_id
                             st.rerun()
                 else:
-                    st.info("Không có nhân viên nào khác")
+                    st.info("Không tìm thấy nhân viên nào")
             
-            else:  # Tạo nhóm
-                st.subheader("👥 Tạo nhóm chat")
-                group_name = st.text_input("Tên nhóm", placeholder="Nhập tên nhóm...")
+            with tab_new_group:
+                group_name = st.text_input("Tên nhóm", placeholder="Nhập tên nhóm...", key="group_name_input")
                 
-                # Chọn thành viên
-                all_employees = chat_utils.get_all_employees()
-                employee_options = {e['ho_ten']: e['id'] for e in all_employees if e['id'] != user_id}
+                all_emps = chat_utils.get_all_employees()
+                emp_options = {f"{e['ho_ten']} ({e['ma_nv']})": e['id'] for e in all_emps if e['id'] != user_id}
                 
-                if employee_options:
-                    selected_members = st.multiselect(
-                        "Chọn thành viên",
-                        options=list(employee_options.keys()),
-                        placeholder="Chọn ít nhất 1 người..."
-                    )
-                    
-                    if st.button("➕ Tạo nhóm", width='stretch', type="primary"):
-                        if not group_name.strip():
-                            st.error("Vui lòng nhập tên nhóm!")
-                        elif not selected_members:
-                            st.error("Vui lòng chọn ít nhất 1 thành viên!")
-                        else:
-                            member_ids = [employee_options[name] for name in selected_members]
-                            new_room_id = chat_utils.create_group_room(
-                                group_name.strip(), 
-                                user_id, 
-                                member_ids
-                            )
-                            if new_room_id:
-                                st.success(f"✅ Đã tạo nhóm '{group_name}' thành công!")
-                                st.session_state['chat_room_id'] = new_room_id
-                                st.rerun()
+                selected_members = st.multiselect(
+                    "Chọn thành viên",
+                    options=list(emp_options.keys()),
+                    placeholder="Chọn ít nhất 1 người...",
+                    key="group_members_select"
+                )
+                
+                if st.button("➕ Tạo nhóm", width='stretch', type="primary"):
+                    if not group_name.strip():
+                        st.error("Vui lòng nhập tên nhóm!")
+                    elif not selected_members:
+                        st.error("Vui lòng chọn ít nhất 1 thành viên!")
+                    else:
+                        member_ids = [emp_options[name] for name in selected_members]
+                        room_id = chat_utils.create_group_room(group_name.strip(), user_id, member_ids)
+                        if room_id:
+                            st.session_state.chat_room_id = room_id
+                            st.success(f"✅ Đã tạo nhóm '{group_name}'")
+                            st.rerun()
+            
+            with tab_new_broadcast:
+                st.caption("Gửi thông báo đến TẤT CẢ nhân viên")
+                st.warning("⚠️ Chỉ Admin và HR mới có quyền gửi thông báo chung", icon="🔒")
+                
+                if st.session_state.role in ['admin', 'hr']:
+                    broadcast_room_id = chat_utils.get_or_create_broadcast_room()
+                    if broadcast_room_id:
+                        if st.button("📢 Mở phòng thông báo chung", width='stretch', type="primary"):
+                            st.session_state.chat_room_id = broadcast_room_id
+                            st.rerun()
                 else:
-                    st.info("Không có nhân viên nào để thêm vào nhóm")
+                    st.info("Bạn không có quyền gửi thông báo chung")
         
         st.divider()
         
-        # Hiển thị danh sách phòng
-        if rooms:
-            for room in rooms:
-                room_name = room['room_name']
+        # ====== DANH SÁCH PHÒNG ======
+        if enriched_rooms:
+            filtered_rooms = enriched_rooms
+            if st.session_state.chat_search:
+                search_lower = st.session_state.chat_search.lower()
+                filtered_rooms = [
+                    r for r in enriched_rooms 
+                    if search_lower in r['display_name'].lower()
+                ]
+            
+            for room in filtered_rooms:
+                is_active = st.session_state.chat_room_id == room['id']
+                is_broadcast = room['room_type'] == 'broadcast'
+                is_group = room['room_type'] == 'group'
                 
-                # Lấy tên hiển thị cho phòng private
-                if room['room_type'] == 'private':
-                    participants = chat_utils.get_room_participants(room['id'])
-                    for p in participants:
-                        if p['id'] != user_id:
-                            room_name = p['ho_ten']
-                            break
+                # Avatar
+                if is_broadcast:
+                    avatar_bg = '#f59e0b'
+                    avatar_text = '📢'
+                elif is_group:
+                    avatar_bg = '#8b5cf6'
+                    avatar_text = '👥'
+                else:
+                    # Private: lấy tên người kia
+                    other = next((p for p in room.get('participants', []) if p['id'] != user_id), None)
+                    if other:
+                        name_parts = other['ho_ten'].split()
+                        initials = ''.join([p[0].upper() for p in name_parts[:2]])
+                    else:
+                        initials = '??'
+                    avatar_text = initials
+                    avatar_bg = '#0ea5e9'
                 
-                unread = f" 🔴{room['unread_count']}" if room['unread_count'] > 0 else ""
+                # Badge số tin chưa đọc
+                unread = room.get('unread_count', 0)
+                badge_html = f'<span class="room-badge">{unread}</span>' if unread > 0 else ''
                 
-                # Tạo button cho mỗi phòng
+                # Tin nhắn cuối
+                last_msg = room.get('last_msg')
+                last_preview = ''
+                if last_msg:
+                    content = last_msg.get('content', '')
+                    msg_type = last_msg.get('message_type', 'text')
+                    if msg_type == 'image':
+                        last_preview = '📷 [Ảnh]'
+                    elif msg_type == 'file':
+                        last_preview = '📎 [File]'
+                    elif msg_type == 'payslip':
+                        last_preview = '📄 [Phiếu lương]'
+                    else:
+                        last_preview = content[:50] + ('...' if len(content) > 50 else '')
+                    last_preview = last_preview.replace('\n', ' ')
+                
+                # Tạo button HTML
+                room_id = room['id']
+                display_name = room['display_name']
+                active_class = 'active' if is_active else ''
+                
+                # Dùng st.button để xử lý click
+                button_label = f"{display_name}"
                 if st.button(
-                    f"💬 {room_name}{unread}", 
-                    key=f"room_{room['id']}", 
-                    width='stretch',
-                    type="primary" if st.session_state.get('chat_room_id') == room['id'] else "secondary"
+                    button_label,
+                    key=f"room_{room_id}",
+                    use_container_width=True,
+                    type="primary" if is_active else "secondary"
                 ):
-                    st.session_state['chat_room_id'] = room['id']
+                    st.session_state.chat_room_id = room_id
                     # Đánh dấu đã đọc
-                    chat_utils.mark_messages_as_read(room['id'], user_id)
+                    chat_utils.mark_messages_as_read(room_id, user_id)
                     st.rerun()
+                
+                # Hiển thị badge và preview bên dưới button (dùng markdown)
+                if unread > 0:
+                    st.markdown(f"<span style='float:right;background:#ef4444;color:#fff;border-radius:50%;padding:0 8px;font-size:11px;'>{unread}</span>", unsafe_allow_html=True)
+                if last_preview:
+                    st.caption(f"💬 {last_preview}")
+                
+                st.divider()
         else:
             st.info("📭 Chưa có phòng chat nào")
+            st.caption("👆 Bấm 'Tạo phòng mới' để bắt đầu")
     
-    with col_chat:
-        if 'chat_room_id' in st.session_state:
+    with col_main:
+        # ====== KHUNG CHAT CHÍNH ======
+        if st.session_state.chat_room_id:
             room_id = st.session_state.chat_room_id
             
-            # Lấy tin nhắn
+            # Tìm thông tin phòng hiện tại
+            current_room = next((r for r in enriched_rooms if r['id'] == room_id), None)
+            if not current_room:
+                # Phòng có thể mới tạo, load lại
+                st.rerun()
+            
+            display_name = current_room['display_name']
+            room_type = current_room['room_type']
+            participants = current_room.get('participants', [])
+            
+            # Đánh dấu đã đọc khi vào phòng
+            chat_utils.mark_messages_as_read(room_id, user_id)
+            
+            # ====== HEADER ======
+            col_header1, col_header2 = st.columns([3, 1])
+            with col_header1:
+                st.markdown(f"### 💬 {display_name}")
+                if room_type == 'group':
+                    member_names = [p['ho_ten'] for p in participants if p['id'] != user_id]
+                    st.caption(f"👥 {len(participants)} thành viên: {', '.join(member_names[:5])}{'...' if len(member_names) > 5 else ''}")
+                elif room_type == 'broadcast':
+                    st.caption("📢 Thông báo đến tất cả nhân viên")
+                else:
+                    other = next((p for p in participants if p['id'] != user_id), None)
+                    if other:
+                        st.caption(f"👤 {other.get('ho_ten', '')} - {other.get('phong_ban_lam_viec', '')}")
+            
+            with col_header2:
+                if room_type == 'group' and st.session_state.role in ['admin', 'hr']:
+                    with st.popover("⚙️ Quản lý nhóm"):
+                        st.caption("Thêm thành viên")
+                        all_emps = chat_utils.get_all_employees()
+                        current_ids = [p['id'] for p in participants]
+                        available = [e for e in all_emps if e['id'] not in current_ids and e['id'] != user_id]
+                        
+                        if available:
+                            add_options = {f"{e['ho_ten']} ({e['ma_nv']})": e['id'] for e in available}
+                            to_add = st.multiselect("Chọn thành viên thêm", list(add_options.keys()))
+                            if st.button("➕ Thêm", width='stretch'):
+                                ids = [add_options[name] for name in to_add]
+                                if chat_utils.add_participants_to_room(room_id, ids):
+                                    st.success("✅ Đã thêm thành viên!")
+                                    st.rerun()
+                        else:
+                            st.info("Đã có tất cả nhân viên trong nhóm")
+                        
+                        st.divider()
+                        if st.button("🚪 Rời nhóm", width='stretch', type="secondary"):
+                            if chat_utils.remove_participant_from_room(room_id, user_id):
+                                st.session_state.chat_room_id = None
+                                st.success("Đã rời nhóm")
+                                st.rerun()
+            
+            st.divider()
+            
+            # ====== TIN NHẮN ======
             messages = chat_utils.get_room_messages(room_id)
             
-            # Lấy thông tin phòng
-            room_info = next((r for r in rooms if r['id'] == room_id), None)
-            room_name_display = room_info['room_name'] if room_info else "Phòng chat"
+            # Container tin nhắn
+            msg_container = st.container(height=400, border=True)
             
-            # Hiển thị header
-            st.markdown(f"### 💬 {room_name_display}")
-            
-            # Hiển thị danh sách thành viên (nếu là nhóm)
-            if room_info and room_info['room_type'] == 'group':
-                members = chat_utils.get_room_participants(room_id)
-                member_names = [f"👤 {m['ho_ten']}" for m in members if m['id'] != user_id]
-                with st.expander(f"👥 Thành viên ({len(members)})"):
-                    st.write("**Bạn**")
-                    for name in member_names:
-                        st.write(name)
-            
-            # Khung chat
-            chat_container = st.container(height=400, border=True)
-            with chat_container:
+            with msg_container:
                 if messages:
                     for msg in messages:
-                        sender = msg['sender_name'] if msg['sender_name'] else "Hệ thống"
-                        is_me = msg['sender_id'] == user_id
-                        avatar = "😎" if is_me else "👤"
-                        align = "right" if is_me else "left"
-                        color = "#e8f5e9" if is_me else "#f5f5f5"
+                        is_self = msg['sender_id'] == user_id
+                        sender_name = msg.get('sender_name', 'Hệ thống')
+                        msg_type = msg.get('message_type', 'text')
+                        content = msg.get('content', '')
+                        file_url = msg.get('file_url')
+                        file_name = msg.get('file_name', '')
+                        sent_at = msg.get('sent_at')
+                        time_str = sent_at.strftime('%H:%M') if sent_at else ''
                         
-                        # Xử lý tin nhắn ảnh
-                        if msg['message_type'] == 'image' and msg['file_url']:
-                            # TODO: Lấy ảnh từ Storage và hiển thị
-                            content_display = f"📷 [Ảnh] {msg['content']}"
-                        else:
-                            content_display = msg['content'] or ""
+                        # Xác định class
+                        wrapper_class = "msg-wrapper self" if is_self else "msg-wrapper other"
                         
-                        # Hiển thị tin nhắn
+                        # Xây dựng nội dung bong bóng
+                        if msg_type == 'image' and file_url:
+                            try:
+                                # Tải ảnh từ storage
+                                img_bytes = chat_utils.get_chat_file_bytes(file_url)
+                                if img_bytes:
+                                    img_b64 = base64.b64encode(img_bytes).decode()
+                                    bubble_content = f'<img src="data:image/jpeg;base64,{img_b64}" class="msg-image" onclick="window.open(this.src)" />'
+                                else:
+                                    bubble_content = f'📷 Ảnh: {file_name} (không thể tải)'
+                            except Exception:
+                                bubble_content = f'📷 Ảnh: {file_name}'
+                        
+                        elif msg_type == 'file' and file_url:
+                            file_size = msg.get('file_size', 0)
+                            size_str = f"{file_size/1024:.1f} KB" if file_size < 1024*1024 else f"{file_size/(1024*1024):.1f} MB"
+                            bubble_content = f"""
+                            <div class="msg-file">
+                                <span class="file-icon">📎</span>
+                                <span class="file-name">{file_name}</span>
+                                <span class="file-size">{size_str}</span>
+                            </div>
+                            """
+                            # Thêm nút tải
+                            download_key = f"download_{msg['id']}"
+                            if st.button("📥 Tải xuống", key=download_key):
+                                file_bytes = chat_utils.get_chat_file_bytes(file_url)
+                                if file_bytes:
+                                    st.download_button(
+                                        label="Tải file",
+                                        data=file_bytes,
+                                        file_name=file_name,
+                                        key=f"download_btn_{msg['id']}"
+                                    )
+                        
+                        elif msg_type == 'payslip':
+                            bubble_content = f'<div class="msg-payslip">{content}</div>'
+                        
+                        else:  # text
+                            bubble_content = content.replace('\n', '<br>')
+                        
+                        # Tên người gửi (cho nhóm và broadcast)
+                        sender_display = ''
+                        if room_type in ['group', 'broadcast'] and not is_self:
+                            sender_display = f'<span class="msg-sender">{sender_name}</span>'
+                        
+                        # Render bong bóng
                         st.markdown(f"""
-                        <div style="display: flex; justify-content: {align}; margin: 5px 0;">
-                            <div style="background: {color}; padding: 10px 15px; border-radius: 15px; max-width: 70%; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                                <div style="font-size: 12px; color: #555; margin-bottom: 3px;">
-                                    <b>{sender}</b>
-                                </div>
-                                <div style="word-wrap: break-word;">{content_display}</div>
-                                <div style="text-align: right; font-size: 10px; color: #999; margin-top: 5px;">
-                                    {msg['sent_at'].strftime('%H:%M') if msg['sent_at'] else ''}
-                                </div>
+                        <div class="{wrapper_class}">
+                            <div class="msg-bubble">
+                                {sender_display}
+                                <div>{bubble_content}</div>
+                                <span class="msg-time">{time_str}</span>
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
                 else:
-                    st.caption("💬 Chưa có tin nhắn nào. Hãy bắt đầu trò chuyện!")
+                    st.markdown("""
+                    <div class="empty-state">
+                        <div class="icon">💬</div>
+                        <h4>Chưa có tin nhắn</h4>
+                        <p>Hãy bắt đầu trò chuyện!</p>
+                    </div>
+                    """, unsafe_allow_html=True)
             
-            # Ô nhập tin nhắn
+            # ====== Ô NHẬP LIỆU ======
             st.divider()
-            col_input, col_send, col_file = st.columns([5, 1, 1])
             
-            with col_input:
-                msg_input = st.text_input(
-                    "Nhập tin nhắn...", 
-                    key="msg_input", 
-                    label_visibility="collapsed",
-                    placeholder="Nhập tin nhắn..."
-                )
+            # Kiểm tra quyền gửi broadcast
+            can_send = True
+            if current_room['room_type'] == 'broadcast':
+                if st.session_state.role not in ['admin', 'hr']:
+                    can_send = False
+                    st.warning("🔒 Chỉ Admin và HR mới được gửi thông báo chung")
             
-            with col_send:
-                if st.button("📤 Gửi", width='stretch', type="primary", use_container_width=True):
-                    if msg_input.strip():
-                        if chat_utils.send_message(room_id, user_id, msg_input.strip()):
-                            # Xóa input sau khi gửi
-                            st.session_state['msg_input'] = ""
-                            st.rerun()
-            
-            with col_file:
-                uploaded_file = st.file_uploader(
-                    "📎", 
-                    type=["png", "jpg", "jpeg", "gif", "pdf", "doc", "docx"], 
-                    key="file_upload",
-                    label_visibility="collapsed"
-                )
-                if uploaded_file is not None:
-                    # TODO: Upload file lên Storage và gửi tin nhắn
-                    st.info("🚧 Tính năng gửi file đang phát triển")
-                    
-                    # Demo: Hiển thị tên file
-                    st.caption(f"Đã chọn: {uploaded_file.name}")
+            if can_send:
+                col_input, col_send, col_attach, col_payslip = st.columns([5, 0.8, 0.8, 0.8])
+                
+                with col_input:
+                    msg_input = st.text_area(
+                        "Nhập tin nhắn...",
+                        value=st.session_state.get('chat_msg_temp', ''),
+                        height=60,
+                        max_chars=2000,
+                        key="chat_msg_area",
+                        label_visibility="collapsed",
+                        placeholder="Nhập tin nhắn... (Enter để gửi, Shift+Enter để xuống dòng)"
+                    )
+                
+                with col_send:
+                    if st.button("📤", key="send_msg_btn", help="Gửi tin nhắn", use_container_width=True):
+                        if msg_input.strip():
+                            if chat_utils.send_message(room_id, user_id, msg_input.strip()):
+                                st.session_state.chat_msg_temp = ''
+                                st.rerun()
+                
+                with col_attach:
+                    with st.popover("📎 Đính kèm", use_container_width=True):
+                        st.caption("Chọn file hoặc ảnh")
+                        uploaded_file = st.file_uploader(
+                            "Chọn file",
+                            type=["png", "jpg", "jpeg", "gif", "pdf", "doc", "docx", "xlsx", "txt", "zip"],
+                            key="chat_file_upload",
+                            label_visibility="collapsed"
+                        )
+                        
+                        if uploaded_file is not None:
+                            file_bytes = uploaded_file.getvalue()
+                            file_name = uploaded_file.name
+                            content_type = uploaded_file.type or mimetypes.guess_type(file_name)[0] or 'application/octet-stream'
+                            file_size = len(file_bytes)
+                            
+                            # Xác định loại
+                            is_image = content_type.startswith('image/')
+                            is_video = content_type.startswith('video/')
+                            
+                            if is_image:
+                                st.image(file_bytes, caption=file_name, width=200)
+                            else:
+                                st.info(f"📎 {file_name} ({file_size/1024:.1f} KB)")
+                            
+                            if st.button("📤 Gửi file", width='stretch', type="primary"):
+                                # Upload lên Storage
+                                file_path = chat_utils.upload_chat_file(file_bytes, file_name, content_type)
+                                if file_path:
+                                    if is_image:
+                                        success = chat_utils.send_image_message(room_id, user_id, file_path, file_name, msg_input.strip() or '')
+                                    else:
+                                        success = chat_utils.send_file_message(room_id, user_id, file_path, file_name, file_size)
+                                    
+                                    if success:
+                                        st.session_state.chat_msg_temp = ''
+                                        st.success("✅ Đã gửi file!")
+                                        st.rerun()
+                                else:
+                                    st.error("❌ Lỗi upload file!")
+                
+                with col_payslip:
+                    if st.session_state.role in ['admin', 'kt_luong', 'hr']:
+                        with st.popover("📄 Phiếu lương", use_container_width=True):
+                            st.subheader("📄 Gửi phiếu lương")
+                            st.caption("Chọn nhân viên và tháng để gửi phiếu lương")
+                            
+                            # Chọn nhân viên
+                            all_emps = chat_utils.get_all_employees()
+                            emp_options = {f"{e['ho_ten']} ({e['ma_nv']})": e['id'] for e in all_emps}
+                            selected_emp_label = st.selectbox("Nhân viên", list(emp_options.keys()), key="payslip_emp")
+                            target_emp_id = emp_options[selected_emp_label]
+                            target_emp_name = selected_emp_label.split(' (')[0]
+                            
+                            # Chọn tháng
+                            col_month, col_year = st.columns(2)
+                            with col_month:
+                                p_month = st.selectbox("Tháng", list(range(1, 13)), index=datetime.now().month-1, key="payslip_month")
+                            with col_year:
+                                p_year = st.number_input("Năm", min_value=2020, max_value=2100, value=datetime.now().year, key="payslip_year")
+                            
+                            # Demo: tính lương mẫu
+                            st.caption("💡 Nhập các khoản thu nhập (demo)")
+                            luong_cb = st.number_input("Lương cơ bản", min_value=0, value=5000000, step=100000)
+                            pc_cv = st.number_input("Phụ cấp chức vụ", min_value=0, value=0, step=100000)
+                            pc_tnvk = st.number_input("PC thâm niên VK (%)", min_value=0.0, value=0.0, step=0.5)
+                            pc_tnn = st.number_input("PC thâm niên nghề (%)", min_value=0.0, value=0.0, step=0.5)
+                            
+                            if st.button("📤 Gửi phiếu lương", width='stretch', type="primary"):
+                                # Tính các khoản
+                                tong = luong_cb + pc_cv + (luong_cb * pc_tnvk / 100) + (luong_cb * pc_tnn / 100)
+                                bhxh = luong_cb * 0.08
+                                bhyt = luong_cb * 0.015
+                                bhtn = luong_cb * 0.01
+                                thuc_nhan = tong - bhxh - bhyt - bhtn
+                                
+                                salary_data = {
+                                    'luong_co_ban': luong_cb,
+                                    'phu_cap_chuc_vu': pc_cv,
+                                    'phu_cap_tnvk': luong_cb * pc_tnvk / 100,
+                                    'phu_cap_tnn': luong_cb * pc_tnn / 100,
+                                    'tong': tong,
+                                    'bhxh': bhxh,
+                                    'bhyt': bhyt,
+                                    'bhtn': bhtn,
+                                    'thuc_nhan': thuc_nhan
+                                }
+                                
+                                # Tìm hoặc tạo phòng private
+                                room_id_target = chat_utils.create_private_room(user_id, target_emp_id)
+                                if room_id_target:
+                                    if chat_utils.send_payslip_message(
+                                        room_id_target, user_id,
+                                        target_emp_name, p_month, p_year, salary_data
+                                    ):
+                                        st.success(f"✅ Đã gửi phiếu lương cho {target_emp_name}!")
+                                        st.balloons()
+                                        st.rerun()
+                                    else:
+                                        st.error("❌ Lỗi gửi phiếu lương!")
+                                else:
+                                    st.error("❌ Không thể tạo phòng chat!")
+                    else:
+                        with st.popover("📄 Phiếu lương", use_container_width=True):
+                            st.info("🔒 Chỉ Admin, HR và Kế toán lương mới có quyền gửi phiếu lương")
+                
+                # Xử lý Enter để gửi
+                if msg_input and st.session_state.get('chat_msg_temp') != msg_input:
+                    st.session_state.chat_msg_temp = msg_input
+                
+                # Tự động gửi khi nhấn Enter (không Shift)
+                # Sử dụng JavaScript để bắt sự kiện
+                st.markdown("""
+                <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    const textarea = document.querySelector('[data-testid="stTextArea"] textarea');
+                    if (textarea) {
+                        textarea.addEventListener('keydown', function(e) {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                const sendBtn = document.querySelector('[data-testid="stButton"] button[kind="primary"]');
+                                if (sendBtn) sendBtn.click();
+                            }
+                        });
+                    }
+                });
+                </script>
+                """, unsafe_allow_html=True)
         
         else:
-            st.info("👈 Chọn một phòng chat từ danh sách bên trái")
+            # Chưa chọn phòng
+            st.markdown("""
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:400px;color:#94a3b8;text-align:center;">
+                <div style="font-size:64px;margin-bottom:16px;">💬</div>
+                <h3 style="color:#1e293b;">Chọn một phòng chat</h3>
+                <p>Chọn phòng từ danh sách bên trái hoặc tạo phòng mới</p>
+                <p style="font-size:12px;margin-top:8px;">💡 Bấm "Tạo phòng mới" để bắt đầu trò chuyện</p>
+            </div>
+            """, unsafe_allow_html=True)
+
 
 st.sidebar.divider()
 st.sidebar.caption("© 2026 HRM | Nền tảng Quản lý nhân sự đa doanh nghiệp")

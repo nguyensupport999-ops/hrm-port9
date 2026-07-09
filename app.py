@@ -2540,7 +2540,7 @@ def show_quan_ly_cong_van():
                 "Chọn phương án đánh số:",
                 options=['CHUNG', 'RIENG'],
                 index=0 if current_option == 'CHUNG' else 1,
-                format_func=lambda x: "Số chung cho tất cả loại công văn" if x == 'CHUNG' else "Mỗi loại công văn có số riêng",
+                format_func=lambda x: "📌 Số chung cho tất cả loại công văn" if x == 'CHUNG' else "📌 Mỗi loại công văn có số riêng",
                 key="cv_option_radio"
             )
             
@@ -2556,13 +2556,36 @@ def show_quan_ly_cong_van():
             st.divider()
             st.markdown("**📊 Trạng thái đánh số hiện tại**")
             
+            # Lấy dữ liệu từ database
             db = st.session_state.db_engine.get_connection()
             c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            c.execute("""
-                SELECT loai, so_max, prefix, nam_hien_tai, updated_at 
-                FROM cau_hinh_cong_van 
-                ORDER BY loai, nam_hien_tai
-            """)
+            
+            # Xác định loại cần hiển thị dựa trên option
+            option = get_cv_danh_so_option()
+            if option == 'CHUNG':
+                # Chỉ hiển thị CHUNG
+                c.execute("""
+                    SELECT loai, so_max, prefix, nam_hien_tai, updated_at 
+                    FROM cau_hinh_cong_van 
+                    WHERE loai = 'CHUNG'
+                    ORDER BY loai, nam_hien_tai
+                """)
+            else:
+                # Hiển thị các loại riêng (không bao gồm CHUNG và QĐ trùng)
+                c.execute("""
+                    SELECT loai, so_max, prefix, nam_hien_tai, updated_at 
+                    FROM cau_hinh_cong_van 
+                    WHERE loai IN ('CONG_VAN', 'QUYET_DINH', 'BAO_CAO', 'THONG_BAO', 'TO_TRINH')
+                    ORDER BY 
+                        CASE loai
+                            WHEN 'QUYET_DINH' THEN 1
+                            WHEN 'CONG_VAN' THEN 2
+                            WHEN 'BAO_CAO' THEN 3
+                            WHEN 'THONG_BAO' THEN 4
+                            WHEN 'TO_TRINH' THEN 5
+                        END
+                """)
+            
             configs = c.fetchall()
             db.close()
             
@@ -2571,6 +2594,17 @@ def show_quan_ly_cong_van():
                 df_config['updated_at'] = df_config['updated_at'].apply(
                     lambda x: x.strftime('%d/%m/%Y %H:%M') if x else ''
                 )
+                
+                # Đổi tên loại cho đẹp
+                loai_name_map = {
+                    'CHUNG': 'CHUNG (Tất cả loại)',
+                    'QUYET_DINH': 'QUYẾT ĐỊNH',
+                    'CONG_VAN': 'CÔNG VĂN',
+                    'BAO_CAO': 'BÁO CÁO',
+                    'THONG_BAO': 'THÔNG BÁO',
+                    'TO_TRINH': 'TỜ TRÌNH'
+                }
+                df_config['loai'] = df_config['loai'].map(loai_name_map)
                 df_config.columns = ['Loại', 'Số hiện tại', 'Prefix', 'Năm', 'Cập nhật lúc']
                 st.dataframe(df_config, width='stretch', hide_index=True)
             else:
@@ -2580,16 +2614,54 @@ def show_quan_ly_cong_van():
             st.markdown("**🔄 Đặt lại số**")
             col_reset1, col_reset2, col_reset3 = st.columns([2, 1, 2])
             with col_reset2:
-                loai_reset = st.selectbox(
+                # Xác định danh sách loại cho dropdown dựa trên option
+                if option == 'CHUNG':
+                    loai_list = ['CHUNG']
+                    loai_display = {'CHUNG': 'CHUNG (Tất cả loại)'}
+                else:
+                    loai_list = ['QUYET_DINH', 'CONG_VAN', 'BAO_CAO', 'THONG_BAO', 'TO_TRINH']
+                    loai_display = {
+                        'QUYET_DINH': 'QUYẾT ĐỊNH',
+                        'CONG_VAN': 'CÔNG VĂN',
+                        'BAO_CAO': 'BÁO CÁO',
+                        'THONG_BAO': 'THÔNG BÁO',
+                        'TO_TRINH': 'TỜ TRÌNH'
+                    }
+                
+                selected_loai_display = st.selectbox(
                     "Chọn loại cần đặt lại:",
-                    ['CHUNG', 'QUYET_DINH', 'CONG_VAN', 'BAO_CAO', 'THONG_BAO', 'TO_TRINH'],
-                    key="reset_loai"
+                    [loai_display.get(l, l) for l in loai_list],
+                    key="reset_loai_display"
                 )
-                so_moi = st.number_input("Số bắt đầu mới:", min_value=0, value=0, step=1, key="reset_so")
+                
+                # Lấy lại mã loại thực tế
+                if option == 'CHUNG':
+                    loai_reset = 'CHUNG'
+                else:
+                    # Tìm key từ display name
+                    for key, value in loai_display.items():
+                        if value == selected_loai_display:
+                            loai_reset = key
+                            break
+                
+                # Lấy số hiện tại để hiển thị
+                current_so = get_so_max_cong_van(loai_reset)
+                st.caption(f"📌 Số hiện tại: **{current_so}**")
+                
+                so_moi = st.number_input(
+                    "Số bắt đầu mới:", 
+                    min_value=0, 
+                    value=current_so, 
+                    step=1, 
+                    key="reset_so"
+                )
+                
                 if st.button("🔄 Đặt lại số", type="secondary"):
-                    if st.checkbox("✅ Xác nhận đặt lại số", key="confirm_reset"):
+                    # Hiển thị checkbox xác nhận
+                    confirm_key = f"confirm_reset_{loai_reset}"
+                    if st.checkbox("✅ Xác nhận đặt lại số", key=confirm_key):
                         if update_so_max_cong_van(loai_reset, so_moi):
-                            st.success(f"✅ Đã đặt lại số cho {loai_reset} thành {so_moi}")
+                            st.success(f"✅ Đã đặt lại số cho {selected_loai_display} từ {current_so} thành {so_moi}")
                             st.cache_data.clear()
                             st.rerun()
                         else:
@@ -2741,9 +2813,20 @@ def show_quan_ly_cong_van():
                     selected_loai = st.selectbox("Loại công văn *", list(loai_options.keys()), key="cv_di_loai")
                     loai_cv = loai_options[selected_loai]
                     
-                    # Tự động sinh số công văn
+                    # Tự động sinh số công văn (cập nhật mỗi khi chọn loại)
                     so_cv_tu_dong = generate_so_cong_van(loai_cv)
-                    st.info(f"📄 Số công văn tự động: **{so_cv_tu_dong}**")
+                    
+                    # Hiển thị prefix tương ứng
+                    prefix_map = {
+                        'QUYET_DINH': 'QĐ',
+                        'CONG_VAN': 'CV',
+                        'BAO_CAO': 'BC',
+                        'THONG_BAO': 'TB',
+                        'TO_TRINH': 'TTr'
+                    }
+                    prefix_hien_tai = prefix_map.get(loai_cv, 'CV')
+                    
+                    st.info(f"📄 **Số công văn tự động:** `{so_cv_tu_dong}` (Prefix: **{prefix_hien_tai}**)")
                     
                     phong_phat_hanh = st.text_input("Phòng phát hành *", placeholder="VD: Phòng Hành chính")
                     ngay_phat_hanh = st.date_input("Ngày phát hành *", value=date.today())

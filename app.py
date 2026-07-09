@@ -4922,61 +4922,164 @@ elif menu == "✅ Nhân viên":
                 st.success(f"🎯 Tìm thấy 1 nhân viên: {nv['ho_ten']}")
                 st.subheader("👤 THÔNG TIN NHÂN VIÊN")
                 
-                # Tạo layout 2 cột: Ảnh và Thông tin
+                # Tạo layout 2 cột: Ảnh và Thông tin - Căn chỉnh ảnh ở giữa
                 col_avatar, col_info = st.columns([1, 2])
                 
                 with col_avatar:
-                    # Lấy ảnh từ storage nếu có
-                    anh_path = nv.get('anh_ho_so')
-                    if anh_path:
-                        anh_bytes = get_anh_ho_so_bytes(anh_path)
-                        if anh_bytes:
-                            import base64
-                            img_base64 = base64.b64encode(anh_bytes).decode()
+                    # Sử dụng container để căn giữa ảnh theo chiều dọc
+                    with st.container():
+                        # Tạo div để căn giữa ảnh
+                        st.markdown("""
+                        <style>
+                        .avatar-container {
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            height: 100%;
+                            min-height: 250px;
+                        }
+                        .avatar-image {
+                            border-radius: 50%;
+                            object-fit: cover;
+                            border: 4px solid #f59e0b;
+                            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+                            width: 200px;
+                            height: 200px;
+                        }
+                        </style>
+                        """, unsafe_allow_html=True)
+                        
+                        # Lấy ảnh từ storage nếu có
+                        anh_path = nv.get('anh_ho_so')
+                        if anh_path:
+                            anh_bytes = get_anh_ho_so_bytes(anh_path)
+                            if anh_bytes:
+                                import base64
+                                img_base64 = base64.b64encode(anh_bytes).decode()
+                                st.markdown(f"""
+                                <div class="avatar-container">
+                                    <img src="data:image/jpeg;base64,{img_base64}" class="avatar-image">
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"""
+                                <div class="avatar-container">
+                                    <img src="https://ui-avatars.com/api/?name={nv['ho_ten'].replace(' ', '+')}&size=200&background=f59e0b&color=fff" class="avatar-image">
+                                </div>
+                                """, unsafe_allow_html=True)
+                        else:
+                            # Avatar mặc định nếu chưa có ảnh
                             st.markdown(f"""
-                            <div style="text-align: center;">
-                                <img src="data:image/jpeg;base64,{img_base64}" 
-                                     style="width: 200px; height: 200px; border-radius: 50%; object-fit: cover; 
-                                            border: 4px solid #f59e0b; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+                            <div class="avatar-container">
+                                <img src="https://ui-avatars.com/api/?name={nv['ho_ten'].replace(' ', '+')}&size=200&background=f59e0b&color=fff" class="avatar-image">
                             </div>
                             """, unsafe_allow_html=True)
-                        else:
-                            st.image(f"https://ui-avatars.com/api/?name={nv['ho_ten'].replace(' ', '+')}&size=200&background=f59e0b&color=fff", width=200)
-                    else:
-                        # Avatar mặc định nếu chưa có ảnh
-                        st.image(f"https://ui-avatars.com/api/?name={nv['ho_ten'].replace(' ', '+')}&size=200&background=f59e0b&color=fff", width=200)
                 
                 with col_info:
-                    # Hiển thị thông tin chi tiết
-                    st.markdown(f"### {nv['ho_ten']} ({nv['ma_nv']})")
+                    # Hiển thị thông tin chi tiết - Căn giữa theo chiều dọc
+                    st.markdown(f"""
+                    <style>
+                    .info-container {{
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: center;
+                        height: 100%;
+                        min-height: 250px;
+                    }}
+                    .info-name {{
+                        font-size: 24px;
+                        font-weight: bold;
+                        color: #0f3b5c;
+                        margin-bottom: 10px;
+                    }}
+                    .info-code {{
+                        font-size: 16px;
+                        color: #666;
+                        margin-bottom: 15px;
+                    }}
+                    .info-grid {{
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 8px 20px;
+                    }}
+                    .info-item {{
+                        padding: 4px 0;
+                    }}
+                    .info-label {{
+                        font-weight: 600;
+                        color: #555;
+                        font-size: 13px;
+                    }}
+                    .info-value {{
+                        color: #1a1a1a;
+                        font-size: 13px;
+                    }}
+                    .status-badge {{
+                        display: inline-block;
+                        padding: 4px 12px;
+                        border-radius: 20px;
+                        font-size: 13px;
+                        font-weight: 600;
+                    }}
+                    .status-active {{
+                        background: #d4edda;
+                        color: #155724;
+                    }}
+                    .status-probation {{
+                        background: #cce5ff;
+                        color: #004085;
+                    }}
+                    .status-inactive {{
+                        background: #f8d7da;
+                        color: #721c24;
+                    }}
+                    </style>
+                    <div class="info-container">
+                        <div class="info-name">{nv['ho_ten']}</div>
+                        <div class="info-code">📋 Mã NV: {nv['ma_nv']}</div>
+                        <div class="info-grid">
+                    """, unsafe_allow_html=True)
                     
-                    # Tạo grid 2 cột cho thông tin
-                    info_col1, info_col2 = st.columns(2)
-                    
-                    with info_col1:
-                        st.markdown(f"**📅 Ngày sinh:** {format_date(nv.get('ngay_sinh'))}")
-                        st.markdown(f"**⚧ Giới tính:** {nv.get('gioi_tinh', 'Chưa cập nhật')}")
-                        st.markdown(f"**💼 Chức danh:** {nv.get('chuc_danh_nghe', 'Chưa cập nhật')}")
-                        st.markdown(f"**🏢 Phòng ban:** {nv.get('phong_ban_lam_viec', 'Chưa cập nhật')}")
-                        st.markdown(f"**📞 SĐT:** {nv.get('dien_thoai', 'Chưa cập nhật')}")
-                    
-                    with info_col2:
-                        st.markdown(f"**📧 Email:** {nv.get('email_lien_he', 'Chưa cập nhật')}")
-                        st.markdown(f"**📋 Loại HĐ:** {nv.get('loai_hop_dong', 'Chưa cập nhật')}")
-                        st.markdown(f"**📅 Ngày vào làm:** {format_date(nv.get('ngay_vao_lam'))}")
-                        st.markdown(f"**🎓 Trình độ:** {nv.get('trinh_do', 'Chưa cập nhật')}")
-                        st.markdown(f"**📇 Mã BHXH:** {nv.get('ma_so_bhxh', 'Chưa có')}")
-                    
-                    # Thêm trạng thái
+                    # Xác định trạng thái
                     trang_thai_text = {
-                        'DANG_LAM': '🟢 Đang làm',
-                        'THU_VIEC': '🔵 Thử việc',
-                        'NGHI_VIEC': '🔴 Đã nghỉ'
+                        'DANG_LAM': ('🟢 Đang làm', 'status-active'),
+                        'THU_VIEC': ('🔵 Thử việc', 'status-probation'),
+                        'NGHI_VIEC': ('🔴 Đã nghỉ', 'status-inactive')
                     }
-                    status = trang_thai_text.get(nv.get('trang_thai'), nv.get('trang_thai', 'Chưa xác định'))
-                    st.markdown(f"**📊 Trạng thái:** {status}")
+                    status_info = trang_thai_text.get(nv.get('trang_thai'), ('Chưa xác định', ''))
+                    
+                    # Hiển thị thông tin dạng grid
+                    info_items = [
+                        ("📅 Ngày sinh", format_date(nv.get('ngay_sinh'))),
+                        ("⚧ Giới tính", nv.get('gioi_tinh', 'Chưa cập nhật')),
+                        ("💼 Chức danh", nv.get('chuc_danh_nghe', 'Chưa cập nhật')),
+                        ("🏢 Phòng ban", nv.get('phong_ban_lam_viec', 'Chưa cập nhật')),
+                        ("📞 SĐT", nv.get('dien_thoai', 'Chưa cập nhật')),
+                        ("📧 Email", nv.get('email_lien_he', 'Chưa cập nhật')),
+                        ("📋 Loại HĐ", nv.get('loai_hop_dong', 'Chưa cập nhật')),
+                        ("📅 Ngày vào làm", format_date(nv.get('ngay_vao_lam'))),
+                        ("🎓 Trình độ", nv.get('trinh_do', 'Chưa cập nhật')),
+                        ("📇 Mã BHXH", nv.get('ma_so_bhxh', 'Chưa có')),
+                    ]
+                    
+                    for label, value in info_items:
+                        st.markdown(f"""
+                        <div class="info-item">
+                            <span class="info-label">{label}:</span>
+                            <span class="info-value">{value if value else 'Chưa cập nhật'}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # Hiển thị trạng thái
+                    st.markdown(f"""
+                        <div class="info-item" style="grid-column: 1 / -1; margin-top: 5px;">
+                            <span class="info-label">📊 Trạng thái:</span>
+                            <span class="status-badge {status_info[1]}">{status_info[0]}</span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
                 
-                # Thêm nút hành động
+                # Thêm nút hành động - Thay Gửi Zalo thành Gửi tin nhắn
                 st.divider()
                 col_btn_action1, col_btn_action2, col_btn_action3, col_btn_action4 = st.columns(4)
                 
@@ -5024,20 +5127,27 @@ elif menu == "✅ Nhân viên":
                         st.button("📄 KHÔNG THỂ IN HĐ", disabled=True, width='stretch')
                 
                 with col_btn_action3:
-                    ph = nv.get('dien_thoai', '')
-                    if ph:
-                        ph = ph.replace('+84', '0').replace(' ', '').strip()
-                        if st.button("📱 GỬI ZALO", width='stretch'):
-                            db = st.session_state.db_engine.get_connection()
-                            c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                            c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(nv['id']),))
-                            nv_full = c.fetchone()
-                            db.close()
-                            if nv_full:
-                                st.code(tao_noi_dung_zalo(nv_full))
-                                st.markdown(f"[👉 MỞ ZALO](https://zalo.me/{ph})")
-                    else:
-                        st.button("📱 GỬI ZALO", disabled=True, width='stretch', help="Chưa có SĐT!")
+                    # THAY ĐỔI: Nút Gửi tin nhắn (mở Chat nội bộ)
+                    if st.button("💬 GỬI TIN NHẮN", width='stretch', type="secondary"):
+                        # Kiểm tra xem đã có phòng chat chưa
+                        user_id = st.session_state.get('nhan_vien_id')
+                        target_id = int(nv['id'])
+                        
+                        if user_id and user_id != target_id:
+                            # Tạo phòng chat 1-1
+                            room_id = chat_utils.create_private_room(user_id, target_id)
+                            if room_id:
+                                st.session_state['chat_room_id'] = room_id
+                                st.success(f"✅ Đã mở phòng chat với {nv['ho_ten']}!")
+                                # Chuyển đến menu Chat
+                                st.session_state['goto_chat'] = True
+                                st.rerun()
+                            else:
+                                st.error("❌ Không thể tạo phòng chat!")
+                        elif user_id == target_id:
+                            st.warning("⚠️ Bạn không thể nhắn tin cho chính mình!")
+                        else:
+                            st.warning("⚠️ Vui lòng đăng nhập để sử dụng chat!")
                 
                 with col_btn_action4:
                     ma_bhxh = nv.get('ma_so_bhxh', '')
@@ -5050,6 +5160,7 @@ elif menu == "✅ Nhân viên":
                     else:
                         st.button("✅ ĐÃ CÓ BHXH", disabled=True, width='stretch')
                 
+                               
                 # Thêm tùy chọn hiển thị bảng
                 st.divider()
                 if st.checkbox("📊 Hiển thị danh sách đầy đủ", value=False, key="show_full_list_card"):

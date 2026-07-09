@@ -9369,7 +9369,7 @@ elif menu == "💬 Chat nội bộ":
     st.title("💬 Chat nội bộ")
     
     # Khởi tạo bảng chat
-    chat_utils.init_chat_tables()
+    #chat_utils.init_chat_tables()
     
     # Kiểm tra đăng nhập
     if 'nhan_vien_id' not in st.session_state:
@@ -10315,6 +10315,9 @@ def reset_ui_and_cache():
             del st.session_state[key]
     
     st.rerun()
+
+# Khởi tạo bảng chat khi app chạy
+chat_utils.init_chat_tables()
 
 # Chạy ứng dụng
 if __name__ == "__main__":

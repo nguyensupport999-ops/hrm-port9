@@ -7351,6 +7351,36 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                     else:
                         try:
                             file_bytes = sb.storage.from_(SUPABASE_BUCKET).download(selected_hs['duong_dan_file'])
+                            
+                            # Thêm nút Preview
+                            if selected_hs['ten_file'].lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp')):
+                                if st.button("👁️ PREVIEW", width='stretch', type="secondary"):
+                                    import base64
+                                    img_base64 = base64.b64encode(file_bytes).decode()
+                                    st.markdown(f"""
+                                    <div style="text-align: center; margin: 10px 0;">
+                                        <img src="data:image/jpeg;base64,{img_base64}" 
+                                             style="max-width: 100%; max-height: 500px; border-radius: 8px; 
+                                                    box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                            elif selected_hs['ten_file'].lower().endswith('.pdf'):
+                                if st.button("👁️ PREVIEW", width='stretch', type="secondary"):
+                                    import base64
+                                    pdf_base64 = base64.b64encode(file_bytes).decode()
+                                    st.markdown(f"""
+                                    <div style="text-align: center; margin: 10px 0;">
+                                        <iframe src="data:application/pdf;base64,{pdf_base64}" 
+                                                style="width: 100%; height: 600px; border: none; border-radius: 8px;">
+                                        </iframe>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                            else:
+                                # Các loại file khác không preview được
+                                st.button("👁️ PREVIEW", disabled=True, width='stretch', 
+                                         help="Không thể preview loại file này")
+                            
+                            # Nút Tải hồ sơ
                             st.download_button(
                                 label="📥 TẢI HỒ SƠ",
                                 data=file_bytes,

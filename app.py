@@ -501,6 +501,44 @@ def load_bank_list():
 
 BANK_LIST = load_bank_list()
 
+# Danh mục Trình độ học vấn/chuyên môn (dùng cho form Thêm/Sửa nhân viên)
+TRINH_DO_LIST = ["THPT", "Chứng chỉ nghề", "Cao đẳng", "Đại học", "Thạc sỹ", "Tiến sĩ"]
+
+def upload_anh_ho_so(ma_nv_or_id, ho_ten, uploaded_file):
+    """Upload ảnh hồ sơ nhân viên lên Supabase Storage (dùng chung bucket hồ sơ,
+    lưu trong thư mục con 'avatars/'). Trả về storage_path đã lưu, hoặc None nếu lỗi."""
+    if not uploaded_file:
+        return None
+    sb = get_supabase_storage()
+    if not sb:
+        st.warning("⚠️ Chưa cấu hình Supabase Storage nên không lưu được ảnh hồ sơ (các thông tin khác vẫn được lưu bình thường).")
+        return None
+    try:
+        safe_name = sanitize_storage_filename(uploaded_file.name)
+        ten_folder = sanitize_storage_filename(f"{ma_nv_or_id}_{ho_ten}")
+        base_path = f"avatars/{ten_folder}/{safe_name}"
+        return upload_to_storage_unique(
+            sb, SUPABASE_BUCKET, base_path,
+            uploaded_file.getvalue(), uploaded_file.type
+        )
+    except Exception as e:
+        st.warning(f"⚠️ Lỗi upload ảnh hồ sơ (các thông tin khác vẫn được lưu): {e}")
+        return None
+
+@st.cache_data(ttl=600, show_spinner=False)
+def get_anh_ho_so_bytes(storage_path):
+    """Tải bytes ảnh hồ sơ từ Supabase Storage để hiển thị (bucket riêng tư nên
+    không dùng URL public trực tiếp được). Cache 10 phút để đỡ tải lại liên tục."""
+    if not storage_path:
+        return None
+    try:
+        sb = get_supabase_storage()
+        if not sb:
+            return None
+        return sb.storage.from_(SUPABASE_BUCKET).download(storage_path)
+    except Exception:
+        return None
+
 # ===== CHẤM CÔNG - HẰNG SỐ MỚI =====
 CHAM_CONG_MA_CODE = {
     "":    "(Trống) - Chưa chấm công",
@@ -3166,6 +3204,15 @@ def check_login(username, password):
                 )
             row = rows[0] if rows else None
             if not row:
+                # Không khớp nhân viên nào trong DB — thử tài khoản khai báo sẵn trong
+                # Secrets [users] (dành cho đội vận hành/thử nghiệm theo vai trò,
+                # KHÔNG gắn với 1 nhân viên cụ thể nên không có nhan_vien_id).
+                try:
+                    if 'users' in st.secrets and username in st.secrets.users:
+                        if st.secrets.users[username]['password'] == password:
+                            return True, st.secrets.users[username]['role'], None
+                except Exception:
+                    pass
                 st.session_state['_debug_login'] = debug_lines
                 return False, None, None
             if not row.get('mat_khau_hash'):
@@ -3961,6 +4008,8 @@ elif menu == "👤 Ứng viên":
                 chuc_danh_nv = st.selectbox("Chức danh", [""] + dschucdanh, index=([""] + dschucdanh).index(uv_data.get('vi_tri', '')) if uv_data.get('vi_tri', '') in dschucdanh else 0)
                 phong_ban_nv = st.text_input("Phòng ban")
                 noi_lam_viec_nv = st.text_input("Nơi làm việc", value="Cảng THQT Hòn La")
+                trinh_do_nv = st.selectbox("Trình độ", [""] + TRINH_DO_LIST)
+                anh_ho_so_nv = st.file_uploader("Ảnh hồ sơ", type=["png", "jpg", "jpeg"], key="anh_ho_so_chuyen")
             
             st.divider()
             st.caption("💼 Hợp đồng & BHXH")
@@ -4063,7 +4112,7 @@ elif menu == "👤 Ứng viên":
                                     so_hd_cnt = c.fetchone()[0] or 0
                                     so_hd = f"{so_hd_cnt + 1:02d}/{nhl.year}/HĐLĐ-CHL"
                                 
-                                # Thêm nhân viên mới (đã thêm trường ten_don_vi_thu_huong)
+                                # Thêm nhân viên mới (đã thêm trường ten_don_vi_thu_huong, trinh_do)
                                 c.execute("""
                                     INSERT INTO nhan_vien (STT, ma_nv, so_hdld, ho_ten, chuc_danh_nghe, 
                                         ngay_sinh, gioi_tinh, so_cccd, ngay_cap_cccd, noi_cap_cccd,
@@ -4075,10 +4124,10 @@ elif menu == "👤 Ứng viên":
                                         he_so_luong, phu_cap_chuc_vu, phu_cap_tnvk, phu_cap_tnn,
                                         muc_huong_bhyt, ty_le_dong, muc_tien_dong, phuong_thuc_dong,
                                         tinh_nhan_hs, phuong_nhan_hs, dia_chi_nhan_hs, 
-                                        tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so, ten_don_vi_thu_huong)
+                                        tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so, ten_don_vi_thu_huong, trinh_do)
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                     RETURNING id
                                 """, (
                                     stt_moi, ma_nv, so_hd, ho_ten_nv, chuc_danh_nv,
@@ -4092,9 +4141,16 @@ elif menu == "👤 Ứng viên":
                                     to_float_or_none(pc_tnvk_chuyen), to_float_or_none(pc_tnn_chuyen),
                                     muc_huong_bhyt_chuyen, to_float_or_none(ty_le_dong_chuyen), to_float_or_none(muc_tien_dong_chuyen),
                                     phuong_thuc_dong_chuyen, tinh_nhan_hs_chuyen, phuong_nhan_hs_chuyen, dia_chi_nhan_hs_chuyen,
-                                    tinh_kcb_chuyen, noi_kcb_chuyen, dk_nhan_so_chuyen, ten_don_vi_thu_huong
+                                    tinh_kcb_chuyen, noi_kcb_chuyen, dk_nhan_so_chuyen, ten_don_vi_thu_huong, trinh_do_nv
                                 ))
                                 nhan_vien_id_moi = c.fetchone()[0]
+
+                                # Upload ảnh hồ sơ (nếu có) — cần id vừa tạo để đặt tên thư mục trên Storage
+                                if anh_ho_so_nv is not None:
+                                    storage_path_anh = upload_anh_ho_so(ma_nv, ho_ten_nv, anh_ho_so_nv)
+                                    if storage_path_anh:
+                                        c.execute("UPDATE nhan_vien SET anh_ho_so=%s WHERE id=%s", (storage_path_anh, nhan_vien_id_moi))
+
                                 # Cập nhật trạng thái ứng viên
                                 c.execute("UPDATE ung_vien SET trang_thai='DA_NHAN_VIEC', ma_nv=%s WHERE id=%s", 
                                          (ma_nv, st.session_state['chuyen_uv_id']))
@@ -4978,6 +5034,13 @@ elif menu == "✅ Nhân viên":
                                 cdnv = st.text_input("Chức danh", value=nd.get('chuc_danh_nghe', ''))
                                 pbnv = st.text_input("Phòng ban", value=nd.get('phong_ban_lam_viec', ''))
                                 nlv2 = st.text_input("Nơi làm việc", value=nd.get('noi_lam_viec', 'Cảng THQT Hòn La'))
+                                trinh_do_v = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, index=([""] + TRINH_DO_LIST).index(nd.get('trinh_do', '')) if nd.get('trinh_do') in TRINH_DO_LIST else 0)
+                                anh_hien_tai = nd.get('anh_ho_so')
+                                if anh_hien_tai:
+                                    anh_bytes_ht = get_anh_ho_so_bytes(anh_hien_tai)
+                                    if anh_bytes_ht:
+                                        st.image(anh_bytes_ht, caption="Ảnh hồ sơ hiện tại", width=120)
+                                anh_ho_so_v = st.file_uploader("Đổi ảnh hồ sơ (bỏ trống nếu giữ nguyên)", type=["png", "jpg", "jpeg"], key=f"anh_ho_so_edit_{nid}")
                             
                             st.divider()
                             st.caption("💼 Hợp đồng & BHXH")
@@ -5064,13 +5127,18 @@ elif menu == "✅ Nhân viên":
                                                     ngay_ket_thuc=%s,quoc_tich=%s,dan_toc=%s,he_so_luong=%s,phu_cap_chuc_vu=%s,
                                                     phu_cap_tnvk=%s,phu_cap_tnn=%s,muc_huong_bhyt=%s,ty_le_dong=%s,muc_tien_dong=%s,
                                                     phuong_thuc_dong=%s,tinh_nhan_hs=%s,phuong_nhan_hs=%s,dia_chi_nhan_hs=%s,
-                                                    tinh_kcb=%s,noi_dang_ky_kcb=%s,dang_ky_nhan_so=%s, ten_don_vi_thu_huong=%s WHERE id=%s""",
+                                                    tinh_kcb=%s,noi_dang_ky_kcb=%s,dang_ky_nhan_so=%s, ten_don_vi_thu_huong=%s, trinh_do=%s WHERE id=%s""",
                                                       (hnv, cdnv, parse_date(nsnv), gtnv, sccv, parse_date(nccv), ncv, nqnv, ttnv, dtnv2,
                                                        emnv, emnv, hsov, lbhv, mbhv, parse_date(nvlv), nlv2, stkv, cnhv, parse_date(nvlv), lhdv,
                                                        nbhv, tbd_val, tt_nv, tt_bh, pbnv, parse_date(nktv), qtnv, dtnv,
                                                        to_float_or_none(hslv), to_float_or_none(pcvv), to_float_or_none(ptvv), to_float_or_none(ptnv),
                                                        mhbv, to_float_or_none(tldv), to_float_or_none(mtdv), ptdv, thsv, phsv, dhsv,
-                                                       tkbv, nkbv, dksv, ten_don_vi_thu_huong, nid))
+                                                       tkbv, nkbv, dksv, ten_don_vi_thu_huong, trinh_do_v, nid))
+                                                # Nếu admin có chọn ảnh mới thì upload và cập nhật riêng (không chặn phần còn lại nếu upload lỗi)
+                                                if anh_ho_so_v is not None:
+                                                    storage_path_anh_v = upload_anh_ho_so(nd.get('ma_nv', nid), hnv, anh_ho_so_v)
+                                                    if storage_path_anh_v:
+                                                        c_upd.execute("UPDATE nhan_vien SET anh_ho_so=%s WHERE id=%s", (storage_path_anh_v, nid))
                                                 db_upd.commit()
                                                 db_upd.close()
                                                 st.success(f"✅ Đã cập nhật: {hnv}")

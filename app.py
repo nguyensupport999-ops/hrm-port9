@@ -3349,13 +3349,15 @@ if st.session_state.get('phai_doi_mat_khau'):
 # Menu theo role — 4 vai trò cố định: admin / hr / kt_luong / viewer (+ 'nhan_vien' tự phục vụ)
 if st.session_state.role == "admin":
     # Toàn quyền
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ",]
-elif st.session_state.role == "hr":
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ",]
+elif st.session_state.role in ["văn thư", "hr"]:
     # HR: như admin trừ Upload hồ sơ, Danh mục — và KHÔNG được xem Tính thu nhập (dữ liệu lương)
-    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","📋 Báo cáo 01/PLI","🕒 Chấm công","💬 Chat nội bộ",]
+    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","📋 Báo cáo 01/PLI","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ",]
 elif st.session_state.role == "kt_luong":
     # Kế toán lương: tập trung vào Chấm công + Tính thu nhập, không có Upload hồ sơ/Danh mục
-    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","📋 Báo cáo 01/PLI","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ",]
+    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ",]
+elif st.session_state.role == "van_thu":
+    menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ",]
 elif st.session_state.role == "viewer":
     # Viewer: chỉ xem, thu hẹp — không có BHXH, không có Tính thu nhập
     menu_options = ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo 01/PLI","🕒 Chấm công","💬 Chat nội bộ",]
@@ -8303,6 +8305,10 @@ elif menu == "📋 Báo cáo 01/PLI":
             st.caption("💡 Với quyền Viewer, bạn có thể xem danh sách lao động ở trên nhưng không thể tải file Excel.")
     else:
         st.warning("⚠️ Không có lao động nào đang làm việc trong kỳ báo cáo!")
+        
+# ========== QUẢN LÝ CÔNG VĂN & HĐ KINH TẾ ==========
+elif menu == "📄 Quản lý Công văn & HĐ kinh tế":
+    show_quan_ly_cong_van()
 
 # ========== CHAT NỘI BỘ ==========
 elif menu == "💬 Chat nội bộ":
@@ -8530,6 +8536,911 @@ def reset_ui_and_cache():
             del st.session_state[key]
     
     st.rerun()
+
+# ========== QUẢN LÝ CÔNG VĂN & HĐ KINH TẾ ==========
+
+# === Hàm khởi tạo bảng nếu chưa có ===
+def init_cong_van_tables():
+    """Khởi tạo các bảng cho module Quản lý Công văn & HĐ kinh tế"""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        
+        # Tạo bảng cấu hình công văn
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS cau_hinh_cong_van (
+                id SERIAL PRIMARY KEY,
+                loai VARCHAR(20) NOT NULL,
+                so_max INTEGER NOT NULL DEFAULT 0,
+                prefix VARCHAR(10),
+                nam_hien_tai INTEGER NOT NULL DEFAULT EXTRACT(YEAR FROM CURRENT_DATE),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(loai, nam_hien_tai)
+            )
+        """)
+        
+        # Tạo bảng công văn đến
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS cong_van_den (
+                id SERIAL PRIMARY KEY,
+                so_cong_van VARCHAR(50) NOT NULL,
+                co_quan_phat_hanh VARCHAR(200) NOT NULL,
+                ngay_den DATE NOT NULL DEFAULT CURRENT_DATE,
+                tieu_de TEXT NOT NULL,
+                trich_yeu TEXT,
+                file_url TEXT,
+                ghi_chu TEXT,
+                nguoi_tao VARCHAR(100),
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        
+        # Tạo bảng công văn đi
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS cong_van_di (
+                id SERIAL PRIMARY KEY,
+                so_cong_van VARCHAR(50) NOT NULL,
+                phong_phat_hanh VARCHAR(100) NOT NULL,
+                ngay_phat_hanh DATE NOT NULL DEFAULT CURRENT_DATE,
+                tieu_de TEXT NOT NULL,
+                trich_yeu TEXT,
+                file_url TEXT,
+                loai_cong_van VARCHAR(20) NOT NULL,
+                ghi_chu TEXT,
+                nguoi_tao VARCHAR(100),
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        
+        # Tạo bảng hợp đồng kinh tế
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS hop_dong_kinh_te (
+                id SERIAL PRIMARY KEY,
+                so_hop_dong VARCHAR(50) NOT NULL,
+                ten_doi_tac VARCHAR(200) NOT NULL,
+                ngay_ky DATE NOT NULL DEFAULT CURRENT_DATE,
+                trich_yeu TEXT,
+                file_url TEXT,
+                ghi_chu TEXT,
+                nguoi_tao VARCHAR(100),
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        
+        # Tạo bảng danh mục loại công văn
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS danh_muc_loai_cong_van (
+                id SERIAL PRIMARY KEY,
+                ma_loai VARCHAR(10) NOT NULL UNIQUE,
+                ten_loai VARCHAR(50) NOT NULL,
+                thu_tu INTEGER DEFAULT 0,
+                trang_thai BOOLEAN DEFAULT TRUE
+            )
+        """)
+        
+        # Insert dữ liệu mặc định cho danh mục loại công văn
+        c.execute("""
+            INSERT INTO danh_muc_loai_cong_van (ma_loai, ten_loai, thu_tu) VALUES
+            ('QĐ', 'Quyết định', 1),
+            ('CV', 'Công văn', 2),
+            ('BC', 'Báo cáo', 3),
+            ('TB', 'Thông báo', 4),
+            ('TTr', 'Tờ trình', 5)
+            ON CONFLICT (ma_loai) DO NOTHING
+        """)
+        
+        # Tạo bảng cấu hình hệ thống
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS cau_hinh_he_thong (
+                id SERIAL PRIMARY KEY,
+                ten_cau_hinh VARCHAR(50) NOT NULL UNIQUE,
+                gia_tri VARCHAR(100),
+                mo_ta TEXT,
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        
+        # Insert cấu hình mặc định
+        c.execute("""
+            INSERT INTO cau_hinh_he_thong (ten_cau_hinh, gia_tri, mo_ta) VALUES
+            ('cv_danh_so_option', 'RIENG', 'CHUNG hoac RIENG - Cách đánh số công văn')
+            ON CONFLICT (ten_cau_hinh) DO NOTHING
+        """)
+        
+        db.commit()
+        db.close()
+        return True
+    except Exception as e:
+        print(f"Lỗi khởi tạo bảng công văn: {e}")
+        return False
+
+# === Hàm lấy cấu hình đánh số ===
+def get_cv_danh_so_option():
+    """Lấy option đánh số công văn: CHUNG hoặc RIENG"""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("SELECT gia_tri FROM cau_hinh_he_thong WHERE ten_cau_hinh = 'cv_danh_so_option'")
+        result = c.fetchone()
+        db.close()
+        return result[0] if result else 'RIENG'
+    except:
+        return 'RIENG'
+
+# === Hàm cập nhật cấu hình đánh số ===
+def update_cv_danh_so_option(option):
+    """Cập nhật option đánh số công văn"""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("""
+            UPDATE cau_hinh_he_thong 
+            SET gia_tri = %s, updated_at = NOW() 
+            WHERE ten_cau_hinh = 'cv_danh_so_option'
+        """, (option,))
+        db.commit()
+        db.close()
+        return True
+    except:
+        return False
+
+# === Hàm lấy số max hiện tại ===
+def get_so_max_cong_van(loai=None):
+    """Lấy số max hiện tại cho loại công văn (hoặc chung nếu loai=None)"""
+    nam_hien_tai = datetime.now().year
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        
+        if loai:
+            c.execute("""
+                SELECT so_max FROM cau_hinh_cong_van 
+                WHERE loai = %s AND nam_hien_tai = %s
+            """, (loai, nam_hien_tai))
+        else:
+            c.execute("""
+                SELECT so_max FROM cau_hinh_cong_van 
+                WHERE loai = 'CHUNG' AND nam_hien_tai = %s
+            """, (nam_hien_tai,))
+        
+        result = c.fetchone()
+        db.close()
+        return result[0] if result else 0
+    except:
+        return 0
+
+# === Hàm cập nhật số max ===
+def update_so_max_cong_van(loai, so_moi):
+    """Cập nhật số max cho loại công văn"""
+    nam_hien_tai = datetime.now().year
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("""
+            INSERT INTO cau_hinh_cong_van (loai, so_max, nam_hien_tai, updated_at)
+            VALUES (%s, %s, %s, NOW())
+            ON CONFLICT (loai, nam_hien_tai) 
+            DO UPDATE SET so_max = EXCLUDED.so_max, updated_at = NOW()
+        """, (loai, so_moi, nam_hien_tai))
+        db.commit()
+        db.close()
+        return True
+    except:
+        return False
+
+# === Hàm sinh số công văn tự động ===
+def generate_so_cong_van(loai_cv):
+    """Sinh số công văn tự động theo cấu hình"""
+    option = get_cv_danh_so_option()
+    ma_cty = st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL'
+    nam_hien_tai = datetime.now().year
+    
+    # Lấy prefix cho loại CV
+    prefix_map = {
+        'QUYET_DINH': 'QĐ',
+        'CONG_VAN': 'CV',
+        'BAO_CAO': 'BC',
+        'THONG_BAO': 'TB',
+        'TO_TRINH': 'TTr'
+    }
+    prefix = prefix_map.get(loai_cv, 'CV')
+    
+    # Xác định loại để lấy số max
+    loai_tim = 'CHUNG' if option == 'CHUNG' else loai_cv
+    so_max = get_so_max_cong_van(loai_tim)
+    so_moi = so_max + 1
+    
+    # Cập nhật số max
+    update_so_max_cong_van(loai_tim, so_moi)
+    
+    # Tạo số công văn
+    so_cv = f"{so_moi:02d}/{nam_hien_tai}/{prefix}-{ma_cty}"
+    return so_cv
+
+# === Hàm upload file cho công văn ===
+def upload_cong_van_file(uploaded_file, folder_name):
+    """Upload file công văn lên Supabase Storage"""
+    if not uploaded_file:
+        return None
+    
+    sb = get_supabase_storage()
+    if not sb:
+        return None
+    
+    try:
+        safe_name = sanitize_storage_filename(uploaded_file.name)
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        path = f"cong_van/{folder_name}/{timestamp}_{safe_name}"
+        
+        # Upload file
+        result = sb.storage.from_(SUPABASE_BUCKET).upload(
+            path=path,
+            file=uploaded_file.getvalue(),
+            file_options={"content-type": uploaded_file.type or "application/octet-stream"}
+        )
+        return path
+    except Exception as e:
+        print(f"Lỗi upload file: {e}")
+        return None
+
+# === Hàm lấy danh sách công văn đến ===
+def get_cong_van_den(tu_ngay=None, den_ngay=None, search_text=None):
+    """Lấy danh sách công văn đến với bộ lọc"""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        sql = "SELECT * FROM cong_van_den WHERE 1=1"
+        params = []
+        
+        if tu_ngay:
+            sql += " AND ngay_den >= %s"
+            params.append(tu_ngay)
+        if den_ngay:
+            sql += " AND ngay_den <= %s"
+            params.append(den_ngay)
+        if search_text:
+            sql += """ AND (so_cong_van ILIKE %s OR tieu_de ILIKE %s 
+                     OR co_quan_phat_hanh ILIKE %s OR trich_yeu ILIKE %s)"""
+            search_pattern = f"%{search_text}%"
+            params.extend([search_pattern] * 4)
+        
+        sql += " ORDER BY ngay_den DESC, id DESC"
+        c.execute(sql, tuple(params))
+        result = c.fetchall()
+        db.close()
+        return result
+    except Exception as e:
+        print(f"Lỗi lấy công văn đến: {e}")
+        return []
+
+# === Hàm lấy danh sách công văn đi ===
+def get_cong_van_di(tu_ngay=None, den_ngay=None, search_text=None, loai_cv=None):
+    """Lấy danh sách công văn đi với bộ lọc"""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        sql = "SELECT * FROM cong_van_di WHERE 1=1"
+        params = []
+        
+        if tu_ngay:
+            sql += " AND ngay_phat_hanh >= %s"
+            params.append(tu_ngay)
+        if den_ngay:
+            sql += " AND ngay_phat_hanh <= %s"
+            params.append(den_ngay)
+        if loai_cv:
+            sql += " AND loai_cong_van = %s"
+            params.append(loai_cv)
+        if search_text:
+            sql += """ AND (so_cong_van ILIKE %s OR tieu_de ILIKE %s 
+                     OR phong_phat_hanh ILIKE %s OR trich_yeu ILIKE %s)"""
+            search_pattern = f"%{search_text}%"
+            params.extend([search_pattern] * 4)
+        
+        sql += " ORDER BY ngay_phat_hanh DESC, id DESC"
+        c.execute(sql, tuple(params))
+        result = c.fetchall()
+        db.close()
+        return result
+    except Exception as e:
+        print(f"Lỗi lấy công văn đi: {e}")
+        return []
+
+# === Hàm lấy danh sách hợp đồng kinh tế ===
+def get_hop_dong_kinh_te(tu_ngay=None, den_ngay=None, search_text=None):
+    """Lấy danh sách hợp đồng kinh tế với bộ lọc"""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        
+        sql = "SELECT * FROM hop_dong_kinh_te WHERE 1=1"
+        params = []
+        
+        if tu_ngay:
+            sql += " AND ngay_ky >= %s"
+            params.append(tu_ngay)
+        if den_ngay:
+            sql += " AND ngay_ky <= %s"
+            params.append(den_ngay)
+        if search_text:
+            sql += """ AND (so_hop_dong ILIKE %s OR ten_doi_tac ILIKE %s 
+                     OR trich_yeu ILIKE %s)"""
+            search_pattern = f"%{search_text}%"
+            params.extend([search_pattern] * 3)
+        
+        sql += " ORDER BY ngay_ky DESC, id DESC"
+        c.execute(sql, tuple(params))
+        result = c.fetchall()
+        db.close()
+        return result
+    except Exception as e:
+        print(f"Lỗi lấy hợp đồng kinh tế: {e}")
+        return []
+
+# === Hàm xuất Excel công văn ===
+def export_cong_van_excel(data, ten_file, headers, col_widths=None, title=None):
+    """Xuất dữ liệu ra file Excel với format chuẩn"""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+    from openpyxl.utils import get_column_letter
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Danh sách"
+    
+    # Border
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    
+    # Header fill
+    header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+    
+    # Tiêu đề
+    if title:
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(headers))
+        ws['A1'] = title
+        ws['A1'].font = Font(bold=True, size=14, name='Times New Roman')
+        ws['A1'].alignment = Alignment(horizontal='center')
+        
+        # Dòng trống
+        ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=len(headers))
+        ws['A2'] = f"Ngày xuất: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+        ws['A2'].font = Font(size=10, name='Times New Roman', italic=True)
+        ws['A2'].alignment = Alignment(horizontal='center')
+        start_row = 4
+    else:
+        start_row = 1
+    
+    # Header
+    header_row = start_row
+    for col_idx, header in enumerate(headers, 1):
+        cell = ws.cell(row=header_row, column=col_idx, value=header)
+        cell.font = Font(bold=True, size=11, name='Times New Roman', color="FFFFFF")
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        cell.border = thin_border
+    
+    # Dữ liệu
+    data_row = header_row + 1
+    for idx, row in enumerate(data):
+        for col_idx, key in enumerate(headers, 1):
+            value = row.get(key, '')
+            # Format ngày tháng
+            if 'ngay' in key.lower() and value:
+                if hasattr(value, 'strftime'):
+                    value = value.strftime('%d/%m/%Y')
+            cell = ws.cell(row=data_row + idx, column=col_idx, value=value)
+            cell.font = Font(size=10, name='Times New Roman')
+            cell.border = thin_border
+            cell.alignment = Alignment(horizontal='center' if col_idx <= 3 else 'left', vertical='center')
+    
+    # Footer
+    footer_row = data_row + len(data) + 2
+    ws.merge_cells(start_row=footer_row, start_column=1, end_row=footer_row, end_column=len(headers))
+    ws.cell(row=footer_row, column=1, value=f"Tổng cộng: {len(data)} bản ghi")
+    ws.cell(row=footer_row, column=1).font = Font(bold=True, size=11, name='Times New Roman')
+    
+    # Độ rộng cột
+    if col_widths:
+        for idx, width in enumerate(col_widths, 1):
+            ws.column_dimensions[get_column_letter(idx)].width = width
+    
+    # Lưu file
+    wb.save(ten_file)
+    return ten_file
+
+# === UI: Quản lý Công văn & HĐ kinh tế ===
+def show_quan_ly_cong_van():
+    """Hiển thị giao diện Quản lý Công văn & HĐ kinh tế"""
+    st.title("📄 Quản lý Công văn & HĐ kinh tế")
+    
+    # Khởi tạo bảng nếu chưa có
+    init_cong_van_tables()
+    
+    # Kiểm tra quyền
+    role = st.session_state.get('role', '')
+    if role not in ['admin', 'van_thu']:
+        st.warning("🔒 Chỉ Admin và Văn thư mới có quyền truy cập module này!")
+        st.stop()
+    
+    # Cấu hình (chỉ Admin)
+    if role == 'admin':
+        with st.expander("⚙️ Cấu hình đánh số công văn", expanded=False):
+            st.markdown("**Cấu hình cách đánh số công văn đi**")
+            
+            current_option = get_cv_danh_so_option()
+            new_option = st.radio(
+                "Chọn phương án đánh số:",
+                options=['CHUNG', 'RIENG'],
+                index=0 if current_option == 'CHUNG' else 1,
+                format_func=lambda x: "Số chung cho tất cả loại công văn" if x == 'CHUNG' else "Mỗi loại công văn có số riêng",
+                key="cv_option_radio"
+            )
+            
+            if new_option != current_option:
+                if st.button("✅ Cập nhật cấu hình", type="primary"):
+                    if update_cv_danh_so_option(new_option):
+                        st.success(f"✅ Đã cập nhật cấu hình sang: {new_option}")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error("❌ Cập nhật thất bại!")
+            
+            st.divider()
+            st.markdown("**📊 Trạng thái đánh số hiện tại**")
+            
+            db = st.session_state.db_engine.get_connection()
+            c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            c.execute("""
+                SELECT loai, so_max, prefix, nam_hien_tai, updated_at 
+                FROM cau_hinh_cong_van 
+                ORDER BY loai, nam_hien_tai
+            """)
+            configs = c.fetchall()
+            db.close()
+            
+            if configs:
+                df_config = pd.DataFrame(configs)
+                df_config['updated_at'] = df_config['updated_at'].apply(
+                    lambda x: x.strftime('%d/%m/%Y %H:%M') if x else ''
+                )
+                df_config.columns = ['Loại', 'Số hiện tại', 'Prefix', 'Năm', 'Cập nhật lúc']
+                st.dataframe(df_config, width='stretch', hide_index=True)
+            else:
+                st.info("Chưa có dữ liệu cấu hình. Hãy tạo công văn đi đầu tiên để khởi tạo.")
+            
+            st.divider()
+            st.markdown("**🔄 Đặt lại số**")
+            col_reset1, col_reset2, col_reset3 = st.columns([2, 1, 2])
+            with col_reset2:
+                loai_reset = st.selectbox(
+                    "Chọn loại cần đặt lại:",
+                    ['CHUNG', 'QUYET_DINH', 'CONG_VAN', 'BAO_CAO', 'THONG_BAO', 'TO_TRINH'],
+                    key="reset_loai"
+                )
+                so_moi = st.number_input("Số bắt đầu mới:", min_value=0, value=0, step=1, key="reset_so")
+                if st.button("🔄 Đặt lại số", type="secondary"):
+                    if st.checkbox("✅ Xác nhận đặt lại số", key="confirm_reset"):
+                        if update_so_max_cong_van(loai_reset, so_moi):
+                            st.success(f"✅ Đã đặt lại số cho {loai_reset} thành {so_moi}")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error("❌ Đặt lại số thất bại!")
+    
+    # Tabs
+    tab1, tab2, tab3 = st.tabs(["📥 Công văn đến", "📤 Công văn đi", "📑 Hợp đồng kinh tế"])
+    
+    # === TAB 1: CÔNG VĂN ĐẾN ===
+    with tab1:
+        st.subheader("📥 Quản lý Công văn đến")
+        
+        # Form thêm mới
+        with st.expander("➕ Thêm công văn đến mới", expanded=False):
+            with st.form("add_cong_van_den"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    so_cv = st.text_input("Số công văn *", placeholder="VD: 123/BQP-2026")
+                    co_quan = st.text_input("Cơ quan phát hành *", placeholder="VD: Bộ Quốc phòng")
+                    ngay_den = st.date_input("Ngày đến *", value=date.today())
+                with col2:
+                    tieu_de = st.text_input("Tiêu đề *", placeholder="Nhập tiêu đề công văn...")
+                    trich_yeu = st.text_area("Trích yếu", placeholder="Tóm tắt nội dung chính...", height=80)
+                    ghi_chu = st.text_area("Ghi chú", height=60)
+                
+                uploaded_file = st.file_uploader("📎 Upload file", type=['pdf', 'doc', 'docx', 'jpg', 'png', 'jpeg'], key="cv_den_upload")
+                
+                col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+                with col_btn2:
+                    if st.form_submit_button("💾 Lưu công văn đến", width='stretch', type="primary"):
+                        if not so_cv or not co_quan or not tieu_de:
+                            st.error("⚠️ Vui lòng nhập đầy đủ các trường bắt buộc (*)")
+                        else:
+                            try:
+                                # Upload file
+                                file_url = None
+                                if uploaded_file:
+                                    file_url = upload_cong_van_file(uploaded_file, "den")
+                                
+                                # Lưu vào database
+                                db = st.session_state.db_engine.get_connection()
+                                c = db.cursor()
+                                c.execute("""
+                                    INSERT INTO cong_van_den (so_cong_van, co_quan_phat_hanh, ngay_den, 
+                                    tieu_de, trich_yeu, file_url, ghi_chu, nguoi_tao)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                                """, (so_cv, co_quan, ngay_den, tieu_de, trich_yeu, file_url, ghi_chu, 
+                                      st.session_state.username))
+                                db.commit()
+                                db.close()
+                                
+                                st.success(f"✅ Đã thêm công văn đến: {so_cv}")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Lỗi: {e}")
+        
+        # Tìm kiếm và lọc
+        st.divider()
+        col_search1, col_search2, col_search3 = st.columns([2, 1, 1])
+        with col_search1:
+            search_text_cv_den = st.text_input("🔍 Tìm kiếm", placeholder="Theo số, tiêu đề, cơ quan...", key="search_cv_den")
+        with col_search2:
+            tu_ngay_cv_den = st.date_input("Từ ngày", value=None, key="tu_ngay_cv_den", label_visibility="collapsed")
+        with col_search3:
+            den_ngay_cv_den = st.date_input("Đến ngày", value=None, key="den_ngay_cv_den", label_visibility="collapsed")
+        
+        # Lấy dữ liệu
+        data_cv_den = get_cong_van_den(tu_ngay_cv_den, den_ngay_cv_den, search_text_cv_den)
+        
+        # Hiển thị bảng
+        if data_cv_den:
+            df_cv_den = pd.DataFrame(data_cv_den)
+            
+            # Format ngày
+            for col in ['ngay_den', 'created_at', 'updated_at']:
+                if col in df_cv_den.columns:
+                    df_cv_den[col] = df_cv_den[col].apply(format_date)
+            
+            display_cols = ['so_cong_van', 'co_quan_phat_hanh', 'ngay_den', 'tieu_de', 'trich_yeu', 'file_url', 'ghi_chu']
+            available_cols = [c for c in display_cols if c in df_cv_den.columns]
+            df_display = df_cv_den[available_cols]
+            
+            col_map = {
+                'so_cong_van': 'Số công văn',
+                'co_quan_phat_hanh': 'Cơ quan phát hành',
+                'ngay_den': 'Ngày đến',
+                'tieu_de': 'Tiêu đề',
+                'trich_yeu': 'Trích yếu',
+                'file_url': 'File',
+                'ghi_chu': 'Ghi chú'
+            }
+            df_display.rename(columns=col_map, inplace=True)
+            
+            st.caption(f"📌 Tổng số: {len(data_cv_den)} công văn đến")
+            st.dataframe(df_display, width='stretch', hide_index=True, height=400)
+            
+            # Nút xuất Excel
+            col_export1, col_export2, col_export3 = st.columns([1, 2, 1])
+            with col_export2:
+                if st.button("📥 Xuất Excel công văn đến", width='stretch', type="primary"):
+                    headers = ['so_cong_van', 'co_quan_phat_hanh', 'ngay_den', 'tieu_de', 'trich_yeu', 'ghi_chu']
+                    col_widths = [15, 25, 12, 35, 30, 25]
+                    title = f"BÁO CÁO CÔNG VĂN ĐẾN (Từ {tu_ngay_cv_den or '...'} đến {den_ngay_cv_den or '...'})"
+                    filename = f"Cong_van_den_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                    
+                    # Chuyển đổi data cho Excel
+                    excel_data = []
+                    for row in data_cv_den:
+                        excel_row = {}
+                        for key in headers:
+                            val = row.get(key)
+                            if key == 'ngay_den' and val:
+                                val = format_date(val)
+                            excel_row[key] = val
+                        excel_data.append(excel_row)
+                    
+                    export_cong_van_excel(excel_data, filename, headers, col_widths, title)
+                    
+                    with open(filename, "rb") as f:
+                        st.download_button(
+                            label="📥 TẢI FILE EXCEL",
+                            data=f,
+                            file_name=filename,
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            width='stretch'
+                        )
+                    st.success(f"✅ Đã xuất {len(data_cv_den)} công văn đến")
+        else:
+            st.info("📭 Không có công văn đến nào")
+    
+    # === TAB 2: CÔNG VĂN ĐI ===
+    with tab2:
+        st.subheader("📤 Quản lý Công văn đi")
+        
+        # Form thêm mới
+        with st.expander("➕ Thêm công văn đi mới", expanded=False):
+            with st.form("add_cong_van_di"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    # Lấy danh sách loại công văn
+                    db_loai = st.session_state.db_engine.get_connection()
+                    c_loai = db_loai.cursor()
+                    c_loai.execute("SELECT ma_loai, ten_loai FROM danh_muc_loai_cong_van WHERE trang_thai = TRUE ORDER BY thu_tu")
+                    loai_cv_list = c_loai.fetchall()
+                    db_loai.close()
+                    
+                    loai_options = {f"{loai[1]} ({loai[0]})": loai[0] for loai in loai_cv_list}
+                    selected_loai = st.selectbox("Loại công văn *", list(loai_options.keys()), key="cv_di_loai")
+                    loai_cv = loai_options[selected_loai]
+                    
+                    # Tự động sinh số công văn
+                    so_cv_tu_dong = generate_so_cong_van(loai_cv)
+                    st.info(f"📄 Số công văn tự động: **{so_cv_tu_dong}**")
+                    
+                    phong_phat_hanh = st.text_input("Phòng phát hành *", placeholder="VD: Phòng Hành chính")
+                    ngay_phat_hanh = st.date_input("Ngày phát hành *", value=date.today())
+                with col2:
+                    tieu_de = st.text_input("Tiêu đề *", placeholder="Nhập tiêu đề công văn...")
+                    trich_yeu = st.text_area("Trích yếu", placeholder="Tóm tắt nội dung chính...", height=80)
+                    ghi_chu = st.text_area("Ghi chú", height=60)
+                
+                uploaded_file = st.file_uploader("📎 Upload file", type=['pdf', 'doc', 'docx', 'jpg', 'png', 'jpeg'], key="cv_di_upload")
+                
+                col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+                with col_btn2:
+                    if st.form_submit_button("💾 Lưu công văn đi", width='stretch', type="primary"):
+                        if not phong_phat_hanh or not tieu_de:
+                            st.error("⚠️ Vui lòng nhập đầy đủ các trường bắt buộc (*)")
+                        else:
+                            try:
+                                # Upload file
+                                file_url = None
+                                if uploaded_file:
+                                    file_url = upload_cong_van_file(uploaded_file, "di")
+                                
+                                # Lưu vào database
+                                db = st.session_state.db_engine.get_connection()
+                                c = db.cursor()
+                                c.execute("""
+                                    INSERT INTO cong_van_di (so_cong_van, phong_phat_hanh, ngay_phat_hanh, 
+                                    tieu_de, trich_yeu, file_url, loai_cong_van, ghi_chu, nguoi_tao)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                """, (so_cv_tu_dong, phong_phat_hanh, ngay_phat_hanh, tieu_de, trich_yeu, 
+                                      file_url, loai_cv, ghi_chu, st.session_state.username))
+                                db.commit()
+                                db.close()
+                                
+                                st.success(f"✅ Đã thêm công văn đi: {so_cv_tu_dong}")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Lỗi: {e}")
+        
+        # Tìm kiếm và lọc
+        st.divider()
+        col_search1, col_search2, col_search3, col_search4 = st.columns([2, 1, 1, 1])
+        with col_search1:
+            search_text_cv_di = st.text_input("🔍 Tìm kiếm", placeholder="Theo số, tiêu đề, phòng...", key="search_cv_di")
+        with col_search2:
+            tu_ngay_cv_di = st.date_input("Từ ngày", value=None, key="tu_ngay_cv_di", label_visibility="collapsed")
+        with col_search3:
+            den_ngay_cv_di = st.date_input("Đến ngày", value=None, key="den_ngay_cv_di", label_visibility="collapsed")
+        with col_search4:
+            loai_filter = st.selectbox("Loại", ["Tất cả", "Quyết định", "Công văn", "Báo cáo", "Thông báo", "Tờ trình"], key="loai_filter_cv_di")
+        
+        # Lấy dữ liệu
+        loai_map = {
+            "Tất cả": None,
+            "Quyết định": "QUYET_DINH",
+            "Công văn": "CONG_VAN",
+            "Báo cáo": "BAO_CAO",
+            "Thông báo": "THONG_BAO",
+            "Tờ trình": "TO_TRINH"
+        }
+        data_cv_di = get_cong_van_di(tu_ngay_cv_di, den_ngay_cv_di, search_text_cv_di, loai_map.get(loai_filter))
+        
+        # Hiển thị bảng
+        if data_cv_di:
+            df_cv_di = pd.DataFrame(data_cv_di)
+            
+            # Format ngày
+            for col in ['ngay_phat_hanh', 'created_at', 'updated_at']:
+                if col in df_cv_di.columns:
+                    df_cv_di[col] = df_cv_di[col].apply(format_date)
+            
+            display_cols = ['so_cong_van', 'loai_cong_van', 'phong_phat_hanh', 'ngay_phat_hanh', 'tieu_de', 'trich_yeu', 'file_url', 'ghi_chu']
+            available_cols = [c for c in display_cols if c in df_cv_di.columns]
+            df_display = df_cv_di[available_cols]
+            
+            # Map loại
+            loai_name_map = {
+                'QUYET_DINH': 'Quyết định',
+                'CONG_VAN': 'Công văn',
+                'BAO_CAO': 'Báo cáo',
+                'THONG_BAO': 'Thông báo',
+                'TO_TRINH': 'Tờ trình'
+            }
+            df_display['loai_cong_van'] = df_display['loai_cong_van'].map(loai_name_map)
+            
+            col_map = {
+                'so_cong_van': 'Số công văn',
+                'loai_cong_van': 'Loại',
+                'phong_phat_hanh': 'Phòng phát hành',
+                'ngay_phat_hanh': 'Ngày phát hành',
+                'tieu_de': 'Tiêu đề',
+                'trich_yeu': 'Trích yếu',
+                'file_url': 'File',
+                'ghi_chu': 'Ghi chú'
+            }
+            df_display.rename(columns=col_map, inplace=True)
+            
+            st.caption(f"📌 Tổng số: {len(data_cv_di)} công văn đi")
+            st.dataframe(df_display, width='stretch', hide_index=True, height=400)
+            
+            # Nút xuất Excel
+            col_export1, col_export2, col_export3 = st.columns([1, 2, 1])
+            with col_export2:
+                if st.button("📥 Xuất Excel công văn đi", width='stretch', type="primary"):
+                    headers = ['so_cong_van', 'loai_cong_van', 'phong_phat_hanh', 'ngay_phat_hanh', 'tieu_de', 'trich_yeu', 'ghi_chu']
+                    col_widths = [20, 12, 20, 12, 35, 30, 25]
+                    title = f"BÁO CÁO CÔNG VĂN ĐI (Từ {tu_ngay_cv_di or '...'} đến {den_ngay_cv_di or '...'})"
+                    filename = f"Cong_van_di_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                    
+                    excel_data = []
+                    for row in data_cv_di:
+                        excel_row = {}
+                        for key in headers:
+                            val = row.get(key)
+                            if key == 'ngay_phat_hanh' and val:
+                                val = format_date(val)
+                            if key == 'loai_cong_van':
+                                val = loai_name_map.get(val, val)
+                            excel_row[key] = val
+                        excel_data.append(excel_row)
+                    
+                    export_cong_van_excel(excel_data, filename, headers, col_widths, title)
+                    
+                    with open(filename, "rb") as f:
+                        st.download_button(
+                            label="📥 TẢI FILE EXCEL",
+                            data=f,
+                            file_name=filename,
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            width='stretch'
+                        )
+                    st.success(f"✅ Đã xuất {len(data_cv_di)} công văn đi")
+        else:
+            st.info("📭 Không có công văn đi nào")
+    
+    # === TAB 3: HỢP ĐỒNG KINH TẾ ===
+    with tab3:
+        st.subheader("📑 Quản lý Hợp đồng kinh tế")
+        
+        # Form thêm mới
+        with st.expander("➕ Thêm hợp đồng kinh tế mới", expanded=False):
+            with st.form("add_hop_dong_kt"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    so_hd = st.text_input("Số hợp đồng *", placeholder="VD: HD-01/2026/CHL")
+                    ten_doi_tac = st.text_input("Tên đối tác *", placeholder="VD: Công ty TNHH ABC")
+                    ngay_ky = st.date_input("Ngày ký *", value=date.today())
+                with col2:
+                    trich_yeu = st.text_area("Trích yếu", placeholder="Tóm tắt nội dung hợp đồng...", height=80)
+                    ghi_chu = st.text_area("Ghi chú", height=60)
+                
+                uploaded_file = st.file_uploader("📎 Upload file", type=['pdf', 'doc', 'docx', 'jpg', 'png', 'jpeg'], key="hd_kt_upload")
+                
+                col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+                with col_btn2:
+                    if st.form_submit_button("💾 Lưu hợp đồng", width='stretch', type="primary"):
+                        if not so_hd or not ten_doi_tac:
+                            st.error("⚠️ Vui lòng nhập đầy đủ các trường bắt buộc (*)")
+                        else:
+                            try:
+                                # Upload file
+                                file_url = None
+                                if uploaded_file:
+                                    file_url = upload_cong_van_file(uploaded_file, "hop_dong_kt")
+                                
+                                # Lưu vào database
+                                db = st.session_state.db_engine.get_connection()
+                                c = db.cursor()
+                                c.execute("""
+                                    INSERT INTO hop_dong_kinh_te (so_hop_dong, ten_doi_tac, ngay_ky, 
+                                    trich_yeu, file_url, ghi_chu, nguoi_tao)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                """, (so_hd, ten_doi_tac, ngay_ky, trich_yeu, file_url, ghi_chu, 
+                                      st.session_state.username))
+                                db.commit()
+                                db.close()
+                                
+                                st.success(f"✅ Đã thêm hợp đồng: {so_hd}")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Lỗi: {e}")
+        
+        # Tìm kiếm và lọc
+        st.divider()
+        col_search1, col_search2, col_search3 = st.columns([2, 1, 1])
+        with col_search1:
+            search_text_hd = st.text_input("🔍 Tìm kiếm", placeholder="Theo số HĐ, đối tác...", key="search_hd_kt")
+        with col_search2:
+            tu_ngay_hd = st.date_input("Từ ngày", value=None, key="tu_ngay_hd", label_visibility="collapsed")
+        with col_search3:
+            den_ngay_hd = st.date_input("Đến ngày", value=None, key="den_ngay_hd", label_visibility="collapsed")
+        
+        # Lấy dữ liệu
+        data_hd = get_hop_dong_kinh_te(tu_ngay_hd, den_ngay_hd, search_text_hd)
+        
+        # Hiển thị bảng
+        if data_hd:
+            df_hd = pd.DataFrame(data_hd)
+            
+            # Format ngày
+            for col in ['ngay_ky', 'created_at', 'updated_at']:
+                if col in df_hd.columns:
+                    df_hd[col] = df_hd[col].apply(format_date)
+            
+            display_cols = ['so_hop_dong', 'ten_doi_tac', 'ngay_ky', 'trich_yeu', 'file_url', 'ghi_chu']
+            available_cols = [c for c in display_cols if c in df_hd.columns]
+            df_display = df_hd[available_cols]
+            
+            col_map = {
+                'so_hop_dong': 'Số hợp đồng',
+                'ten_doi_tac': 'Đối tác',
+                'ngay_ky': 'Ngày ký',
+                'trich_yeu': 'Trích yếu',
+                'file_url': 'File',
+                'ghi_chu': 'Ghi chú'
+            }
+            df_display.rename(columns=col_map, inplace=True)
+            
+            st.caption(f"📌 Tổng số: {len(data_hd)} hợp đồng kinh tế")
+            st.dataframe(df_display, width='stretch', hide_index=True, height=400)
+            
+            # Nút xuất Excel
+            col_export1, col_export2, col_export3 = st.columns([1, 2, 1])
+            with col_export2:
+                if st.button("📥 Xuất Excel hợp đồng", width='stretch', type="primary"):
+                    headers = ['so_hop_dong', 'ten_doi_tac', 'ngay_ky', 'trich_yeu', 'ghi_chu']
+                    col_widths = [20, 30, 12, 35, 25]
+                    title = f"BÁO CÁO HỢP ĐỒNG KINH TẾ (Từ {tu_ngay_hd or '...'} đến {den_ngay_hd or '...'})"
+                    filename = f"Hop_dong_kinh_te_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                    
+                    excel_data = []
+                    for row in data_hd:
+                        excel_row = {}
+                        for key in headers:
+                            val = row.get(key)
+                            if key == 'ngay_ky' and val:
+                                val = format_date(val)
+                            excel_row[key] = val
+                        excel_data.append(excel_row)
+                    
+                    export_cong_van_excel(excel_data, filename, headers, col_widths, title)
+                    
+                    with open(filename, "rb") as f:
+                        st.download_button(
+                            label="📥 TẢI FILE EXCEL",
+                            data=f,
+                            file_name=filename,
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            width='stretch'
+                        )
+                    st.success(f"✅ Đã xuất {len(data_hd)} hợp đồng kinh tế")
+        else:
+            st.info("📭 Không có hợp đồng kinh tế nào")
 
 # Chạy ứng dụng
 if __name__ == "__main__":

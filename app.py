@@ -7400,16 +7400,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                 selected_hs_name = st.selectbox("Chọn hồ sơ:", list(hs_options.keys()))
                 selected_hs = hs_options[selected_hs_name]
                 
-                col_info, col_download = st.columns([2, 1])
-                with col_info:
-                    st.markdown(f"""
-                    **📋 Thông tin hồ sơ:**
-                    - **Loại:** {selected_hs['loai_ho_so']}
-                    - **Tên file gốc:** {selected_hs['ten_file']}
-                    - **Đường dẫn:** `{selected_hs['duong_dan_file']}`
-                    - **Ngày upload:** {format_date(selected_hs['ngay_upload'])}
-                    """)
-                
+                col_download = st.columns([1, 1])
                 with col_download:
                     sb = get_supabase_storage()
                     if not sb:

@@ -4915,497 +4915,497 @@ elif menu == "✅ Nhân viên":
         ds = c.fetchall()
         db.close()
         
-            if ds:
-                # ===== KIỂM TRA NẾU CHỈ CÓ 1 KẾT QUẢ TÌM KIẾM =====
-                if len(ds) == 1:
-                    nv = ds[0]  # Lấy nhân viên duy nhất
-                    st.success(f"🎯 Tìm thấy 1 nhân viên: {nv['ho_ten']}")
-                    st.subheader("👤 THÔNG TIN NHÂN VIÊN")
-                    
-                    # Tạo layout 2 cột: Ảnh và Thông tin
-                    col_avatar, col_info = st.columns([1, 2])
-                    
-                    with col_avatar:
-                        # Lấy ảnh từ storage nếu có
-                        anh_path = nv.get('anh_ho_so')
-                        if anh_path:
-                            anh_bytes = get_anh_ho_so_bytes(anh_path)
-                            if anh_bytes:
-                                import base64
-                                img_base64 = base64.b64encode(anh_bytes).decode()
-                                st.markdown(f"""
-                                <div style="text-align: center;">
-                                    <img src="data:image/jpeg;base64,{img_base64}" 
-                                         style="width: 200px; height: 200px; border-radius: 50%; object-fit: cover; 
-                                                border: 4px solid #f59e0b; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
-                                </div>
-                                """, unsafe_allow_html=True)
-                            else:
-                                st.image(f"https://ui-avatars.com/api/?name={nv['ho_ten'].replace(' ', '+')}&size=200&background=f59e0b&color=fff", width=200)
+        if ds:
+            # ===== KIỂM TRA NẾU CHỈ CÓ 1 KẾT QUẢ TÌM KIẾM =====
+            if len(ds) == 1:
+                nv = ds[0]  # Lấy nhân viên duy nhất
+                st.success(f"🎯 Tìm thấy 1 nhân viên: {nv['ho_ten']}")
+                st.subheader("👤 THÔNG TIN NHÂN VIÊN")
+                
+                # Tạo layout 2 cột: Ảnh và Thông tin
+                col_avatar, col_info = st.columns([1, 2])
+                
+                with col_avatar:
+                    # Lấy ảnh từ storage nếu có
+                    anh_path = nv.get('anh_ho_so')
+                    if anh_path:
+                        anh_bytes = get_anh_ho_so_bytes(anh_path)
+                        if anh_bytes:
+                            import base64
+                            img_base64 = base64.b64encode(anh_bytes).decode()
+                            st.markdown(f"""
+                            <div style="text-align: center;">
+                                <img src="data:image/jpeg;base64,{img_base64}" 
+                                     style="width: 200px; height: 200px; border-radius: 50%; object-fit: cover; 
+                                            border: 4px solid #f59e0b; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+                            </div>
+                            """, unsafe_allow_html=True)
                         else:
-                            # Avatar mặc định nếu chưa có ảnh
                             st.image(f"https://ui-avatars.com/api/?name={nv['ho_ten'].replace(' ', '+')}&size=200&background=f59e0b&color=fff", width=200)
-                    
-                    with col_info:
-                        # Hiển thị thông tin chi tiết
-                        st.markdown(f"### {nv['ho_ten']} ({nv['ma_nv']})")
-                        
-                        # Tạo grid 2 cột cho thông tin
-                        info_col1, info_col2 = st.columns(2)
-                        
-                        with info_col1:
-                            st.markdown(f"**📅 Ngày sinh:** {format_date(nv.get('ngay_sinh'))}")
-                            st.markdown(f"**⚧ Giới tính:** {nv.get('gioi_tinh', 'Chưa cập nhật')}")
-                            st.markdown(f"**💼 Chức danh:** {nv.get('chuc_danh_nghe', 'Chưa cập nhật')}")
-                            st.markdown(f"**🏢 Phòng ban:** {nv.get('phong_ban_lam_viec', 'Chưa cập nhật')}")
-                            st.markdown(f"**📞 SĐT:** {nv.get('dien_thoai', 'Chưa cập nhật')}")
-                        
-                        with info_col2:
-                            st.markdown(f"**📧 Email:** {nv.get('email_lien_he', 'Chưa cập nhật')}")
-                            st.markdown(f"**📋 Loại HĐ:** {nv.get('loai_hop_dong', 'Chưa cập nhật')}")
-                            st.markdown(f"**📅 Ngày vào làm:** {format_date(nv.get('ngay_vao_lam'))}")
-                            st.markdown(f"**🎓 Trình độ:** {nv.get('trinh_do', 'Chưa cập nhật')}")
-                            st.markdown(f"**📇 Mã BHXH:** {nv.get('ma_so_bhxh', 'Chưa có')}")
-                        
-                        # Thêm trạng thái
-                        trang_thai_text = {
-                            'DANG_LAM': '🟢 Đang làm',
-                            'THU_VIEC': '🔵 Thử việc',
-                            'NGHI_VIEC': '🔴 Đã nghỉ'
-                        }
-                        status = trang_thai_text.get(nv.get('trang_thai'), nv.get('trang_thai', 'Chưa xác định'))
-                        st.markdown(f"**📊 Trạng thái:** {status}")
-                    
-                    # Thêm nút hành động
-                    st.divider()
-                    col_btn_action1, col_btn_action2, col_btn_action3, col_btn_action4 = st.columns(4)
-                    
-                    with col_btn_action1:
-                        if st.button("✏️ SỬA NHÂN VIÊN", width='stretch', type="primary"):
-                            st.session_state['selected_nv_id'] = int(nv['id'])
-                            st.rerun()
-                    
-                    with col_btn_action2:
-                        if nv.get('trang_thai') == 'DANG_LAM':
-                            if st.button("🖨️ IN HĐLĐ", width='stretch'):
-                                db = st.session_state.db_engine.get_connection()
-                                c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                                c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(nv['id']),))
-                                nv_full = c.fetchone()
-                                db.close()
-                                if nv_full:
-                                    fp = tao_hop_dong(nv_full)
-                                    with open(fp, "rb") as f:
-                                        st.download_button(
-                                            label="📥 TẢI HĐLĐ",
-                                            data=f,
-                                            file_name=f"HDLD_{nv_full['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx",
-                                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                            key=f"download_hdld_card_{nv['id']}"
-                                        )
-                        elif nv.get('trang_thai') == 'THU_VIEC':
-                            if st.button("🖨️ IN HĐTV", width='stretch'):
-                                db = st.session_state.db_engine.get_connection()
-                                c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                                c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(nv['id']),))
-                                nv_full = c.fetchone()
-                                db.close()
-                                if nv_full:
-                                    fp = tao_hop_dong_thu_viec(nv_full)
-                                    with open(fp, "rb") as f:
-                                        st.download_button(
-                                            label="📥 TẢI HĐTV",
-                                            data=f,
-                                            file_name=f"HDTV_{nv_full['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx",
-                                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                            key=f"download_hdtv_card_{nv['id']}"
-                                        )
-                        else:
-                            st.button("📄 KHÔNG THỂ IN HĐ", disabled=True, width='stretch')
-                    
-                    with col_btn_action3:
-                        ph = nv.get('dien_thoai', '')
-                        if ph:
-                            ph = ph.replace('+84', '0').replace(' ', '').strip()
-                            if st.button("📱 GỬI ZALO", width='stretch'):
-                                db = st.session_state.db_engine.get_connection()
-                                c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                                c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(nv['id']),))
-                                nv_full = c.fetchone()
-                                db.close()
-                                if nv_full:
-                                    st.code(tao_noi_dung_zalo(nv_full))
-                                    st.markdown(f"[👉 MỞ ZALO](https://zalo.me/{ph})")
-                        else:
-                            st.button("📱 GỬI ZALO", disabled=True, width='stretch', help="Chưa có SĐT!")
-                    
-                    with col_btn_action4:
-                        ma_bhxh = nv.get('ma_so_bhxh', '')
-                        chua_co_bhxh = not bool(ma_bhxh and str(ma_bhxh).strip())
-                        if chua_co_bhxh:
-                            if st.button("🏠 NHẬP HỘ GIA ĐÌNH", width='stretch', type="primary"):
-                                st.session_state['bhxh_family_nv_id'] = int(nv['id'])
-                                st.session_state['bhxh_family_nv_name'] = nv['ho_ten']
-                                st.rerun()
-                        else:
-                            st.button("✅ ĐÃ CÓ BHXH", disabled=True, width='stretch')
-                    
-                    # Thêm tùy chọn hiển thị bảng
-                    st.divider()
-                    if st.checkbox("📊 Hiển thị danh sách đầy đủ", value=False, key="show_full_list_card"):
-                        # Hiển thị bảng bên dưới
-                        pass
                     else:
-                        # Nếu không hiển thị bảng, vẫn cần render các phần bên dưới
-                        # nhưng chúng ta sẽ bỏ qua phần bảng
-                        # Để không bị lỗi, chúng ta sẽ đặt một flag
-                        st.session_state['skip_table_display'] = True
-                        # Vẫn cần giữ các form sửa nhân viên ở phía sau
-                        # nhưng chúng sẽ không hiển thị nếu không có selected_nv_id
-                        pass
+                        # Avatar mặc định nếu chưa có ảnh
+                        st.image(f"https://ui-avatars.com/api/?name={nv['ho_ten'].replace(' ', '+')}&size=200&background=f59e0b&color=fff", width=200)
                 
-                # ===== PHẦN HIỂN THỊ BẢNG (CHẠY KHI CÓ NHIỀU KẾT QUẢ HOẶC USER CHỌN HIỂN THỊ) =====
-                # Chỉ hiển thị bảng nếu có nhiều hơn 1 kết quả HOẶC user chọn hiển thị đầy đủ
-                show_table = (len(ds) > 1) or (len(ds) == 1 and st.session_state.get('show_full_list_card', False))
-                
-                if show_table or len(ds) > 1:
-                    # Reset flag nếu có
-                    st.session_state['skip_table_display'] = False
+                with col_info:
+                    # Hiển thị thông tin chi tiết
+                    st.markdown(f"### {nv['ho_ten']} ({nv['ma_nv']})")
                     
-                    df = pd.DataFrame(ds)
-                    for col in df.columns:
-                        if 'ngay' in col.lower():
-                            df[col] = df[col].apply(format_date)
+                    # Tạo grid 2 cột cho thông tin
+                    info_col1, info_col2 = st.columns(2)
                     
-                    if 'selected' not in df.columns:
-                        df.insert(0, 'selected', False)
+                    with info_col1:
+                        st.markdown(f"**📅 Ngày sinh:** {format_date(nv.get('ngay_sinh'))}")
+                        st.markdown(f"**⚧ Giới tính:** {nv.get('gioi_tinh', 'Chưa cập nhật')}")
+                        st.markdown(f"**💼 Chức danh:** {nv.get('chuc_danh_nghe', 'Chưa cập nhật')}")
+                        st.markdown(f"**🏢 Phòng ban:** {nv.get('phong_ban_lam_viec', 'Chưa cập nhật')}")
+                        st.markdown(f"**📞 SĐT:** {nv.get('dien_thoai', 'Chưa cập nhật')}")
                     
-                    display_cols = ['selected', 'ma_nv', 'ho_ten', 'ngay_sinh', 'gioi_tinh', 'so_hdld', 'so_cccd', 'dien_thoai',
-                                    'thuong_tru', 'chuc_danh_nghe', 'loai_hop_dong', 'ngay_vao_lam', 'ma_so_bhxh', 'thang_bat_dau_bh',
-                                    'ten_don_vi_thu_huong']
-                    # viewer và kt_luong: ẩn thông tin nhạy cảm (CCCD, STK ngân hàng) trên bảng danh sách
-                    SENSITIVE_COLS = {'so_cccd', 'so_tai_khoan_nh'}
-                    if st.session_state.role in ("viewer", "kt_luong"):
-                        display_cols = [c for c in display_cols if c not in SENSITIVE_COLS]
-                    available_cols = [c for c in display_cols if c in df.columns]
-                    df_show = df[available_cols]
+                    with info_col2:
+                        st.markdown(f"**📧 Email:** {nv.get('email_lien_he', 'Chưa cập nhật')}")
+                        st.markdown(f"**📋 Loại HĐ:** {nv.get('loai_hop_dong', 'Chưa cập nhật')}")
+                        st.markdown(f"**📅 Ngày vào làm:** {format_date(nv.get('ngay_vao_lam'))}")
+                        st.markdown(f"**🎓 Trình độ:** {nv.get('trinh_do', 'Chưa cập nhật')}")
+                        st.markdown(f"**📇 Mã BHXH:** {nv.get('ma_so_bhxh', 'Chưa có')}")
                     
-                    col_map = {
-                        'selected': 'Chọn',
-                        'ma_nv': 'Mã NV',
-                        'ho_ten': 'Họ và tên',
-                        'ngay_sinh': 'Ngày sinh',
-                        'gioi_tinh': 'Giới tính',
-                        'so_hdld': 'Số HĐLĐ',
-                        'so_cccd': 'CCCD',
-                        'dien_thoai': 'SĐT',
-                        'thuong_tru': 'Thường trú',
-                        'chuc_danh_nghe': 'Chức danh',
-                        'loai_hop_dong': 'Loại HĐ',
-                        'ngay_vao_lam': 'Ngày vào làm',
-                        'ma_so_bhxh': 'Mã số BHXH',
-                        'thang_bat_dau_bh': 'Bắt đầu BH',
-                        'ten_don_vi_thu_huong': 'Tên đơn vị thụ hưởng',
+                    # Thêm trạng thái
+                    trang_thai_text = {
+                        'DANG_LAM': '🟢 Đang làm',
+                        'THU_VIEC': '🔵 Thử việc',
+                        'NGHI_VIEC': '🔴 Đã nghỉ'
                     }
-                    df_show.rename(columns=col_map, inplace=True)
-                    
-                    if len(ds) > 1:
-                        st.caption(f"📌 {len(ds)} kết quả. Tick chọn 1 nhân viên để thao tác.")
+                    status = trang_thai_text.get(nv.get('trang_thai'), nv.get('trang_thai', 'Chưa xác định'))
+                    st.markdown(f"**📊 Trạng thái:** {status}")
+                
+                # Thêm nút hành động
+                st.divider()
+                col_btn_action1, col_btn_action2, col_btn_action3, col_btn_action4 = st.columns(4)
+                
+                with col_btn_action1:
+                    if st.button("✏️ SỬA NHÂN VIÊN", width='stretch', type="primary"):
+                        st.session_state['selected_nv_id'] = int(nv['id'])
+                        st.rerun()
+                
+                with col_btn_action2:
+                    if nv.get('trang_thai') == 'DANG_LAM':
+                        if st.button("🖨️ IN HĐLĐ", width='stretch'):
+                            db = st.session_state.db_engine.get_connection()
+                            c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                            c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(nv['id']),))
+                            nv_full = c.fetchone()
+                            db.close()
+                            if nv_full:
+                                fp = tao_hop_dong(nv_full)
+                                with open(fp, "rb") as f:
+                                    st.download_button(
+                                        label="📥 TẢI HĐLĐ",
+                                        data=f,
+                                        file_name=f"HDLD_{nv_full['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx",
+                                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                        key=f"download_hdld_card_{nv['id']}"
+                                    )
+                    elif nv.get('trang_thai') == 'THU_VIEC':
+                        if st.button("🖨️ IN HĐTV", width='stretch'):
+                            db = st.session_state.db_engine.get_connection()
+                            c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                            c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(nv['id']),))
+                            nv_full = c.fetchone()
+                            db.close()
+                            if nv_full:
+                                fp = tao_hop_dong_thu_viec(nv_full)
+                                with open(fp, "rb") as f:
+                                    st.download_button(
+                                        label="📥 TẢI HĐTV",
+                                        data=f,
+                                        file_name=f"HDTV_{nv_full['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx",
+                                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                        key=f"download_hdtv_card_{nv['id']}"
+                                    )
                     else:
-                        st.caption(f"📌 Danh sách đầy đủ ({len(ds)} kết quả). Tick chọn 1 nhân viên để thao tác.")
-                    
-                    # Nếu là viewer, hiển thị bảng không có checkbox chọn
-                    if st.session_state.role == "admin":
-                        edited_df = st.data_editor(
-                            df_show,
-                            column_config={
-                                "Chọn": st.column_config.CheckboxColumn("Chọn để sửa", default=False)
-                            },
-                            disabled=[col for col in df_show.columns if col != 'Chọn'],
-                            hide_index=True,
-                            height=400,
-                            key="nv_editor_danglam"
-                        )
+                        st.button("📄 KHÔNG THỂ IN HĐ", disabled=True, width='stretch')
+                
+                with col_btn_action3:
+                    ph = nv.get('dien_thoai', '')
+                    if ph:
+                        ph = ph.replace('+84', '0').replace(' ', '').strip()
+                        if st.button("📱 GỬI ZALO", width='stretch'):
+                            db = st.session_state.db_engine.get_connection()
+                            c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                            c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(nv['id']),))
+                            nv_full = c.fetchone()
+                            db.close()
+                            if nv_full:
+                                st.code(tao_noi_dung_zalo(nv_full))
+                                st.markdown(f"[👉 MỞ ZALO](https://zalo.me/{ph})")
                     else:
-                        # Viewer: hiển thị bảng đơn thuần, không có checkbox
-                        st.dataframe(df_show.drop(columns=['Chọn'], errors='ignore'), width='stretch', hide_index=True, height=400)
-                        edited_df = None
-                    
-                    selected_nv = None
-                    if edited_df is not None and st.session_state.role == "admin" and 'Chọn' in edited_df.columns:
-                        selected_rows = edited_df[edited_df['Chọn'] == True]
-                        if len(selected_rows) > 0:
-                            if len(selected_rows) > 1:
-                                st.error("⚠️ Chỉ được chọn 1 nhân viên!")
-                            else:
-                                selected_idx = selected_rows.index[0]
-                                selected_nv = df.iloc[selected_idx]
-                                nv_id_key = selected_nv['id']
-                                
-                                # Hiển thị các nút chức năng (chỉ admin mới thấy và mới click được)
-                                col_btn1, col_btn2, col_btn3, col_btn4, col_btn5 = st.columns(5)
-                                
-                                with col_btn1:
-                                    if st.button(f"✏️ SỬA '{selected_nv['ho_ten']}'", key=f"edit_nv_btn_{nv_id_key}", width='stretch'):
-                                        st.session_state['selected_nv_id'] = int(selected_nv['id'])
-                                        st.rerun()
-                                
-                                with col_btn2:
-                                    trang_thai_nv = selected_nv.get('trang_thai', '')
-                                    if trang_thai_nv == 'DANG_LAM':
-                                        if st.button(f"🖨️ IN HĐLĐ - {selected_nv['ho_ten']}", key=f"print_hdld_btn_{nv_id_key}", width='stretch'):
-                                            db = st.session_state.db_engine.get_connection()
-                                            c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                                            c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(selected_nv['id']),))
-                                            nv_full = c.fetchone()
-                                            db.close()
-                                            if nv_full:
-                                                fp = tao_hop_dong(nv_full)
-                                                with open(fp, "rb") as f:
-                                                    st.download_button(
-                                                        label="📥 TẢI HĐLĐ",
-                                                        data=f,
-                                                        file_name=f"HDLD_{nv_full['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx",
-                                                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                                        key=f"download_hdld_{nv_id_key}"
-                                                    )
-                                            else:
-                                                st.error("Không tìm thấy thông tin nhân viên!")
-                                    elif trang_thai_nv == 'THU_VIEC':
-                                        if st.button(f"🖨️ IN HĐTV - {selected_nv['ho_ten']}", key=f"print_hdtv_btn_{nv_id_key}", width='stretch'):
-                                            db = st.session_state.db_engine.get_connection()
-                                            c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                                            c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(selected_nv['id']),))
-                                            nv_full = c.fetchone()
-                                            db.close()
-                                            if nv_full:
-                                                fp = tao_hop_dong_thu_viec(nv_full)
-                                                with open(fp, "rb") as f:
-                                                    st.download_button(
-                                                        label="📥 TẢI HĐTV",
-                                                        data=f,
-                                                        file_name=f"HDTV_{nv_full['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx",
-                                                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                                        key=f"download_hdtv_{nv_id_key}"
-                                                    )
-                                            else:
-                                                st.error("Không tìm thấy thông tin nhân viên!")
-                                    else:
-                                        st.button(f"📄 {selected_nv['ho_ten']} (Không thể in HĐ)", disabled=True, width='stretch', key=f"disabled_btn_{nv_id_key}")
-                                
-                                with col_btn3:
-                                    if st.button(f"📱 GỬI ZALO - {selected_nv['ho_ten']}", key=f"zalo_btn_{nv_id_key}", width='stretch'):
+                        st.button("📱 GỬI ZALO", disabled=True, width='stretch', help="Chưa có SĐT!")
+                
+                with col_btn_action4:
+                    ma_bhxh = nv.get('ma_so_bhxh', '')
+                    chua_co_bhxh = not bool(ma_bhxh and str(ma_bhxh).strip())
+                    if chua_co_bhxh:
+                        if st.button("🏠 NHẬP HỘ GIA ĐÌNH", width='stretch', type="primary"):
+                            st.session_state['bhxh_family_nv_id'] = int(nv['id'])
+                            st.session_state['bhxh_family_nv_name'] = nv['ho_ten']
+                            st.rerun()
+                    else:
+                        st.button("✅ ĐÃ CÓ BHXH", disabled=True, width='stretch')
+                
+                # Thêm tùy chọn hiển thị bảng
+                st.divider()
+                if st.checkbox("📊 Hiển thị danh sách đầy đủ", value=False, key="show_full_list_card"):
+                    # Hiển thị bảng bên dưới
+                    pass
+                else:
+                    # Nếu không hiển thị bảng, vẫn cần render các phần bên dưới
+                    # nhưng chúng ta sẽ bỏ qua phần bảng
+                    # Để không bị lỗi, chúng ta sẽ đặt một flag
+                    st.session_state['skip_table_display'] = True
+                    # Vẫn cần giữ các form sửa nhân viên ở phía sau
+                    # nhưng chúng sẽ không hiển thị nếu không có selected_nv_id
+                    pass
+            
+            # ===== PHẦN HIỂN THỊ BẢNG (CHẠY KHI CÓ NHIỀU KẾT QUẢ HOẶC USER CHỌN HIỂN THỊ) =====
+            # Chỉ hiển thị bảng nếu có nhiều hơn 1 kết quả HOẶC user chọn hiển thị đầy đủ
+            show_table = (len(ds) > 1) or (len(ds) == 1 and st.session_state.get('show_full_list_card', False))
+            
+            if show_table or len(ds) > 1:
+                # Reset flag nếu có
+                st.session_state['skip_table_display'] = False
+                
+                df = pd.DataFrame(ds)
+                for col in df.columns:
+                    if 'ngay' in col.lower():
+                        df[col] = df[col].apply(format_date)
+                
+                if 'selected' not in df.columns:
+                    df.insert(0, 'selected', False)
+                
+                display_cols = ['selected', 'ma_nv', 'ho_ten', 'ngay_sinh', 'gioi_tinh', 'so_hdld', 'so_cccd', 'dien_thoai',
+                                'thuong_tru', 'chuc_danh_nghe', 'loai_hop_dong', 'ngay_vao_lam', 'ma_so_bhxh', 'thang_bat_dau_bh',
+                                'ten_don_vi_thu_huong']
+                # viewer và kt_luong: ẩn thông tin nhạy cảm (CCCD, STK ngân hàng) trên bảng danh sách
+                SENSITIVE_COLS = {'so_cccd', 'so_tai_khoan_nh'}
+                if st.session_state.role in ("viewer", "kt_luong"):
+                    display_cols = [c for c in display_cols if c not in SENSITIVE_COLS]
+                available_cols = [c for c in display_cols if c in df.columns]
+                df_show = df[available_cols]
+                
+                col_map = {
+                    'selected': 'Chọn',
+                    'ma_nv': 'Mã NV',
+                    'ho_ten': 'Họ và tên',
+                    'ngay_sinh': 'Ngày sinh',
+                    'gioi_tinh': 'Giới tính',
+                    'so_hdld': 'Số HĐLĐ',
+                    'so_cccd': 'CCCD',
+                    'dien_thoai': 'SĐT',
+                    'thuong_tru': 'Thường trú',
+                    'chuc_danh_nghe': 'Chức danh',
+                    'loai_hop_dong': 'Loại HĐ',
+                    'ngay_vao_lam': 'Ngày vào làm',
+                    'ma_so_bhxh': 'Mã số BHXH',
+                    'thang_bat_dau_bh': 'Bắt đầu BH',
+                    'ten_don_vi_thu_huong': 'Tên đơn vị thụ hưởng',
+                }
+                df_show.rename(columns=col_map, inplace=True)
+                
+                if len(ds) > 1:
+                    st.caption(f"📌 {len(ds)} kết quả. Tick chọn 1 nhân viên để thao tác.")
+                else:
+                    st.caption(f"📌 Danh sách đầy đủ ({len(ds)} kết quả). Tick chọn 1 nhân viên để thao tác.")
+                
+                # Nếu là viewer, hiển thị bảng không có checkbox chọn
+                if st.session_state.role == "admin":
+                    edited_df = st.data_editor(
+                        df_show,
+                        column_config={
+                            "Chọn": st.column_config.CheckboxColumn("Chọn để sửa", default=False)
+                        },
+                        disabled=[col for col in df_show.columns if col != 'Chọn'],
+                        hide_index=True,
+                        height=400,
+                        key="nv_editor_danglam"
+                    )
+                else:
+                    # Viewer: hiển thị bảng đơn thuần, không có checkbox
+                    st.dataframe(df_show.drop(columns=['Chọn'], errors='ignore'), width='stretch', hide_index=True, height=400)
+                    edited_df = None
+                
+                selected_nv = None
+                if edited_df is not None and st.session_state.role == "admin" and 'Chọn' in edited_df.columns:
+                    selected_rows = edited_df[edited_df['Chọn'] == True]
+                    if len(selected_rows) > 0:
+                        if len(selected_rows) > 1:
+                            st.error("⚠️ Chỉ được chọn 1 nhân viên!")
+                        else:
+                            selected_idx = selected_rows.index[0]
+                            selected_nv = df.iloc[selected_idx]
+                            nv_id_key = selected_nv['id']
+                            
+                            # Hiển thị các nút chức năng (chỉ admin mới thấy và mới click được)
+                            col_btn1, col_btn2, col_btn3, col_btn4, col_btn5 = st.columns(5)
+                            
+                            with col_btn1:
+                                if st.button(f"✏️ SỬA '{selected_nv['ho_ten']}'", key=f"edit_nv_btn_{nv_id_key}", width='stretch'):
+                                    st.session_state['selected_nv_id'] = int(selected_nv['id'])
+                                    st.rerun()
+                            
+                            with col_btn2:
+                                trang_thai_nv = selected_nv.get('trang_thai', '')
+                                if trang_thai_nv == 'DANG_LAM':
+                                    if st.button(f"🖨️ IN HĐLĐ - {selected_nv['ho_ten']}", key=f"print_hdld_btn_{nv_id_key}", width='stretch'):
                                         db = st.session_state.db_engine.get_connection()
                                         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
                                         c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(selected_nv['id']),))
                                         nv_full = c.fetchone()
                                         db.close()
                                         if nv_full:
-                                            ph = nv_full.get('dien_thoai', '')
-                                            if ph:
-                                                ph = ph.replace('+84', '0').replace(' ', '').strip()
-                                                st.code(tao_noi_dung_zalo(nv_full))
-                                                st.markdown(f"[👉 MỞ ZALO](https://zalo.me/{ph})")
-                                            else:
-                                                st.error("Chưa có SĐT!")
+                                            fp = tao_hop_dong(nv_full)
+                                            with open(fp, "rb") as f:
+                                                st.download_button(
+                                                    label="📥 TẢI HĐLĐ",
+                                                    data=f,
+                                                    file_name=f"HDLD_{nv_full['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx",
+                                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                                    key=f"download_hdld_{nv_id_key}"
+                                                )
                                         else:
                                             st.error("Không tìm thấy thông tin nhân viên!")
-                                
-                                with col_btn4:
-                                    ma_bhxh = selected_nv.get('ma_so_bhxh', '')
-                                    chua_co_bhxh = not bool(ma_bhxh and str(ma_bhxh).strip())
-                                    if chua_co_bhxh:
-                                        if st.button(f"🏠 NHẬP THÔNG TIN HỘ GIA ĐÌNH - {selected_nv['ho_ten']}", key=f"bhxh_family_btn_{nv_id_key}", width='stretch', type="primary"):
-                                            st.session_state['bhxh_family_nv_id'] = int(selected_nv['id'])
-                                            st.session_state['bhxh_family_nv_name'] = selected_nv['ho_ten']
+                                elif trang_thai_nv == 'THU_VIEC':
+                                    if st.button(f"🖨️ IN HĐTV - {selected_nv['ho_ten']}", key=f"print_hdtv_btn_{nv_id_key}", width='stretch'):
+                                        db = st.session_state.db_engine.get_connection()
+                                        c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                                        c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(selected_nv['id']),))
+                                        nv_full = c.fetchone()
+                                        db.close()
+                                        if nv_full:
+                                            fp = tao_hop_dong_thu_viec(nv_full)
+                                            with open(fp, "rb") as f:
+                                                st.download_button(
+                                                    label="📥 TẢI HĐTV",
+                                                    data=f,
+                                                    file_name=f"HDTV_{nv_full['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx",
+                                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                                                    key=f"download_hdtv_{nv_id_key}"
+                                                )
+                                        else:
+                                            st.error("Không tìm thấy thông tin nhân viên!")
+                                else:
+                                    st.button(f"📄 {selected_nv['ho_ten']} (Không thể in HĐ)", disabled=True, width='stretch', key=f"disabled_btn_{nv_id_key}")
+                            
+                            with col_btn3:
+                                if st.button(f"📱 GỬI ZALO - {selected_nv['ho_ten']}", key=f"zalo_btn_{nv_id_key}", width='stretch'):
+                                    db = st.session_state.db_engine.get_connection()
+                                    c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                                    c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(selected_nv['id']),))
+                                    nv_full = c.fetchone()
+                                    db.close()
+                                    if nv_full:
+                                        ph = nv_full.get('dien_thoai', '')
+                                        if ph:
+                                            ph = ph.replace('+84', '0').replace(' ', '').strip()
+                                            st.code(tao_noi_dung_zalo(nv_full))
+                                            st.markdown(f"[👉 MỞ ZALO](https://zalo.me/{ph})")
+                                        else:
+                                            st.error("Chưa có SĐT!")
+                                    else:
+                                        st.error("Không tìm thấy thông tin nhân viên!")
+                            
+                            with col_btn4:
+                                ma_bhxh = selected_nv.get('ma_so_bhxh', '')
+                                chua_co_bhxh = not bool(ma_bhxh and str(ma_bhxh).strip())
+                                if chua_co_bhxh:
+                                    if st.button(f"🏠 NHẬP THÔNG TIN HỘ GIA ĐÌNH - {selected_nv['ho_ten']}", key=f"bhxh_family_btn_{nv_id_key}", width='stretch', type="primary"):
+                                        st.session_state['bhxh_family_nv_id'] = int(selected_nv['id'])
+                                        st.session_state['bhxh_family_nv_name'] = selected_nv['ho_ten']
+                                        st.rerun()
+                                else:
+                                    st.button(f"✅ ĐÃ CÓ BHXH - {selected_nv['ho_ten']}", disabled=True, width='stretch', key=f"has_bhxh_btn_{nv_id_key}")
+                            
+                            with col_btn5:
+                                trang_thai_nv = selected_nv.get('trang_thai', '')
+                                if trang_thai_nv == 'THU_VIEC':
+                                    if f'convert_open_{nv_id_key}' not in st.session_state:
+                                        st.session_state[f'convert_open_{nv_id_key}'] = False
+                                    
+                                    if not st.session_state[f'convert_open_{nv_id_key}']:
+                                        if st.button(f"🔄 CHUYỂN HĐLĐ KHÔNG XĐTH - {selected_nv['ho_ten']}", 
+                                                    key=f"convert_hdld_btn_{nv_id_key}", 
+                                                    width='stretch', type="primary"):
+                                            st.session_state[f'convert_open_{nv_id_key}'] = True
                                             st.rerun()
                                     else:
-                                        st.button(f"✅ ĐÃ CÓ BHXH - {selected_nv['ho_ten']}", disabled=True, width='stretch', key=f"has_bhxh_btn_{nv_id_key}")
-                                
-                                with col_btn5:
-                                    trang_thai_nv = selected_nv.get('trang_thai', '')
-                                    if trang_thai_nv == 'THU_VIEC':
-                                        if f'convert_open_{nv_id_key}' not in st.session_state:
-                                            st.session_state[f'convert_open_{nv_id_key}'] = False
+                                        st.markdown("---")
+                                        st.markdown("### 📝 CHUYỂN ĐỔI HỢP ĐỒNG LAO ĐỘNG")
+                                        st.caption("Vui lòng nhập đầy đủ thông tin cho quyết định chuyển đổi")
                                         
-                                        if not st.session_state[f'convert_open_{nv_id_key}']:
-                                            if st.button(f"🔄 CHUYỂN HĐLĐ KHÔNG XĐTH - {selected_nv['ho_ten']}", 
-                                                        key=f"convert_hdld_btn_{nv_id_key}", 
-                                                        width='stretch', type="primary"):
-                                                st.session_state[f'convert_open_{nv_id_key}'] = True
-                                                st.rerun()
-                                        else:
-                                            st.markdown("---")
-                                            st.markdown("### 📝 CHUYỂN ĐỔI HỢP ĐỒNG LAO ĐỘNG")
-                                            st.caption("Vui lòng nhập đầy đủ thông tin cho quyết định chuyển đổi")
+                                        db_temp = st.session_state.db_engine.get_connection()
+                                        c_temp = db_temp.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                                        c_temp.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(selected_nv['id']),))
+                                        nv_data = c_temp.fetchone()
+                                        db_temp.close()
+                                        
+                                        if nv_data:
+                                            ngay_quyet_dinh = st.date_input(
+                                                "📅 Ngày quyết định:", 
+                                                value=date.today(),
+                                                key=f"ngay_qd_{nv_id_key}"
+                                            )
                                             
-                                            db_temp = st.session_state.db_engine.get_connection()
-                                            c_temp = db_temp.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                                            c_temp.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(selected_nv['id']),))
-                                            nv_data = c_temp.fetchone()
-                                            db_temp.close()
+                                            current_year = datetime.now().year
+                                            db_temp2 = st.session_state.db_engine.get_connection()
+                                            c_temp2 = db_temp2.cursor()
+                                            c_temp2.execute("""
+                                                SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) as max_stt
+                                                FROM nhan_vien 
+                                                WHERE so_hdld LIKE %s 
+                                                AND trang_thai = 'DANG_LAM'
+                                                AND loai_hop_dong != 'Thử việc'
+                                            """, (f'%/{current_year}/HĐLĐ-CHL',))
+                                            result = c_temp2.fetchone()
+                                            max_stt = result[0] if result else 0
+                                            db_temp2.close()
                                             
-                                            if nv_data:
-                                                ngay_quyet_dinh = st.date_input(
-                                                    "📅 Ngày quyết định:", 
-                                                    value=date.today(),
-                                                    key=f"ngay_qd_{nv_id_key}"
-                                                )
-                                                
-                                                current_year = datetime.now().year
-                                                db_temp2 = st.session_state.db_engine.get_connection()
-                                                c_temp2 = db_temp2.cursor()
-                                                c_temp2.execute("""
-                                                    SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) as max_stt
-                                                    FROM nhan_vien 
-                                                    WHERE so_hdld LIKE %s 
-                                                    AND trang_thai = 'DANG_LAM'
-                                                    AND loai_hop_dong != 'Thử việc'
-                                                """, (f'%/{current_year}/HĐLĐ-CHL',))
-                                                result = c_temp2.fetchone()
-                                                max_stt = result[0] if result else 0
-                                                db_temp2.close()
-                                                
-                                                next_stt = max_stt + 1
-                                                stt_str = str(next_stt).zfill(2)
-                                                so_hd_moi = f"{stt_str}/{current_year}/HĐLĐ-CHL"
-                                                
-                                                st.info(f"📄 **Số HĐLĐ mới:** {so_hd_moi} (tự động sinh)")
-                                                
-                                                ngay_hieu_luc = st.date_input(
-                                                    "📅 Ngày hiệu lực (bắt đầu HĐLĐ):", 
-                                                    value=ngay_quyet_dinh,
-                                                    key=f"ngay_hl_{nv_id_key}"
-                                                )
-                                                
-                                                ngay_bat_dau_bh = st.date_input(
-                                                    "📅 Ngày bắt đầu đóng BHXH:", 
-                                                    value=ngay_hieu_luc,
-                                                    key=f"ngay_bhxh_{nv_id_key}",
-                                                    help="⚠️ Ngày bắt đầu tham gia BHXH. Thường là ngày hiệu lực HĐLĐ chính thức."
-                                                )
-                                                
-                                                ly_do_chuyen = st.text_area(
-                                                    "📝 Lý do/ Nội dung quyết định:", 
-                                                    value="Hoàn thành thời gian thử việc, chuyển sang hợp đồng lao động không xác định thời hạn",
-                                                    key=f"ly_do_{nv_id_key}",
-                                                    height=80
-                                                )
-                                                
-                                                col_confirm1, col_confirm2, col_confirm3 = st.columns([1, 2, 1])
-                                                with col_confirm2:
-                                                    if st.button("✅ XÁC NHẬN CHUYỂN ĐỔI", key=f"confirm_convert_{nv_id_key}", width='stretch', type="primary"):
-                                                        try:
-                                                            db = st.session_state.db_engine.get_connection()
-                                                            c = db.cursor()
-                                                            
-                                                            so_hd_tv_cu = selected_nv.get('so_hdld', '')
-                                                            ngay_vao_lam_cu = selected_nv.get('ngay_vao_lam')
-                                                            
-                                                            if ngay_vao_lam_cu:
-                                                                if hasattr(ngay_vao_lam_cu, 'strftime'):
-                                                                    pass
-                                                                else:
-                                                                    ngay_vao_lam_cu = parse_date(ngay_vao_lam_cu)
-                                                                    if not ngay_vao_lam_cu:
-                                                                        ngay_vao_lam_cu = date.today()
+                                            next_stt = max_stt + 1
+                                            stt_str = str(next_stt).zfill(2)
+                                            so_hd_moi = f"{stt_str}/{current_year}/HĐLĐ-CHL"
+                                            
+                                            st.info(f"📄 **Số HĐLĐ mới:** {so_hd_moi} (tự động sinh)")
+                                            
+                                            ngay_hieu_luc = st.date_input(
+                                                "📅 Ngày hiệu lực (bắt đầu HĐLĐ):", 
+                                                value=ngay_quyet_dinh,
+                                                key=f"ngay_hl_{nv_id_key}"
+                                            )
+                                            
+                                            ngay_bat_dau_bh = st.date_input(
+                                                "📅 Ngày bắt đầu đóng BHXH:", 
+                                                value=ngay_hieu_luc,
+                                                key=f"ngay_bhxh_{nv_id_key}",
+                                                help="⚠️ Ngày bắt đầu tham gia BHXH. Thường là ngày hiệu lực HĐLĐ chính thức."
+                                            )
+                                            
+                                            ly_do_chuyen = st.text_area(
+                                                "📝 Lý do/ Nội dung quyết định:", 
+                                                value="Hoàn thành thời gian thử việc, chuyển sang hợp đồng lao động không xác định thời hạn",
+                                                key=f"ly_do_{nv_id_key}",
+                                                height=80
+                                            )
+                                            
+                                            col_confirm1, col_confirm2, col_confirm3 = st.columns([1, 2, 1])
+                                            with col_confirm2:
+                                                if st.button("✅ XÁC NHẬN CHUYỂN ĐỔI", key=f"confirm_convert_{nv_id_key}", width='stretch', type="primary"):
+                                                    try:
+                                                        db = st.session_state.db_engine.get_connection()
+                                                        c = db.cursor()
+                                                        
+                                                        so_hd_tv_cu = selected_nv.get('so_hdld', '')
+                                                        ngay_vao_lam_cu = selected_nv.get('ngay_vao_lam')
+                                                        
+                                                        if ngay_vao_lam_cu:
+                                                            if hasattr(ngay_vao_lam_cu, 'strftime'):
+                                                                pass
                                                             else:
-                                                                ngay_vao_lam_cu = date.today()
-                                                            
-                                                            current_year = datetime.now().year
-                                                            c.execute("""
-                                                                SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) as max_stt
-                                                                FROM nhan_vien 
-                                                                WHERE so_hdld LIKE %s 
-                                                                AND trang_thai = 'DANG_LAM'
-                                                                AND loai_hop_dong != 'Thử việc'
-                                                            """, (f'%/{current_year}/HĐLĐ-CHL',))
-                                                            result = c.fetchone()
-                                                            max_stt = result[0] if result else 0
-                                                            next_stt = max_stt + 1
-                                                            stt_str = str(next_stt).zfill(2)
-                                                            so_hd_moi = f"{stt_str}/{current_year}/HĐLĐ-CHL"
-                                                            
-                                                            c.execute("""
-                                                                UPDATE nhan_vien SET 
-                                                                    trang_thai = 'DANG_LAM',
-                                                                    loai_hop_dong = 'Không xác định thời hạn',
-                                                                    so_hdld = %s,
-                                                                    ngay_ky_hd = %s,
-                                                                    ngay_chinh_thuc = %s,
-                                                                    thang_bat_dau_bh = %s,
-                                                                    trang_thai_bhxh = 'DANG_DONG',
-                                                                    ngay_ket_thuc = NULL
-                                                                WHERE id = %s
-                                                            """, (so_hd_moi, ngay_quyet_dinh, ngay_hieu_luc, ngay_bat_dau_bh, int(selected_nv['id'])))
-                                                            
-                                                            c.execute("""
-                                                                INSERT INTO quyet_dinh_nhan_su (
-                                                                    nhan_vien_id, loai_quyet_dinh, ngay_quyet_dinh, ngay_hieu_luc,
-                                                                    noi_dung, so_quyet_dinh, loai_hop_dong_cu, loai_hop_dong_moi,
-                                                                    he_so_luong_cu, he_so_luong_moi, so_hd_cu
-                                                                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                                                            """, (
-                                                                int(selected_nv['id']),
-                                                                'CHINH_THUC',
-                                                                ngay_quyet_dinh,
-                                                                ngay_hieu_luc,
-                                                                ly_do_chuyen,
-                                                                f"QD{ngay_quyet_dinh.strftime('%Y%m%d')}_{selected_nv['ma_nv']}",
-                                                                nv_data.get('loai_hop_dong', 'Thử việc'),
-                                                                'Không xác định thời hạn',
-                                                                nv_data.get('he_so_luong', 0),
-                                                                nv_data.get('he_so_luong', 0),
-                                                                so_hd_tv_cu
-                                                            ))
-                                                            
-                                                            c.execute("""
-                                                                UPDATE lich_su_cong_tac 
-                                                                SET den_ngay = %s,
-                                                                    so_hop_dong = %s
-                                                                WHERE nhan_vien_id = %s 
-                                                                AND loai_hop_dong = 'Thử việc'
-                                                                AND den_ngay IS NULL
-                                                            """, (ngay_hieu_luc - timedelta(days=1), so_hd_tv_cu, int(selected_nv['id'])))
-                                                            
-                                                            c.execute("""
-                                                                INSERT INTO lich_su_cong_tac (
-                                                                    nhan_vien_id, tu_ngay, chuc_danh, phong_ban, 
-                                                                    noi_lam_viec, loai_hop_dong, he_so_luong, so_hop_dong
-                                                                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                                                            """, (
-                                                                int(selected_nv['id']),
-                                                                ngay_hieu_luc,
-                                                                nv_data.get('chuc_danh_nghe', ''),
-                                                                nv_data.get('phong_ban_lam_viec', ''),
-                                                                nv_data.get('noi_lam_viec', 'Cảng THQT Hòn La'),
-                                                                'Không xác định thời hạn',
-                                                                nv_data.get('he_so_luong', 0),
-                                                                so_hd_moi
-                                                            ))
-                                                            
-                                                            db.commit()
-                                                            db.close()
-                                                            
-                                                            st.success(f"✅ Đã chuyển {nv_data['ho_ten']} sang HĐLĐ không xác định thời hạn!")
-                                                            st.info(f"📄 Số HĐTV cũ: {so_hd_tv_cu}")
-                                                            st.info(f"📄 Số HĐLĐ mới: {so_hd_moi}")
-                                                            st.cache_data.clear()
-                                                            st.session_state[f'convert_open_{nv_id_key}'] = False
-                                                            st.rerun()
-                                                            
-                                                        except Exception as e:
-                                                            db.rollback()
-                                                            db.close()
-                                                            st.error(f"❌ Lỗi: {str(e)}")
+                                                                ngay_vao_lam_cu = parse_date(ngay_vao_lam_cu)
+                                                                if not ngay_vao_lam_cu:
+                                                                    ngay_vao_lam_cu = date.today()
+                                                        else:
+                                                            ngay_vao_lam_cu = date.today()
+                                                        
+                                                        current_year = datetime.now().year
+                                                        c.execute("""
+                                                            SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) as max_stt
+                                                            FROM nhan_vien 
+                                                            WHERE so_hdld LIKE %s 
+                                                            AND trang_thai = 'DANG_LAM'
+                                                            AND loai_hop_dong != 'Thử việc'
+                                                        """, (f'%/{current_year}/HĐLĐ-CHL',))
+                                                        result = c.fetchone()
+                                                        max_stt = result[0] if result else 0
+                                                        next_stt = max_stt + 1
+                                                        stt_str = str(next_stt).zfill(2)
+                                                        so_hd_moi = f"{stt_str}/{current_year}/HĐLĐ-CHL"
+                                                        
+                                                        c.execute("""
+                                                            UPDATE nhan_vien SET 
+                                                                trang_thai = 'DANG_LAM',
+                                                                loai_hop_dong = 'Không xác định thời hạn',
+                                                                so_hdld = %s,
+                                                                ngay_ky_hd = %s,
+                                                                ngay_chinh_thuc = %s,
+                                                                thang_bat_dau_bh = %s,
+                                                                trang_thai_bhxh = 'DANG_DONG',
+                                                                ngay_ket_thuc = NULL
+                                                            WHERE id = %s
+                                                        """, (so_hd_moi, ngay_quyet_dinh, ngay_hieu_luc, ngay_bat_dau_bh, int(selected_nv['id'])))
+                                                        
+                                                        c.execute("""
+                                                            INSERT INTO quyet_dinh_nhan_su (
+                                                                nhan_vien_id, loai_quyet_dinh, ngay_quyet_dinh, ngay_hieu_luc,
+                                                                noi_dung, so_quyet_dinh, loai_hop_dong_cu, loai_hop_dong_moi,
+                                                                he_so_luong_cu, he_so_luong_moi, so_hd_cu
+                                                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                                        """, (
+                                                            int(selected_nv['id']),
+                                                            'CHINH_THUC',
+                                                            ngay_quyet_dinh,
+                                                            ngay_hieu_luc,
+                                                            ly_do_chuyen,
+                                                            f"QD{ngay_quyet_dinh.strftime('%Y%m%d')}_{selected_nv['ma_nv']}",
+                                                            nv_data.get('loai_hop_dong', 'Thử việc'),
+                                                            'Không xác định thời hạn',
+                                                            nv_data.get('he_so_luong', 0),
+                                                            nv_data.get('he_so_luong', 0),
+                                                            so_hd_tv_cu
+                                                        ))
+                                                        
+                                                        c.execute("""
+                                                            UPDATE lich_su_cong_tac 
+                                                            SET den_ngay = %s,
+                                                                so_hop_dong = %s
+                                                            WHERE nhan_vien_id = %s 
+                                                            AND loai_hop_dong = 'Thử việc'
+                                                            AND den_ngay IS NULL
+                                                        """, (ngay_hieu_luc - timedelta(days=1), so_hd_tv_cu, int(selected_nv['id'])))
+                                                        
+                                                        c.execute("""
+                                                            INSERT INTO lich_su_cong_tac (
+                                                                nhan_vien_id, tu_ngay, chuc_danh, phong_ban, 
+                                                                noi_lam_viec, loai_hop_dong, he_so_luong, so_hop_dong
+                                                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                                                        """, (
+                                                            int(selected_nv['id']),
+                                                            ngay_hieu_luc,
+                                                            nv_data.get('chuc_danh_nghe', ''),
+                                                            nv_data.get('phong_ban_lam_viec', ''),
+                                                            nv_data.get('noi_lam_viec', 'Cảng THQT Hòn La'),
+                                                            'Không xác định thời hạn',
+                                                            nv_data.get('he_so_luong', 0),
+                                                            so_hd_moi
+                                                        ))
+                                                        
+                                                        db.commit()
+                                                        db.close()
+                                                        
+                                                        st.success(f"✅ Đã chuyển {nv_data['ho_ten']} sang HĐLĐ không xác định thời hạn!")
+                                                        st.info(f"📄 Số HĐTV cũ: {so_hd_tv_cu}")
+                                                        st.info(f"📄 Số HĐLĐ mới: {so_hd_moi}")
+                                                        st.cache_data.clear()
+                                                        st.session_state[f'convert_open_{nv_id_key}'] = False
+                                                        st.rerun()
+                                                        
+                                                    except Exception as e:
+                                                        db.rollback()
+                                                        db.close()
+                                                        st.error(f"❌ Lỗi: {str(e)}")
 
-                                                if st.button("❌ HỦY", key=f"cancel_convert_{nv_id_key}", width='stretch'):
-                                                    st.session_state[f'convert_open_{nv_id_key}'] = False
-                                                    st.rerun()
-                                    else:
-                                        st.button(f"✅ ĐÃ LÀ HĐLĐ", disabled=True, width='stretch', key=f"already_hdld_btn_{nv_id_key}")
-                                
-                                st.divider()
+                                            if st.button("❌ HỦY", key=f"cancel_convert_{nv_id_key}", width='stretch'):
+                                                st.session_state[f'convert_open_{nv_id_key}'] = False
+                                                st.rerun()
+                                else:
+                                    st.button(f"✅ ĐÃ LÀ HĐLĐ", disabled=True, width='stretch', key=f"already_hdld_btn_{nv_id_key}")
+                            
+                            st.divider()
                                     
                         st.divider()
             

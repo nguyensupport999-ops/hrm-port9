@@ -35,6 +35,7 @@ import control_plane
 from control_plane import DatabaseEngine, resolve_tenant
 import bcrypt
 import chat_utils
+import avatar_utils
 
 # Import config - ưu tiên config.py (local), fallback to config_template (cloud)
 try:
@@ -4926,7 +4927,7 @@ elif menu == "✅ Nhân viên":
                 col_avatar, col_info = st.columns([1, 2])
                 
                 with col_avatar:
-                    # Tạo container để căn giữa ảnh theo chiều dọc
+                    # CSS cho avatar
                     st.markdown("""
                     <style>
                     .avatar-wrapper {
@@ -4960,18 +4961,17 @@ elif menu == "✅ Nhân viên":
                             </div>
                             """, unsafe_allow_html=True)
                         else:
-                            st.markdown(f"""
-                            <div class="avatar-wrapper">
-                                <img src="https://ui-avatars.com/api/?name={nv['ho_ten'].replace(' ', '+')}&size=200&background=f59e0b&color=fff" class="avatar-img">
-                            </div>
-                            """, unsafe_allow_html=True)
+                            # Fallback: ảnh mặc định theo giới tính
+                            gioi_tinh = nv.get('gioi_tinh', '')
+                            ho_ten = nv.get('ho_ten', '')
+                            avatar_html = avatar_utils.get_avatar_html(gioi_tinh, ho_ten)
+                            st.markdown(avatar_html, unsafe_allow_html=True)
                     else:
-                        # Avatar mặc định nếu chưa có ảnh
-                        st.markdown(f"""
-                        <div class="avatar-wrapper">
-                            <img src="https://ui-avatars.com/api/?name={nv['ho_ten'].replace(' ', '+')}&size=200&background=f59e0b&color=fff" class="avatar-img">
-                        </div>
-                        """, unsafe_allow_html=True)
+                        # Avatar mặc định theo giới tính
+                        gioi_tinh = nv.get('gioi_tinh', '')
+                        ho_ten = nv.get('ho_ten', '')
+                        avatar_html = avatar_utils.get_avatar_html(gioi_tinh, ho_ten)
+                        st.markdown(avatar_html, unsafe_allow_html=True)
                 
                 with col_info:
                     # Hiển thị thông tin chi tiết

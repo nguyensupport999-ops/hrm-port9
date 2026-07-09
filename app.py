@@ -3976,21 +3976,66 @@ if menu == "📊 Dashboard":
             st.markdown("**👫 Cơ cấu theo Giới tính**")
             if gender_data:
                 df_gender = pd.DataFrame(gender_data)
-                # Sử dụng donut chart với màu sắc nổi bật
-                colors = ['#FF6B6B', '#4ECDC4', '#FFE66D']
+                
+                # Màu sắc nổi bật cho từng giới tính
+                color_map = {
+                    'Nam': '#2196F3',  # Xanh dương đẹp
+                    'Nữ': '#FF6B6B',   # Đỏ hồng
+                    'Khác': '#FFD93D'  # Vàng
+                }
+                colors = [color_map.get(g, '#95a5a6') for g in df_gender['gioi_tinh']]
+                
+                # Tạo donut chart với hiệu ứng đẹp
                 fig_gender = go.Figure(data=[go.Pie(
                     labels=df_gender['gioi_tinh'],
                     values=df_gender['Số lượng'],
-                    hole=0.5,
-                    marker=dict(colors=colors[:len(df_gender)]),
-                    textinfo='label+percent',
-                    textposition='inside'
+                    hole=0.4,
+                    marker=dict(
+                        colors=colors,
+                        line=dict(color='white', width=3)
+                    ),
+                    textinfo='label+value+percent',
+                    textposition='auto',
+                    textfont=dict(size=12, color='#2c3e50', family='Arial Black'),
+                    insidetextorientation='radial',
+                    hovertemplate='<b>%{label}</b><br>Số lượng: %{value}<br>Tỷ lệ: %{percent:.1f}%<extra></extra>',
+                    pull=[0.05 if i == 0 else 0 for i in range(len(df_gender))],  # Tách nhẹ phần tử đầu tiên
+                    sort=False
                 )])
-                fig_gender.update_layout(
-                    margin=dict(t=0, b=0, l=0, r=0),
-                    height=280,
-                    showlegend=False
+                
+                # Thêm vòng tròn bên trong với tổng số
+                total = sum(df_gender['Số lượng'])
+                fig_gender.add_annotation(
+                    x=0.5, y=0.5,
+                    text=f"<b>{total}</b>",
+                    showarrow=False,
+                    font=dict(size=24, color='#2c3e50', family='Arial Black'),
+                    align='center'
                 )
+                fig_gender.add_annotation(
+                    x=0.5, y=0.42,
+                    text="Tổng",
+                    showarrow=False,
+                    font=dict(size=12, color='#7f8c8d', family='Arial'),
+                    align='center'
+                )
+                
+                fig_gender.update_layout(
+                    margin=dict(t=10, b=10, l=10, r=10),
+                    height=280,
+                    showlegend=True,
+                    legend=dict(
+                        orientation='h',
+                        yanchor='bottom',
+                        y=-0.15,
+                        xanchor='center',
+                        x=0.5,
+                        font=dict(size=12, color='#2c3e50')
+                    ),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)'
+                )
+                
                 st.plotly_chart(fig_gender, use_container_width=True)
             else:
                 st.info("Không có dữ liệu")

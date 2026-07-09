@@ -4673,7 +4673,8 @@ elif menu == "👤 Ứng viên":
                             selected_nv = df.iloc[selected_idx]
                             col_btn1, col_btn2 = st.columns(2)
                             with col_btn1:
-                                if st.button(f"✏️ SỬA", key=f"edit_sel_{tn}"):
+                                # Chỉ hiển thị nút Sửa khi đã chọn 1 ứng viên
+                                if st.button(f"✏️ SỬA", key=f"edit_sel_{tn}", width='stretch'):
                                     st.session_state['edit_uv_id'] = int(selected_nv['id'])
                                     st.rerun()
                             if tn == "⏳ Chờ duyệt":
@@ -7414,47 +7415,71 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                     if not sb:
                         st.error("❌ Chưa cấu hình Supabase Storage!")
                     else:
-                        try:
-                            file_bytes = sb.storage.from_(SUPABASE_BUCKET).download(selected_hs['duong_dan_file'])
-                            
-                            # Thêm nút Preview
-                            if selected_hs['ten_file'].lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp')):
-                                if st.button("👁️ PREVIEW", width='stretch', type="secondary"):
+                        # Tạo session state để lưu trạng thái preview
+                        preview_key = f"preview_{selected_hs['id']}"
+                        if preview_key not in st.session_state:
+                            st.session_state[preview_key] = False
+                        
+                        # Xác định loại file
+                        file_ext = selected_hs['ten_file'].lower().split('.')[-1]
+                        is_image = file_ext in ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
+                        is_pdf = file_ext == 'pdf'
+                        is_previewable = is_image or is_pdf
+                        
+                        # Nút Preview
+                        if is_previewable:
+                            if st.button("👁️ PREVIEW", width='stretch', type="secondary"):
+                                # Toggle preview state
+                                st.session_state[preview_key] = not st.session_state[preview_key]
+                                st.rerun()
+                        else:
+                            st.button("👁️ PREVIEW", disabled=True, width='stretch', 
+                                     help="Không thể preview loại file này")
+                        
+                        # Hiển thị preview nếu đang bật
+                        if st.session_state.get(preview_key, False):
+                            try:
+                                # Tải file từ Storage
+                                file_bytes = sb.storage.from_(SUPABASE_BUCKET).download(selected_hs['duong_dan_file'])
+                                
+                                if is_image:
                                     import base64
                                     img_base64 = base64.b64encode(file_bytes).decode()
                                     st.markdown(f"""
-                                    <div style="text-align: center; margin: 10px 0;">
+                                    <div style="text-align: center; margin: 10px 0; padding: 10px; 
+                                                background: #f8f9fa; border-radius: 8px;">
                                         <img src="data:image/jpeg;base64,{img_base64}" 
                                              style="max-width: 100%; max-height: 500px; border-radius: 8px; 
                                                     box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
                                     </div>
                                     """, unsafe_allow_html=True)
-                            elif selected_hs['ten_file'].lower().endswith('.pdf'):
-                                if st.button("👁️ PREVIEW", width='stretch', type="secondary"):
+                                elif is_pdf:
                                     import base64
                                     pdf_base64 = base64.b64encode(file_bytes).decode()
                                     st.markdown(f"""
-                                    <div style="text-align: center; margin: 10px 0;">
+                                    <div style="text-align: center; margin: 10px 0; padding: 10px; 
+                                                background: #f8f9fa; border-radius: 8px;">
                                         <iframe src="data:application/pdf;base64,{pdf_base64}" 
                                                 style="width: 100%; height: 600px; border: none; border-radius: 8px;">
                                         </iframe>
                                     </div>
                                     """, unsafe_allow_html=True)
-                            else:
-                                # Các loại file khác không preview được
-                                st.button("👁️ PREVIEW", disabled=True, width='stretch', 
-                                         help="Không thể preview loại file này")
-                            
-                            # Nút Tải hồ sơ
+                            except Exception as e:
+                                st.error(f"❌ Lỗi tải file để preview: {str(e)}")
+                        
+                        # Nút Tải hồ sơ (luôn tải file mới khi click)
+                        try:
+                            file_bytes = sb.storage.from_(SUPABASE_BUCKET).download(selected_hs['duong_dan_file'])
                             st.download_button(
                                 label="📥 TẢI HỒ SƠ",
                                 data=file_bytes,
                                 file_name=selected_hs['ten_file'],
                                 mime="application/octet-stream",
-                                width='stretch'
+                                width='stretch',
+                                key=f"download_{selected_hs['id']}"
                             )
                         except Exception as e:
-                            st.error(f"❌ File không tồn tại hoặc lỗi khi tải từ Supabase Storage: {e}")
+                            st.error(f"❌ Không thể tải file: {str(e)}")
                 
                 st.divider()
                 col_del1, col_del2, col_del3 = st.columns([1, 2, 1])

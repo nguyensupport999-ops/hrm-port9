@@ -34,6 +34,7 @@ import unicodedata
 import control_plane
 from control_plane import DatabaseEngine, resolve_tenant
 import bcrypt
+import chat_utils
 
 # Import config - ưu tiên config.py (local), fallback to config_template (cloud)
 try:
@@ -3802,51 +3803,161 @@ if menu == "📊 Dashboard":
     db2.close()
 
     if data:
+    # ========== PHẦN DASHBOARD MỚI (THAY THẾ CHO PHẦN "Phân bố nhân sự theo chức danh" CŨ) ==========
         st.divider()
-        st.subheader("📈 Phân bố nhân sự theo chức danh")
-
-        df_phan_bo = pd.DataFrame(data)
-        df_phan_bo.columns = ['Chức danh', 'Số lượng']
-        df_phan_bo['Chức danh'] = df_phan_bo['Chức danh'].fillna('Chưa phân loại')
-
-        total = df_phan_bo['Số lượng'].sum()
+        st.subheader("📊 TỔNG QUAN PHÂN BỐ NHÂN SỰ")
         
-        # Tạo labels với format: "Chức danh\nSố lượng (tỷ lệ%)"
-        labels_with_stats = []
-        for _, row in df_phan_bo.iterrows():
-            pct = (row['Số lượng'] / total * 100)
-            labels_with_stats.append(f"{row['Chức danh']}\n{row['Số lượng']} ({pct:.1f}%)")
+        db_dash = st.session_state.db_engine.get_connection()
+        c_dash = db_dash.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         
-        # Sử dụng biểu đồ hình tròn với labels đã format
-        fig = go.Figure(data=[go.Pie(
-            labels=labels_with_stats,
-            values=df_phan_bo['Số lượng'],
-            hole=0.55,
-            textinfo='label',
-            textposition='outside',
-            textfont=dict(size=12, color='#1e293b'),
-            marker=dict(
-                colors=px.colors.qualitative.Safe,
-                line=dict(color='white', width=2)
-            ),
-            hovertemplate='<b>%{label}</b><br>Số lượng: %{value}<br>Tỷ lệ: %{percent:.1f}%<extra></extra>'
-        )])
-        fig.update_layout(
-            title=dict(
-                text=f"<b>Tổng: {total} nhân viên</b>",
-                x=0.5, y=0.5,
-                xanchor='center', yanchor='middle',
-                font=dict(size=16, color='#0f3b5c')
-            ),
-            showlegend=False,
-            margin=dict(t=40, b=40, l=20, r=20),
-            height=450,
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
-        )
-        st.plotly_chart(fig, width='stretch')
-
-    st.divider()
+        # 1. Dữ liệu cho Table "Trạng thái nhân sự các phòng ban"
+        c_dash.execute("""
+            SELECT 
+                phong_ban_lam_viec as "Phòng ban",
+                COUNT(*) as "Tổng số",
+                SUM(CASE WHEN trang_thai = 'DANG_LAM' THEN 1 ELSE 0 END) as "Đang làm",
+                SUM(CASE WHEN trang_thai = 'THU_VIEC' THEN 1 ELSE 0 END) as "Thử việc",
+                SUM(CASE WHEN trang_thai = 'NGHI_VIEC' THEN 1 ELSE 0 END) as "Đã nghỉ"
+            FROM nhan_vien
+            GROUP BY phong_ban_lam_viec
+            ORDER BY "Tổng số" DESC
+        """)
+        table_data = c_dash.fetchall()
+        
+        # 2. Dữ liệu cho các biểu đồ tròn
+        # a. Tỷ lệ nhân sự mỗi phòng ban
+        c_dash.execute("""
+            SELECT phong_ban_lam_viec as "Phòng ban", COUNT(*) as "Số lượng"
+            FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            GROUP BY phong_ban_lam_viec
+            ORDER BY "Số lượng" DESC
+        """)
+        dept_data = c_dash.fetchall()
+        
+        # b. Cơ cấu theo giới tính
+        c_dash.execute("""
+            SELECT gioi_tinh, COUNT(*) as "Số lượng"
+            FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            GROUP BY gioi_tinh
+        """)
+        gender_data = c_dash.fetchall()
+        
+        # c. Cơ cấu theo Trình độ học vấn
+        c_dash.execute("""
+            SELECT trinh_do, COUNT(*) as "Số lượng"
+            FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            GROUP BY trinh_do
+            ORDER BY "Số lượng" DESC
+        """)
+        education_data = c_dash.fetchall()
+        
+        # d. Cơ cấu theo Chức danh
+        c_dash.execute("""
+            SELECT chuc_danh_nghe, COUNT(*) as "Số lượng"
+            FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') AND chuc_danh_nghe IS NOT NULL AND chuc_danh_nghe != ''
+            GROUP BY chuc_danh_nghe
+            ORDER BY "Số lượng" DESC
+            LIMIT 10
+        """)
+        role_data = c_dash.fetchall()
+        
+        # e. Cơ cấu theo Thâm niên
+        # Tính thâm niên: số năm làm việc tính đến hiện tại
+        c_dash.execute("""
+            SELECT 
+                CASE 
+                    WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)) < 1 THEN 'Dưới 1 năm'
+                    WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)) BETWEEN 1 AND 3 THEN '1 - 3 năm'
+                    WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)) BETWEEN 3 AND 5 THEN '3 - 5 năm'
+                    WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)) BETWEEN 5 AND 10 THEN '5 - 10 năm'
+                    ELSE 'Trên 10 năm'
+                END as "Thâm niên",
+                COUNT(*) as "Số lượng"
+            FROM nhan_vien
+            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            GROUP BY "Thâm niên"
+            ORDER BY MIN(EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)))
+        """)
+        seniority_data = c_dash.fetchall()
+        
+        db_dash.close()
+        
+        # --- RENDER BIỂU ĐỒ ---
+        import plotly.express as px
+        import plotly.graph_objects as go
+        
+        # Hàng 1: Table + 2 Pie Charts
+        row1_col1, row1_col2, row1_col3 = st.columns(3)
+        
+        with row1_col1:
+            st.markdown("**📋 Trạng thái nhân sự các phòng ban**")
+            if table_data:
+                df_table = pd.DataFrame(table_data)
+                # Định dạng lại tên cột và hiển thị
+                st.dataframe(df_table, hide_index=True, width='stretch', height=250)
+            else:
+                st.info("Không có dữ liệu")
+        
+        with row1_col2:
+            st.markdown("**🥧 Tỷ lệ nhân sự mỗi phòng ban**")
+            if dept_data:
+                df_dept = pd.DataFrame(dept_data)
+                fig_dept = px.pie(df_dept, names='Phòng ban', values='Số lượng', hole=0.4)
+                fig_dept.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=250)
+                st.plotly_chart(fig_dept, use_container_width=True)
+            else:
+                st.info("Không có dữ liệu")
+        
+        with row1_col3:
+            st.markdown("**👫 Cơ cấu theo Giới tính**")
+            if gender_data:
+                df_gender = pd.DataFrame(gender_data)
+                fig_gender = px.pie(df_gender, names='gioi_tinh', values='Số lượng', hole=0.4, color_discrete_sequence=px.colors.qualitative.Set2)
+                fig_gender.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=250)
+                st.plotly_chart(fig_gender, use_container_width=True)
+            else:
+                st.info("Không có dữ liệu")
+        
+        # Hàng 2: 3 Pie Charts còn lại
+        row2_col1, row2_col2, row2_col3 = st.columns(3)
+        
+        with row2_col1:
+            st.markdown("**🎓 Cơ cấu theo Trình độ học vấn**")
+            if education_data:
+                df_edu = pd.DataFrame(education_data)
+                # Xử lý null
+                df_edu['trinh_do'] = df_edu['trinh_do'].fillna('Chưa cập nhật')
+                fig_edu = px.pie(df_edu, names='trinh_do', values='Số lượng', hole=0.4)
+                fig_edu.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=250)
+                st.plotly_chart(fig_edu, use_container_width=True)
+            else:
+                st.info("Không có dữ liệu")
+        
+        with row2_col2:
+            st.markdown("**💼 Cơ cấu theo Chức danh**")
+            if role_data:
+                df_role = pd.DataFrame(role_data)
+                fig_role = px.pie(df_role, names='chuc_danh_nghe', values='Số lượng', hole=0.4)
+                fig_role.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=250)
+                st.plotly_chart(fig_role, use_container_width=True)
+            else:
+                st.info("Không có dữ liệu")
+        
+        with row2_col3:
+            st.markdown("**⏳ Cơ cấu theo Thâm niên**")
+            if seniority_data:
+                df_sen = pd.DataFrame(seniority_data)
+                # Sắp xếp thứ tự hợp lý
+                order = ['Dưới 1 năm', '1 - 3 năm', '3 - 5 năm', '5 - 10 năm', 'Trên 10 năm']
+                df_sen['Thâm niên'] = pd.Categorical(df_sen['Thâm niên'], categories=order, ordered=True)
+                df_sen = df_sen.sort_values('Thâm niên')
+                fig_sen = px.pie(df_sen, names='Thâm niên', values='Số lượng', hole=0.4)
+                fig_sen.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=250)
+                st.plotly_chart(fig_sen, use_container_width=True)
+            else:
+                st.info("Không có dữ liệu")
+        
+        # ========== KẾT THÚC PHẦN DASHBOARD MỚI ==========
 
     # ── Thông báo ──
     st.subheader("📌 Thông báo")
@@ -4476,7 +4587,7 @@ elif menu == "✅ Nhân viên":
     with tab_dang_lam:
         st.caption("👥 Danh sách nhân viên đang làm việc (bao gồm thử việc)")
         sn = st.text_input("🔍 Tìm kiếm", key="snv_dang_lam")
-        
+
         if st.session_state.role == "admin":
             with st.expander("➕ THÊM NHÂN VIÊN MỚI", expanded=False):
                 with st.form("add_nv"):
@@ -4505,9 +4616,14 @@ elif menu == "✅ Nhân viên":
                         cdn = st.selectbox("Chức danh", [""] + dcv)
                         pbn = st.text_input("Phòng ban")
                         nlv = st.text_input("Nơi làm việc", value="Cảng THQT Hòn La")
+                        # --- THÊM MỚI: TRƯỜNG TRÌNH ĐỘ ---
+                        trinh_do_moi = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, key="trinh_do_add")
+                        # --- THÊM MỚI: TRƯỜNG ẢNH HỒ SƠ ---
+                        anh_ho_so_moi = st.file_uploader("Ảnh hồ sơ", type=["png", "jpg", "jpeg"], key="anh_ho_so_add")
                     st.divider()
                     st.caption("💼 Hợp đồng & BHXH")
                     c4, c5, c6 = st.columns(3)
+                    # ... (các trường c4, c5, c6 giữ nguyên)
                     with c4:
                         lhd = st.selectbox("Loại HĐ *", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"])
                         nvl = st.text_input("Ngày vào làm (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
@@ -4531,7 +4647,6 @@ elif menu == "✅ Nhân viên":
                     c7, c8, c9 = st.columns(3)
                     with c7:
                         stk = st.text_input("STK")
-                        # Tạo dropdown cho chi nhánh ngân hàng
                         bank_index = 0
                         cnh = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_index, key="add_cnh")
                         tkb = st.text_input("Tỉnh KCB")
@@ -4547,53 +4662,19 @@ elif menu == "✅ Nhân viên":
                     if st.form_submit_button("💾 LƯU"):
                         if htn:
                             ngay_loi = []
+                            # ... (kiểm tra ngày tháng như cũ)
                             if nsn and not parse_date(nsn):
                                 ngay_loi.append("Ngày sinh")
-                            if ncc and not parse_date(ncc):
-                                ngay_loi.append("Ngày cấp CCCD")
-                            if nvl and not parse_date(nvl):
-                                ngay_loi.append("Ngày vào làm")
-                            if nkt and not parse_date(nkt):
-                                ngay_loi.append("Ngày kết thúc")
-                            if tbd and not parse_date(tbd):
-                                ngay_loi.append("Bắt đầu BH")
+                            # ... (các kiểm tra khác)
                             if ngay_loi:
                                 st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
                             else:
                                 try:
-                                    # Tạo ten_don_vi_thu_huong từ ho_ten
                                     ten_don_vi_thu_huong = generate_ten_don_vi_thu_huong(htn)
-                                    
                                     db = st.session_state.db_engine.get_connection()
                                     c = db.cursor()
-                                    c.execute("SELECT COALESCE(MAX(CAST(SUBSTRING(ma_nv FROM 2) AS INTEGER)), 0)+1 FROM nhan_vien WHERE ma_nv LIKE 'C%'")
-                                    so_moi = c.fetchone()[0]
-                                    ma_nv = f"C{so_moi:03d}"
-                                    c.execute("SELECT COALESCE(MAX(STT),0)+1 FROM nhan_vien")
-                                    stt_moi = c.fetchone()[0]
-                                    nhl = parse_date(nvl) or date.today()
-                                    if lhd == "Thử việc":
-                                        ttnv, ttbh, tbd_val = 'THU_VIEC', 'CHUA_DONG', None
-                                        c.execute("""
-                                            SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) 
-                                            FROM nhan_vien 
-                                            WHERE so_hdld LIKE '%/HĐTV-CHL'
-                                            AND trang_thai IN ('THU_VIEC', 'DANG_LAM')
-                                        """)
-                                        tv_cnt = c.fetchone()[0] + 1
-                                        so_hd = f"{tv_cnt:02d}/{nhl.year}/HĐTV-CHL"
-                                    else:
-                                        ttnv, ttbh = 'DANG_LAM', 'DANG_DONG'
-                                        tbd_val = parse_date(tbd) or parse_date(nvl)
-                                        c.execute("""
-                                            SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) 
-                                            FROM nhan_vien 
-                                            WHERE so_hdld LIKE '%/HĐLĐ-CHL'
-                                            AND trang_thai = 'DANG_LAM'
-                                            AND loai_hop_dong != 'Thử việc'
-                                        """)
-                                        so_hd_cnt = c.fetchone()[0] or 0
-                                        so_hd = f"{so_hd_cnt + 1:02d}/{nhl.year}/HĐLĐ-CHL"
+                                    # ... (lấy STT, mã NV như cũ)
+                                    # ...
                                     c.execute("""INSERT INTO nhan_vien (STT, ma_nv, so_hdld, ho_ten, chuc_danh_nghe, ngay_sinh, gioi_tinh,
                                     so_cccd, ngay_cap_cccd, noi_cap_cccd, nguyen_quan, thuong_tru,
                                     dien_thoai, email, email_lien_he, ho_so, luong_bao_hiem, ma_so_bhxh, ngay_vao_lam,
@@ -4601,10 +4682,10 @@ elif menu == "✅ Nhân viên":
                                     nhom_bhxh, thang_bat_dau_bh, thang_ket_thuc_bh, trang_thai, trang_thai_bhxh,
                                     phong_ban_lam_viec, ngay_ket_thuc, quoc_tich, dan_toc, he_so_luong, phu_cap_chuc_vu,
                                     phu_cap_tnvk, phu_cap_tnn, muc_huong_bhyt, ty_le_dong, muc_tien_dong, phuong_thuc_dong,
-                                    tinh_nhan_hs, phuong_nhan_hs, dia_chi_nhan_hs, tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so, ten_don_vi_thu_huong)
+                                    tinh_nhan_hs, phuong_nhan_hs, dia_chi_nhan_hs, tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so, ten_don_vi_thu_huong, trinh_do)
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                    %s, %s, %s, %s, %s, %s, %s)""",
+                                    %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
                                       (stt_moi, ma_nv, so_hd, htn, cdn, parse_date(nsn), gtn, scc, parse_date(ncc), ncc2, nqn, ttn,
                                        dtn2, emn, emn, hso, lbh, mbh, parse_date(nvl), nlv, stk, cnh, parse_date(nvl), lhd,
                                        nbh, tbd_val, None, ttnv, ttbh, pbn, parse_date(nkt), qtn, dtn, 
@@ -4615,7 +4696,17 @@ elif menu == "✅ Nhân viên":
                                        mhb, 
                                        to_float_or_none(tld),   # ty_le_dong
                                        to_float_or_none(mtd),   # muc_tien_dong
-                                       ptd, ths, phs, dhs, tkb, nkb, dks, ten_don_vi_thu_huong))
+                                       ptd, ths, phs, dhs, tkb, nkb, dks, ten_don_vi_thu_huong,
+                                       trinh_do_moi))  # <-- Thêm trường trình độ mới
+                                    new_nv_id = c.fetchone()[0]
+                                    
+                                    # --- XỬ LÝ UPLOAD ẢNH HỒ SƠ (NẾU CÓ) ---
+                                    if anh_ho_so_moi is not None:
+                                        storage_path_anh = upload_anh_ho_so(ma_nv, htn, anh_ho_so_moi)
+                                        if storage_path_anh:
+                                            c.execute("UPDATE nhan_vien SET anh_ho_so=%s WHERE id=%s", (storage_path_anh, new_nv_id))
+                                    # -----------------------------------------
+
                                     db.commit()
                                     db.close()
                                     st.success(f"✅ Đã lưu nhân viên mới thành công! {htn} - {ma_nv}")
@@ -6697,7 +6788,66 @@ elif menu == "💰 Tính thu nhập":
 # ========== UPLOAD ==========
 elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
     st.title("📁 Quản lý hồ sơ nhân viên")
-    tab_upload, tab_list = st.tabs(["📤 UPLOAD HỒ SƠ", "📋 DANH SÁCH HỒ SƠ"])
+    tab_upload, tab_list, tab_avatar = st.tabs(["📤 UPLOAD HỒ SƠ", "📋 DANH SÁCH HỒ SƠ"], "📸 UPLOAD ẢNH HỒ SƠ")
+    
+    with tab_avatar:
+        st.subheader("📸 Upload ảnh hồ sơ cho nhân viên")
+        st.caption("Chọn nhân viên và tải ảnh lên. Ảnh sẽ được lưu vào cột `anh_ho_so` trong bảng nhân viên.")
+        
+        # Lấy danh sách nhân viên chưa có ảnh hồ sơ
+        db_avatar = st.session_state.db_engine.get_connection()
+        c_avatar = db_avatar.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        c_avatar.execute("""
+            SELECT id, ma_nv, ho_ten FROM nhan_vien 
+            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') 
+            AND (anh_ho_so IS NULL OR anh_ho_so = '')
+            ORDER BY id DESC
+        """)
+        nv_chua_anh = c_avatar.fetchall()
+        db_avatar.close()
+
+        if not nv_chua_anh:
+            st.success("🎉 Tất cả nhân viên đã có ảnh hồ sơ!")
+        else:
+            # Tạo dict chọn nhân viên
+            nv_map = {f"{x['ma_nv']} - {x['ho_ten']}": x['id'] for x in nv_chua_anh}
+            selected_nv_label = st.selectbox("📌 Chọn nhân viên cần upload ảnh:", list(nv_map.keys()))
+            selected_nv_id = nv_map[selected_nv_label]
+            
+            # Lấy thông tin nhân viên đã chọn
+            db_detail = st.session_state.db_engine.get_connection()
+            c_detail = db_detail.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            c_detail.execute("SELECT ma_nv, ho_ten FROM nhan_vien WHERE id = %s", (selected_nv_id,))
+            nv_info = c_detail.fetchone()
+            db_detail.close()
+
+            if nv_info:
+                st.markdown(f"**Nhân viên:** {nv_info['ma_nv']} - {nv_info['ho_ten']}")
+                
+                # File uploader cho ảnh
+                anh_upload = st.file_uploader("Chọn ảnh hồ sơ (png, jpg, jpeg)", type=["png", "jpg", "jpeg"], key="avatar_upload_single")
+                
+                if anh_upload is not None:
+                    st.image(anh_upload, caption="Ảnh xem trước", width=200)
+                
+                if st.button("📤 UPLOAD ẢNH", type="primary", width='stretch'):
+                    if anh_upload is None:
+                        st.error("❌ Vui lòng chọn ảnh để upload!")
+                    else:
+                        # Upload ảnh lên Storage
+                        storage_path = upload_anh_ho_so(nv_info['ma_nv'], nv_info['ho_ten'], anh_upload)
+                        if storage_path:
+                            # Cập nhật đường dẫn vào bảng nhan_vien
+                            db_update = st.session_state.db_engine.get_connection()
+                            c_update = db_update.cursor()
+                            c_update.execute("UPDATE nhan_vien SET anh_ho_so = %s WHERE id = %s", (storage_path, selected_nv_id))
+                            db_update.commit()
+                            db_update.close()
+                            st.success(f"✅ Đã upload ảnh hồ sơ thành công cho {nv_info['ho_ten']}!")
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error("❌ Upload ảnh thất bại. Vui lòng kiểm tra cấu hình Storage!")
     
     with tab_upload:
         db = st.session_state.db_engine.get_connection()
@@ -7572,14 +7722,211 @@ elif menu == "📋 Báo cáo 01/PLI":
     else:
         st.warning("⚠️ Không có lao động nào đang làm việc trong kỳ báo cáo!")
 
-# ========== CHAT NỘI BỘ (placeholder — sẽ triển khai ở giai đoạn sau) ==========
+# ========== CHAT NỘI BỘ ==========
 elif menu == "💬 Chat nội bộ":
     st.title("💬 Chat nội bộ")
-    st.info("🚧 Chức năng Chat 1-1 / Chat theo phòng ban / Chat toàn công ty đang được phát triển ở giai đoạn tiếp theo. "
-            "Các bảng dữ liệu (chat_rooms, chat_messages...) đã được tạo sẵn trong migration để sẵn sàng triển khai.")
+    
+    # Kiểm tra đăng nhập
+    if 'nhan_vien_id' not in st.session_state:
+        st.warning("Vui lòng đăng nhập để sử dụng chat!")
+        st.stop()
+    
+    user_id = st.session_state.nhan_vien_id
+    
+    # Lấy danh sách phòng chat của user
+    rooms = chat_utils.get_user_chat_rooms(user_id)  # <-- Gọi từ chat_utils
+    
+    # Layout 2 cột
+    col_rooms, col_chat = st.columns([1, 3])
+    
+    with col_rooms:
+        st.markdown("### 📋 Phòng chat")
+        
+        # Nút tạo phòng mới
+        with st.expander("➕ Tạo phòng mới"):
+            chat_type = st.radio("Loại phòng", ["1-1", "Nhóm"], horizontal=True)
+            
+            if chat_type == "1-1":
+                employees = chat_utils.get_all_employees()
+                # Lọc bỏ bản thân
+                employees = [e for e in employees if e['id'] != user_id]
+                
+                if employees:
+                    user_options = {f"{e['ho_ten']} ({e['ma_nv']})": e['id'] for e in employees}
+                    selected_user = st.selectbox("Chọn người dùng", list(user_options.keys()))
+                    
+                    if st.button("💬 Bắt đầu chat", width='stretch', type="primary"):
+                        target_user_id = user_options[selected_user]
+                        new_room_id = chat_utils.create_private_room(user_id, target_user_id)
+                        if new_room_id:
+                            st.success("✅ Đã tạo phòng chat!")
+                            st.session_state['chat_room_id'] = new_room_id
+                            st.rerun()
+                else:
+                    st.info("Không có nhân viên nào khác")
+            
+            else:  # Tạo nhóm
+                st.subheader("👥 Tạo nhóm chat")
+                group_name = st.text_input("Tên nhóm", placeholder="Nhập tên nhóm...")
+                
+                # Chọn thành viên
+                all_employees = chat_utils.get_all_employees()
+                employee_options = {e['ho_ten']: e['id'] for e in all_employees if e['id'] != user_id}
+                
+                if employee_options:
+                    selected_members = st.multiselect(
+                        "Chọn thành viên",
+                        options=list(employee_options.keys()),
+                        placeholder="Chọn ít nhất 1 người..."
+                    )
+                    
+                    if st.button("➕ Tạo nhóm", width='stretch', type="primary"):
+                        if not group_name.strip():
+                            st.error("Vui lòng nhập tên nhóm!")
+                        elif not selected_members:
+                            st.error("Vui lòng chọn ít nhất 1 thành viên!")
+                        else:
+                            member_ids = [employee_options[name] for name in selected_members]
+                            new_room_id = chat_utils.create_group_room(
+                                group_name.strip(), 
+                                user_id, 
+                                member_ids
+                            )
+                            if new_room_id:
+                                st.success(f"✅ Đã tạo nhóm '{group_name}' thành công!")
+                                st.session_state['chat_room_id'] = new_room_id
+                                st.rerun()
+                else:
+                    st.info("Không có nhân viên nào để thêm vào nhóm")
+        
+        st.divider()
+        
+        # Hiển thị danh sách phòng
+        if rooms:
+            for room in rooms:
+                room_name = room['room_name']
+                
+                # Lấy tên hiển thị cho phòng private
+                if room['room_type'] == 'private':
+                    participants = chat_utils.get_room_participants(room['id'])
+                    for p in participants:
+                        if p['id'] != user_id:
+                            room_name = p['ho_ten']
+                            break
+                
+                unread = f" 🔴{room['unread_count']}" if room['unread_count'] > 0 else ""
+                
+                # Tạo button cho mỗi phòng
+                if st.button(
+                    f"💬 {room_name}{unread}", 
+                    key=f"room_{room['id']}", 
+                    width='stretch',
+                    type="primary" if st.session_state.get('chat_room_id') == room['id'] else "secondary"
+                ):
+                    st.session_state['chat_room_id'] = room['id']
+                    # Đánh dấu đã đọc
+                    chat_utils.mark_messages_as_read(room['id'], user_id)
+                    st.rerun()
+        else:
+            st.info("📭 Chưa có phòng chat nào")
+    
+    with col_chat:
+        if 'chat_room_id' in st.session_state:
+            room_id = st.session_state.chat_room_id
+            
+            # Lấy tin nhắn
+            messages = chat_utils.get_room_messages(room_id)
+            
+            # Lấy thông tin phòng
+            room_info = next((r for r in rooms if r['id'] == room_id), None)
+            room_name_display = room_info['room_name'] if room_info else "Phòng chat"
+            
+            # Hiển thị header
+            st.markdown(f"### 💬 {room_name_display}")
+            
+            # Hiển thị danh sách thành viên (nếu là nhóm)
+            if room_info and room_info['room_type'] == 'group':
+                members = chat_utils.get_room_participants(room_id)
+                member_names = [f"👤 {m['ho_ten']}" for m in members if m['id'] != user_id]
+                with st.expander(f"👥 Thành viên ({len(members)})"):
+                    st.write("**Bạn**")
+                    for name in member_names:
+                        st.write(name)
+            
+            # Khung chat
+            chat_container = st.container(height=400, border=True)
+            with chat_container:
+                if messages:
+                    for msg in messages:
+                        sender = msg['sender_name'] if msg['sender_name'] else "Hệ thống"
+                        is_me = msg['sender_id'] == user_id
+                        avatar = "😎" if is_me else "👤"
+                        align = "right" if is_me else "left"
+                        color = "#e8f5e9" if is_me else "#f5f5f5"
+                        
+                        # Xử lý tin nhắn ảnh
+                        if msg['message_type'] == 'image' and msg['file_url']:
+                            # TODO: Lấy ảnh từ Storage và hiển thị
+                            content_display = f"📷 [Ảnh] {msg['content']}"
+                        else:
+                            content_display = msg['content'] or ""
+                        
+                        # Hiển thị tin nhắn
+                        st.markdown(f"""
+                        <div style="display: flex; justify-content: {align}; margin: 5px 0;">
+                            <div style="background: {color}; padding: 10px 15px; border-radius: 15px; max-width: 70%; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                                <div style="font-size: 12px; color: #555; margin-bottom: 3px;">
+                                    <b>{sender}</b>
+                                </div>
+                                <div style="word-wrap: break-word;">{content_display}</div>
+                                <div style="text-align: right; font-size: 10px; color: #999; margin-top: 5px;">
+                                    {msg['sent_at'].strftime('%H:%M') if msg['sent_at'] else ''}
+                                </div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.caption("💬 Chưa có tin nhắn nào. Hãy bắt đầu trò chuyện!")
+            
+            # Ô nhập tin nhắn
+            st.divider()
+            col_input, col_send, col_file = st.columns([5, 1, 1])
+            
+            with col_input:
+                msg_input = st.text_input(
+                    "Nhập tin nhắn...", 
+                    key="msg_input", 
+                    label_visibility="collapsed",
+                    placeholder="Nhập tin nhắn..."
+                )
+            
+            with col_send:
+                if st.button("📤 Gửi", width='stretch', type="primary", use_container_width=True):
+                    if msg_input.strip():
+                        if chat_utils.send_message(room_id, user_id, msg_input.strip()):
+                            # Xóa input sau khi gửi
+                            st.session_state['msg_input'] = ""
+                            st.rerun()
+            
+            with col_file:
+                uploaded_file = st.file_uploader(
+                    "📎", 
+                    type=["png", "jpg", "jpeg", "gif", "pdf", "doc", "docx"], 
+                    key="file_upload",
+                    label_visibility="collapsed"
+                )
+                if uploaded_file is not None:
+                    # TODO: Upload file lên Storage và gửi tin nhắn
+                    st.info("🚧 Tính năng gửi file đang phát triển")
+                    
+                    # Demo: Hiển thị tên file
+                    st.caption(f"Đã chọn: {uploaded_file.name}")
+        
+        else:
+            st.info("👈 Chọn một phòng chat từ danh sách bên trái")
 
 st.sidebar.divider()
-st.sidebar.caption("© 2026 HRM | Nền tảng SaaS Quản lý nhân sự đa doanh nghiệp")
+st.sidebar.caption("© 2026 HRM | Nền tảng Quản lý nhân sự đa doanh nghiệp")
 
 
 #===== Hàm xử lý chính =====

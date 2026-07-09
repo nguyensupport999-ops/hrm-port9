@@ -2721,7 +2721,7 @@ def show_quan_ly_cong_van():
         
         # Tìm kiếm và lọc
         st.divider()
-        col_search1, col_search2, col_search3 = st.columns([2, 1, 1])
+        col_search1, col_search2, col_search3 = st.columns([2, 2, 2])
         with col_search1:
             search_text_cv_den = st.text_input("🔍 Tìm kiếm", placeholder="Theo số, tiêu đề, cơ quan...", key="search_cv_den")
         with col_search2:

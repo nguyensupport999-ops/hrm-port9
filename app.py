@@ -35,7 +35,6 @@ import control_plane
 from control_plane import DatabaseEngine, resolve_tenant
 import bcrypt
 import chat_utils
-import avatar_utils
 
 # Import config - ưu tiên config.py (local), fallback to config_template (cloud)
 try:
@@ -4964,14 +4963,48 @@ elif menu == "✅ Nhân viên":
                             # Fallback: ảnh mặc định theo giới tính
                             gioi_tinh = nv.get('gioi_tinh', '')
                             ho_ten = nv.get('ho_ten', '')
-                            avatar_html = avatar_utils.get_avatar_html(gioi_tinh, ho_ten)
-                            st.markdown(avatar_html, unsafe_allow_html=True)
+                            # Xác định file avatar
+                            avatar_file = "avatar_male.png" if gioi_tinh == "Nam" else "avatar_female.png"
+                            avatar_path = os.path.join(os.path.dirname(__file__), "static", avatar_file)
+                            if os.path.exists(avatar_path):
+                                import base64
+                                with open(avatar_path, "rb") as f:
+                                    img_data = base64.b64encode(f.read()).decode()
+                                st.markdown(f"""
+                                <div class="avatar-wrapper">
+                                    <img src="data:image/png;base64,{img_data}" class="avatar-img">
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                # Fallback cuối cùng: UI Avatars
+                                st.markdown(f"""
+                                <div class="avatar-wrapper">
+                                    <img src="https://ui-avatars.com/api/?name={ho_ten.replace(' ', '+')}&size=200&background=f59e0b&color=fff" class="avatar-img">
+                                </div>
+                                """, unsafe_allow_html=True)
                     else:
                         # Avatar mặc định theo giới tính
                         gioi_tinh = nv.get('gioi_tinh', '')
                         ho_ten = nv.get('ho_ten', '')
-                        avatar_html = avatar_utils.get_avatar_html(gioi_tinh, ho_ten)
-                        st.markdown(avatar_html, unsafe_allow_html=True)
+                        # Xác định file avatar
+                        avatar_file = "avatar_male.png" if gioi_tinh == "Nam" else "avatar_female.png"
+                        avatar_path = os.path.join(os.path.dirname(__file__), "static", avatar_file)
+                        if os.path.exists(avatar_path):
+                            import base64
+                            with open(avatar_path, "rb") as f:
+                                img_data = base64.b64encode(f.read()).decode()
+                            st.markdown(f"""
+                            <div class="avatar-wrapper">
+                                <img src="data:image/png;base64,{img_data}" class="avatar-img">
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            # Fallback cuối cùng: UI Avatars
+                            st.markdown(f"""
+                            <div class="avatar-wrapper">
+                                <img src="https://ui-avatars.com/api/?name={ho_ten.replace(' ', '+')}&size=200&background=f59e0b&color=fff" class="avatar-img">
+                            </div>
+                            """, unsafe_allow_html=True)
                 
                 with col_info:
                     # Hiển thị thông tin chi tiết

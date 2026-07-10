@@ -6060,6 +6060,10 @@ elif menu == "✅ Nhân viên":
     
     with tab_dang_lam:
         st.caption("👥 Danh sách nhân viên đang làm việc (bao gồm thử việc)")
+        # Xử lý yêu cầu reset ô tìm kiếm (đến từ nút "Đóng" của card thông tin nhân viên)
+        # Phải làm TRƯỚC khi widget text_input được khởi tạo, nếu không Streamlit sẽ báo lỗi
+        if st.session_state.pop('_reset_snv_dang_lam', False):
+            st.session_state['snv_dang_lam'] = ''
         sn = st.text_input("🔍 Tìm kiếm", key="snv_dang_lam")
 
         if st.session_state.role == "admin":
@@ -6232,7 +6236,7 @@ elif menu == "✅ Nhân viên":
                 render_employee_info_card(
                     nv,
                     key_prefix=f"single_{nv['id']}",
-                    on_close=lambda: st.session_state.update({'snv_dang_lam': ''})
+                    on_close=lambda: st.session_state.update({'_reset_snv_dang_lam': True})
                 )
 
                 # Thêm tùy chọn hiển thị bảng
@@ -6301,6 +6305,10 @@ elif menu == "✅ Nhân viên":
                 
                 # Nếu là viewer, hiển thị bảng không có checkbox chọn
                 if st.session_state.role == "admin":
+                    # Xử lý yêu cầu reset lựa chọn (đến từ nút "Đóng" của card thông tin nhân viên)
+                    # Phải làm TRƯỚC khi widget data_editor được khởi tạo
+                    if st.session_state.pop('_reset_nv_editor_danglam', False):
+                        st.session_state.pop('nv_editor_danglam', None)
                     edited_df = st.data_editor(
                         df_show,
                         column_config={
@@ -6331,7 +6339,7 @@ elif menu == "✅ Nhân viên":
                             render_employee_info_card(
                                 selected_nv,
                                 key_prefix=f"multi_{nv_id_key}",
-                                on_close=lambda: st.session_state.pop('nv_editor_danglam', None)
+                                on_close=lambda: st.session_state.update({'_reset_nv_editor_danglam': True})
                             )
                             col_btn5 = st.container()
 

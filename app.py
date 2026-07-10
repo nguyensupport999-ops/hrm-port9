@@ -8574,12 +8574,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
             with col1:
                 lh = st.selectbox("📂 Loại hồ sơ:", ["BANG_CAP", "CHUNG_CHI", "CCCD", "HOP_DONG", "SO_YEU_LY_LICH", "KHAC"])
             with col2:
-                st.markdown("💡 **Hướng dẫn:**")
-                st.caption("- BANG_CAP: Bằng cấp, chứng chỉ")
-                st.caption("- CHUNG_CHI: Chứng chỉ nghề")
-                st.caption("- CCCD: Căn cước công dân")
-                st.caption("- HOP_DONG: Hợp đồng lao động")
-                st.caption("- SO_YEU_LY_LICH: Sơ yếu lý lịch")
+                st.markdown("💡 **Hướng dẫn: Chọn loại giấy tờ, sau đó chọn file từ thư mục để Upload**")
             
             fl = st.file_uploader("📎 Chọn file:", type=['pdf', 'jpg', 'png', 'jpeg', 'doc', 'docx'])
             

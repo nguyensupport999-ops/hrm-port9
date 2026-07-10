@@ -508,6 +508,20 @@ BANK_LIST = load_bank_list()
 # Danh mục Trình độ học vấn/chuyên môn (dùng cho form Thêm/Sửa nhân viên)
 TRINH_DO_LIST = ["THPT", "Chứng chỉ nghề", "Cao đẳng", "Đại học", "Thạc sỹ", "Tiến sĩ"]
 
+def get_phong_ban_options():
+    """Lấy danh sách Phòng ban từ danh mục cấu hình (bảng danh_muc_phong_ban, quản lý ở
+    trang '⚙️ Danh mục') để dùng cho dropdown chọn Phòng ban trong form Thêm/Sửa nhân viên.
+    Trả về [] nếu có lỗi hoặc chưa có danh mục nào."""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("SELECT ten_phong_ban FROM danh_muc_phong_ban WHERE trang_thai = TRUE ORDER BY thu_tu, id")
+        ds = [row[0] for row in c.fetchall()]
+        db.close()
+        return ds
+    except Exception:
+        return []
+
 def upload_anh_ho_so(ma_nv_or_id, ho_ten, uploaded_file):
     """Upload ảnh hồ sơ nhân viên lên Supabase Storage (dùng chung bucket hồ sơ,
     lưu trong thư mục con 'avatars/'). Trả về storage_path đã lưu, hoặc None nếu lỗi."""
@@ -2788,9 +2802,9 @@ def show_quan_ly_cong_van():
         with col_search1:
             search_text_cv_den = st.text_input("🔍 Tìm kiếm", placeholder="Theo số, tiêu đề, cơ quan...", key="search_cv_den")
         with col_search2:
-            tu_ngay_cv_den = st.date_input("Từ ngày", value=None, key="tu_ngay_cv_den", label_visibility="collapsed")
+            tu_ngay_cv_den = st.date_input("Từ ngày", value=None, key="tu_ngay_cv_den")
         with col_search3:
-            den_ngay_cv_den = st.date_input("Đến ngày", value=None, key="den_ngay_cv_den", label_visibility="collapsed")
+            den_ngay_cv_den = st.date_input("Đến ngày", value=None, key="den_ngay_cv_den")
         
         # Lấy dữ liệu
         data_cv_den = get_cong_van_den(tu_ngay_cv_den, den_ngay_cv_den, search_text_cv_den)
@@ -3083,9 +3097,9 @@ def show_quan_ly_cong_van():
         with col_search1:
             search_text_hd = st.text_input("🔍 Tìm kiếm", placeholder="Theo số HĐ, đối tác...", key="search_hd_kt")
         with col_search2:
-            tu_ngay_hd = st.date_input("Từ ngày", value=None, key="tu_ngay_hd", label_visibility="collapsed")
+            tu_ngay_hd = st.date_input("Từ ngày", value=None, key="tu_ngay_hd")
         with col_search3:
-            den_ngay_hd = st.date_input("Đến ngày", value=None, key="den_ngay_hd", label_visibility="collapsed")
+            den_ngay_hd = st.date_input("Đến ngày", value=None, key="den_ngay_hd")
         
         # Lấy dữ liệu
         data_hd = get_hop_dong_kinh_te(tu_ngay_hd, den_ngay_hd, search_text_hd)
@@ -3677,6 +3691,14 @@ def ensure_qdns_table():
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        # Nâng cấp cho DB đã tạo bảng này từ phiên bản trước khi có đủ các cột trên
+        # (CREATE TABLE IF NOT EXISTS không tự thêm cột còn thiếu vào bảng đã tồn tại)
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS noi_dung TEXT")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS gia_tri_truoc VARCHAR(150)")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS gia_tri_sau VARCHAR(150)")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS file_url TEXT")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS nguoi_tao VARCHAR(100)")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
         db.commit()
         c.close()
         db.close()
@@ -4741,8 +4763,6 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
                 st.session_state['bhxh_family_nv_id'] = int(nv['id'])
                 st.session_state['bhxh_family_nv_name'] = nv['ho_ten']
                 st.rerun()
-        else:
-            st.button("✅ ĐÃ CÓ BHXH", disabled=True, width='stretch', key=f"has_bhxh_{key_prefix}")
 
     with col_btn_action5:
         if st.button("❌ Đóng", width='stretch', key=f"close_profile_{key_prefix}"):
@@ -6210,6 +6230,7 @@ elif menu == "✅ Nhân viên":
                     c.execute("SELECT DISTINCT ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
                     dcv = [row[0] for row in c.fetchall()]
                     db.close()
+                    dpb = get_phong_ban_options()
                     st.caption("📝 Thông tin cá nhân")
                     c1, c2, c3 = st.columns(3)
                     with c1:
@@ -6218,6 +6239,8 @@ elif menu == "✅ Nhân viên":
                         gtn = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"])
                         qtn = st.text_input("Quốc tịch", value="Việt Nam")
                         dtn = st.text_input("Dân tộc", value="Kinh")
+                        # --- TRƯỜNG TRÌNH ĐỘ (đặt ở cột 1) ---
+                        trinh_do_moi = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, key="trinh_do_add")
                     with c2:
                         scc = st.text_input("CCCD")
                         ncc = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
@@ -6228,10 +6251,8 @@ elif menu == "✅ Nhân viên":
                         dtn2 = st.text_input("SĐT")
                         emn = st.text_input("Email")
                         cdn = st.selectbox("Chức danh", [""] + dcv)
-                        pbn = st.text_input("Phòng ban")
+                        pbn = st.selectbox("Phòng ban", [""] + dpb)
                         nlv = st.text_input("Nơi làm việc", value="Cảng THQT Hòn La")
-                        # --- THÊM MỚI: TRƯỜNG TRÌNH ĐỘ ---
-                        trinh_do_moi = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, key="trinh_do_add")
                         # --- THÊM MỚI: TRƯỜNG ẢNH HỒ SƠ ---
                         anh_ho_so_moi = st.file_uploader("Ảnh hồ sơ", type=["png", "jpg", "jpeg"], key="anh_ho_so_add")
                     st.divider()
@@ -6659,8 +6680,6 @@ elif menu == "✅ Nhân viên":
                                             if st.button("❌ HỦY", key=f"cancel_convert_{nv_id_key}", width='stretch'):
                                                 st.session_state[f'convert_open_{nv_id_key}'] = False
                                                 st.rerun()
-                                else:
-                                    st.button(f"✅ ĐÃ LÀ HĐLĐ", disabled=True, width='stretch', key=f"already_hdld_btn_{nv_id_key}")
                             
                             st.divider()
                                     
@@ -6675,6 +6694,12 @@ elif menu == "✅ Nhân viên":
                     c.execute("SELECT * FROM nhan_vien WHERE id=%s", (nid,))
                     nd = c.fetchone()
                     db.close()
+                    db_cd = st.session_state.db_engine.get_connection()
+                    c_cd = db_cd.cursor()
+                    c_cd.execute("SELECT DISTINCT ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
+                    dcv_edit = [row[0] for row in c_cd.fetchall()]
+                    db_cd.close()
+                    dpb_edit = get_phong_ban_options()
                     
                     if nd:
                         st.subheader(f"✏️ Cập nhật: {nd.get('ho_ten', '')} ({nd.get('ma_nv', '')})")
@@ -6695,8 +6720,8 @@ elif menu == "✅ Nhân viên":
                             with col3:
                                 dtnv2 = st.text_input("SĐT", value=nd.get('dien_thoai', ''))
                                 emnv = st.text_input("Email", value=nd.get('email_lien_he', ''))
-                                cdnv = st.text_input("Chức danh", value=nd.get('chuc_danh_nghe', ''))
-                                pbnv = st.text_input("Phòng ban", value=nd.get('phong_ban_lam_viec', ''))
+                                cdnv = st.selectbox("Chức danh", [""] + dcv_edit, index=([""] + dcv_edit).index(nd.get('chuc_danh_nghe', '')) if nd.get('chuc_danh_nghe') in dcv_edit else 0)
+                                pbnv = st.selectbox("Phòng ban", [""] + dpb_edit, index=([""] + dpb_edit).index(nd.get('phong_ban_lam_viec', '')) if nd.get('phong_ban_lam_viec') in dpb_edit else 0)
                                 nlv2 = st.text_input("Nơi làm việc", value=nd.get('noi_lam_viec', 'Cảng THQT Hòn La'))
                                 trinh_do_v = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, index=([""] + TRINH_DO_LIST).index(nd.get('trinh_do', '')) if nd.get('trinh_do') in TRINH_DO_LIST else 0)
                                 anh_hien_tai = nd.get('anh_ho_so')
@@ -6749,7 +6774,7 @@ elif menu == "✅ Nhân viên":
                                 dksv = st.selectbox("ĐK nhận sổ", ["Có", "Không"], index=["Có", "Không"].index(nd.get('dang_ky_nhan_so', 'Có')) if nd.get('dang_ky_nhan_so') in ["Có", "Không"] else 0)
                                 hsov = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"], index=["", "Đã có HS", "Chưa có"].index(nd.get('ho_so', '')) if nd.get('ho_so') in ["Đã có HS", "Chưa có"] else 0)
                             
-                            col_save, col_quit, col_delete = st.columns(3)
+                            col_save, col_delete = st.columns(2)
                             with col_save:
                                 if st.form_submit_button("💾 CẬP NHẬT", width='stretch'):
                                     if hnv:
@@ -6814,11 +6839,6 @@ elif menu == "✅ Nhân viên":
                                     else:
                                         st.error("Họ tên không được để trống!")
                             
-                            with col_quit:
-                                st.form_submit_button("🚫 NGHỈ VIỆC", width='stretch', type="secondary", disabled=True,
-                                    help="Chức năng này đã chuyển sang Tab '📜 QUYẾT ĐỊNH NHÂN SỰ' → QĐ Chấm dứt HĐTV/HĐLĐ")
-                                st.caption("ℹ️ Vui lòng vào Tab '📜 QUYẾT ĐỊNH NHÂN SỰ' để ra QĐ Chấm dứt HĐTV/HĐLĐ.")
-
                             with col_delete:
                                 # Kiểm tra xem nhân viên đã được chuyển đổi chưa
                                 da_chuyen_doi, quyet_dinh = da_chuyen_doi_chinh_thuc(nid)
@@ -7808,14 +7828,16 @@ elif menu == "✅ Nhân viên":
             col_info2.markdown(f"**Chức danh hiện tại:** {nv_qd.get('chuc_danh_nghe') or '-'}")
             col_info3.markdown(f"**Phòng ban hiện tại:** {nv_qd.get('phong_ban_lam_viec') or '-'}")
 
-            loai_qd = st.selectbox(
-                "📋 Loại quyết định:",
-                list(LOAI_QDNS_LABEL.keys()),
-                format_func=lambda k: LOAI_QDNS_LABEL[k],
-                key="qdns_loai"
-            )
-
-            ngay_qd = st.date_input("📅 Ngày ban hành quyết định:", value=date.today(), key="qdns_ngay")
+            col_qd1, col_qd2 = st.columns(2)
+            with col_qd1:
+                loai_qd = st.selectbox(
+                    "📋 Loại quyết định:",
+                    list(LOAI_QDNS_LABEL.keys()),
+                    format_func=lambda k: LOAI_QDNS_LABEL[k],
+                    key="qdns_loai"
+                )
+            with col_qd2:
+                ngay_qd = st.date_input("📅 Ngày ban hành quyết định:", value=date.today(), key="qdns_ngay")
 
             dieu1_lines = []
             tieu_de = ""
@@ -8574,7 +8596,8 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
             with col1:
                 lh = st.selectbox("📂 Loại hồ sơ:", ["BANG_CAP", "CHUNG_CHI", "CCCD", "HOP_DONG", "SO_YEU_LY_LICH", "KHAC"])
             with col2:
-                st.markdown("💡 **Hướng dẫn: Chọn loại giấy tờ, sau đó chọn file từ thư mục để Upload**")
+                st.markdown("")
+                st.caption("💡 **Hướng dẫn: Chọn loại giấy tờ, sau đó chọn file từ thư mục để Upload!**")
             
             fl = st.file_uploader("📎 Chọn file:", type=['pdf', 'jpg', 'png', 'jpeg', 'doc', 'docx'])
             

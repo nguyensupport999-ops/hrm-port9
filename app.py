@@ -4522,7 +4522,7 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
             st.markdown(f"**📞 SĐT:** {nv.get('dien_thoai', 'Chưa cập nhật')}")
 
         with info_col2:
-            st.markdown(f"**📧 Email:** {nv.get('email_lien_he', 'Chưa cập nhật')}")
+            st.markdown(f"**📧 Số Hợp đồng:** {nv.get('so_hdld')}")
             st.markdown(f"**📋 Loại HĐ:** {nv.get('loai_hop_dong', 'Chưa cập nhật')}")
             st.markdown(f"**📅 Ngày vào làm:** {format_date(nv.get('ngay_vao_lam'))}")
             st.markdown(f"**🎓 Trình độ:** {nv.get('trinh_do', 'Chưa cập nhật')}")

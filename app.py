@@ -3636,6 +3636,140 @@ def ensure_cham_cong_table():
     db.close()
 
 
+def ensure_qdns_columns():
+    """Bổ sung cột 'chuc_vu' và 'ngay_qd_ns' vào bảng nhan_vien nếu chưa có (idempotent).
+    - chuc_vu: mặc định 'Nhân viên'
+    - ngay_qd_ns: mặc định lấy theo ngay_vao_lam; sau này được cập nhật theo ngày ban hành
+      các Quyết định nhân sự (bổ nhiệm/miễn nhiệm/đổi chức danh/điều chuyển)."""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("ALTER TABLE nhan_vien ADD COLUMN IF NOT EXISTS chuc_vu VARCHAR(100)")
+        c.execute("ALTER TABLE nhan_vien ADD COLUMN IF NOT EXISTS ngay_qd_ns DATE")
+        c.execute("UPDATE nhan_vien SET chuc_vu = 'Nhân viên' WHERE chuc_vu IS NULL OR chuc_vu = ''")
+        c.execute("UPDATE nhan_vien SET ngay_qd_ns = ngay_vao_lam WHERE ngay_qd_ns IS NULL")
+        db.commit()
+        c.close()
+        db.close()
+        return True
+    except Exception as e:
+        print(f"Lỗi ensure_qdns_columns: {e}")
+        return False
+
+
+def ensure_qdns_table():
+    """Tạo bảng quyet_dinh_nhan_su lưu lịch sử các Quyết định nhân sự đã ban hành."""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS quyet_dinh_nhan_su (
+                id SERIAL PRIMARY KEY,
+                so_qd VARCHAR(50) NOT NULL,
+                loai_qd VARCHAR(30) NOT NULL,
+                nhan_vien_id INTEGER NOT NULL REFERENCES nhan_vien(id) ON DELETE CASCADE,
+                ngay_qd DATE NOT NULL DEFAULT CURRENT_DATE,
+                noi_dung TEXT,
+                gia_tri_truoc VARCHAR(150),
+                gia_tri_sau VARCHAR(150),
+                file_url TEXT,
+                nguoi_tao VARCHAR(100),
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        db.commit()
+        c.close()
+        db.close()
+        return True
+    except Exception as e:
+        print(f"Lỗi ensure_qdns_table: {e}")
+        return False
+
+
+# Danh sách chức vụ dùng cho QĐ Bổ nhiệm / Miễn nhiệm
+DANH_SACH_CHUC_VU = ["Phó Tổng Giám đốc", "Trưởng phòng", "Phó Trưởng phòng", "Đội Trưởng", "Tổ Trưởng", "Quản đốc"]
+
+LOAI_QDNS_LABEL = {
+    'BO_NHIEM': 'QĐ Bổ nhiệm',
+    'MIEN_NHIEM': 'QĐ Miễn nhiệm',
+    'DOI_CHUC_DANH': 'QĐ Thay đổi chức danh',
+    'DIEU_CHUYEN': 'QĐ Điều chuyển công tác',
+    'CHAM_DUT_HD': 'QĐ Chấm dứt HĐTV/HĐLĐ',
+}
+
+
+def tao_quyet_dinh_nhan_su(nv, so_qd, ngay_qd, tieu_de, dieu1_lines, hieu_luc_text=None):
+    """Tạo file Word Quyết định nhân sự dùng chung cho các loại: bổ nhiệm, miễn nhiệm,
+    thay đổi chức danh, điều chuyển công tác, chấm dứt HĐTV/HĐLĐ."""
+    CC = COMPANY_CONFIG
+    doc = Document()
+    s = doc.styles['Normal']; s.font.name = 'Times New Roman'; s.font.size = Pt(13)
+    s.paragraph_format.space_after = Pt(4); s.paragraph_format.space_before = Pt(0)
+    s.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    sec = doc.sections[0]; sec.top_margin = Cm(2); sec.bottom_margin = Cm(2)
+    sec.left_margin = Cm(3); sec.right_margin = Cm(2)
+
+    ht = doc.add_table(rows=3, cols=2); ht.alignment = WD_TABLE_ALIGNMENT.CENTER; ht.autofit = False; remove_table_border(ht)
+    for row in ht.rows:
+        row.cells[0].width = Cm(7); row.cells[1].width = Cm(10)
+    c = ht.rows[0].cells[0]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p.add_run(CC.get('ten_cong_ty', 'CÔNG TY').upper()); r.bold = True; r.font.size = Pt(13)
+    c = ht.rows[0].cells[1]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p.add_run('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'); r.bold = True; r.font.size = Pt(13)
+    c = ht.rows[1].cells[0]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p.add_run(f'Số: {so_qd}'); r.italic = True; r.font.size = Pt(12)
+    c = ht.rows[1].cells[1]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p.add_run('Độc lập - Tự do - Hạnh phúc'); r.bold = True; r.italic = True; r.font.size = Pt(13)
+    c = ht.rows[2].cells[1]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.RIGHT; p.paragraph_format.space_after = Pt(20)
+    dia_diem = CC.get('dia_diem', 'Quảng Trị')
+    ns = f'{dia_diem}, ngày {ngay_qd.day} tháng {ngay_qd.month:02d} năm {ngay_qd.year}' if hasattr(ngay_qd, 'day') else f'{dia_diem}, ngày ... tháng ... năm ......'
+    r = p.add_run(ns); r.italic = True; r.font.size = Pt(13)
+
+    p = doc.add_paragraph(); p.paragraph_format.space_after = Pt(4)
+    r = p.add_run('QUYẾT ĐỊNH'); r.bold = True; r.font.size = Pt(18)
+    force_center(p)
+    p = doc.add_paragraph()
+    r = p.add_run(f'Về việc: {tieu_de}'); r.bold = True; r.italic = True; r.font.size = Pt(14)
+    force_center(p)
+    p = doc.add_paragraph()
+    r = p.add_run(f"GIÁM ĐỐC {CC.get('ten_cong_ty', '').upper()}"); r.bold = True
+    force_center(p)
+
+    doc.add_paragraph('- Căn cứ Bộ luật Lao động số 45/2019/QH14 ngày 20/11/2019;')
+    doc.add_paragraph('- Căn cứ Điều lệ tổ chức và hoạt động của Công ty;')
+    doc.add_paragraph('- Căn cứ nhu cầu công tác và năng lực cán bộ, nhân viên;')
+    doc.add_paragraph('- Xét đề nghị của Phòng Tổ chức - Hành chính,')
+
+    p = doc.add_paragraph(); r = p.add_run('QUYẾT ĐỊNH:'); r.bold = True
+    force_center(p)
+
+    p = doc.add_paragraph(); r = p.add_run('Điều 1. '); r.bold = True
+    r2 = p.add_run(dieu1_lines[0] if dieu1_lines else '')
+    for extra_line in dieu1_lines[1:]:
+        doc.add_paragraph(extra_line)
+
+    p = doc.add_paragraph(); r = p.add_run('Điều 2. '); r.bold = True
+    r2 = p.add_run(hieu_luc_text or f'Quyết định này có hiệu lực kể từ ngày {ngay_qd.day}/{ngay_qd.month:02d}/{ngay_qd.year}.')
+
+    p = doc.add_paragraph(); r = p.add_run('Điều 3. '); r.bold = True
+    r2 = p.add_run(f"Ông/Bà {nv.get('ho_ten', '')}, Trưởng phòng Tổ chức - Hành chính và các bộ phận có liên quan chịu trách nhiệm thi hành Quyết định này./.")
+
+    doc.add_paragraph('')
+    t2 = doc.add_table(rows=2, cols=2); remove_table_border(t2)
+    p_nn = t2.rows[0].cells[0].paragraphs[0]
+    r = p_nn.add_run('Nơi nhận:'); r.bold = True; r.font.size = Pt(11)
+    p_nn2 = t2.rows[0].cells[0].add_paragraph()
+    r = p_nn2.add_run('- Như Điều 3;\n- Lưu: VT, HSNV.'); r.font.size = Pt(11)
+    p_kh = t2.rows[0].cells[1].paragraphs[0]; p_kh.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p_kh.add_run(CC.get('chuc_vu', 'GIÁM ĐỐC').upper()); r.bold = True
+    p_kh2 = t2.rows[1].cells[1].add_paragraph(); p_kh2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p_kh2.add_run('\n\n\n' + CC.get('dai_dien', ''))
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.docx')
+    doc.save(tmp.name)
+    return tmp.name
+
+
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.role = None
@@ -4522,7 +4656,7 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
             st.markdown(f"**📞 SĐT:** {nv.get('dien_thoai', 'Chưa cập nhật')}")
 
         with info_col2:
-            st.markdown(f"**📧 Số Hợp đồng:** {nv.get('so_hdld')}")
+            st.markdown(f"**📧 Email:** {nv.get('email_lien_he', 'Chưa cập nhật')}")
             st.markdown(f"**📋 Loại HĐ:** {nv.get('loai_hop_dong', 'Chưa cập nhật')}")
             st.markdown(f"**📅 Ngày vào làm:** {format_date(nv.get('ngay_vao_lam'))}")
             st.markdown(f"**🎓 Trình độ:** {nv.get('trinh_do', 'Chưa cập nhật')}")
@@ -6055,8 +6189,10 @@ elif menu == "👤 Ứng viên":
 # ========== NHÂN VIÊN ==========
 elif menu == "✅ Nhân viên":
     st.title("✅ Quản lý nhân viên")
-    
-    tab_dang_lam, tab_da_nghi, tab_qtct = st.tabs(["📌 ĐANG LÀM VIỆC", "📋 ĐÃ NGHỈ VIỆC", "📜 LỊCH SỬ CÔNG TÁC"])
+    ensure_qdns_columns()
+    ensure_qdns_table()
+
+    tab_dang_lam, tab_da_nghi, tab_qtct, tab_qdns = st.tabs(["📌 ĐANG LÀM VIỆC", "📋 ĐÃ NGHỈ VIỆC", "📜 LỊCH SỬ CÔNG TÁC", "📜 QUYẾT ĐỊNH NHÂN SỰ"])
     
     with tab_dang_lam:
         st.caption("👥 Danh sách nhân viên đang làm việc (bao gồm thử việc)")
@@ -6679,77 +6815,10 @@ elif menu == "✅ Nhân viên":
                                         st.error("Họ tên không được để trống!")
                             
                             with col_quit:
-                                if f'nghi_viec_open_{nid}' not in st.session_state:
-                                    st.session_state[f'nghi_viec_open_{nid}'] = False
-                                
-                                if not st.session_state[f'nghi_viec_open_{nid}']:
-                                    if st.form_submit_button("🚫 NGHỈ VIỆC", width='stretch', type="secondary"):
-                                        st.session_state[f'nghi_viec_open_{nid}'] = True
-                                        st.rerun()
-                                else:
-                                    st.markdown("---")
-                                    st.markdown("### 📝 XÁC NHẬN NGHỈ VIỆC")
-                                    
-                                    default_ngay_nghi = date.today()
-                                    ngay_ket_thuc_hien_tai = nd.get('ngay_ket_thuc')
-                                    if ngay_ket_thuc_hien_tai and ngay_ket_thuc_hien_tai != '':
-                                        try:
-                                            if hasattr(ngay_ket_thuc_hien_tai, 'strftime'):
-                                                default_ngay_nghi = ngay_ket_thuc_hien_tai
-                                        except:
-                                            pass
-                                    
-                                    ngay_nghi = st.date_input(
-                                        "📅 Ngày quyết định nghỉ việc (Ngày kết thúc HĐLĐ):", 
-                                        value=default_ngay_nghi,
-                                        key=f"ngay_nghi_{nid}"
-                                    )
-                                    
-                                    ly_do_nghi = st.text_area(
-                                        "📝 Lý do nghỉ việc:", 
-                                        value=nd.get('ly_do_nghi', '') if 'ly_do_nghi' in nd else '',
-                                        placeholder="VD: Xin nghỉ theo nguyện vọng cá nhân, Chuyển công tác, Hết hạn hợp đồng...",
-                                        key=f"ly_do_nghi_{nid}",
-                                        height=100
-                                    )
-                                    
-                                    col_xac_nhan, col_huy = st.columns(2)
-                                    
-                                    with col_xac_nhan:
-                                        if st.form_submit_button("✅ XÁC NHẬN NGHỈ VIỆC", width='stretch', type="primary"):
-                                            try:
-                                                db_nghi = st.session_state.db_engine.get_connection()
-                                                c_nghi = db_nghi.cursor()
-                                                
-                                                c_nghi.execute("""
-                                                    UPDATE nhan_vien 
-                                                    SET trang_thai = 'NGHI_VIEC', 
-                                                        ngay_ket_thuc = %s,
-                                                        ly_do_nghi = %s
-                                                    WHERE id = %s
-                                                """, (ngay_nghi, ly_do_nghi if ly_do_nghi else None, nid))
-                                                
-                                                db_nghi.commit()
-                                                db_nghi.close()
-                                                
-                                                st.session_state[f'nghi_viec_open_{nid}'] = False
-                                                if 'selected_nv_id' in st.session_state:
-                                                    del st.session_state['selected_nv_id']
-                                                
-                                                st.success(f"✅ Đã cập nhật nghỉ việc cho {nd.get('ho_ten', '')}!")
-                                                st.cache_data.clear()
-                                                st.session_state[f'nghi_viec_open_{nid}'] = False
-                                                if 'selected_nv_id' in st.session_state:
-                                                    del st.session_state['selected_nv_id']
-                                                st.rerun()
-                                            except Exception as e:
-                                                st.error(f"❌ Lỗi khi cập nhật nghỉ việc: {e}")
-                                    
-                                    with col_huy:
-                                        if st.form_submit_button("❌ HỦY", width='stretch'):
-                                            st.session_state[f'nghi_viec_open_{nid}'] = False
-                                            st.rerun()
-                            
+                                st.form_submit_button("🚫 NGHỈ VIỆC", width='stretch', type="secondary", disabled=True,
+                                    help="Chức năng này đã chuyển sang Tab '📜 QUYẾT ĐỊNH NHÂN SỰ' → QĐ Chấm dứt HĐTV/HĐLĐ")
+                                st.caption("ℹ️ Vui lòng vào Tab '📜 QUYẾT ĐỊNH NHÂN SỰ' để ra QĐ Chấm dứt HĐTV/HĐLĐ.")
+
                             with col_delete:
                                 # Kiểm tra xem nhân viên đã được chuyển đổi chưa
                                 da_chuyen_doi, quyet_dinh = da_chuyen_doi_chinh_thuc(nid)
@@ -7687,6 +7756,209 @@ elif menu == "✅ Nhân viên":
                 )
         else:
             st.info("Không có biến động nhân sự trong kỳ.")
+
+    # ===== TAB: QUYẾT ĐỊNH NHÂN SỰ =====
+    with tab_qdns:
+        st.caption("📜 Ra các Quyết định nhân sự: Bổ nhiệm, Miễn nhiệm, Thay đổi chức danh, Điều chuyển công tác, Chấm dứt HĐTV/HĐLĐ")
+
+        # Thông báo file vừa tạo (nếu có), hiển thị TRƯỚC form để không bị mất sau khi rerun
+        if st.session_state.get('qdns_last_file'):
+            st.success(f"✅ Đã tạo {st.session_state.get('qdns_last_label','Quyết định')} số {st.session_state.get('qdns_last_so')}")
+            try:
+                with open(st.session_state['qdns_last_file'], "rb") as f:
+                    st.download_button(
+                        label="📥 TẢI QUYẾT ĐỊNH (Word)",
+                        data=f,
+                        file_name=f"QDNS_{st.session_state.get('qdns_last_so','').replace('/', '_')}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        key="dl_qdns_last"
+                    )
+            except Exception:
+                pass
+            if st.button("✖️ Đóng thông báo", key="close_qdns_notice"):
+                for k in ['qdns_last_file', 'qdns_last_label', 'qdns_last_so']:
+                    st.session_state.pop(k, None)
+                st.rerun()
+            st.divider()
+
+        db_qd = st.session_state.db_engine.get_connection()
+        c_qd = db_qd.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        c_qd.execute("""
+            SELECT id, ma_nv, ho_ten, chuc_vu, chuc_danh_nghe, phong_ban_lam_viec, loai_hop_dong, trang_thai
+            FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY ho_ten
+        """)
+        nv_qd_list = c_qd.fetchall()
+        c_qd.execute("""
+            SELECT DISTINCT phong_ban_lam_viec FROM nhan_vien
+            WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND phong_ban_lam_viec IS NOT NULL AND phong_ban_lam_viec != ''
+            ORDER BY phong_ban_lam_viec
+        """)
+        ds_phong_ban = [r['phong_ban_lam_viec'] for r in c_qd.fetchall()]
+        db_qd.close()
+
+        if not nv_qd_list:
+            st.info("Không có nhân viên đang làm việc.")
+        else:
+            nv_qd_options = {f"{nv['ma_nv']} - {nv['ho_ten']}": nv for nv in nv_qd_list}
+            chon_nv_label = st.selectbox("👤 Chọn nhân viên:", list(nv_qd_options.keys()), key="qdns_chon_nv")
+            nv_qd = nv_qd_options[chon_nv_label]
+
+            col_info1, col_info2, col_info3 = st.columns(3)
+            col_info1.markdown(f"**Chức vụ hiện tại:** {nv_qd.get('chuc_vu') or 'Nhân viên'}")
+            col_info2.markdown(f"**Chức danh hiện tại:** {nv_qd.get('chuc_danh_nghe') or '-'}")
+            col_info3.markdown(f"**Phòng ban hiện tại:** {nv_qd.get('phong_ban_lam_viec') or '-'}")
+
+            loai_qd = st.selectbox(
+                "📋 Loại quyết định:",
+                list(LOAI_QDNS_LABEL.keys()),
+                format_func=lambda k: LOAI_QDNS_LABEL[k],
+                key="qdns_loai"
+            )
+
+            ngay_qd = st.date_input("📅 Ngày ban hành quyết định:", value=date.today(), key="qdns_ngay")
+
+            dieu1_lines = []
+            tieu_de = ""
+            hieu_luc_text = None
+            gia_tri_truoc = None
+            gia_tri_sau = None
+            ok_to_submit = True
+
+            if loai_qd == 'BO_NHIEM':
+                chuc_vu_moi = st.selectbox("🏷️ Chức vụ được bổ nhiệm:", DANH_SACH_CHUC_VU, key="qdns_cv_bonhiem")
+                tieu_de = f"Bổ nhiệm chức vụ {chuc_vu_moi}"
+                dieu1_lines = [f"Bổ nhiệm Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) giữ chức vụ {chuc_vu_moi} kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
+                gia_tri_truoc = nv_qd.get('chuc_vu') or 'Nhân viên'
+                gia_tri_sau = chuc_vu_moi
+
+            elif loai_qd == 'MIEN_NHIEM':
+                cv_hien_tai = nv_qd.get('chuc_vu') or 'Nhân viên'
+                idx_mn = DANH_SACH_CHUC_VU.index(cv_hien_tai) if cv_hien_tai in DANH_SACH_CHUC_VU else 0
+                chuc_vu_mien = st.selectbox("🏷️ Chức vụ bị miễn nhiệm:", DANH_SACH_CHUC_VU, index=idx_mn, key="qdns_cv_miennhiem")
+                tieu_de = f"Miễn nhiệm chức vụ {chuc_vu_mien}"
+                dieu1_lines = [f"Miễn nhiệm chức vụ {chuc_vu_mien} đối với Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
+                gia_tri_truoc = cv_hien_tai
+                gia_tri_sau = 'Nhân viên'
+                if cv_hien_tai == 'Nhân viên':
+                    st.warning("⚠️ Nhân viên này hiện đang giữ chức vụ 'Nhân viên' (không có chức vụ quản lý để miễn nhiệm).")
+
+            elif loai_qd == 'DOI_CHUC_DANH':
+                chuc_danh_moi = st.text_input("💼 Chức danh mới:", value=nv_qd.get('chuc_danh_nghe') or '', key="qdns_cd_moi")
+                tieu_de = f"Thay đổi chức danh - {nv_qd['ho_ten']}"
+                dieu1_lines = [f"Thay đổi chức danh của Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) từ '{nv_qd.get('chuc_danh_nghe') or ''}' thành '{chuc_danh_moi}' kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
+                gia_tri_truoc = nv_qd.get('chuc_danh_nghe') or ''
+                gia_tri_sau = chuc_danh_moi
+                if not chuc_danh_moi.strip():
+                    ok_to_submit = False
+                    st.error("⚠️ Vui lòng nhập chức danh mới.")
+
+            elif loai_qd == 'DIEU_CHUYEN':
+                phong_hien_tai = nv_qd.get('phong_ban_lam_viec') or ''
+                st.text_input("🏢 Từ phòng ban:", value=phong_hien_tai, disabled=True, key="qdns_pb_tu")
+                tuy_chon_pb = ds_phong_ban + ["➕ Nhập phòng ban khác..."]
+                chon_pb = st.selectbox("🏢 Đến phòng ban:", tuy_chon_pb, key="qdns_pb_den_select")
+                if chon_pb == "➕ Nhập phòng ban khác...":
+                    phong_moi = st.text_input("Nhập tên phòng ban mới:", key="qdns_pb_den_moi")
+                else:
+                    phong_moi = chon_pb
+                tieu_de = f"Điều chuyển công tác - {nv_qd['ho_ten']}"
+                dieu1_lines = [f"Điều chuyển Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) từ {phong_hien_tai or '(chưa xác định)'} sang {phong_moi or '(chưa xác định)'} kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
+                gia_tri_truoc = phong_hien_tai
+                gia_tri_sau = phong_moi
+                if not (phong_moi or '').strip():
+                    ok_to_submit = False
+                    st.error("⚠️ Vui lòng chọn hoặc nhập phòng ban đến.")
+
+            elif loai_qd == 'CHAM_DUT_HD':
+                loai_hd_hien_tai = nv_qd.get('loai_hop_dong') or ''
+                if loai_hd_hien_tai == 'Thử việc':
+                    nhan_hd = "Hợp đồng thử việc (HĐTV)"
+                else:
+                    nhan_hd = "Hợp đồng lao động (HĐLĐ)"
+                st.info(f"🔎 Loại hợp đồng hiện tại: **{loai_hd_hien_tai or 'Chưa xác định'}** → Sẽ ban hành: **QĐ Chấm dứt {nhan_hd}**")
+                ly_do_cd = st.text_area("📝 Lý do chấm dứt:", key="qdns_lydo_cd", height=80,
+                                          placeholder="VD: Hết hạn hợp đồng, Xin nghỉ theo nguyện vọng cá nhân, Chuyển công tác...")
+                tieu_de = f"Chấm dứt {nhan_hd} - {nv_qd['ho_ten']}"
+                dieu1_lines = [
+                    f"Chấm dứt {nhan_hd} đối với Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."
+                ]
+                if ly_do_cd.strip():
+                    dieu1_lines.append(f"Lý do: {ly_do_cd.strip()}.")
+                hieu_luc_text = f"Ông/Bà {nv_qd['ho_ten']} có trách nhiệm bàn giao công việc, tài sản (nếu có) trước ngày {ngay_qd.strftime('%d/%m/%Y')}."
+                gia_tri_truoc = loai_hd_hien_tai
+                gia_tri_sau = 'NGHI_VIEC'
+
+            st.divider()
+            if st.button("💾 TẠO QUYẾT ĐỊNH & LƯU", type="primary", width='stretch', key="qdns_submit", disabled=not ok_to_submit):
+                try:
+                    so_qd = generate_so_cong_van('QUYET_DINH')
+
+                    file_path = tao_quyet_dinh_nhan_su(nv_qd, so_qd, ngay_qd, tieu_de, dieu1_lines, hieu_luc_text)
+                    file_url = None
+                    # (File Word được tạo để tải về ngay lập tức; bản ghi vẫn được lưu để tra cứu)
+
+                    db_s = st.session_state.db_engine.get_connection()
+                    c_s = db_s.cursor()
+                    c_s.execute("""
+                        INSERT INTO quyet_dinh_nhan_su (so_qd, loai_qd, nhan_vien_id, ngay_qd, noi_dung, gia_tri_truoc, gia_tri_sau, file_url, nguoi_tao)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (so_qd, loai_qd, nv_qd['id'], ngay_qd, " ".join(dieu1_lines), gia_tri_truoc, gia_tri_sau, file_url, st.session_state.username))
+
+                    # Đăng ký vào hệ thống Quản lý công văn đi để cùng theo dõi số thứ tự
+                    c_s.execute("""
+                        INSERT INTO cong_van_di (so_cong_van, phong_phat_hanh, ngay_phat_hanh, tieu_de, trich_yeu, file_url, loai_cong_van, ghi_chu, nguoi_tao)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (so_qd, "Phòng Tổ chức - Hành chính", ngay_qd, f"{LOAI_QDNS_LABEL[loai_qd]}: {tieu_de}",
+                          " ".join(dieu1_lines), file_url, 'QUYET_DINH', f"Quyết định nhân sự - NV: {nv_qd['ho_ten']}", st.session_state.username))
+
+                    # Cập nhật hồ sơ nhân viên theo đúng logic từng loại quyết định
+                    if loai_qd == 'BO_NHIEM':
+                        c_s.execute("UPDATE nhan_vien SET chuc_vu = %s, ngay_qd_ns = %s WHERE id = %s", (gia_tri_sau, ngay_qd, nv_qd['id']))
+                    elif loai_qd == 'MIEN_NHIEM':
+                        c_s.execute("UPDATE nhan_vien SET chuc_vu = %s, ngay_qd_ns = %s WHERE id = %s", ('Nhân viên', ngay_qd, nv_qd['id']))
+                    elif loai_qd == 'DOI_CHUC_DANH':
+                        c_s.execute("UPDATE nhan_vien SET chuc_danh_nghe = %s, ngay_qd_ns = %s WHERE id = %s", (gia_tri_sau, ngay_qd, nv_qd['id']))
+                    elif loai_qd == 'DIEU_CHUYEN':
+                        c_s.execute("UPDATE nhan_vien SET phong_ban_lam_viec = %s, ngay_qd_ns = %s WHERE id = %s", (gia_tri_sau, ngay_qd, nv_qd['id']))
+                    elif loai_qd == 'CHAM_DUT_HD':
+                        c_s.execute("""
+                            UPDATE nhan_vien SET trang_thai = 'NGHI_VIEC', ngay_ket_thuc = %s, ly_do_nghi = %s WHERE id = %s
+                        """, (ngay_qd, ly_do_cd if ly_do_cd.strip() else None, nv_qd['id']))
+
+                    db_s.commit()
+                    db_s.close()
+
+                    st.session_state['qdns_last_file'] = file_path
+                    st.session_state['qdns_last_label'] = LOAI_QDNS_LABEL[loai_qd]
+                    st.session_state['qdns_last_so'] = so_qd
+                    st.cache_data.clear()
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Lỗi khi tạo quyết định: {e}")
+
+        # ===== Lịch sử các quyết định nhân sự đã ban hành =====
+        st.divider()
+        st.subheader("📚 Lịch sử Quyết định nhân sự")
+        db_h = st.session_state.db_engine.get_connection()
+        c_h = db_h.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        c_h.execute("""
+            SELECT q.so_qd, q.loai_qd, q.ngay_qd, q.noi_dung, n.ho_ten, n.ma_nv
+            FROM quyet_dinh_nhan_su q
+            JOIN nhan_vien n ON n.id = q.nhan_vien_id
+            ORDER BY q.id DESC LIMIT 100
+        """)
+        lich_su_qd = c_h.fetchall()
+        db_h.close()
+        if lich_su_qd:
+            df_qd = pd.DataFrame(lich_su_qd)
+            df_qd['loai_qd'] = df_qd['loai_qd'].map(LOAI_QDNS_LABEL).fillna(df_qd['loai_qd'])
+            df_qd = df_qd.rename(columns={
+                'so_qd': 'Số QĐ', 'loai_qd': 'Loại QĐ', 'ngay_qd': 'Ngày QĐ',
+                'ho_ten': 'Nhân viên', 'ma_nv': 'Mã NV', 'noi_dung': 'Nội dung'
+            })
+            st.dataframe(df_qd[['Số QĐ', 'Loại QĐ', 'Ngày QĐ', 'Mã NV', 'Nhân viên', 'Nội dung']], hide_index=True, width='stretch')
+        else:
+            st.info("Chưa có Quyết định nhân sự nào được tạo.")
 
 # ========== CHẤM CÔNG ==========
 elif menu == "🕒 Chấm công":

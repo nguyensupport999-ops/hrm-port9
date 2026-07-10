@@ -4431,6 +4431,193 @@ if st.sidebar.button("🚪 Đăng xuất", width='stretch'):
     st.cache_data.clear()
     st.rerun()
 
+# ========== HÀM DÙNG CHUNG: CARD THÔNG TIN NHÂN VIÊN ==========
+def render_employee_info_card(nv, key_prefix, on_close=None):
+    """Hiển thị card '👤 THÔNG TIN NHÂN VIÊN' (avatar + thông tin + nút hành động + nút Đóng).
+    Dùng chung cho cả 2 trường hợp: (1) tìm kiếm ra đúng 1 kết quả, (2) tick chọn 1 dòng trong bảng."""
+    st.subheader("👤 THÔNG TIN NHÂN VIÊN")
+
+    col_avatar, col_info = st.columns([1, 2])
+
+    with col_avatar:
+        st.markdown("""
+        <style>
+        .avatar-wrapper {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            min-height: 250px;
+        }
+        .avatar-img {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid #f59e0b;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
+        anh_path = nv.get('anh_ho_so')
+        if anh_path:
+            anh_bytes = get_anh_ho_so_bytes(anh_path)
+            if anh_bytes:
+                img_base64 = base64.b64encode(anh_bytes).decode()
+                st.markdown(f"""
+                <div class="avatar-wrapper">
+                    <img src="data:image/jpeg;base64,{img_base64}" class="avatar-img">
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                gioi_tinh = nv.get('gioi_tinh', '')
+                ho_ten = nv.get('ho_ten', '')
+                avatar_file = "avatar_male.png" if gioi_tinh == "Nam" else "avatar_female.png"
+                avatar_path = os.path.join(os.path.dirname(__file__), "static", avatar_file)
+                if os.path.exists(avatar_path):
+                    with open(avatar_path, "rb") as f:
+                        img_data = base64.b64encode(f.read()).decode()
+                    st.markdown(f"""
+                    <div class="avatar-wrapper">
+                        <img src="data:image/png;base64,{img_data}" class="avatar-img">
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div class="avatar-wrapper">
+                        <img src="https://ui-avatars.com/api/?name={ho_ten.replace(' ', '+')}&size=200&background=f59e0b&color=fff" class="avatar-img">
+                    </div>
+                    """, unsafe_allow_html=True)
+        else:
+            gioi_tinh = nv.get('gioi_tinh', '')
+            ho_ten = nv.get('ho_ten', '')
+            avatar_file = "avatar_male.png" if gioi_tinh == "Nam" else "avatar_female.png"
+            avatar_path = os.path.join(os.path.dirname(__file__), "static", avatar_file)
+            if os.path.exists(avatar_path):
+                with open(avatar_path, "rb") as f:
+                    img_data = base64.b64encode(f.read()).decode()
+                st.markdown(f"""
+                <div class="avatar-wrapper">
+                    <img src="data:image/png;base64,{img_data}" class="avatar-img">
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div class="avatar-wrapper">
+                    <img src="https://ui-avatars.com/api/?name={ho_ten.replace(' ', '+')}&size=200&background=f59e0b&color=fff" class="avatar-img">
+                </div>
+                """, unsafe_allow_html=True)
+
+    with col_info:
+        st.markdown(f"### {nv['ho_ten']} ({nv['ma_nv']})")
+
+        info_col1, info_col2 = st.columns(2)
+
+        with info_col1:
+            st.markdown(f"**📅 Ngày sinh:** {format_date(nv.get('ngay_sinh'))}")
+            st.markdown(f"**⚧ Giới tính:** {nv.get('gioi_tinh', 'Chưa cập nhật')}")
+            st.markdown(f"**💼 Chức danh:** {nv.get('chuc_danh_nghe', 'Chưa cập nhật')}")
+            st.markdown(f"**🏢 Phòng ban:** {nv.get('phong_ban_lam_viec', 'Chưa cập nhật')}")
+            st.markdown(f"**📞 SĐT:** {nv.get('dien_thoai', 'Chưa cập nhật')}")
+
+        with info_col2:
+            st.markdown(f"**📧 Email:** {nv.get('email_lien_he', 'Chưa cập nhật')}")
+            st.markdown(f"**📋 Loại HĐ:** {nv.get('loai_hop_dong', 'Chưa cập nhật')}")
+            st.markdown(f"**📅 Ngày vào làm:** {format_date(nv.get('ngay_vao_lam'))}")
+            st.markdown(f"**🎓 Trình độ:** {nv.get('trinh_do', 'Chưa cập nhật')}")
+            st.markdown(f"**📇 Mã BHXH:** {nv.get('ma_so_bhxh', 'Chưa có')}")
+
+        trang_thai_text = {
+            'DANG_LAM': '🟢 Đang làm',
+            'THU_VIEC': '🔵 Thử việc',
+            'NGHI_VIEC': '🔴 Đã nghỉ'
+        }
+        status = trang_thai_text.get(nv.get('trang_thai'), nv.get('trang_thai', 'Chưa xác định'))
+        st.markdown(f"**📊 Trạng thái:** {status}")
+
+    # ===== Nút hành động (thêm nút "Đóng" ở cuối) =====
+    st.divider()
+    col_btn_action1, col_btn_action2, col_btn_action3, col_btn_action4, col_btn_action5 = st.columns(5)
+
+    with col_btn_action1:
+        if st.button("✏️ SỬA NHÂN VIÊN", width='stretch', type="primary", key=f"edit_nv_btn_{key_prefix}"):
+            st.session_state['selected_nv_id'] = int(nv['id'])
+            st.rerun()
+
+    with col_btn_action2:
+        if nv.get('trang_thai') == 'DANG_LAM':
+            if st.button("🖨️ IN HĐLĐ", width='stretch', key=f"print_hdld_card_{key_prefix}"):
+                db = st.session_state.db_engine.get_connection()
+                c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(nv['id']),))
+                nv_full = c.fetchone()
+                db.close()
+                if nv_full:
+                    fp = tao_hop_dong(nv_full)
+                    with open(fp, "rb") as f:
+                        st.download_button(
+                            label="📥 TẢI HĐLĐ",
+                            data=f,
+                            file_name=f"HDLD_{nv_full['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            key=f"download_hdld_{key_prefix}"
+                        )
+        elif nv.get('trang_thai') == 'THU_VIEC':
+            if st.button("🖨️ IN HĐTV", width='stretch', key=f"print_hdtv_card_{key_prefix}"):
+                db = st.session_state.db_engine.get_connection()
+                c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(nv['id']),))
+                nv_full = c.fetchone()
+                db.close()
+                if nv_full:
+                    fp = tao_hop_dong_thu_viec(nv_full)
+                    with open(fp, "rb") as f:
+                        st.download_button(
+                            label="📥 TẢI HĐTV",
+                            data=f,
+                            file_name=f"HDTV_{nv_full['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            key=f"download_hdtv_{key_prefix}"
+                        )
+        else:
+            st.button("📄 KHÔNG THỂ IN HĐ", disabled=True, width='stretch', key=f"no_hd_{key_prefix}")
+
+    with col_btn_action3:
+        ph = nv.get('dien_thoai', '')
+        if ph:
+            ph_clean = ph.replace('+84', '0').replace(' ', '').strip()
+            if st.button("📱 GỬI ZALO", width='stretch', key=f"zalo_card_{key_prefix}"):
+                db = st.session_state.db_engine.get_connection()
+                c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(nv['id']),))
+                nv_full = c.fetchone()
+                db.close()
+                if nv_full:
+                    st.code(tao_noi_dung_zalo(nv_full))
+                    st.markdown(f"[👉 MỞ ZALO](https://zalo.me/{ph_clean})")
+        else:
+            st.button("📱 GỬI ZALO", disabled=True, width='stretch', help="Chưa có SĐT!", key=f"no_zalo_{key_prefix}")
+
+    with col_btn_action4:
+        ma_bhxh = nv.get('ma_so_bhxh', '')
+        chua_co_bhxh = not bool(ma_bhxh and str(ma_bhxh).strip())
+        if chua_co_bhxh:
+            if st.button("🏠 NHẬP THÔNG TIN HỘ GIA ĐÌNH", width='stretch', type="primary", key=f"bhxh_family_{key_prefix}"):
+                st.session_state['bhxh_family_nv_id'] = int(nv['id'])
+                st.session_state['bhxh_family_nv_name'] = nv['ho_ten']
+                st.rerun()
+        else:
+            st.button("✅ ĐÃ CÓ BHXH", disabled=True, width='stretch', key=f"has_bhxh_{key_prefix}")
+
+    with col_btn_action5:
+        if st.button("❌ Đóng", width='stretch', key=f"close_profile_{key_prefix}"):
+            if callable(on_close):
+                on_close()
+            st.rerun()
+
+
+
 # ========== DASHBOARD ==========
 if menu == "📊 Dashboard":
     st.title("📊 Dashboard")
@@ -6042,196 +6229,12 @@ elif menu == "✅ Nhân viên":
             if len(ds) == 1:
                 nv = ds[0]  # Lấy nhân viên duy nhất
                 st.success(f"🎯 Tìm thấy 1 nhân viên: {nv['ho_ten']}")
-                st.subheader("👤 THÔNG TIN NHÂN VIÊN")
-                
-                # Tạo layout 2 cột: Ảnh và Thông tin
-                col_avatar, col_info = st.columns([1, 2])
-                
-                with col_avatar:
-                    # CSS cho avatar
-                    st.markdown("""
-                    <style>
-                    .avatar-wrapper {
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        height: 100%;
-                        min-height: 250px;
-                    }
-                    .avatar-img {
-                        width: 200px;
-                        height: 200px;
-                        border-radius: 50%;
-                        object-fit: cover;
-                        border: 4px solid #f59e0b;
-                        box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-                    }
-                    </style>
-                    """, unsafe_allow_html=True)
-                    
-                    # Lấy ảnh từ storage nếu có
-                    anh_path = nv.get('anh_ho_so')
-                    if anh_path:
-                        anh_bytes = get_anh_ho_so_bytes(anh_path)
-                        if anh_bytes:
-                            import base64
-                            img_base64 = base64.b64encode(anh_bytes).decode()
-                            st.markdown(f"""
-                            <div class="avatar-wrapper">
-                                <img src="data:image/jpeg;base64,{img_base64}" class="avatar-img">
-                            </div>
-                            """, unsafe_allow_html=True)
-                        else:
-                            # Fallback: ảnh mặc định theo giới tính
-                            gioi_tinh = nv.get('gioi_tinh', '')
-                            ho_ten = nv.get('ho_ten', '')
-                            # Xác định file avatar
-                            avatar_file = "avatar_male.png" if gioi_tinh == "Nam" else "avatar_female.png"
-                            avatar_path = os.path.join(os.path.dirname(__file__), "static", avatar_file)
-                            if os.path.exists(avatar_path):
-                                import base64
-                                with open(avatar_path, "rb") as f:
-                                    img_data = base64.b64encode(f.read()).decode()
-                                st.markdown(f"""
-                                <div class="avatar-wrapper">
-                                    <img src="data:image/png;base64,{img_data}" class="avatar-img">
-                                </div>
-                                """, unsafe_allow_html=True)
-                            else:
-                                # Fallback cuối cùng: UI Avatars
-                                st.markdown(f"""
-                                <div class="avatar-wrapper">
-                                    <img src="https://ui-avatars.com/api/?name={ho_ten.replace(' ', '+')}&size=200&background=f59e0b&color=fff" class="avatar-img">
-                                </div>
-                                """, unsafe_allow_html=True)
-                    else:
-                        # Avatar mặc định theo giới tính
-                        gioi_tinh = nv.get('gioi_tinh', '')
-                        ho_ten = nv.get('ho_ten', '')
-                        # Xác định file avatar
-                        avatar_file = "avatar_male.png" if gioi_tinh == "Nam" else "avatar_female.png"
-                        avatar_path = os.path.join(os.path.dirname(__file__), "static", avatar_file)
-                        if os.path.exists(avatar_path):
-                            import base64
-                            with open(avatar_path, "rb") as f:
-                                img_data = base64.b64encode(f.read()).decode()
-                            st.markdown(f"""
-                            <div class="avatar-wrapper">
-                                <img src="data:image/png;base64,{img_data}" class="avatar-img">
-                            </div>
-                            """, unsafe_allow_html=True)
-                        else:
-                            # Fallback cuối cùng: UI Avatars
-                            st.markdown(f"""
-                            <div class="avatar-wrapper">
-                                <img src="https://ui-avatars.com/api/?name={ho_ten.replace(' ', '+')}&size=200&background=f59e0b&color=fff" class="avatar-img">
-                            </div>
-                            """, unsafe_allow_html=True)
-                
-                with col_info:
-                    # Hiển thị thông tin chi tiết
-                    st.markdown(f"### {nv['ho_ten']} ({nv['ma_nv']})")
-                    
-                    # Tạo grid 2 cột cho thông tin
-                    info_col1, info_col2 = st.columns(2)
-                    
-                    with info_col1:
-                        st.markdown(f"**📅 Ngày sinh:** {format_date(nv.get('ngay_sinh'))}")
-                        st.markdown(f"**⚧ Giới tính:** {nv.get('gioi_tinh', 'Chưa cập nhật')}")
-                        st.markdown(f"**💼 Chức danh:** {nv.get('chuc_danh_nghe', 'Chưa cập nhật')}")
-                        st.markdown(f"**🏢 Phòng ban:** {nv.get('phong_ban_lam_viec', 'Chưa cập nhật')}")
-                        st.markdown(f"**📞 SĐT:** {nv.get('dien_thoai', 'Chưa cập nhật')}")
-                    
-                    with info_col2:
-                        st.markdown(f"**📧 Email:** {nv.get('email_lien_he', 'Chưa cập nhật')}")
-                        st.markdown(f"**📋 Loại HĐ:** {nv.get('loai_hop_dong', 'Chưa cập nhật')}")
-                        st.markdown(f"**📅 Ngày vào làm:** {format_date(nv.get('ngay_vao_lam'))}")
-                        st.markdown(f"**🎓 Trình độ:** {nv.get('trinh_do', 'Chưa cập nhật')}")
-                        st.markdown(f"**📇 Mã BHXH:** {nv.get('ma_so_bhxh', 'Chưa có')}")
-                    
-                    # Thêm trạng thái
-                    trang_thai_text = {
-                        'DANG_LAM': '🟢 Đang làm',
-                        'THU_VIEC': '🔵 Thử việc',
-                        'NGHI_VIEC': '🔴 Đã nghỉ'
-                    }
-                    status = trang_thai_text.get(nv.get('trang_thai'), nv.get('trang_thai', 'Chưa xác định'))
-                    st.markdown(f"**📊 Trạng thái:** {status}")
-                
-                # Thêm nút hành động
-                st.divider()
-                col_btn_action1, col_btn_action2, col_btn_action3, col_btn_action4 = st.columns(4)
-                
-                with col_btn_action1:
-                    if st.button("✏️ SỬA NHÂN VIÊN", width='stretch', type="primary"):
-                        st.session_state['selected_nv_id'] = int(nv['id'])
-                        st.rerun()
-                
-                with col_btn_action2:
-                    if nv.get('trang_thai') == 'DANG_LAM':
-                        if st.button("🖨️ IN HĐLĐ", width='stretch'):
-                            db = st.session_state.db_engine.get_connection()
-                            c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                            c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(nv['id']),))
-                            nv_full = c.fetchone()
-                            db.close()
-                            if nv_full:
-                                fp = tao_hop_dong(nv_full)
-                                with open(fp, "rb") as f:
-                                    st.download_button(
-                                        label="📥 TẢI HĐLĐ",
-                                        data=f,
-                                        file_name=f"HDLD_{nv_full['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx",
-                                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                        key=f"download_hdld_card_{nv['id']}"
-                                    )
-                    elif nv.get('trang_thai') == 'THU_VIEC':
-                        if st.button("🖨️ IN HĐTV", width='stretch'):
-                            db = st.session_state.db_engine.get_connection()
-                            c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                            c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(nv['id']),))
-                            nv_full = c.fetchone()
-                            db.close()
-                            if nv_full:
-                                fp = tao_hop_dong_thu_viec(nv_full)
-                                with open(fp, "rb") as f:
-                                    st.download_button(
-                                        label="📥 TẢI HĐTV",
-                                        data=f,
-                                        file_name=f"HDTV_{nv_full['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx",
-                                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                        key=f"download_hdtv_card_{nv['id']}"
-                                    )
-                    else:
-                        st.button("📄 KHÔNG THỂ IN HĐ", disabled=True, width='stretch')
-                
-                with col_btn_action3:
-                    ph = nv.get('dien_thoai', '')
-                    if ph:
-                        ph = ph.replace('+84', '0').replace(' ', '').strip()
-                        if st.button("📱 GỬI ZALO", width='stretch'):
-                            db = st.session_state.db_engine.get_connection()
-                            c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                            c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(nv['id']),))
-                            nv_full = c.fetchone()
-                            db.close()
-                            if nv_full:
-                                st.code(tao_noi_dung_zalo(nv_full))
-                                st.markdown(f"[👉 MỞ ZALO](https://zalo.me/{ph})")
-                    else:
-                        st.button("📱 GỬI ZALO", disabled=True, width='stretch', help="Chưa có SĐT!")
-                
-                with col_btn_action4:
-                    ma_bhxh = nv.get('ma_so_bhxh', '')
-                    chua_co_bhxh = not bool(ma_bhxh and str(ma_bhxh).strip())
-                    if chua_co_bhxh:
-                        if st.button("🏠 NHẬP HỘ GIA ĐÌNH", width='stretch', type="primary"):
-                            st.session_state['bhxh_family_nv_id'] = int(nv['id'])
-                            st.session_state['bhxh_family_nv_name'] = nv['ho_ten']
-                            st.rerun()
-                    else:
-                        st.button("✅ ĐÃ CÓ BHXH", disabled=True, width='stretch')
-                
+                render_employee_info_card(
+                    nv,
+                    key_prefix=f"single_{nv['id']}",
+                    on_close=lambda: st.session_state.update({'snv_dang_lam': ''})
+                )
+
                 # Thêm tùy chọn hiển thị bảng
                 st.divider()
                 if st.checkbox("📊 Hiển thị danh sách đầy đủ", value=False, key="show_full_list_card"):
@@ -6301,7 +6304,7 @@ elif menu == "✅ Nhân viên":
                     edited_df = st.data_editor(
                         df_show,
                         column_config={
-                            "Chọn": st.column_config.CheckboxColumn("Chọn để sửa", default=False)
+                            "Chọn": st.column_config.CheckboxColumn("Profile", default=False)
                         },
                         disabled=[col for col in df_show.columns if col != 'Chọn'],
                         hide_index=True,
@@ -6325,85 +6328,13 @@ elif menu == "✅ Nhân viên":
                             nv_id_key = selected_nv['id']
                             
                             # Hiển thị các nút chức năng (chỉ admin mới thấy và mới click được)
-                            col_btn1, col_btn2, col_btn3, col_btn4, col_btn5 = st.columns(5)
-                            
-                            with col_btn1:
-                                if st.button(f"✏️ SỬA '{selected_nv['ho_ten']}'", key=f"edit_nv_btn_{nv_id_key}", width='stretch'):
-                                    st.session_state['selected_nv_id'] = int(selected_nv['id'])
-                                    st.rerun()
-                            
-                            with col_btn2:
-                                trang_thai_nv = selected_nv.get('trang_thai', '')
-                                if trang_thai_nv == 'DANG_LAM':
-                                    if st.button(f"🖨️ IN HĐLĐ - {selected_nv['ho_ten']}", key=f"print_hdld_btn_{nv_id_key}", width='stretch'):
-                                        db = st.session_state.db_engine.get_connection()
-                                        c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                                        c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(selected_nv['id']),))
-                                        nv_full = c.fetchone()
-                                        db.close()
-                                        if nv_full:
-                                            fp = tao_hop_dong(nv_full)
-                                            with open(fp, "rb") as f:
-                                                st.download_button(
-                                                    label="📥 TẢI HĐLĐ",
-                                                    data=f,
-                                                    file_name=f"HDLD_{nv_full['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx",
-                                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                                    key=f"download_hdld_{nv_id_key}"
-                                                )
-                                        else:
-                                            st.error("Không tìm thấy thông tin nhân viên!")
-                                elif trang_thai_nv == 'THU_VIEC':
-                                    if st.button(f"🖨️ IN HĐTV - {selected_nv['ho_ten']}", key=f"print_hdtv_btn_{nv_id_key}", width='stretch'):
-                                        db = st.session_state.db_engine.get_connection()
-                                        c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                                        c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(selected_nv['id']),))
-                                        nv_full = c.fetchone()
-                                        db.close()
-                                        if nv_full:
-                                            fp = tao_hop_dong_thu_viec(nv_full)
-                                            with open(fp, "rb") as f:
-                                                st.download_button(
-                                                    label="📥 TẢI HĐTV",
-                                                    data=f,
-                                                    file_name=f"HDTV_{nv_full['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx",
-                                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                                    key=f"download_hdtv_{nv_id_key}"
-                                                )
-                                        else:
-                                            st.error("Không tìm thấy thông tin nhân viên!")
-                                else:
-                                    st.button(f"📄 {selected_nv['ho_ten']} (Không thể in HĐ)", disabled=True, width='stretch', key=f"disabled_btn_{nv_id_key}")
-                            
-                            with col_btn3:
-                                if st.button(f"📱 GỬI ZALO - {selected_nv['ho_ten']}", key=f"zalo_btn_{nv_id_key}", width='stretch'):
-                                    db = st.session_state.db_engine.get_connection()
-                                    c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                                    c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(selected_nv['id']),))
-                                    nv_full = c.fetchone()
-                                    db.close()
-                                    if nv_full:
-                                        ph = nv_full.get('dien_thoai', '')
-                                        if ph:
-                                            ph = ph.replace('+84', '0').replace(' ', '').strip()
-                                            st.code(tao_noi_dung_zalo(nv_full))
-                                            st.markdown(f"[👉 MỞ ZALO](https://zalo.me/{ph})")
-                                        else:
-                                            st.error("Chưa có SĐT!")
-                                    else:
-                                        st.error("Không tìm thấy thông tin nhân viên!")
-                            
-                            with col_btn4:
-                                ma_bhxh = selected_nv.get('ma_so_bhxh', '')
-                                chua_co_bhxh = not bool(ma_bhxh and str(ma_bhxh).strip())
-                                if chua_co_bhxh:
-                                    if st.button(f"🏠 NHẬP THÔNG TIN HỘ GIA ĐÌNH - {selected_nv['ho_ten']}", key=f"bhxh_family_btn_{nv_id_key}", width='stretch', type="primary"):
-                                        st.session_state['bhxh_family_nv_id'] = int(selected_nv['id'])
-                                        st.session_state['bhxh_family_nv_name'] = selected_nv['ho_ten']
-                                        st.rerun()
-                                else:
-                                    st.button(f"✅ ĐÃ CÓ BHXH - {selected_nv['ho_ten']}", disabled=True, width='stretch', key=f"has_bhxh_btn_{nv_id_key}")
-                            
+                            render_employee_info_card(
+                                selected_nv,
+                                key_prefix=f"multi_{nv_id_key}",
+                                on_close=lambda: st.session_state.pop('nv_editor_danglam', None)
+                            )
+                            col_btn5 = st.container()
+
                             with col_btn5:
                                 trang_thai_nv = selected_nv.get('trang_thai', '')
                                 if trang_thai_nv == 'THU_VIEC':

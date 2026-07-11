@@ -4941,10 +4941,10 @@ if st.session_state.get('phai_doi_mat_khau'):
 # Menu theo role — 4 vai trò cố định: admin / hr / kt_luong / viewer (+ 'nhan_vien' tự phục vụ)
 if st.session_state.role == "admin":
     # Toàn quyền
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role in ["văn thư", "hr"]:
     # HR: như admin trừ Upload hồ sơ, Danh mục — và KHÔNG được xem Tính thu nhập (dữ liệu lương)
-    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","📋 Báo cáo 01/PLI","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
+    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role == "kt_luong":
     # Kế toán lương: tập trung vào Chấm công + Tính thu nhập, không có Upload hồ sơ/Danh mục
     menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
@@ -4952,7 +4952,7 @@ elif st.session_state.role == "van_thu":
     menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role == "viewer":
     # Viewer: chỉ xem, thu hẹp — không có BHXH, không có Tính thu nhập
-    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo 01/PLI","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
+    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo định kỳ","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
 else:  # 'nhan_vien' thường — chỉ xem hồ sơ bản thân + chat nội bộ
     menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng"]
 menu = st.sidebar.radio("📋 Menu", menu_options)
@@ -7876,318 +7876,6 @@ elif menu == "✅ Nhân viên":
         elif so_hd_can_xoa and not xac_nhan_xoa:
             st.info("🔒 Vui lòng tick xác nhận 'Tôi xác nhận muốn xóa vĩnh viễn' để tiếp tục")
     
-    # ========== PHẦN BÁO CÁO THỐNG KÊ ==========
-    st.divider()
-    st.subheader("📊 Báo cáo thống kê nhân sự")
-
-    # ── Tùy chọn bộ lọc ──
-    with st.expander("⚙️ Tùy chọn xuất báo cáo thống kê nhân sự", expanded=True):
-        col_tk_date1, col_tk_date2, col_tk_date3 = st.columns([1, 1, 1])
-        with col_tk_date1:
-            tk_tu_ngay = st.date_input("📅 Từ ngày:", value=date(date.today().year, 1, 1), key="tk_tu_ngay")
-        with col_tk_date2:
-            tk_den_ngay = st.date_input("📅 Đến ngày:", value=date.today(), key="tk_den_ngay")
-        with col_tk_date3:
-            loai_hd_filter = st.selectbox(
-                "Loại hợp đồng:",
-                ["Tất cả", "Không xác định thời hạn", "Thử việc"],
-                key="tk_loai_hd"
-            )
-        col_tk1, col_tk2 = st.columns([1, 2])
-        with col_tk1:
-            pass  # placeholder
-
-        # Danh sách tất cả cột bảng nhan_vien (trừ id)
-        ALL_COLUMNS_LABELS = {
-            "ma_nv":              "Mã NV",
-            "ho_ten":             "Họ tên",
-            "ngay_sinh":          "Ngày sinh",
-            "gioi_tinh":          "Giới tính",
-            "chuc_danh_nghe":     "Chức danh",
-            "phong_ban_lam_viec": "Phòng ban",
-            "loai_hop_dong":      "Loại HĐ",
-            "ngay_vao_lam":       "Ngày vào làm",
-            "ngay_ky_hd":         "Ngày ký HĐ",
-            "so_hdld":            "Số HĐLĐ",
-            "so_cccd":            "Số CCCD",
-            "thuong_tru":         "Thường trú",
-            "dien_thoai":         "Điện thoại",
-            "ma_so_bhxh":         "Mã BHXH",
-            "thang_bat_dau_bh":   "BĐ đóng BH",
-            "so_tai_khoan_nh":    "STK",
-            "chi_nhanh_nh":       "Chi nhánh NH",
-            "ho_so":              "Hồ sơ",
-            "ten_don_vi_thu_huong": "Tên đơn vị thụ hưởng",
-        }
-
-        # Thứ tự ưu tiên mặc định (tất cả tích mặc định)
-        DEFAULT_PRIORITY = [
-            "ma_nv", "ho_ten", "ngay_sinh", "gioi_tinh",
-            "chuc_danh_nghe", "phong_ban_lam_viec", "loai_hop_dong",
-            "ngay_vao_lam", "ngay_ky_hd", "so_hdld",
-            "so_cccd", "thuong_tru", "dien_thoai", "ma_so_bhxh",
-            "thang_bat_dau_bh", "so_tai_khoan_nh", "chi_nhanh_nh", "ho_so",
-            "ten_don_vi_thu_huong",
-        ]
-        DEFAULT_CHECKED = set(DEFAULT_PRIORITY)
-
-        with col_tk2:
-            st.caption("📋 Chọn các cột cần xuất:")
-            col_chk = st.columns(4)
-            selected_cols = []
-            for idx, (col_key, col_label) in enumerate(ALL_COLUMNS_LABELS.items()):
-                default_val = col_key in DEFAULT_CHECKED
-                checked = col_chk[idx % 4].checkbox(col_label, value=default_val, key=f"tk_col_{col_key}")
-                if checked:
-                    selected_cols.append(col_key)
-
-        if st.button("📊 XUẤT THỐNG KÊ NHÂN SỰ (EXCEL)", type="primary", width='stretch', key="btn_tk_nhansu"):
-            from openpyxl import Workbook
-            from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
-            from openpyxl.utils import get_column_letter
-
-            if not selected_cols:
-                st.error("⚠️ Vui lòng chọn ít nhất 1 cột!")
-            else:
-                db_tk = st.session_state.db_engine.get_connection()
-                c_tk = db_tk.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
-                # Sắp xếp selected_cols theo thứ tự ưu tiên
-                priority_order = DEFAULT_PRIORITY + [k for k in ALL_COLUMNS_LABELS if k not in DEFAULT_PRIORITY]
-                selected_cols_sorted = sorted(selected_cols, key=lambda x: priority_order.index(x) if x in priority_order else 999)
-
-                sql_cols = ", ".join(selected_cols_sorted)
-                sql_tk = f"SELECT {sql_cols} FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') AND ngay_vao_lam BETWEEN %s AND %s"
-                params_tk = [tk_tu_ngay, tk_den_ngay]
-                if loai_hd_filter == "Không xác định thời hạn":
-                    sql_tk += " AND loai_hop_dong = %s"
-                    params_tk.append("Không xác định thời hạn")
-                elif loai_hd_filter == "Thử việc":
-                    sql_tk += " AND trang_thai = 'THU_VIEC'"
-                sql_tk += " ORDER BY STT ASC"
-                c_tk.execute(sql_tk, tuple(params_tk))
-                ds_tk = c_tk.fetchall()
-                db_tk.close()
-
-                if not ds_tk:
-                    st.warning("⚠️ Không có nhân viên nào phù hợp với bộ lọc!")
-                else:
-                    thin_border_tk = Border(
-                        left=Side(style='thin'), right=Side(style='thin'),
-                        top=Side(style='thin'), bottom=Side(style='thin')
-                    )
-                    header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
-                    stat_fill  = PatternFill(start_color="D9E8F5", end_color="D9E8F5", fill_type="solid")
-
-                    wb_tk = Workbook()
-                    ws_tk = wb_tk.active
-                    ws_tk.title = "Thống kê nhân sự"
-
-                    ten_cong_ty_tk = COMPANY_CONFIG.get("ten_cong_ty", "CÔNG TY CỔ PHẦN CẢNG HÒN LA")
-                    dia_chi_tk     = COMPANY_CONFIG.get("dia_chi", "")
-                    dien_thoai_tk  = COMPANY_CONFIG.get("dien_thoai_cty", "")
-                    n_cols = len(selected_cols_sorted) + 1  # +1 cho cột STT
-
-                    # ── Thông tin công ty ──
-                    ws_tk.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n_cols)
-                    ws_tk['A1'] = ten_cong_ty_tk
-                    ws_tk['A1'].font = Font(bold=True, size=13, name='Times New Roman')
-                    ws_tk['A1'].alignment = Alignment(horizontal='center')
-
-                    ws_tk.merge_cells(start_row=2, start_column=1, end_row=2, end_column=n_cols)
-                    ws_tk['A2'] = f"Địa chỉ: {dia_chi_tk}  |  ĐT: {dien_thoai_tk}"
-                    ws_tk['A2'].font = Font(size=10, name='Times New Roman', italic=True)
-                    ws_tk['A2'].alignment = Alignment(horizontal='center')
-
-                    # ── Tiêu đề báo cáo ──
-                    loai_hd_label = f" - Loại HĐ: {loai_hd_filter}" if loai_hd_filter != "Tất cả" else ""
-                    ws_tk.merge_cells(start_row=4, start_column=1, end_row=4, end_column=n_cols)
-                    ws_tk['A4'] = "BÁO CÁO THỐNG KÊ NHÂN SỰ" + loai_hd_label
-                    ws_tk['A4'].font = Font(bold=True, size=14, name='Times New Roman')
-                    ws_tk['A4'].alignment = Alignment(horizontal='center')
-
-                    ws_tk.merge_cells(start_row=5, start_column=1, end_row=5, end_column=n_cols)
-                    ws_tk['A5'] = f"Từ ngày {tk_tu_ngay.strftime('%d/%m/%Y')} đến ngày {tk_den_ngay.strftime('%d/%m/%Y')}  |  Xuất lúc: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
-                    ws_tk['A5'].font = Font(size=10, name='Times New Roman', italic=True)
-                    ws_tk['A5'].alignment = Alignment(horizontal='center')
-
-                    # ── Header bảng ──
-                    header_row_tk = 7
-                    ws_tk.cell(row=header_row_tk, column=1, value="STT").font = Font(bold=True, size=10, name='Times New Roman', color="FFFFFF")
-                    ws_tk.cell(row=header_row_tk, column=1).fill = header_fill
-                    ws_tk.cell(row=header_row_tk, column=1).alignment = Alignment(horizontal='center', vertical='center')
-                    ws_tk.cell(row=header_row_tk, column=1).border = thin_border_tk
-
-                    for col_idx, col_key in enumerate(selected_cols_sorted, 2):
-                        cell = ws_tk.cell(row=header_row_tk, column=col_idx, value=ALL_COLUMNS_LABELS.get(col_key, col_key))
-                        cell.font = Font(bold=True, size=10, name='Times New Roman', color="FFFFFF")
-                        cell.fill = header_fill
-                        cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-                        cell.border = thin_border_tk
-
-                    # ── Dữ liệu ──
-                    def fmt_val(key, val):
-                        if val is None:
-                            return ""
-                        if 'ngay' in key.lower() or 'thang' in key.lower():
-                            return format_date(val)
-                        return val
-
-                    date_cols = {k for k in selected_cols_sorted if 'ngay' in k or 'thang' in k}
-                    center_cols = {k for k in selected_cols_sorted if k in (
-                        "ma_nv","ngay_sinh","gioi_tinh","loai_hop_dong",
-                        "ngay_vao_lam","ngay_ky_hd","ngay_ket_thuc","trang_thai",
-                        "thang_bat_dau_bh","thang_ket_thuc_bh","he_so_luong",
-                        "phu_cap_tnvk","phu_cap_tnn","muc_huong_bhyt"
-                    )}
-
-                    for stt_idx, nv in enumerate(ds_tk, 1):
-                        row = header_row_tk + stt_idx
-                        ws_tk.cell(row=row, column=1, value=stt_idx).border = thin_border_tk
-                        ws_tk.cell(row=row, column=1).alignment = Alignment(horizontal='center', vertical='center')
-                        ws_tk.cell(row=row, column=1).font = Font(size=10, name='Times New Roman')
-                        for col_idx, col_key in enumerate(selected_cols_sorted, 2):
-                            raw = nv.get(col_key)
-                            val = fmt_val(col_key, raw)
-                            cell = ws_tk.cell(row=row, column=col_idx, value=val)
-                            cell.font = Font(size=10, name='Times New Roman')
-                            cell.border = thin_border_tk
-                            if col_key in center_cols:
-                                cell.alignment = Alignment(horizontal='center', vertical='center')
-                            else:
-                                cell.alignment = Alignment(horizontal='left', vertical='center')
-
-                    total_row_tk = header_row_tk + len(ds_tk) + 1
-                    ws_tk.merge_cells(start_row=total_row_tk, start_column=1, end_row=total_row_tk, end_column=n_cols)
-                    ws_tk.cell(row=total_row_tk, column=1, value=f"TỔNG CỘNG: {len(ds_tk)} nhân viên")
-                    ws_tk.cell(row=total_row_tk, column=1).font = Font(bold=True, size=11, name='Times New Roman')
-                    ws_tk.cell(row=total_row_tk, column=1).alignment = Alignment(horizontal='left')
-
-                    # ── Thống kê theo giới tính ──
-                    stat_start = total_row_tk + 2
-                    ws_tk.merge_cells(start_row=stat_start, start_column=1, end_row=stat_start, end_column=n_cols)
-                    ws_tk.cell(row=stat_start, column=1, value="THỐNG KÊ THEO GIỚI TÍNH").font = Font(bold=True, size=11, name='Times New Roman')
-
-                    nam_count  = sum(1 for nv in ds_tk if (nv.get('gioi_tinh') or '') == 'Nam')
-                    nu_count   = sum(1 for nv in ds_tk if (nv.get('gioi_tinh') or '') == 'Nữ')
-                    khac_count = len(ds_tk) - nam_count - nu_count
-
-                    for r_offset, (label, cnt) in enumerate([("Nam", nam_count), ("Nữ", nu_count), ("Khác/Chưa xác định", khac_count)], 1):
-                        r = stat_start + r_offset
-                        ws_tk.merge_cells(start_row=r, start_column=1, end_row=r, end_column=3)
-                        ws_tk.cell(row=r, column=1, value=f"  {label}:").font = Font(size=10, name='Times New Roman')
-                        ws_tk.cell(row=r, column=4, value=cnt).font = Font(size=10, name='Times New Roman')
-                        for cc in range(1, 5):
-                            ws_tk.cell(row=r, column=cc).fill = stat_fill
-
-                    # ── Thống kê theo loại hợp đồng ──
-                    stat2_start = stat_start + 5
-                    ws_tk.merge_cells(start_row=stat2_start, start_column=1, end_row=stat2_start, end_column=n_cols)
-                    ws_tk.cell(row=stat2_start, column=1, value="THỐNG KÊ THEO LOẠI HỢP ĐỒNG").font = Font(bold=True, size=11, name='Times New Roman')
-
-                    hd_types = {"Không xác định thời hạn": 0, "Xác định thời hạn": 0, "Thử việc": 0, "Khác": 0}
-                    for nv in ds_tk:
-                        loai = (nv.get('loai_hop_dong') or '').strip()
-                        if loai in hd_types:
-                            hd_types[loai] += 1
-                        elif (nv.get('trang_thai') or '') == 'THU_VIEC':
-                            hd_types["Thử việc"] += 1
-                        else:
-                            hd_types["Khác"] += 1
-
-                    for r_offset, (label, cnt) in enumerate(hd_types.items(), 1):
-                        r = stat2_start + r_offset
-                        ws_tk.merge_cells(start_row=r, start_column=1, end_row=r, end_column=3)
-                        ws_tk.cell(row=r, column=1, value=f"  {label}:").font = Font(size=10, name='Times New Roman')
-                        ws_tk.cell(row=r, column=4, value=cnt).font = Font(size=10, name='Times New Roman')
-                        for cc in range(1, 5):
-                            ws_tk.cell(row=r, column=cc).fill = stat_fill
-
-                    # ── Footer người lập báo cáo ──
-                    footer_row = stat2_start + len(hd_types) + 3
-                    ws_tk.merge_cells(start_row=footer_row, start_column=1, end_row=footer_row, end_column=3)
-                    ws_tk.cell(row=footer_row, column=1, value="NGƯỜI LẬP BÁO CÁO")
-                    ws_tk.cell(row=footer_row, column=1).font = Font(bold=True, size=11, name='Times New Roman')
-                    ws_tk.cell(row=footer_row, column=1).alignment = Alignment(horizontal='center')
-
-                    ws_tk.merge_cells(start_row=footer_row+1, start_column=1, end_row=footer_row+1, end_column=3)
-                    ws_tk.cell(row=footer_row+1, column=1, value="(Ký, ghi rõ họ tên)")
-                    ws_tk.cell(row=footer_row+1, column=1).font = Font(size=10, name='Times New Roman', italic=True)
-                    ws_tk.cell(row=footer_row+1, column=1).alignment = Alignment(horizontal='center')
-
-                    # ── Độ rộng cột ──
-                    ws_tk.column_dimensions['A'].width = 5
-                    for col_idx, col_key in enumerate(selected_cols_sorted, 2):
-                        if col_key in ('ho_ten', 'thuong_tru', 'nguyen_quan', 'noi_cap_cccd', 'chuc_danh_nghe', 'ten_don_vi_thu_huong'):
-                            w = 28
-                        elif col_key in ('ma_nv', 'gioi_tinh', 'he_so_luong', 'phu_cap_tnvk', 'phu_cap_tnn'):
-                            w = 12
-                        elif 'ngay' in col_key or 'thang' in col_key:
-                            w = 16
-                        else:
-                            w = 20
-                        ws_tk.column_dimensions[get_column_letter(col_idx)].width = w
-
-                    ws_tk.row_dimensions[header_row_tk].height = 30
-
-                    fname_tk = f"ThongKe_NhanSu_{tk_tu_ngay.strftime('%d%m%Y')}_{tk_den_ngay.strftime('%d%m%Y')}.xlsx"
-                    wb_tk.save(fname_tk)
-                    with open(fname_tk, "rb") as f:
-                        st.download_button(
-                            label="📥 TẢI FILE THỐNG KÊ NHÂN SỰ",
-                            data=f,
-                            file_name=fname_tk,
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            width='stretch'
-                        )
-                    st.success(f"✅ Đã xuất thống kê {len(ds_tk)} nhân viên với {len(selected_cols_sorted)} cột.")
-
-    st.divider()
-    st.subheader("📊 Báo cáo tăng/giảm nhân sự trong kỳ")
-    
-    col_from, col_to = st.columns(2)
-    with col_from:
-        tu_ngay_bc = st.date_input("Từ ngày:", value=date.today().replace(day=1), key="bc_tu")
-    with col_to:
-        den_ngay_bc = st.date_input("Đến ngày:", value=date.today(), key="bc_den")
-    row2_c1, row2_c2, row2_c3 = st.columns(3)
-    with row2_c3:
-        xuat_bc = st.button("📄 XUẤT BÁO CÁO WORD", width='stretch')
-    
-    if xuat_bc:
-        db = st.session_state.db_engine.get_connection()
-        c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        c.execute("""
-            SELECT ho_ten, chuc_danh_nghe, phong_ban_lam_viec, loai_hop_dong, ngay_vao_lam,
-                   ngay_sinh, so_hdld, ngay_ky_hd
-            FROM nhan_vien 
-            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
-            AND ngay_vao_lam BETWEEN %s AND %s
-            ORDER BY ngay_vao_lam ASC
-        """, (tu_ngay_bc, den_ngay_bc))
-        tang_list = c.fetchall()
-        c.execute("""
-            SELECT ho_ten, chuc_danh_nghe, phong_ban_lam_viec, loai_hop_dong, ngay_vao_lam, ngay_ket_thuc,
-                   ngay_sinh, so_hdld, ngay_ky_hd
-            FROM nhan_vien 
-            WHERE trang_thai = 'NGHI_VIEC'
-            AND ngay_ket_thuc BETWEEN %s AND %s
-            ORDER BY ngay_ket_thuc ASC
-        """, (tu_ngay_bc, den_ngay_bc))
-        giam_list = c.fetchall()
-        db.close()
-        if tang_list or giam_list:
-            file_path = tao_bao_cao_tang_giam(tang_list, giam_list, tu_ngay_bc, den_ngay_bc)
-            with open(file_path, "rb") as f:
-                st.download_button(
-                    label="📥 TẢI FILE BÁO CÁO (Word)",
-                    data=f,
-                    file_name=f"Bao_cao_tang_giam_{tu_ngay_bc.strftime('%d%m%Y')}_{den_ngay_bc.strftime('%d%m%Y')}.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
-        else:
-            st.info("Không có biến động nhân sự trong kỳ.")
-
     # ===== TAB: QUYẾT ĐỊNH NHÂN SỰ =====
     with tab_qdns:
         st.caption("📜 Ra các Quyết định nhân sự: Bổ nhiệm, Miễn nhiệm, Thay đổi chức danh, Điều chuyển công tác, Chấm dứt HĐTV/HĐLĐ")
@@ -9835,361 +9523,680 @@ elif menu == "📋 BHXH":
             col_kq3.metric("Tổng tiền", f"{tong_tien:,.0f} VNĐ", "cả 2 bên")
         
 # ========== BÁO CÁO TÌNH HÌNH SỬ DỤNG LAO ĐỘNG MẪU 01/PLI (EXCEL) ==========
-elif menu == "📋 Báo cáo 01/PLI":
-    st.title("📋 Báo cáo tình hình sử dụng lao động")
-    st.caption("Theo mẫu 01/PLI Phụ lục I - Nghị định 145/2020/NĐ-CP (sửa đổi bởi Nghị định 35/2022/NĐ-CP)")
+elif menu == "📋 Báo cáo định kỳ":
+    st.title("📋 Báo cáo định kỳ")
+
+    tab_bc_pli, tab_bc_tk, tab_bc_tanggiam = st.tabs([
+        "📋 Báo cáo 01/PLI", "📊 Báo cáo thống kê nhân sự", "📊 Báo cáo tăng/giảm nhân sự trong kỳ"
+    ])
+
+    with tab_bc_pli:
+        st.subheader("📋 Báo cáo tình hình sử dụng lao động")
+        st.caption("Theo mẫu 01/PLI Phụ lục I - Nghị định 145/2020/NĐ-CP (sửa đổi bởi Nghị định 35/2022/NĐ-CP)")
     
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, Alignment, Border, Side
-    from openpyxl.utils import get_column_letter
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
     
-    thin_border = Border(
-        left=Side(style='thin'),
-        right=Side(style='thin'),
-        top=Side(style='thin'),
-        bottom=Side(style='thin')
-    )
+        thin_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
     
-    col1, col2 = st.columns(2)
-    with col1:
-        tu_ngay = st.date_input("📅 Từ ngày:", value=date(date.today().year, 1, 1), key="pli_tu")
-    with col2:
-        den_ngay = st.date_input("📅 Đến ngày:", value=date.today(), key="pli_den")
+        col1, col2 = st.columns(2)
+        with col1:
+            tu_ngay = st.date_input("📅 Từ ngày:", value=date(date.today().year, 1, 1), key="pli_tu")
+        with col2:
+            den_ngay = st.date_input("📅 Đến ngày:", value=date.today(), key="pli_den")
     
-    db = st.session_state.db_engine.get_connection()
-    c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    c.execute("""
-        SELECT 
-            nv.STT, nv.ma_nv, nv.ho_ten, nv.ma_so_bhxh, nv.ngay_sinh, nv.gioi_tinh,
-            nv.so_cccd, nv.chuc_danh_nghe, nv.luong_bao_hiem, nv.he_so_luong,
-            nv.phu_cap_chuc_vu, nv.phu_cap_tnvk, nv.phu_cap_tnn, nv.loai_hop_dong,
-            nv.ngay_vao_lam, nv.ngay_ky_hd, nv.ngay_ket_thuc, nv.thang_bat_dau_bh,
-            nv.thang_ket_thuc_bh, nv.so_hdld, nv.phong_ban_lam_viec, nv.noi_lam_viec,
-            nv.ten_don_vi_thu_huong
-        FROM nhan_vien nv
-        WHERE nv.trang_thai IN ('DANG_LAM', 'THU_VIEC', 'NGHI_VIEC')
-        AND nv.ngay_vao_lam <= %s
-        AND (nv.ngay_ket_thuc IS NULL OR nv.ngay_ket_thuc >= %s)
-        ORDER BY nv.STT ASC
-    """, (den_ngay, tu_ngay))
-    ds_lao_dong = c.fetchall()
-    db.close()
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        c.execute("""
+            SELECT 
+                nv.STT, nv.ma_nv, nv.ho_ten, nv.ma_so_bhxh, nv.ngay_sinh, nv.gioi_tinh,
+                nv.so_cccd, nv.chuc_danh_nghe, nv.luong_bao_hiem, nv.he_so_luong,
+                nv.phu_cap_chuc_vu, nv.phu_cap_tnvk, nv.phu_cap_tnn, nv.loai_hop_dong,
+                nv.ngay_vao_lam, nv.ngay_ky_hd, nv.ngay_ket_thuc, nv.thang_bat_dau_bh,
+                nv.thang_ket_thuc_bh, nv.so_hdld, nv.phong_ban_lam_viec, nv.noi_lam_viec,
+                nv.ten_don_vi_thu_huong
+            FROM nhan_vien nv
+            WHERE nv.trang_thai IN ('DANG_LAM', 'THU_VIEC', 'NGHI_VIEC')
+            AND nv.ngay_vao_lam <= %s
+            AND (nv.ngay_ket_thuc IS NULL OR nv.ngay_ket_thuc >= %s)
+            ORDER BY nv.STT ASC
+        """, (den_ngay, tu_ngay))
+        ds_lao_dong = c.fetchall()
+        db.close()
     
-    st.info(f"📊 Tổng số lao động đang làm việc: **{len(ds_lao_dong)}** người")
+        st.info(f"📊 Tổng số lao động đang làm việc: **{len(ds_lao_dong)}** người")
     
-    # Hiển thị bảng dữ liệu trước khi xuất (cho cả admin và viewer)
-    if ds_lao_dong:
-        st.subheader("📋 Danh sách lao động")
-        df_preview = pd.DataFrame(ds_lao_dong)
-        for col in df_preview.columns:
-            if 'ngay' in col.lower():
-                df_preview[col] = df_preview[col].apply(format_date)
+        # Hiển thị bảng dữ liệu trước khi xuất (cho cả admin và viewer)
+        if ds_lao_dong:
+            st.subheader("📋 Danh sách lao động")
+            df_preview = pd.DataFrame(ds_lao_dong)
+            for col in df_preview.columns:
+                if 'ngay' in col.lower():
+                    df_preview[col] = df_preview[col].apply(format_date)
         
-        preview_cols = ['ma_nv', 'ho_ten', 'chuc_danh_nghe', 'loai_hop_dong', 'ngay_vao_lam', 'ma_so_bhxh', 'ten_don_vi_thu_huong']
-        available_preview = [c for c in preview_cols if c in df_preview.columns]
-        df_display = df_preview[available_preview]
-        col_map_preview = {
-            'ma_nv': 'Mã NV',
-            'ho_ten': 'Họ tên',
-            'chuc_danh_nghe': 'Chức danh',
-            'loai_hop_dong': 'Loại HĐ',
-            'ngay_vao_lam': 'Ngày vào làm',
-            'ma_so_bhxh': 'Mã BHXH',
-            'ten_don_vi_thu_huong': 'Tên đơn vị thụ hưởng',
-        }
-        df_display.rename(columns=col_map_preview, inplace=True)
-        st.dataframe(df_display, width='stretch', hide_index=True, height=400)
+            preview_cols = ['ma_nv', 'ho_ten', 'chuc_danh_nghe', 'loai_hop_dong', 'ngay_vao_lam', 'ma_so_bhxh', 'ten_don_vi_thu_huong']
+            available_preview = [c for c in preview_cols if c in df_preview.columns]
+            df_display = df_preview[available_preview]
+            col_map_preview = {
+                'ma_nv': 'Mã NV',
+                'ho_ten': 'Họ tên',
+                'chuc_danh_nghe': 'Chức danh',
+                'loai_hop_dong': 'Loại HĐ',
+                'ngay_vao_lam': 'Ngày vào làm',
+                'ma_so_bhxh': 'Mã BHXH',
+                'ten_don_vi_thu_huong': 'Tên đơn vị thụ hưởng',
+            }
+            df_display.rename(columns=col_map_preview, inplace=True)
+            st.dataframe(df_display, width='stretch', hide_index=True, height=400)
         
-        st.divider()
+            st.divider()
         
-        # Chỉ admin mới được xuất Excel
-        if st.session_state.role == "admin":
-            if st.button("📥 XUẤT EXCEL MẪU 01/PLI", type="primary", width='stretch'):
-                wb = Workbook()
-                ws = wb.active
-                ws.title = "BC_Tinh_hinh_su_dung_LD"
+            # Chỉ admin mới được xuất Excel
+            if st.session_state.role == "admin":
+                if st.button("📥 XUẤT EXCEL MẪU 01/PLI", type="primary", width='stretch'):
+                    wb = Workbook()
+                    ws = wb.active
+                    ws.title = "BC_Tinh_hinh_su_dung_LD"
                 
-                ten_cong_ty = COMPANY_CONFIG.get("ten_cong_ty", "CÔNG TY CỔ PHẦN CẢNG HÒN LA")
-                dia_chi = COMPANY_CONFIG.get("dia_chi", "")
-                ma_so_thue = COMPANY_CONFIG.get("ma_so_thue", "")
-                dien_thoai_cty = COMPANY_CONFIG.get("dien_thoai_cty", "")
+                    ten_cong_ty = COMPANY_CONFIG.get("ten_cong_ty", "CÔNG TY CỔ PHẦN CẢNG HÒN LA")
+                    dia_chi = COMPANY_CONFIG.get("dia_chi", "")
+                    ma_so_thue = COMPANY_CONFIG.get("ma_so_thue", "")
+                    dien_thoai_cty = COMPANY_CONFIG.get("dien_thoai_cty", "")
                 
-                # Header
-                ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=6)
-                ws['A1'] = ten_cong_ty
-                ws['A1'].font = Font(bold=True, size=13, name='Times New Roman')
-                ws['A1'].alignment = Alignment(horizontal='center')
+                    # Header
+                    ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=6)
+                    ws['A1'] = ten_cong_ty
+                    ws['A1'].font = Font(bold=True, size=13, name='Times New Roman')
+                    ws['A1'].alignment = Alignment(horizontal='center')
                 
-                ws.merge_cells(start_row=1, start_column=20, end_row=1, end_column=26)
-                ws['T1'] = "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM"
-                ws['T1'].font = Font(bold=True, size=13, name='Times New Roman')
-                ws['T1'].alignment = Alignment(horizontal='center')
+                    ws.merge_cells(start_row=1, start_column=20, end_row=1, end_column=26)
+                    ws['T1'] = "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM"
+                    ws['T1'].font = Font(bold=True, size=13, name='Times New Roman')
+                    ws['T1'].alignment = Alignment(horizontal='center')
                 
-                ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=6)
-                ws['A2'] = f"Số: 01/BC-01PLI-{datetime.now().year}/CHL"
-                ws['A2'].font = Font(size=12, name='Times New Roman')
-                ws['A2'].alignment = Alignment(horizontal='center')
+                    ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=6)
+                    ws['A2'] = f"Số: 01/BC-01PLI-{datetime.now().year}/CHL"
+                    ws['A2'].font = Font(size=12, name='Times New Roman')
+                    ws['A2'].alignment = Alignment(horizontal='center')
                 
-                ws.merge_cells(start_row=2, start_column=20, end_row=2, end_column=26)
-                ws['T2'] = "Độc lập - Tự do - Hạnh phúc"
-                ws['T2'].font = Font(italic=True, size=12, name='Times New Roman')
-                ws['T2'].alignment = Alignment(horizontal='center')
+                    ws.merge_cells(start_row=2, start_column=20, end_row=2, end_column=26)
+                    ws['T2'] = "Độc lập - Tự do - Hạnh phúc"
+                    ws['T2'].font = Font(italic=True, size=12, name='Times New Roman')
+                    ws['T2'].alignment = Alignment(horizontal='center')
                 
-                ws.merge_cells(start_row=3, start_column=20, end_row=3, end_column=26)
-                ws['T3'] = f"Quảng Trị, ngày {date.today().day} tháng {date.today().month} năm {date.today().year}"
-                ws['T3'].font = Font(italic=True, size=12, name='Times New Roman')
-                ws['T3'].alignment = Alignment(horizontal='right')
+                    ws.merge_cells(start_row=3, start_column=20, end_row=3, end_column=26)
+                    ws['T3'] = f"Quảng Trị, ngày {date.today().day} tháng {date.today().month} năm {date.today().year}"
+                    ws['T3'].font = Font(italic=True, size=12, name='Times New Roman')
+                    ws['T3'].alignment = Alignment(horizontal='right')
                 
-                ws.merge_cells('A5:AA5')
-                ws['A5'] = "BÁO CÁO TÌNH HÌNH SỬ DỤNG LAO ĐỘNG"
-                ws['A5'].font = Font(bold=True, size=13, name='Times New Roman')
-                ws['A5'].alignment = Alignment(horizontal='center')
+                    ws.merge_cells('A5:AA5')
+                    ws['A5'] = "BÁO CÁO TÌNH HÌNH SỬ DỤNG LAO ĐỘNG"
+                    ws['A5'].font = Font(bold=True, size=13, name='Times New Roman')
+                    ws['A5'].alignment = Alignment(horizontal='center')
                 
-                ws.merge_cells('A6:AA6')
-                ws['A6'] = f"(Từ ngày {tu_ngay.strftime('%d/%m/%Y')} đến ngày {den_ngay.strftime('%d/%m/%Y')})"
-                ws['A6'].font = Font(size=12, name='Times New Roman')
-                ws['A6'].alignment = Alignment(horizontal='center')
+                    ws.merge_cells('A6:AA6')
+                    ws['A6'] = f"(Từ ngày {tu_ngay.strftime('%d/%m/%Y')} đến ngày {den_ngay.strftime('%d/%m/%Y')})"
+                    ws['A6'].font = Font(size=12, name='Times New Roman')
+                    ws['A6'].alignment = Alignment(horizontal='center')
                 
-                ws.merge_cells('A8:AA8')
-                ws['A8'] = "Kính gửi: SỞ NỘI VỤ TỈNH QUẢNG TRỊ"
-                ws['A8'].font = Font(bold=True, size=11, name='Times New Roman')
-                ws['A8'].alignment = Alignment(horizontal='left')
+                    ws.merge_cells('A8:AA8')
+                    ws['A8'] = "Kính gửi: SỞ NỘI VỤ TỈNH QUẢNG TRỊ"
+                    ws['A8'].font = Font(bold=True, size=11, name='Times New Roman')
+                    ws['A8'].alignment = Alignment(horizontal='left')
                 
-                ws['A10'] = "1. Thông tin chung về doanh nghiệp:"
-                ws['A10'].font = Font(bold=True, size=11, name='Times New Roman')
+                    ws['A10'] = "1. Thông tin chung về doanh nghiệp:"
+                    ws['A10'].font = Font(bold=True, size=11, name='Times New Roman')
                 
-                row_info = 11
-                for label in [f"- Tên doanh nghiệp: {ten_cong_ty}", f"- Địa chỉ: {dia_chi}", 
-                             f"- Mã số thuế: {ma_so_thue}", f"- Điện thoại: {dien_thoai_cty}"]:
-                    ws[f'A{row_info}'] = label
-                    ws[f'A{row_info}'].font = Font(size=11, name='Times New Roman')
-                    row_info += 1
+                    row_info = 11
+                    for label in [f"- Tên doanh nghiệp: {ten_cong_ty}", f"- Địa chỉ: {dia_chi}", 
+                                 f"- Mã số thuế: {ma_so_thue}", f"- Điện thoại: {dien_thoai_cty}"]:
+                        ws[f'A{row_info}'] = label
+                        ws[f'A{row_info}'].font = Font(size=11, name='Times New Roman')
+                        row_info += 1
                 
-                ws[f'A{row_info + 1}'] = "2. Thông tin tình hình sử dụng lao động của đơn vị:"
-                ws[f'A{row_info + 1}'].font = Font(bold=True, size=11, name='Times New Roman')
+                    ws[f'A{row_info + 1}'] = "2. Thông tin tình hình sử dụng lao động của đơn vị:"
+                    ws[f'A{row_info + 1}'].font = Font(bold=True, size=11, name='Times New Roman')
                 
-                header_row = 18
-                col_widths = [5, 25, 18, 15, 8, 18, 25, 12, 18, 18, 12, 15, 
-                             12, 12, 12, 12, 15, 12, 12, 18, 18, 18, 18, 18, 18, 18, 20]
-                for i, w in enumerate(col_widths, 1):
-                    ws.column_dimensions[get_column_letter(i)].width = w
+                    header_row = 18
+                    col_widths = [5, 25, 18, 15, 8, 18, 25, 12, 18, 18, 12, 15, 
+                                 12, 12, 12, 12, 15, 12, 12, 18, 18, 18, 18, 18, 18, 18, 20]
+                    for i, w in enumerate(col_widths, 1):
+                        ws.column_dimensions[get_column_letter(i)].width = w
                 
-                stt_row = header_row + 3
-                for col in range(1, 28):
-                    ws.cell(row=stt_row, column=col, value=f"({col})")
-                    ws.cell(row=stt_row, column=col).font = Font(size=9, name='Times New Roman')
-                    ws.cell(row=stt_row, column=col).alignment = Alignment(horizontal='center')
-                    ws.cell(row=stt_row, column=col).border = thin_border
-                
-                # Merge cells header
-                ws.merge_cells(start_row=header_row, start_column=1, end_row=header_row+2, end_column=1)
-                ws.cell(row=header_row, column=1, value="STT")
-                
-                ws.merge_cells(start_row=header_row, start_column=2, end_row=header_row+2, end_column=2)
-                ws.cell(row=header_row, column=2, value="Họ và tên")
-                
-                ws.merge_cells(start_row=header_row, start_column=3, end_row=header_row+2, end_column=3)
-                ws.cell(row=header_row, column=3, value="Mã số BHXH")
-                
-                ws.merge_cells(start_row=header_row, start_column=4, end_row=header_row+2, end_column=4)
-                ws.cell(row=header_row, column=4, value="Ngày sinh")
-                
-                ws.merge_cells(start_row=header_row, start_column=5, end_row=header_row+2, end_column=5)
-                ws.cell(row=header_row, column=5, value="Giới tính")
-                
-                ws.merge_cells(start_row=header_row, start_column=6, end_row=header_row+2, end_column=6)
-                ws.cell(row=header_row, column=6, value="Số CCCD/Hộ chiếu")
-                
-                ws.merge_cells(start_row=header_row, start_column=7, end_row=header_row+2, end_column=7)
-                ws.cell(row=header_row, column=7, value="Chức danh nghề, vị trí, công việc")
-                
-                ws.merge_cells(start_row=header_row, start_column=8, end_row=header_row, end_column=11)
-                ws.cell(row=header_row, column=8, value="Vị trí việc làm (2)")
-                
-                ws.merge_cells(start_row=header_row, start_column=12, end_row=header_row, end_column=17)
-                ws.cell(row=header_row, column=12, value="Tiền lương")
-                
-                ws.merge_cells(start_row=header_row, start_column=20, end_row=header_row, end_column=24)
-                ws.cell(row=header_row, column=20, value="Loại và hiệu lực hợp đồng")
-                
-                ws.merge_cells(start_row=header_row, start_column=18, end_row=header_row+1, end_column=19)
-                ws.cell(row=header_row, column=18, value="Ngành nghề nặng nhọc, độc hại")
-                
-                ws.merge_cells(start_row=header_row+1, start_column=13, end_row=header_row+1, end_column=17)
-                ws.cell(row=header_row+1, column=13, value="Phụ cấp")
-                
-                ws.merge_cells(start_row=header_row+1, start_column=21, end_row=header_row+1, end_column=22)
-                ws.cell(row=header_row+1, column=21, value="Hiệu lực HĐLĐ xác định thời hạn")
-                
-                ws.merge_cells(start_row=header_row+1, start_column=23, end_row=header_row+1, end_column=24)
-                cell = ws.cell(row=header_row+1, column=23, value="Hiệu lực HĐLĐ khác (dưới 1 tháng, thử việc)")
-                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
-                
-                ws.merge_cells(start_row=header_row+1, start_column=8, end_row=header_row+2, end_column=8)
-                ws.cell(row=header_row+1, column=8, value="Nhà quản lý")
-                
-                ws.merge_cells(start_row=header_row+1, start_column=9, end_row=header_row+2, end_column=9)
-                ws.cell(row=header_row+1, column=9, value="Chuyên môn kỹ thuật bậc cao")
-                
-                ws.merge_cells(start_row=header_row+1, start_column=10, end_row=header_row+2, end_column=10)
-                ws.cell(row=header_row+1, column=10, value="Chuyên môn kỹ thuật bậc trung")
-                
-                ws.merge_cells(start_row=header_row+1, start_column=11, end_row=header_row+2, end_column=11)
-                ws.cell(row=header_row+1, column=11, value="Khác")
-                
-                ws.merge_cells(start_row=header_row+1, start_column=12, end_row=header_row+2, end_column=12)
-                ws.cell(row=header_row+1, column=12, value="Mức lương/Hệ số lương")
-                
-                ws.merge_cells(start_row=header_row+1, start_column=20, end_row=header_row+2, end_column=20)
-                ws.cell(row=header_row+1, column=20, value="Ngày bắt đầu HĐLĐ không xác định thời hạn")
-                
-                ws.merge_cells(start_row=header_row, start_column=25, end_row=header_row+2, end_column=25)
-                ws.cell(row=header_row, column=25, value="Thời điểm bắt đầu đóng BHXH")
-                
-                ws.merge_cells(start_row=header_row, start_column=26, end_row=header_row+2, end_column=26)
-                ws.cell(row=header_row, column=26, value="Thời điểm kết thúc đóng BHXH")
-                
-                ws.merge_cells(start_row=header_row, start_column=27, end_row=header_row+2, end_column=27)
-                ws.cell(row=header_row, column=27, value="Ghi chú")
-                
-                for row in range(header_row, header_row + 3):
+                    stt_row = header_row + 3
                     for col in range(1, 28):
-                        cell = ws.cell(row=row, column=col)
-                        cell.border = thin_border
+                        ws.cell(row=stt_row, column=col, value=f"({col})")
+                        ws.cell(row=stt_row, column=col).font = Font(size=9, name='Times New Roman')
+                        ws.cell(row=stt_row, column=col).alignment = Alignment(horizontal='center')
+                        ws.cell(row=stt_row, column=col).border = thin_border
                 
-                ws.cell(row=header_row+2, column=13, value="Phụ cấp chức vụ")
-                ws.cell(row=header_row+2, column=14, value="Phụ cấp thâm niên VK(%)")
-                ws.cell(row=header_row+2, column=15, value="Phụ cấp thâm niên nghề (%)")
-                ws.cell(row=header_row+2, column=16, value="Phụ cấp thâm niên nghề (%)")
-                ws.cell(row=header_row+2, column=17, value="Các khoản bổ sung")
-                ws.cell(row=header_row+2, column=18, value="Ngày bắt đầu")
-                ws.cell(row=header_row+2, column=19, value="Ngày kết thúc")
-                ws.cell(row=header_row+2, column=21, value="Ngày bắt đầu")
-                ws.cell(row=header_row+2, column=22, value="Ngày kết thúc")
-                ws.cell(row=header_row+2, column=23, value="Ngày bắt đầu")
-                ws.cell(row=header_row+2, column=24, value="Ngày kết thúc")
+                    # Merge cells header
+                    ws.merge_cells(start_row=header_row, start_column=1, end_row=header_row+2, end_column=1)
+                    ws.cell(row=header_row, column=1, value="STT")
                 
-                for row in range(header_row, header_row + 3):
-                    for col in range(1, 28):
-                        cell = ws.cell(row=row, column=col)
-                        if cell.value:
-                            cell.font = Font(bold=True, size=10, name='Times New Roman')
-                            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                    ws.merge_cells(start_row=header_row, start_column=2, end_row=header_row+2, end_column=2)
+                    ws.cell(row=header_row, column=2, value="Họ và tên")
+                
+                    ws.merge_cells(start_row=header_row, start_column=3, end_row=header_row+2, end_column=3)
+                    ws.cell(row=header_row, column=3, value="Mã số BHXH")
+                
+                    ws.merge_cells(start_row=header_row, start_column=4, end_row=header_row+2, end_column=4)
+                    ws.cell(row=header_row, column=4, value="Ngày sinh")
+                
+                    ws.merge_cells(start_row=header_row, start_column=5, end_row=header_row+2, end_column=5)
+                    ws.cell(row=header_row, column=5, value="Giới tính")
+                
+                    ws.merge_cells(start_row=header_row, start_column=6, end_row=header_row+2, end_column=6)
+                    ws.cell(row=header_row, column=6, value="Số CCCD/Hộ chiếu")
+                
+                    ws.merge_cells(start_row=header_row, start_column=7, end_row=header_row+2, end_column=7)
+                    ws.cell(row=header_row, column=7, value="Chức danh nghề, vị trí, công việc")
+                
+                    ws.merge_cells(start_row=header_row, start_column=8, end_row=header_row, end_column=11)
+                    ws.cell(row=header_row, column=8, value="Vị trí việc làm (2)")
+                
+                    ws.merge_cells(start_row=header_row, start_column=12, end_row=header_row, end_column=17)
+                    ws.cell(row=header_row, column=12, value="Tiền lương")
+                
+                    ws.merge_cells(start_row=header_row, start_column=20, end_row=header_row, end_column=24)
+                    ws.cell(row=header_row, column=20, value="Loại và hiệu lực hợp đồng")
+                
+                    ws.merge_cells(start_row=header_row, start_column=18, end_row=header_row+1, end_column=19)
+                    ws.cell(row=header_row, column=18, value="Ngành nghề nặng nhọc, độc hại")
+                
+                    ws.merge_cells(start_row=header_row+1, start_column=13, end_row=header_row+1, end_column=17)
+                    ws.cell(row=header_row+1, column=13, value="Phụ cấp")
+                
+                    ws.merge_cells(start_row=header_row+1, start_column=21, end_row=header_row+1, end_column=22)
+                    ws.cell(row=header_row+1, column=21, value="Hiệu lực HĐLĐ xác định thời hạn")
+                
+                    ws.merge_cells(start_row=header_row+1, start_column=23, end_row=header_row+1, end_column=24)
+                    cell = ws.cell(row=header_row+1, column=23, value="Hiệu lực HĐLĐ khác (dưới 1 tháng, thử việc)")
+                    cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                
+                    ws.merge_cells(start_row=header_row+1, start_column=8, end_row=header_row+2, end_column=8)
+                    ws.cell(row=header_row+1, column=8, value="Nhà quản lý")
+                
+                    ws.merge_cells(start_row=header_row+1, start_column=9, end_row=header_row+2, end_column=9)
+                    ws.cell(row=header_row+1, column=9, value="Chuyên môn kỹ thuật bậc cao")
+                
+                    ws.merge_cells(start_row=header_row+1, start_column=10, end_row=header_row+2, end_column=10)
+                    ws.cell(row=header_row+1, column=10, value="Chuyên môn kỹ thuật bậc trung")
+                
+                    ws.merge_cells(start_row=header_row+1, start_column=11, end_row=header_row+2, end_column=11)
+                    ws.cell(row=header_row+1, column=11, value="Khác")
+                
+                    ws.merge_cells(start_row=header_row+1, start_column=12, end_row=header_row+2, end_column=12)
+                    ws.cell(row=header_row+1, column=12, value="Mức lương/Hệ số lương")
+                
+                    ws.merge_cells(start_row=header_row+1, start_column=20, end_row=header_row+2, end_column=20)
+                    ws.cell(row=header_row+1, column=20, value="Ngày bắt đầu HĐLĐ không xác định thời hạn")
+                
+                    ws.merge_cells(start_row=header_row, start_column=25, end_row=header_row+2, end_column=25)
+                    ws.cell(row=header_row, column=25, value="Thời điểm bắt đầu đóng BHXH")
+                
+                    ws.merge_cells(start_row=header_row, start_column=26, end_row=header_row+2, end_column=26)
+                    ws.cell(row=header_row, column=26, value="Thời điểm kết thúc đóng BHXH")
+                
+                    ws.merge_cells(start_row=header_row, start_column=27, end_row=header_row+2, end_column=27)
+                    ws.cell(row=header_row, column=27, value="Ghi chú")
+                
+                    for row in range(header_row, header_row + 3):
+                        for col in range(1, 28):
+                            cell = ws.cell(row=row, column=col)
                             cell.border = thin_border
                 
-                for col in range(1, 28):
-                    cell = ws.cell(row=stt_row, column=col)
-                    cell.font = Font(size=9, name='Times New Roman')
-                    cell.alignment = Alignment(horizontal='center')
-                    cell.border = thin_border
+                    ws.cell(row=header_row+2, column=13, value="Phụ cấp chức vụ")
+                    ws.cell(row=header_row+2, column=14, value="Phụ cấp thâm niên VK(%)")
+                    ws.cell(row=header_row+2, column=15, value="Phụ cấp thâm niên nghề (%)")
+                    ws.cell(row=header_row+2, column=16, value="Phụ cấp thâm niên nghề (%)")
+                    ws.cell(row=header_row+2, column=17, value="Các khoản bổ sung")
+                    ws.cell(row=header_row+2, column=18, value="Ngày bắt đầu")
+                    ws.cell(row=header_row+2, column=19, value="Ngày kết thúc")
+                    ws.cell(row=header_row+2, column=21, value="Ngày bắt đầu")
+                    ws.cell(row=header_row+2, column=22, value="Ngày kết thúc")
+                    ws.cell(row=header_row+2, column=23, value="Ngày bắt đầu")
+                    ws.cell(row=header_row+2, column=24, value="Ngày kết thúc")
                 
-                data_row = stt_row + 1
-                for idx, nv in enumerate(ds_lao_dong, 1):
-                    row = data_row + idx - 1
-                    
-                    ws.cell(row=row, column=1, value=idx)
-                    ws.cell(row=row, column=2, value=nv.get('ho_ten', ''))
-                    ws.cell(row=row, column=3, value=nv.get('ma_so_bhxh', ''))
-                    ws.cell(row=row, column=4, value=format_date(nv.get('ngay_sinh')))
-                    gt = nv.get('gioi_tinh', '')
-                    ws.cell(row=row, column=5, value='Nam' if gt == 'Nam' else 'Nữ' if gt == 'Nữ' else '')
-                    ws.cell(row=row, column=6, value=nv.get('so_cccd', ''))
-                    ws.cell(row=row, column=7, value=nv.get('chuc_danh_nghe', ''))
-                    
-                    cd = (nv.get('chuc_danh_nghe') or '').lower()
-                    is_quan_ly = any(x in cd for x in ['giám đốc', 'trưởng phòng', 'phó', 'quản lý'])
-                    ws.cell(row=row, column=8, value='x' if is_quan_ly else '')
-                    is_chuyen_mon_cao = (any(x in cd for x in ['kỹ thuật', 'kĩ thuật']) and any(x in cd for x in ['cao', 'chính', 'kỹ sư']))
-                    ws.cell(row=row, column=9, value='x' if is_chuyen_mon_cao else '')
-                    is_khac = any(x in cd for x in ['phổ thông', 'lao động', 'tạp vụ', 'bảo vệ', 'tạp vụ', 'lái xe'])
-                    ws.cell(row=row, column=11, value='x' if is_khac else '')
-                    is_trung = (not is_quan_ly) and (not is_chuyen_mon_cao) and (not is_khac)
-                    ws.cell(row=row, column=10, value='x' if is_trung else '')
-                    
-                    luong = nv.get('luong_bao_hiem', '')
-                    heso = nv.get('he_so_luong', '')
-                    ws.cell(row=row, column=12, value=f"Hệ số: {heso}" if heso and str(heso).strip() else str(luong) if luong else '')
-                    ws.cell(row=row, column=13, value=str(nv.get('phu_cap_chuc_vu', '')) if nv.get('phu_cap_chuc_vu') else '')
-                    ws.cell(row=row, column=14, value=f"{nv.get('phu_cap_tnvk', '')}%" if nv.get('phu_cap_tnvk') else '')
-                    ws.cell(row=row, column=15, value=f"{nv.get('phu_cap_tnn', '')}%" if nv.get('phu_cap_tnn') else '')
-                    ws.cell(row=row, column=16, value='')
-                    ws.cell(row=row, column=17, value='')
-                    ws.cell(row=row, column=18, value='')
-                    ws.cell(row=row, column=19, value='')
-                    
-                    loai_hd = nv.get('loai_hop_dong', '')
-                    ngay_bd = nv.get('ngay_ky_hd') or nv.get('ngay_vao_lam')
-                    ngay_kt = nv.get('ngay_ket_thuc')
-                    ws.cell(row=row, column=20, value=format_date(ngay_bd) if loai_hd == 'Không xác định thời hạn' else '')
-                    
-                    if loai_hd == 'Xác định thời hạn':
-                        ws.cell(row=row, column=21, value=format_date(ngay_bd))
-                        ws.cell(row=row, column=22, value=format_date(ngay_kt) if ngay_kt else '')
-                    else:
-                        ws.cell(row=row, column=21, value='')
-                        ws.cell(row=row, column=22, value='')
-                    
-                    if loai_hd == 'Thử việc':
-                        ws.cell(row=row, column=23, value=format_date(ngay_bd))
-                        ws.cell(row=row, column=24, value=format_date(ngay_kt) if ngay_kt else '')
-                    else:
-                        ws.cell(row=row, column=23, value='')
-                        ws.cell(row=row, column=24, value='')
-                    
-                    ws.cell(row=row, column=25, value=format_date(nv.get('thang_bat_dau_bh')))
-                    ws.cell(row=row, column=26, value=format_date(nv.get('thang_ket_thuc_bh')))
-                    ws.cell(row=row, column=27, value=nv.get('so_hdld', ''))
-                    
+                    for row in range(header_row, header_row + 3):
+                        for col in range(1, 28):
+                            cell = ws.cell(row=row, column=col)
+                            if cell.value:
+                                cell.font = Font(bold=True, size=10, name='Times New Roman')
+                                cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                                cell.border = thin_border
+                
                     for col in range(1, 28):
-                        cell = ws.cell(row=row, column=col)
+                        cell = ws.cell(row=stt_row, column=col)
+                        cell.font = Font(size=9, name='Times New Roman')
+                        cell.alignment = Alignment(horizontal='center')
                         cell.border = thin_border
-                        cell.font = Font(size=10, name='Times New Roman')
-                        if col in [1, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26]:
-                            cell.alignment = Alignment(horizontal='center', vertical='center')
+                
+                    data_row = stt_row + 1
+                    for idx, nv in enumerate(ds_lao_dong, 1):
+                        row = data_row + idx - 1
+                    
+                        ws.cell(row=row, column=1, value=idx)
+                        ws.cell(row=row, column=2, value=nv.get('ho_ten', ''))
+                        ws.cell(row=row, column=3, value=nv.get('ma_so_bhxh', ''))
+                        ws.cell(row=row, column=4, value=format_date(nv.get('ngay_sinh')))
+                        gt = nv.get('gioi_tinh', '')
+                        ws.cell(row=row, column=5, value='Nam' if gt == 'Nam' else 'Nữ' if gt == 'Nữ' else '')
+                        ws.cell(row=row, column=6, value=nv.get('so_cccd', ''))
+                        ws.cell(row=row, column=7, value=nv.get('chuc_danh_nghe', ''))
+                    
+                        cd = (nv.get('chuc_danh_nghe') or '').lower()
+                        is_quan_ly = any(x in cd for x in ['giám đốc', 'trưởng phòng', 'phó', 'quản lý'])
+                        ws.cell(row=row, column=8, value='x' if is_quan_ly else '')
+                        is_chuyen_mon_cao = (any(x in cd for x in ['kỹ thuật', 'kĩ thuật']) and any(x in cd for x in ['cao', 'chính', 'kỹ sư']))
+                        ws.cell(row=row, column=9, value='x' if is_chuyen_mon_cao else '')
+                        is_khac = any(x in cd for x in ['phổ thông', 'lao động', 'tạp vụ', 'bảo vệ', 'tạp vụ', 'lái xe'])
+                        ws.cell(row=row, column=11, value='x' if is_khac else '')
+                        is_trung = (not is_quan_ly) and (not is_chuyen_mon_cao) and (not is_khac)
+                        ws.cell(row=row, column=10, value='x' if is_trung else '')
+                    
+                        luong = nv.get('luong_bao_hiem', '')
+                        heso = nv.get('he_so_luong', '')
+                        ws.cell(row=row, column=12, value=f"Hệ số: {heso}" if heso and str(heso).strip() else str(luong) if luong else '')
+                        ws.cell(row=row, column=13, value=str(nv.get('phu_cap_chuc_vu', '')) if nv.get('phu_cap_chuc_vu') else '')
+                        ws.cell(row=row, column=14, value=f"{nv.get('phu_cap_tnvk', '')}%" if nv.get('phu_cap_tnvk') else '')
+                        ws.cell(row=row, column=15, value=f"{nv.get('phu_cap_tnn', '')}%" if nv.get('phu_cap_tnn') else '')
+                        ws.cell(row=row, column=16, value='')
+                        ws.cell(row=row, column=17, value='')
+                        ws.cell(row=row, column=18, value='')
+                        ws.cell(row=row, column=19, value='')
+                    
+                        loai_hd = nv.get('loai_hop_dong', '')
+                        ngay_bd = nv.get('ngay_ky_hd') or nv.get('ngay_vao_lam')
+                        ngay_kt = nv.get('ngay_ket_thuc')
+                        ws.cell(row=row, column=20, value=format_date(ngay_bd) if loai_hd == 'Không xác định thời hạn' else '')
+                    
+                        if loai_hd == 'Xác định thời hạn':
+                            ws.cell(row=row, column=21, value=format_date(ngay_bd))
+                            ws.cell(row=row, column=22, value=format_date(ngay_kt) if ngay_kt else '')
                         else:
-                            cell.alignment = Alignment(horizontal='left', vertical='center')
+                            ws.cell(row=row, column=21, value='')
+                            ws.cell(row=row, column=22, value='')
+                    
+                        if loai_hd == 'Thử việc':
+                            ws.cell(row=row, column=23, value=format_date(ngay_bd))
+                            ws.cell(row=row, column=24, value=format_date(ngay_kt) if ngay_kt else '')
+                        else:
+                            ws.cell(row=row, column=23, value='')
+                            ws.cell(row=row, column=24, value='')
+                    
+                        ws.cell(row=row, column=25, value=format_date(nv.get('thang_bat_dau_bh')))
+                        ws.cell(row=row, column=26, value=format_date(nv.get('thang_ket_thuc_bh')))
+                        ws.cell(row=row, column=27, value=nv.get('so_hdld', ''))
+                    
+                        for col in range(1, 28):
+                            cell = ws.cell(row=row, column=col)
+                            cell.border = thin_border
+                            cell.font = Font(size=10, name='Times New Roman')
+                            if col in [1, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26]:
+                                cell.alignment = Alignment(horizontal='center', vertical='center')
+                            else:
+                                cell.alignment = Alignment(horizontal='left', vertical='center')
                 
-                total_row = data_row + len(ds_lao_dong)
-                ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=2)
-                ws.cell(row=total_row, column=1, value=f"Tổng cộng: {len(ds_lao_dong)} người")
-                ws.cell(row=total_row, column=1).font = Font(bold=True, size=10, name='Times New Roman')
-                ws.cell(row=total_row, column=1).border = thin_border
+                    total_row = data_row + len(ds_lao_dong)
+                    ws.merge_cells(start_row=total_row, start_column=1, end_row=total_row, end_column=2)
+                    ws.cell(row=total_row, column=1, value=f"Tổng cộng: {len(ds_lao_dong)} người")
+                    ws.cell(row=total_row, column=1).font = Font(bold=True, size=10, name='Times New Roman')
+                    ws.cell(row=total_row, column=1).border = thin_border
                 
-                sign_row = total_row + 3
-                ws.merge_cells(start_row=sign_row, start_column=23, end_row=sign_row, end_column=27)
-                ws.cell(row=sign_row, column=23, value="ĐẠI DIỆN DOANH NGHIỆP")
-                ws.cell(row=sign_row, column=23).font = Font(bold=True, size=11, name='Times New Roman')
-                ws.cell(row=sign_row, column=23).alignment = Alignment(horizontal='center')
+                    sign_row = total_row + 3
+                    ws.merge_cells(start_row=sign_row, start_column=23, end_row=sign_row, end_column=27)
+                    ws.cell(row=sign_row, column=23, value="ĐẠI DIỆN DOANH NGHIỆP")
+                    ws.cell(row=sign_row, column=23).font = Font(bold=True, size=11, name='Times New Roman')
+                    ws.cell(row=sign_row, column=23).alignment = Alignment(horizontal='center')
                 
-                ws.merge_cells(start_row=sign_row+1, start_column=23, end_row=sign_row+1, end_column=27)
-                ws.cell(row=sign_row+1, column=23, value="(Ký, đóng dấu, ghi rõ họ tên)")
-                ws.cell(row=sign_row+1, column=23).font = Font(size=10, name='Times New Roman')
-                ws.cell(row=sign_row+1, column=23).alignment = Alignment(horizontal='center')
+                    ws.merge_cells(start_row=sign_row+1, start_column=23, end_row=sign_row+1, end_column=27)
+                    ws.cell(row=sign_row+1, column=23, value="(Ký, đóng dấu, ghi rõ họ tên)")
+                    ws.cell(row=sign_row+1, column=23).font = Font(size=10, name='Times New Roman')
+                    ws.cell(row=sign_row+1, column=23).alignment = Alignment(horizontal='center')
                 
-                ws.merge_cells(start_row=sign_row+2, start_column=23, end_row=sign_row+2, end_column=27)
-                ws.cell(row=sign_row+2, column=23, value=COMPANY_CONFIG.get('dai_dien', 'GIÁM ĐỐC').upper())
-                ws.cell(row=sign_row+2, column=23).font = Font(bold=True, size=11, name='Times New Roman')
-                ws.cell(row=sign_row+2, column=23).alignment = Alignment(horizontal='center')
+                    ws.merge_cells(start_row=sign_row+2, start_column=23, end_row=sign_row+2, end_column=27)
+                    ws.cell(row=sign_row+2, column=23, value=COMPANY_CONFIG.get('dai_dien', 'GIÁM ĐỐC').upper())
+                    ws.cell(row=sign_row+2, column=23).font = Font(bold=True, size=11, name='Times New Roman')
+                    ws.cell(row=sign_row+2, column=23).alignment = Alignment(horizontal='center')
                 
-                filename = f"Bao_cao_01_PLI_{tu_ngay.strftime('%d%m%Y')}_{den_ngay.strftime('%d%m%Y')}.xlsx"
-                wb.save(filename)
+                    filename = f"Bao_cao_01_PLI_{tu_ngay.strftime('%d%m%Y')}_{den_ngay.strftime('%d%m%Y')}.xlsx"
+                    wb.save(filename)
                 
-                with open(filename, "rb") as f:
-                    st.download_button(
-                        label="📥 TẢI FILE EXCEL",
-                        data=f,
-                        file_name=filename,
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        width='stretch'
-                    )
-                st.success(f"✅ Đã xuất báo cáo với {len(ds_lao_dong)} lao động")
+                    with open(filename, "rb") as f:
+                        st.download_button(
+                            label="📥 TẢI FILE EXCEL",
+                            data=f,
+                            file_name=filename,
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            width='stretch'
+                        )
+                    st.success(f"✅ Đã xuất báo cáo với {len(ds_lao_dong)} lao động")
+            else:
+                st.info("🔒 Chỉ Admin mới có quyền xuất file Excel báo cáo 01/PLI. Bạn đang ở chế độ xem (Viewer).")
+                st.caption("💡 Với quyền Viewer, bạn có thể xem danh sách lao động ở trên nhưng không thể tải file Excel.")
         else:
-            st.info("🔒 Chỉ Admin mới có quyền xuất file Excel báo cáo 01/PLI. Bạn đang ở chế độ xem (Viewer).")
-            st.caption("💡 Với quyền Viewer, bạn có thể xem danh sách lao động ở trên nhưng không thể tải file Excel.")
-    else:
-        st.warning("⚠️ Không có lao động nào đang làm việc trong kỳ báo cáo!")
+            st.warning("⚠️ Không có lao động nào đang làm việc trong kỳ báo cáo!")
         
-# ========== QUẢN LÝ CÔNG VĂN & HĐ KINH TẾ ==========
+    # ========== QUẢN LÝ CÔNG VĂN & HĐ KINH TẾ ==========
+
+    with tab_bc_tk:
+        st.caption("⚙️ Tùy chọn bộ lọc và xuất báo cáo thống kê nhân sự")
+
+        # ── Tùy chọn bộ lọc ──
+        with st.expander("⚙️ Tùy chọn xuất báo cáo thống kê nhân sự", expanded=True):
+            col_tk_date1, col_tk_date2, col_tk_date3 = st.columns([1, 1, 1])
+            with col_tk_date1:
+                tk_tu_ngay = st.date_input("📅 Từ ngày:", value=date(date.today().year, 1, 1), key="tk_tu_ngay")
+            with col_tk_date2:
+                tk_den_ngay = st.date_input("📅 Đến ngày:", value=date.today(), key="tk_den_ngay")
+            with col_tk_date3:
+                loai_hd_filter = st.selectbox(
+                    "Loại hợp đồng:",
+                    ["Tất cả", "Không xác định thời hạn", "Thử việc"],
+                    key="tk_loai_hd"
+                )
+            col_tk1, col_tk2 = st.columns([1, 2])
+            with col_tk1:
+                pass  # placeholder
+
+            # Danh sách tất cả cột bảng nhan_vien (trừ id)
+            ALL_COLUMNS_LABELS = {
+                "ma_nv":              "Mã NV",
+                "ho_ten":             "Họ tên",
+                "ngay_sinh":          "Ngày sinh",
+                "gioi_tinh":          "Giới tính",
+                "chuc_danh_nghe":     "Chức danh",
+                "phong_ban_lam_viec": "Phòng ban",
+                "loai_hop_dong":      "Loại HĐ",
+                "ngay_vao_lam":       "Ngày vào làm",
+                "ngay_ky_hd":         "Ngày ký HĐ",
+                "so_hdld":            "Số HĐLĐ",
+                "so_cccd":            "Số CCCD",
+                "thuong_tru":         "Thường trú",
+                "dien_thoai":         "Điện thoại",
+                "ma_so_bhxh":         "Mã BHXH",
+                "thang_bat_dau_bh":   "BĐ đóng BH",
+                "so_tai_khoan_nh":    "STK",
+                "chi_nhanh_nh":       "Chi nhánh NH",
+                "ho_so":              "Hồ sơ",
+                "ten_don_vi_thu_huong": "Tên đơn vị thụ hưởng",
+            }
+
+            # Thứ tự ưu tiên mặc định (tất cả tích mặc định)
+            DEFAULT_PRIORITY = [
+                "ma_nv", "ho_ten", "ngay_sinh", "gioi_tinh",
+                "chuc_danh_nghe", "phong_ban_lam_viec", "loai_hop_dong",
+                "ngay_vao_lam", "ngay_ky_hd", "so_hdld",
+                "so_cccd", "thuong_tru", "dien_thoai", "ma_so_bhxh",
+                "thang_bat_dau_bh", "so_tai_khoan_nh", "chi_nhanh_nh", "ho_so",
+                "ten_don_vi_thu_huong",
+            ]
+            DEFAULT_CHECKED = set(DEFAULT_PRIORITY)
+
+            with col_tk2:
+                st.caption("📋 Chọn các cột cần xuất:")
+                col_chk = st.columns(4)
+                selected_cols = []
+                for idx, (col_key, col_label) in enumerate(ALL_COLUMNS_LABELS.items()):
+                    default_val = col_key in DEFAULT_CHECKED
+                    checked = col_chk[idx % 4].checkbox(col_label, value=default_val, key=f"tk_col_{col_key}")
+                    if checked:
+                        selected_cols.append(col_key)
+
+            if st.button("📊 XUẤT THỐNG KÊ NHÂN SỰ (EXCEL)", type="primary", width='stretch', key="btn_tk_nhansu"):
+                from openpyxl import Workbook
+                from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+                from openpyxl.utils import get_column_letter
+
+                if not selected_cols:
+                    st.error("⚠️ Vui lòng chọn ít nhất 1 cột!")
+                else:
+                    db_tk = st.session_state.db_engine.get_connection()
+                    c_tk = db_tk.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+                    # Sắp xếp selected_cols theo thứ tự ưu tiên
+                    priority_order = DEFAULT_PRIORITY + [k for k in ALL_COLUMNS_LABELS if k not in DEFAULT_PRIORITY]
+                    selected_cols_sorted = sorted(selected_cols, key=lambda x: priority_order.index(x) if x in priority_order else 999)
+
+                    sql_cols = ", ".join(selected_cols_sorted)
+                    sql_tk = f"SELECT {sql_cols} FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') AND ngay_vao_lam BETWEEN %s AND %s"
+                    params_tk = [tk_tu_ngay, tk_den_ngay]
+                    if loai_hd_filter == "Không xác định thời hạn":
+                        sql_tk += " AND loai_hop_dong = %s"
+                        params_tk.append("Không xác định thời hạn")
+                    elif loai_hd_filter == "Thử việc":
+                        sql_tk += " AND trang_thai = 'THU_VIEC'"
+                    sql_tk += " ORDER BY STT ASC"
+                    c_tk.execute(sql_tk, tuple(params_tk))
+                    ds_tk = c_tk.fetchall()
+                    db_tk.close()
+
+                    if not ds_tk:
+                        st.warning("⚠️ Không có nhân viên nào phù hợp với bộ lọc!")
+                    else:
+                        thin_border_tk = Border(
+                            left=Side(style='thin'), right=Side(style='thin'),
+                            top=Side(style='thin'), bottom=Side(style='thin')
+                        )
+                        header_fill = PatternFill(start_color="1F4E79", end_color="1F4E79", fill_type="solid")
+                        stat_fill  = PatternFill(start_color="D9E8F5", end_color="D9E8F5", fill_type="solid")
+
+                        wb_tk = Workbook()
+                        ws_tk = wb_tk.active
+                        ws_tk.title = "Thống kê nhân sự"
+
+                        ten_cong_ty_tk = COMPANY_CONFIG.get("ten_cong_ty", "CÔNG TY CỔ PHẦN CẢNG HÒN LA")
+                        dia_chi_tk     = COMPANY_CONFIG.get("dia_chi", "")
+                        dien_thoai_tk  = COMPANY_CONFIG.get("dien_thoai_cty", "")
+                        n_cols = len(selected_cols_sorted) + 1  # +1 cho cột STT
+
+                        # ── Thông tin công ty ──
+                        ws_tk.merge_cells(start_row=1, start_column=1, end_row=1, end_column=n_cols)
+                        ws_tk['A1'] = ten_cong_ty_tk
+                        ws_tk['A1'].font = Font(bold=True, size=13, name='Times New Roman')
+                        ws_tk['A1'].alignment = Alignment(horizontal='center')
+
+                        ws_tk.merge_cells(start_row=2, start_column=1, end_row=2, end_column=n_cols)
+                        ws_tk['A2'] = f"Địa chỉ: {dia_chi_tk}  |  ĐT: {dien_thoai_tk}"
+                        ws_tk['A2'].font = Font(size=10, name='Times New Roman', italic=True)
+                        ws_tk['A2'].alignment = Alignment(horizontal='center')
+
+                        # ── Tiêu đề báo cáo ──
+                        loai_hd_label = f" - Loại HĐ: {loai_hd_filter}" if loai_hd_filter != "Tất cả" else ""
+                        ws_tk.merge_cells(start_row=4, start_column=1, end_row=4, end_column=n_cols)
+                        ws_tk['A4'] = "BÁO CÁO THỐNG KÊ NHÂN SỰ" + loai_hd_label
+                        ws_tk['A4'].font = Font(bold=True, size=14, name='Times New Roman')
+                        ws_tk['A4'].alignment = Alignment(horizontal='center')
+
+                        ws_tk.merge_cells(start_row=5, start_column=1, end_row=5, end_column=n_cols)
+                        ws_tk['A5'] = f"Từ ngày {tk_tu_ngay.strftime('%d/%m/%Y')} đến ngày {tk_den_ngay.strftime('%d/%m/%Y')}  |  Xuất lúc: {datetime.now().strftime('%d/%m/%Y %H:%M')}"
+                        ws_tk['A5'].font = Font(size=10, name='Times New Roman', italic=True)
+                        ws_tk['A5'].alignment = Alignment(horizontal='center')
+
+                        # ── Header bảng ──
+                        header_row_tk = 7
+                        ws_tk.cell(row=header_row_tk, column=1, value="STT").font = Font(bold=True, size=10, name='Times New Roman', color="FFFFFF")
+                        ws_tk.cell(row=header_row_tk, column=1).fill = header_fill
+                        ws_tk.cell(row=header_row_tk, column=1).alignment = Alignment(horizontal='center', vertical='center')
+                        ws_tk.cell(row=header_row_tk, column=1).border = thin_border_tk
+
+                        for col_idx, col_key in enumerate(selected_cols_sorted, 2):
+                            cell = ws_tk.cell(row=header_row_tk, column=col_idx, value=ALL_COLUMNS_LABELS.get(col_key, col_key))
+                            cell.font = Font(bold=True, size=10, name='Times New Roman', color="FFFFFF")
+                            cell.fill = header_fill
+                            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                            cell.border = thin_border_tk
+
+                        # ── Dữ liệu ──
+                        def fmt_val(key, val):
+                            if val is None:
+                                return ""
+                            if 'ngay' in key.lower() or 'thang' in key.lower():
+                                return format_date(val)
+                            return val
+
+                        date_cols = {k for k in selected_cols_sorted if 'ngay' in k or 'thang' in k}
+                        center_cols = {k for k in selected_cols_sorted if k in (
+                            "ma_nv","ngay_sinh","gioi_tinh","loai_hop_dong",
+                            "ngay_vao_lam","ngay_ky_hd","ngay_ket_thuc","trang_thai",
+                            "thang_bat_dau_bh","thang_ket_thuc_bh","he_so_luong",
+                            "phu_cap_tnvk","phu_cap_tnn","muc_huong_bhyt"
+                        )}
+
+                        for stt_idx, nv in enumerate(ds_tk, 1):
+                            row = header_row_tk + stt_idx
+                            ws_tk.cell(row=row, column=1, value=stt_idx).border = thin_border_tk
+                            ws_tk.cell(row=row, column=1).alignment = Alignment(horizontal='center', vertical='center')
+                            ws_tk.cell(row=row, column=1).font = Font(size=10, name='Times New Roman')
+                            for col_idx, col_key in enumerate(selected_cols_sorted, 2):
+                                raw = nv.get(col_key)
+                                val = fmt_val(col_key, raw)
+                                cell = ws_tk.cell(row=row, column=col_idx, value=val)
+                                cell.font = Font(size=10, name='Times New Roman')
+                                cell.border = thin_border_tk
+                                if col_key in center_cols:
+                                    cell.alignment = Alignment(horizontal='center', vertical='center')
+                                else:
+                                    cell.alignment = Alignment(horizontal='left', vertical='center')
+
+                        total_row_tk = header_row_tk + len(ds_tk) + 1
+                        ws_tk.merge_cells(start_row=total_row_tk, start_column=1, end_row=total_row_tk, end_column=n_cols)
+                        ws_tk.cell(row=total_row_tk, column=1, value=f"TỔNG CỘNG: {len(ds_tk)} nhân viên")
+                        ws_tk.cell(row=total_row_tk, column=1).font = Font(bold=True, size=11, name='Times New Roman')
+                        ws_tk.cell(row=total_row_tk, column=1).alignment = Alignment(horizontal='left')
+
+                        # ── Thống kê theo giới tính ──
+                        stat_start = total_row_tk + 2
+                        ws_tk.merge_cells(start_row=stat_start, start_column=1, end_row=stat_start, end_column=n_cols)
+                        ws_tk.cell(row=stat_start, column=1, value="THỐNG KÊ THEO GIỚI TÍNH").font = Font(bold=True, size=11, name='Times New Roman')
+
+                        nam_count  = sum(1 for nv in ds_tk if (nv.get('gioi_tinh') or '') == 'Nam')
+                        nu_count   = sum(1 for nv in ds_tk if (nv.get('gioi_tinh') or '') == 'Nữ')
+                        khac_count = len(ds_tk) - nam_count - nu_count
+
+                        for r_offset, (label, cnt) in enumerate([("Nam", nam_count), ("Nữ", nu_count), ("Khác/Chưa xác định", khac_count)], 1):
+                            r = stat_start + r_offset
+                            ws_tk.merge_cells(start_row=r, start_column=1, end_row=r, end_column=3)
+                            ws_tk.cell(row=r, column=1, value=f"  {label}:").font = Font(size=10, name='Times New Roman')
+                            ws_tk.cell(row=r, column=4, value=cnt).font = Font(size=10, name='Times New Roman')
+                            for cc in range(1, 5):
+                                ws_tk.cell(row=r, column=cc).fill = stat_fill
+
+                        # ── Thống kê theo loại hợp đồng ──
+                        stat2_start = stat_start + 5
+                        ws_tk.merge_cells(start_row=stat2_start, start_column=1, end_row=stat2_start, end_column=n_cols)
+                        ws_tk.cell(row=stat2_start, column=1, value="THỐNG KÊ THEO LOẠI HỢP ĐỒNG").font = Font(bold=True, size=11, name='Times New Roman')
+
+                        hd_types = {"Không xác định thời hạn": 0, "Xác định thời hạn": 0, "Thử việc": 0, "Khác": 0}
+                        for nv in ds_tk:
+                            loai = (nv.get('loai_hop_dong') or '').strip()
+                            if loai in hd_types:
+                                hd_types[loai] += 1
+                            elif (nv.get('trang_thai') or '') == 'THU_VIEC':
+                                hd_types["Thử việc"] += 1
+                            else:
+                                hd_types["Khác"] += 1
+
+                        for r_offset, (label, cnt) in enumerate(hd_types.items(), 1):
+                            r = stat2_start + r_offset
+                            ws_tk.merge_cells(start_row=r, start_column=1, end_row=r, end_column=3)
+                            ws_tk.cell(row=r, column=1, value=f"  {label}:").font = Font(size=10, name='Times New Roman')
+                            ws_tk.cell(row=r, column=4, value=cnt).font = Font(size=10, name='Times New Roman')
+                            for cc in range(1, 5):
+                                ws_tk.cell(row=r, column=cc).fill = stat_fill
+
+                        # ── Footer người lập báo cáo ──
+                        footer_row = stat2_start + len(hd_types) + 3
+                        ws_tk.merge_cells(start_row=footer_row, start_column=1, end_row=footer_row, end_column=3)
+                        ws_tk.cell(row=footer_row, column=1, value="NGƯỜI LẬP BÁO CÁO")
+                        ws_tk.cell(row=footer_row, column=1).font = Font(bold=True, size=11, name='Times New Roman')
+                        ws_tk.cell(row=footer_row, column=1).alignment = Alignment(horizontal='center')
+
+                        ws_tk.merge_cells(start_row=footer_row+1, start_column=1, end_row=footer_row+1, end_column=3)
+                        ws_tk.cell(row=footer_row+1, column=1, value="(Ký, ghi rõ họ tên)")
+                        ws_tk.cell(row=footer_row+1, column=1).font = Font(size=10, name='Times New Roman', italic=True)
+                        ws_tk.cell(row=footer_row+1, column=1).alignment = Alignment(horizontal='center')
+
+                        # ── Độ rộng cột ──
+                        ws_tk.column_dimensions['A'].width = 5
+                        for col_idx, col_key in enumerate(selected_cols_sorted, 2):
+                            if col_key in ('ho_ten', 'thuong_tru', 'nguyen_quan', 'noi_cap_cccd', 'chuc_danh_nghe', 'ten_don_vi_thu_huong'):
+                                w = 28
+                            elif col_key in ('ma_nv', 'gioi_tinh', 'he_so_luong', 'phu_cap_tnvk', 'phu_cap_tnn'):
+                                w = 12
+                            elif 'ngay' in col_key or 'thang' in col_key:
+                                w = 16
+                            else:
+                                w = 20
+                            ws_tk.column_dimensions[get_column_letter(col_idx)].width = w
+
+                        ws_tk.row_dimensions[header_row_tk].height = 30
+
+                        fname_tk = f"ThongKe_NhanSu_{tk_tu_ngay.strftime('%d%m%Y')}_{tk_den_ngay.strftime('%d%m%Y')}.xlsx"
+                        wb_tk.save(fname_tk)
+                        with open(fname_tk, "rb") as f:
+                            st.download_button(
+                                label="📥 TẢI FILE THỐNG KÊ NHÂN SỰ",
+                                data=f,
+                                file_name=fname_tk,
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                width='stretch'
+                            )
+                        st.success(f"✅ Đã xuất thống kê {len(ds_tk)} nhân viên với {len(selected_cols_sorted)} cột.")
+
+
+    with tab_bc_tanggiam:
+        col_from, col_to, col_bc_spacer = st.columns(3)
+        with col_from:
+            tu_ngay_bc = st.date_input("Từ ngày:", value=date.today().replace(day=1), key="bc_tu")
+        with col_to:
+            den_ngay_bc = st.date_input("Đến ngày:", value=date.today(), key="bc_den")
+        row2_c1, row2_c2, row2_c3 = st.columns(3)
+        with row2_c2:
+            xuat_bc = st.button("📄 XUẤT BÁO CÁO WORD", width='stretch')
+
+        if xuat_bc:
+            db = st.session_state.db_engine.get_connection()
+            c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            c.execute("""
+                SELECT ho_ten, chuc_danh_nghe, phong_ban_lam_viec, loai_hop_dong, ngay_vao_lam,
+                       ngay_sinh, so_hdld, ngay_ky_hd
+                FROM nhan_vien 
+                WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+                AND ngay_vao_lam BETWEEN %s AND %s
+                ORDER BY ngay_vao_lam ASC
+            """, (tu_ngay_bc, den_ngay_bc))
+            tang_list = c.fetchall()
+            c.execute("""
+                SELECT ho_ten, chuc_danh_nghe, phong_ban_lam_viec, loai_hop_dong, ngay_vao_lam, ngay_ket_thuc,
+                       ngay_sinh, so_hdld, ngay_ky_hd
+                FROM nhan_vien 
+                WHERE trang_thai = 'NGHI_VIEC'
+                AND ngay_ket_thuc BETWEEN %s AND %s
+                ORDER BY ngay_ket_thuc ASC
+            """, (tu_ngay_bc, den_ngay_bc))
+            giam_list = c.fetchall()
+            db.close()
+            if tang_list or giam_list:
+                file_path = tao_bao_cao_tang_giam(tang_list, giam_list, tu_ngay_bc, den_ngay_bc)
+                with open(file_path, "rb") as f:
+                    st.download_button(
+                        label="📥 TẢI FILE BÁO CÁO (Word)",
+                        data=f,
+                        file_name=f"Bao_cao_tang_giam_{tu_ngay_bc.strftime('%d%m%Y')}_{den_ngay_bc.strftime('%d%m%Y')}.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
+            else:
+                st.info("Không có biến động nhân sự trong kỳ.")
+
+
 elif menu == "📄 Quản lý Công văn & HĐ kinh tế":
     show_quan_ly_cong_van()
 
@@ -11204,7 +11211,7 @@ CBCNV. Đây là một chi tiết nhỏ nhưng có sức nặng lớn: nó giúp
 khiến nhân viên cảm thấy được quan tâm như một cá nhân chứ không chỉ là một con số trên bảng lương — góp phần
 xây dựng văn hoá doanh nghiệp gắn bó, nhân văn.
 
-### 📋 BHXH / 📋 Báo cáo 01/PLI
+### 📋 BHXH / 📋 Báo cáo định kỳ
 Theo dõi tình hình đóng BHXH, tự tạo báo cáo tăng/giảm D02-LT, dự toán số tiền phải đóng theo kỳ — giảm tối đa
 thao tác thủ công so với việc tự tổng hợp trên Excel.
 

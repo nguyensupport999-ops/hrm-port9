@@ -534,6 +534,7 @@ CHUC_VU_THU_TU = [
     "Trưởng phòng",
     "Phó Trưởng phòng",
 ]
+
 def sap_xep_phong_ban(danh_sach_phong_ban):
     """Sắp xếp tên phòng ban theo thứ tự ưu tiên chuẩn; phòng ban lạ xếp cuối theo alpha bê."""
     def key_fn(ten):
@@ -2383,6 +2384,7 @@ def init_cong_van_tables():
                 updated_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        c.execute("ALTER TABLE cong_van_den ADD COLUMN IF NOT EXISTS ma_vach_buu_dien VARCHAR(100)")
         
         # Tạo bảng công văn đi
         c.execute("""
@@ -2401,6 +2403,7 @@ def init_cong_van_tables():
                 updated_at TIMESTAMP DEFAULT NOW()
             )
         """)
+        c.execute("ALTER TABLE cong_van_di ADD COLUMN IF NOT EXISTS ma_vach_buu_dien VARCHAR(100)")
         
         # Tạo bảng hợp đồng kinh tế
         c.execute("""
@@ -2648,9 +2651,9 @@ def get_cong_van_den(tu_ngay=None, den_ngay=None, search_text=None):
             params.append(den_ngay)
         if search_text:
             sql += """ AND (so_cong_van ILIKE %s OR tieu_de ILIKE %s 
-                     OR co_quan_phat_hanh ILIKE %s OR trich_yeu ILIKE %s)"""
+                     OR co_quan_phat_hanh ILIKE %s OR trich_yeu ILIKE %s OR ma_vach_buu_dien ILIKE %s)"""
             search_pattern = f"%{search_text}%"
-            params.extend([search_pattern] * 4)
+            params.extend([search_pattern] * 5)
         
         sql += " ORDER BY ngay_den DESC, id DESC"
         c.execute(sql, tuple(params))
@@ -2682,9 +2685,9 @@ def get_cong_van_di(tu_ngay=None, den_ngay=None, search_text=None, loai_cv=None)
             params.append(loai_cv)
         if search_text:
             sql += """ AND (so_cong_van ILIKE %s OR tieu_de ILIKE %s 
-                     OR phong_phat_hanh ILIKE %s OR trich_yeu ILIKE %s)"""
+                     OR phong_phat_hanh ILIKE %s OR trich_yeu ILIKE %s OR ma_vach_buu_dien ILIKE %s)"""
             search_pattern = f"%{search_text}%"
-            params.extend([search_pattern] * 4)
+            params.extend([search_pattern] * 5)
         
         sql += " ORDER BY ngay_phat_hanh DESC, id DESC"
         c.execute(sql, tuple(params))
@@ -2992,6 +2995,7 @@ def show_quan_ly_cong_van():
                     so_cv = st.text_input("Số công văn *", placeholder="VD: 123/BQP-2026")
                     co_quan = st.text_input("Cơ quan phát hành *", placeholder="VD: Bộ Quốc phòng")
                     ngay_den = st.date_input("Ngày đến *", value=date.today())
+                    ma_vach = st.text_input("📦 Mã vạch Bưu điện", placeholder="VD: EV123456789VN")
                 with col2:
                     tieu_de = st.text_input("Tiêu đề *", placeholder="Nhập tiêu đề công văn...")
                     trich_yeu = st.text_area("Trích yếu", placeholder="Tóm tắt nội dung chính...", height=80)
@@ -3016,10 +3020,10 @@ def show_quan_ly_cong_van():
                                 c = db.cursor()
                                 c.execute("""
                                     INSERT INTO cong_van_den (so_cong_van, co_quan_phat_hanh, ngay_den, 
-                                    tieu_de, trich_yeu, file_url, ghi_chu, nguoi_tao)
-                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                                    tieu_de, trich_yeu, file_url, ghi_chu, nguoi_tao, ma_vach_buu_dien)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                                 """, (so_cv, co_quan, ngay_den, tieu_de, trich_yeu, file_url, ghi_chu, 
-                                      st.session_state.username))
+                                      st.session_state.username, ma_vach))
                                 db.commit()
                                 db.close()
                                 
@@ -3051,7 +3055,7 @@ def show_quan_ly_cong_van():
                 if col in df_cv_den.columns:
                     df_cv_den[col] = df_cv_den[col].apply(format_date)
             
-            display_cols = ['so_cong_van', 'co_quan_phat_hanh', 'ngay_den', 'tieu_de', 'trich_yeu', 'file_url', 'ghi_chu']
+            display_cols = ['so_cong_van', 'co_quan_phat_hanh', 'ngay_den', 'tieu_de', 'trich_yeu', 'ma_vach_buu_dien', 'file_url', 'ghi_chu']
             available_cols = [c for c in display_cols if c in df_cv_den.columns]
             df_display = df_cv_den[available_cols]
             
@@ -3061,6 +3065,7 @@ def show_quan_ly_cong_van():
                 'ngay_den': 'Ngày đến',
                 'tieu_de': 'Tiêu đề',
                 'trich_yeu': 'Trích yếu',
+                'ma_vach_buu_dien': 'Mã vạch BĐ',
                 'file_url': 'File',
                 'ghi_chu': 'Ghi chú'
             }
@@ -3138,6 +3143,7 @@ def show_quan_ly_cong_van():
                 with col1:
                     phong_phat_hanh = st.text_input("Phòng phát hành *", placeholder="VD: Phòng Hành chính")
                     ngay_phat_hanh = st.date_input("Ngày phát hành *", value=date.today())
+                    ma_vach = st.text_input("📦 Mã vạch Bưu điện", placeholder="VD: EV123456789VN")
                 with col2:
                     tieu_de = st.text_input("Tiêu đề *", placeholder="Nhập tiêu đề công văn...")
                     trich_yeu = st.text_area("Trích yếu", placeholder="Tóm tắt nội dung chính...", height=80)
@@ -3166,10 +3172,10 @@ def show_quan_ly_cong_van():
                                 c = db.cursor()
                                 c.execute("""
                                     INSERT INTO cong_van_di (so_cong_van, phong_phat_hanh, ngay_phat_hanh, 
-                                    tieu_de, trich_yeu, file_url, loai_cong_van, ghi_chu, nguoi_tao)
-                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                    tieu_de, trich_yeu, file_url, loai_cong_van, ghi_chu, nguoi_tao, ma_vach_buu_dien)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                 """, (so_cv_chinh_thuc, phong_phat_hanh, ngay_phat_hanh, tieu_de, trich_yeu, 
-                                      file_url, loai_cv, ghi_chu, st.session_state.username))
+                                      file_url, loai_cv, ghi_chu, st.session_state.username, ma_vach))
                                 db.commit()
                                 db.close()
                                 
@@ -3212,7 +3218,7 @@ def show_quan_ly_cong_van():
                 if col in df_cv_di.columns:
                     df_cv_di[col] = df_cv_di[col].apply(format_date)
             
-            display_cols = ['so_cong_van', 'loai_cong_van', 'phong_phat_hanh', 'ngay_phat_hanh', 'tieu_de', 'trich_yeu', 'file_url', 'ghi_chu']
+            display_cols = ['so_cong_van', 'loai_cong_van', 'phong_phat_hanh', 'ngay_phat_hanh', 'tieu_de', 'trich_yeu', 'ma_vach_buu_dien', 'file_url', 'ghi_chu']
             available_cols = [c for c in display_cols if c in df_cv_di.columns]
             df_display = df_cv_di[available_cols]
             
@@ -3233,6 +3239,7 @@ def show_quan_ly_cong_van():
                 'ngay_phat_hanh': 'Ngày phát hành',
                 'tieu_de': 'Tiêu đề',
                 'trich_yeu': 'Trích yếu',
+                'ma_vach_buu_dien': 'Mã vạch BĐ',
                 'file_url': 'File',
                 'ghi_chu': 'Ghi chú'
             }
@@ -3926,6 +3933,9 @@ def ensure_qdns_table():
         """)
         # Nâng cấp cho DB đã tạo bảng này từ phiên bản trước khi có đủ các cột trên
         # (CREATE TABLE IF NOT EXISTS không tự thêm cột còn thiếu vào bảng đã tồn tại)
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS so_qd VARCHAR(50)")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS loai_qd VARCHAR(30)")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS ngay_qd DATE DEFAULT CURRENT_DATE")
         c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS noi_dung TEXT")
         c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS gia_tri_truoc VARCHAR(150)")
         c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS gia_tri_sau VARCHAR(150)")
@@ -5151,7 +5161,7 @@ if menu == "📊 Dashboard":
     c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     c.execute("SELECT COUNT(*) t FROM ung_vien")
     tuv = c.fetchone()['t']
-    c.execute("SELECT COUNT(*) t FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC')")
+    c.execute("SELECT COUNT(*) t FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND so_hdld IS NOT NULL AND so_hdld != ''")
     tnv = c.fetchone()['t']
     c.execute("SELECT COUNT(*) t FROM ung_vien WHERE trang_thai='CHO_DUYET'")
     cd = c.fetchone()['t']
@@ -5178,7 +5188,7 @@ if menu == "📊 Dashboard":
     c2.execute("""
         SELECT chuc_danh_nghe, COUNT(*) t 
         FROM nhan_vien 
-        WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+        WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') AND so_hdld IS NOT NULL AND so_hdld != ''
         GROUP BY chuc_danh_nghe 
         ORDER BY t DESC
     """)
@@ -5187,21 +5197,26 @@ if menu == "📊 Dashboard":
 
     if data:
     # ========== PHẦN DASHBOARD NÂNG CAO ==========
-        st.divider()
         st.subheader("📊 TỔNG QUAN PHÂN BỐ NHÂN SỰ")
 
         db_dash = st.session_state.db_engine.get_connection()
         c_dash = db_dash.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
+        # Tiêu chuẩn thống kê DUY NHẤT cho toàn bộ Dashboard: chỉ tính nhân sự đang làm
+        # (đang làm hoặc thử việc) VÀ đã có số hợp đồng lao động (so_hdld) — loại bỏ
+        # nhân viên đã nghỉ việc và nhân viên chưa có so_hdld (hồ sơ chưa hoàn thiện)
+        # để số liệu giữa các biểu đồ luôn khớp nhau.
+        DK_CHUAN_NV = "trang_thai IN ('DANG_LAM', 'THU_VIEC') AND so_hdld IS NOT NULL AND so_hdld != ''"
+
         # 1. Dữ liệu cho Table "Trạng thái nhân sự các phòng ban"
-        c_dash.execute("""
+        c_dash.execute(f"""
             SELECT 
                 phong_ban_lam_viec as "Phòng ban",
                 COUNT(*) as "Tổng số",
                 SUM(CASE WHEN trang_thai = 'DANG_LAM' THEN 1 ELSE 0 END) as "Đang làm",
-                SUM(CASE WHEN trang_thai = 'THU_VIEC' THEN 1 ELSE 0 END) as "Thử việc",
-                SUM(CASE WHEN trang_thai = 'NGHI_VIEC' THEN 1 ELSE 0 END) as "Đã nghỉ"
+                SUM(CASE WHEN trang_thai = 'THU_VIEC' THEN 1 ELSE 0 END) as "Thử việc"
             FROM nhan_vien
+            WHERE {DK_CHUAN_NV}
             GROUP BY phong_ban_lam_viec
             ORDER BY "Tổng số" DESC
         """)
@@ -5210,9 +5225,9 @@ if menu == "📊 Dashboard":
         
         # 2. Dữ liệu cho các biểu đồ
         # a. Tỷ lệ nhân sự mỗi phòng ban
-        c_dash.execute("""
+        c_dash.execute(f"""
             SELECT phong_ban_lam_viec as "Phòng ban", COUNT(*) as "Số lượng"
-            FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            FROM nhan_vien WHERE {DK_CHUAN_NV}
             GROUP BY phong_ban_lam_viec
             ORDER BY "Số lượng" DESC
         """)
@@ -5220,26 +5235,26 @@ if menu == "📊 Dashboard":
         dept_data = sap_xep_phong_ban_rows(dept_data, "Phòng ban")
 
         # b. Cơ cấu theo giới tính
-        c_dash.execute("""
+        c_dash.execute(f"""
             SELECT gioi_tinh, COUNT(*) as "Số lượng"
-            FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            FROM nhan_vien WHERE {DK_CHUAN_NV}
             GROUP BY gioi_tinh
         """)
         gender_data = c_dash.fetchall()
 
         # c. Cơ cấu theo Trình độ học vấn
-        c_dash.execute("""
+        c_dash.execute(f"""
             SELECT trinh_do, COUNT(*) as "Số lượng"
-            FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            FROM nhan_vien WHERE {DK_CHUAN_NV}
             GROUP BY trinh_do
             ORDER BY "Số lượng" DESC
         """)
         education_data = c_dash.fetchall()
 
         # d. Cơ cấu theo Chức danh (Top 10)
-        c_dash.execute("""
+        c_dash.execute(f"""
             SELECT chuc_danh_nghe, COUNT(*) as "Số lượng"
-            FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') 
+            FROM nhan_vien WHERE {DK_CHUAN_NV}
             AND chuc_danh_nghe IS NOT NULL AND chuc_danh_nghe != ''
             GROUP BY chuc_danh_nghe
             ORDER BY "Số lượng" DESC
@@ -5248,7 +5263,7 @@ if menu == "📊 Dashboard":
         role_data = c_dash.fetchall()
 
         # e. Cơ cấu theo Độ tuổi
-        c_dash.execute("""
+        c_dash.execute(f"""
             SELECT 
                 CASE 
                     WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_sinh)) < 25 THEN 'Dưới 25 tuổi'
@@ -5259,19 +5274,19 @@ if menu == "📊 Dashboard":
                 END as "Độ tuổi",
                 COUNT(*) as "Số lượng"
             FROM nhan_vien
-            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') AND ngay_sinh IS NOT NULL
+            WHERE {DK_CHUAN_NV} AND ngay_sinh IS NOT NULL
             GROUP BY "Độ tuổi"
             ORDER BY MIN(EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_sinh)))
         """)
         seniority_data = c_dash.fetchall()
 
         # f. Biểu đồ đường: Xu hướng tuyển dụng theo tháng (6 tháng gần nhất)
-        c_dash.execute("""
+        c_dash.execute(f"""
             SELECT 
                 TO_CHAR(DATE_TRUNC('month', ngay_vao_lam), 'MM/YYYY') as "Tháng",
                 COUNT(*) as "Số lượng"
             FROM nhan_vien
-            WHERE ngay_vao_lam >= (CURRENT_DATE - INTERVAL '6 months')
+            WHERE ngay_vao_lam >= (CURRENT_DATE - INTERVAL '6 months') AND {DK_CHUAN_NV}
             GROUP BY DATE_TRUNC('month', ngay_vao_lam)
             ORDER BY DATE_TRUNC('month', ngay_vao_lam) ASC
         """)
@@ -5372,6 +5387,10 @@ if menu == "📊 Dashboard":
                     hole=0.4,
                     color_discrete_sequence=px.colors.qualitative.Pastel
                 )
+                # QUAN TRỌNG: Plotly Pie mặc định tự sắp xếp lát cắt theo giá trị giảm dần
+                # (sort=True), làm mất thứ tự ưu tiên phòng ban đã chuẩn hóa ở dept_data
+                # (sap_xep_phong_ban_rows theo PHONG_BAN_THU_TU). Tắt sort để giữ đúng thứ tự.
+                fig_dept.update_traces(sort=False)
                 fig_dept.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=280)
                 st.plotly_chart(fig_dept, use_container_width=True)
             else:
@@ -5488,14 +5507,28 @@ if menu == "📊 Dashboard":
                     labels=df_sen['Độ tuổi'],
                     values=df_sen['Số lượng'],
                     marker=dict(colors=colors[:len(df_sen)]),
-                    textinfo='label+percent',
-                    textposition='auto',
-                    hole=0.3
+                    textinfo='percent',
+                    textposition='inside',
+                    textfont=dict(size=11, color='white'),
+                    hole=0.3,
+                    # QUAN TRỌNG: mặc định Pie tự sắp xếp theo giá trị giảm dần (sort=True),
+                    # phá vỡ thứ tự tuổi tăng dần đã set ở df_sen. Tắt sort để giữ đúng thứ tự nhóm tuổi.
+                    sort=False
                 )])
                 fig_sen.update_layout(
-                    margin=dict(t=0, b=0, l=0, r=0),
+                    margin=dict(t=10, b=40, l=10, r=10),
                     height=280,
-                    showlegend=False
+                    showlegend=True,
+                    legend=dict(
+                        orientation='h',
+                        yanchor='bottom',
+                        y=-0.25,
+                        xanchor='center',
+                        x=0.5,
+                        font=dict(size=10)
+                    ),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
                 )
                 st.plotly_chart(fig_sen, use_container_width=True)
             else:
@@ -5925,77 +5958,6 @@ if menu == "📊 Dashboard":
 
     # ========== KẾT THÚC PHẦN SINH NHẬT ==========
 
-# ========== 🏢 THỐNG KÊ NHÂN SỰ CHI TIẾT THEO PHÒNG ==========
-    st.divider()
-    db_ct = st.session_state.db_engine.get_connection()
-    c_ct = db_ct.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    c_ct.execute("SELECT * FROM nhan_vien WHERE phong_ban_lam_viec IS NOT NULL AND phong_ban_lam_viec != ''")
-    tat_ca_nv_ct = c_ct.fetchall()
-    db_ct.close()
-
-    cac_phong_ban_ct = sap_xep_phong_ban(list({nv['phong_ban_lam_viec'] for nv in tat_ca_nv_ct}))
-
-    col_title_ct, col_search_ct, col_tong_ct, col_dl_ct = st.columns([2, 2, 1, 1])
-    with col_title_ct:
-        st.subheader("📋 THÔNG TIN NHÂN SỰ CHI TIẾT")
-    with col_search_ct:
-        pb_chon_ct = st.selectbox("🔍 Chọn tìm kiếm theo phòng ban:", cac_phong_ban_ct, key="pb_thongke_chitiet")
-
-    ds_nv_ct = sap_xep_nhan_vien([nv for nv in tat_ca_nv_ct if nv['phong_ban_lam_viec'] == pb_chon_ct])
-    tong_so = len(ds_nv_ct)
-    dang_lam_so = len([nv for nv in ds_nv_ct if nv['trang_thai'] in ('DANG_LAM', 'THU_VIEC')])
-
-    with col_tong_ct:
-        st.metric("Tổng số nhân sự", tong_so)
-    with col_dl_ct:
-        st.metric("Nhân sự đang làm", dang_lam_so)
-
-    st.divider()
-
-    if ds_nv_ct:
-        so_cot = 5
-        for i in range(0, len(ds_nv_ct), so_cot):
-            hang = ds_nv_ct[i:i + so_cot]
-            cols_ct = st.columns(so_cot)
-            for idx_c, nv_ct in enumerate(hang):
-                with cols_ct[idx_c]:
-                    anh_path_ct = nv_ct.get('anh_ho_so')
-                    anh_bytes_ct = get_anh_ho_so_bytes(anh_path_ct) if anh_path_ct else None
-                    if anh_bytes_ct:
-                        st.image(anh_bytes_ct, width='stretch')
-                    else:
-                        ten_url = (nv_ct.get('ho_ten') or 'NV').replace(' ', '+')
-                        st.image(f"https://ui-avatars.com/api/?name={ten_url}&size=200&background=0f3b5c&color=fff", width='stretch')
-
-                    st.markdown(f"**{nv_ct['ho_ten']}-{nv_ct['ma_nv']}**")
-                    st.caption(nv_ct.get('chuc_danh_nghe') or '')
-
-                    if nv_ct.get('loai_hop_dong') == 'Thử việc':
-                        st.markdown(":red[Thử việc]")
-                    elif nv_ct.get('loai_hop_dong'):
-                        st.markdown(":green[Lao động chính thức]")
-
-                    if nv_ct.get('trang_thai') == 'NGHI_VIEC':
-                        st.markdown("🔴 Nghỉ việc")
-                    elif nv_ct.get('trang_thai') in ('DANG_LAM', 'THU_VIEC'):
-                        st.markdown("✅ Đang làm việc")
-
-                    if st.button("Xem thông tin chi tiết>>", key=f"xem_ct_{nv_ct['id']}", width='stretch'):
-                        st.session_state['_nv_xem_chi_tiet_dashboard'] = nv_ct['id']
-
-        if st.session_state.get('_nv_xem_chi_tiet_dashboard'):
-            nv_id_xem = st.session_state['_nv_xem_chi_tiet_dashboard']
-            nv_xem = next((nv for nv in ds_nv_ct if nv['id'] == nv_id_xem), None)
-            if nv_xem:
-                st.divider()
-                render_employee_info_card(
-                    nv_xem,
-                    key_prefix=f"dash_ct_{nv_xem['id']}",
-                    on_close=lambda: st.session_state.pop('_nv_xem_chi_tiet_dashboard', None)
-                )
-    else:
-        st.info("Không có nhân sự nào trong phòng ban này.")
-    # ========== KẾT THÚC THỐNG KÊ NHÂN SỰ CHI TIẾT THEO PHÒNG ==========
 
     # ── Thông báo ──
     st.subheader("📌 Thông báo")
@@ -6627,7 +6589,7 @@ elif menu == "✅ Nhân viên":
     ensure_qdns_table()
     ensure_mau_dieu_hop_dong_table()
 
-    tab_dang_lam, tab_da_nghi, tab_qtct, tab_qdns = st.tabs(["📌 ĐANG LÀM VIỆC", "📋 ĐÃ NGHỈ VIỆC", "📜 LỊCH SỬ CÔNG TÁC", "📜 QUYẾT ĐỊNH NHÂN SỰ"])
+    tab_dang_lam, tab_da_nghi, tab_qtct, tab_qdns, tab_co_cau = st.tabs(["📌 ĐANG LÀM VIỆC", "📋 ĐÃ NGHỈ VIỆC", "📜 LỊCH SỬ CÔNG TÁC", "📜 QUYẾT ĐỊNH NHÂN SỰ", "🏢 CƠ CẤU PHÒNG BAN"])
     
     with tab_dang_lam:
         st.caption("👥 Danh sách nhân viên đang làm việc (bao gồm thử việc)")
@@ -8442,6 +8404,130 @@ elif menu == "✅ Nhân viên":
             st.dataframe(df_qd[['Số QĐ', 'Loại QĐ', 'Ngày QĐ', 'Mã NV', 'Nhân viên', 'Nội dung']], hide_index=True, width='stretch')
         else:
             st.info("Chưa có Quyết định nhân sự nào được tạo.")
+
+    with tab_co_cau:
+        st.subheader("📋 CƠ CẤU NHÂN SỰ THEO PHÒNG BAN")
+
+        db_ct = st.session_state.db_engine.get_connection()
+        c_ct = db_ct.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        c_ct.execute("SELECT * FROM nhan_vien WHERE phong_ban_lam_viec IS NOT NULL AND phong_ban_lam_viec != ''")
+        tat_ca_nv_ct = c_ct.fetchall()
+        db_ct.close()
+
+        cac_phong_ban_ct = sap_xep_phong_ban(list({nv['phong_ban_lam_viec'] for nv in tat_ca_nv_ct}))
+
+        # Hàng search + 2 chỉ số tổng quan (giữ nguyên logic cũ, chỉ bỏ cột tiêu đề vì
+        # tiêu đề đã tách thành subheader riêng full-row ở trên)
+        col_search_ct, col_tong_ct, col_dl_ct = st.columns([2, 1, 1])
+        with col_search_ct:
+            pb_chon_ct = st.selectbox("🔍 Chọn tìm kiếm theo phòng ban:", cac_phong_ban_ct, key="pb_thongke_chitiet")
+
+        ds_nv_ct = sap_xep_nhan_vien([nv for nv in tat_ca_nv_ct if nv['phong_ban_lam_viec'] == pb_chon_ct])
+        tong_so = len(ds_nv_ct)
+        dang_lam_so = len([nv for nv in ds_nv_ct if nv['trang_thai'] in ('DANG_LAM', 'THU_VIEC')])
+
+        with col_tong_ct:
+            st.metric("Tổng số nhân sự", tong_so)
+        with col_dl_ct:
+            st.metric("Nhân sự đang làm", dang_lam_so)
+
+        st.divider()
+
+        # Phòng ban đặc biệt: không hiện Lao động chính thức/Thử việc và Đang làm/Nghỉ việc,
+        # thay bằng chức vụ (không đúng bản chất & hình thức đối với 2 phòng ban này)
+        PHONG_BAN_KHONG_HIEN_TT = ('Hội đồng Quản trị', 'Ban Tổng Giám đốc')
+        # Các chức vụ được coi là "người đứng đầu" phòng ban -> luôn xếp hàng đầu, cột giữa
+        CHUC_VU_DUNG_DAU = ["Chủ tịch HĐQT", "Tổng Giám đốc", "Trưởng phòng", "Tổ Trưởng", "Đội Trưởng"]
+
+        def _la_cap_pho(nv):
+            cv = (nv.get('chuc_vu') or '').strip().lower()
+            return cv.startswith('phó')
+
+        def _la_dung_dau(nv):
+            cv = (nv.get('chuc_vu') or '').strip()
+            return cv in CHUC_VU_DUNG_DAU
+
+        def _lay_anh_src(nv_ct):
+            """Trả về src cho thẻ <img>: ảnh hồ sơ nếu có, không thì ảnh mẫu trong static/,
+            không thì mới fallback sang ui-avatars.com."""
+            anh_path_ct = nv_ct.get('anh_ho_so')
+            anh_bytes_ct = get_anh_ho_so_bytes(anh_path_ct) if anh_path_ct else None
+            if anh_bytes_ct:
+                img_b64 = base64.b64encode(anh_bytes_ct).decode()
+                return f"data:image/jpeg;base64,{img_b64}"
+            gioi_tinh_ct = nv_ct.get('gioi_tinh', '')
+            avatar_file = "avatar_male.png" if gioi_tinh_ct == "Nam" else "avatar_female.png"
+            avatar_path = os.path.join(os.path.dirname(__file__), "static", avatar_file)
+            if os.path.exists(avatar_path):
+                with open(avatar_path, "rb") as f:
+                    img_b64 = base64.b64encode(f.read()).decode()
+                return f"data:image/png;base64,{img_b64}"
+            ten_url = (nv_ct.get('ho_ten') or 'NV').replace(' ', '+')
+            return f"https://ui-avatars.com/api/?name={ten_url}&size=200&background=f59e0b&color=fff"
+
+        def _render_the_nv(nv_ct, cols_ct, idx_c):
+            with cols_ct[idx_c]:
+                img_src = _lay_anh_src(nv_ct)
+                st.markdown(f"""
+                <div style="display:flex;justify-content:center;">
+                    <img src="{img_src}" style="width:120px;height:120px;border-radius:50%;
+                    object-fit:cover;border:3px solid #f59e0b;box-shadow:0 4px 15px rgba(0,0,0,0.15);">
+                </div>
+                """, unsafe_allow_html=True)
+
+                st.markdown(f"<p style='text-align:center;margin-bottom:0;'><b>{nv_ct['ho_ten']}-{nv_ct['ma_nv']}</b></p>", unsafe_allow_html=True)
+                st.markdown(f"<p style='text-align:center;color:gray;font-size:0.85em;'>{nv_ct.get('chuc_danh_nghe') or ''}</p>", unsafe_allow_html=True)
+
+                if pb_chon_ct in PHONG_BAN_KHONG_HIEN_TT:
+                    # Không đúng bản chất/hình thức với HĐQT & BTGĐ -> hiện chức vụ thay vì loại HĐ/trạng thái
+                    st.markdown(f"<p style='text-align:center;'>🏷️ {nv_ct.get('chuc_vu') or 'Thành viên'}</p>", unsafe_allow_html=True)
+                else:
+                    if nv_ct.get('loai_hop_dong') == 'Thử việc':
+                        st.markdown("<p style='text-align:center;color:red;'>Thử việc</p>", unsafe_allow_html=True)
+                    elif nv_ct.get('loai_hop_dong'):
+                        st.markdown("<p style='text-align:center;color:green;'>Lao động chính thức</p>", unsafe_allow_html=True)
+
+                    if nv_ct.get('trang_thai') == 'NGHI_VIEC':
+                        st.markdown("<p style='text-align:center;'>🔴 Nghỉ việc</p>", unsafe_allow_html=True)
+                    elif nv_ct.get('trang_thai') in ('DANG_LAM', 'THU_VIEC'):
+                        st.markdown("<p style='text-align:center;'>✅ Đang làm việc</p>", unsafe_allow_html=True)
+
+                if st.button("Xem chi tiết>>", key=f"xem_ct_{nv_ct['id']}", width='stretch'):
+                    st.session_state['_nv_xem_chi_tiet_dashboard'] = nv_ct['id']
+
+        if ds_nv_ct:
+            so_cot = 5
+
+            # Tách người đứng đầu phòng ban (nếu có) -> luôn ở hàng đầu tiên, cột giữa (index 2/5).
+            # Nếu không có người đứng đầu -> bỏ qua hàng riêng này, các hàng sau tịnh tiến lên.
+            nguoi_dung_dau = next((nv for nv in ds_nv_ct if _la_dung_dau(nv)), None)
+            ds_con_lai = [nv for nv in ds_nv_ct if nv is not nguoi_dung_dau]
+            # Cấp phó ưu tiên lên đầu (bên trái), sau đó xếp theo alpha bê tên
+            ds_con_lai = sorted(ds_con_lai, key=lambda nv: (0 if _la_cap_pho(nv) else 1, nv.get('ho_ten') or ''))
+
+            if nguoi_dung_dau:
+                cols_ct = st.columns(so_cot)
+                _render_the_nv(nguoi_dung_dau, cols_ct, 2)  # cột giữa trong 5 cột (0,1,[2],3,4)
+                st.divider()
+
+            for i in range(0, len(ds_con_lai), so_cot):
+                hang = ds_con_lai[i:i + so_cot]
+                cols_ct = st.columns(so_cot)
+                for idx_c, nv_ct in enumerate(hang):
+                    _render_the_nv(nv_ct, cols_ct, idx_c)
+
+            if st.session_state.get('_nv_xem_chi_tiet_dashboard'):
+                nv_id_xem = st.session_state['_nv_xem_chi_tiet_dashboard']
+                nv_xem = next((nv for nv in ds_nv_ct if nv['id'] == nv_id_xem), None)
+                if nv_xem:
+                    st.divider()
+                    render_employee_info_card(
+                        nv_xem,
+                        key_prefix=f"nv_co_cau_{nv_xem['id']}",
+                        on_close=lambda: st.session_state.pop('_nv_xem_chi_tiet_dashboard', None)
+                    )
+        else:
+            st.info("Không có nhân sự nào trong phòng ban này.")
 
 # ========== CHẤM CÔNG ==========
 elif menu == "🕒 Chấm công":

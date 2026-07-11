@@ -6126,6 +6126,9 @@ elif menu == "👤 Ứng viên":
                                 db = st.session_state.db_engine.get_connection()
                                 c = db.cursor()
                                 
+                                c.execute("SELECT COALESCE(MAX(STT), 0) + 1 FROM nhan_vien")
+                                stt_moi = c.fetchone()[0]
+
                                 # Tạo STT và mã nhân viên mới
                                 c.execute("SELECT COALESCE(MAX(CAST(SUBSTRING(ma_nv FROM 2) AS INTEGER)), 0)+1 FROM nhan_vien WHERE ma_nv LIKE 'C%'")
                                 so_moi = c.fetchone()[0]

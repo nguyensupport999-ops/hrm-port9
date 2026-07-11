@@ -30,6 +30,7 @@ import pathlib
 import streamlit.components.v1 as components
 import urllib.parse
 import re
+import json
 import unicodedata
 import control_plane
 from control_plane import DatabaseEngine, resolve_tenant
@@ -521,6 +522,179 @@ def get_phong_ban_options():
         return ds
     except Exception:
         return []
+
+# ============================================================
+# 🤖 CHATBOT GIẢI ĐÁP — AI Tư vấn Hành chính Nhân sự
+# (chuyển thể từ bản HTML/JS gốc sang Python để chạy trong Streamlit,
+#  gọi Anthropic API từ phía server bằng API key lưu trong st.secrets)
+# ============================================================
+CHATBOT_LAW_DB = {
+    "bhxh": [
+        {"id": "L01", "ref": "Điều 54, Luật BHXH 2014", "text": "Người lao động được hưởng lương hưu khi đủ tuổi đời (nam đủ 60, nữ đủ 55 — đang lộ trình tăng lên 62/60 tuổi) và đóng BHXH từ đủ 20 năm trở lên."},
+        {"id": "L02", "ref": "Điều 39, Luật BHXH 2014", "text": "Thời gian hưởng chế độ ốm đau tối đa: 30 ngày/năm nếu đóng BHXH dưới 15 năm; 40 ngày nếu đóng 15–30 năm; 60 ngày nếu đóng từ 30 năm trở lên. Mắc bệnh dài ngày trong danh mục được hưởng tối đa 180 ngày."},
+        {"id": "L03", "ref": "NĐ 115/2015/NĐ-CP, Điều 6", "text": "Mức đóng BHXH bắt buộc: NLĐ đóng 8% tiền lương vào quỹ hưu trí, tử tuất. NSDLĐ đóng 17,5%: ốm đau 3%, thai sản 0,5%, TNLĐ-BNN 0,5%, hưu trí tử tuất 14%."},
+        {"id": "L04", "ref": "Khoản 1 Điều 40, Luật BHXH 2014", "text": "Mức hưởng chế độ ốm đau bằng 75% mức tiền lương đóng BHXH của tháng liền kề trước khi nghỉ việc."},
+        {"id": "L05", "ref": "Khoản 2 Điều 56, Luật BHXH 2014", "text": "Mức lương hưu tính bằng 45% bình quân tiền lương tháng đóng BHXH tương ứng với 20 năm đóng (nam), sau đó cứ thêm 1 năm đóng thêm 2%, tối đa 75%. Nữ tính từ 15 năm = 45%."},
+    ],
+    "thaisan": [
+        {"id": "T01", "ref": "Điều 34, Luật BHXH 2014", "text": "Lao động nữ sinh con được nghỉ thai sản 6 tháng (gồm trước và sau sinh). Sinh đôi trở lên cứ mỗi con từ con thứ hai được nghỉ thêm 01 tháng."},
+        {"id": "T02", "ref": "Khoản 1 Điều 39, Luật BHXH 2014", "text": "Mức hưởng thai sản bằng 100% mức bình quân tiền lương tháng đóng BHXH của 06 tháng trước khi nghỉ việc hưởng chế độ."},
+        {"id": "T03", "ref": "Điều 38, Luật BHXH 2014", "text": "Điều kiện hưởng thai sản: đóng BHXH từ đủ 06 tháng trở lên trong 12 tháng trước khi sinh con hoặc nhận nuôi con nuôi dưới 06 tháng tuổi."},
+        {"id": "T04", "ref": "Điều 36, Luật BHXH 2014", "text": "Lao động nữ được nghỉ hưởng thai sản khi khám thai: 05 lần, mỗi lần 01 ngày. Ở xa hoặc thai không bình thường được nghỉ 02 ngày mỗi lần khám."},
+        {"id": "T05", "ref": "Khoản 1 Điều 38, Luật BHXH 2014", "text": "Trợ cấp một lần khi sinh con: 02 lần mức lương cơ sở tại tháng sinh con (hiện lương cơ sở = 2.340.000 đồng/tháng từ 1/7/2024 → trợ cấp một lần = 4.680.000 đồng)."},
+    ],
+    "thatnghiep": [
+        {"id": "TN01", "ref": "Điều 49, Luật Việc làm 2013", "text": "Điều kiện hưởng BHTN: đã chấm dứt HĐLĐ; đã đóng BHTN từ đủ 12 tháng trở lên trong 24 tháng trước khi chấm dứt HĐLĐ (với hợp đồng không xác định thời hạn và xác định thời hạn từ 3 tháng–36 tháng)."},
+        {"id": "TN02", "ref": "Khoản 1 Điều 50, Luật Việc làm 2013", "text": "Mức hưởng TCTN hàng tháng = 60% × bình quân tiền lương tháng đóng BHTN của 06 tháng liền kề trước khi thất nghiệp, tối đa không quá 05 lần mức lương cơ sở."},
+        {"id": "TN03", "ref": "Khoản 2 Điều 50, Luật Việc làm 2013", "text": "Thời gian hưởng TCTN: đóng 12–35 tháng → 03 tháng; cứ đóng thêm đủ 12 tháng → hưởng thêm 01 tháng, tối đa không quá 12 tháng."},
+        {"id": "TN04", "ref": "NĐ 28/2015/NĐ-CP, Điều 17", "text": "Người lao động phải nộp hồ sơ hưởng TCTN trong thời hạn 03 tháng kể từ ngày chấm dứt HĐLĐ tại trung tâm dịch vụ việc làm nơi cư trú."},
+    ],
+    "thuetncn": [
+        {"id": "TAX01", "ref": "Nghị quyết 954/2020/UBTVQH14", "text": "Mức giảm trừ gia cảnh: bản thân người nộp thuế 11 triệu/tháng (132 triệu/năm); mỗi người phụ thuộc 4,4 triệu/tháng. Áp dụng từ kỳ tính thuế năm 2020."},
+        {"id": "TAX02", "ref": "Điều 22, Luật Thuế TNCN 2007 (sửa đổi 2012)", "text": "Biểu thuế lũy tiến từng phần: Bậc 1 ≤5tr: 5% | Bậc 2 (5–10tr): 10% | Bậc 3 (10–18tr): 15% | Bậc 4 (18–32tr): 20% | Bậc 5 (32–52tr): 25% | Bậc 6 (52–80tr): 30% | Bậc 7 >80tr: 35%."},
+        {"id": "TAX03", "ref": "Điều 9, Thông tư 111/2013/TT-BTC", "text": "Người phụ thuộc được đăng ký giảm trừ gồm: con dưới 18 tuổi; con từ 18 tuổi bị khuyết tật không có khả năng lao động; cha mẹ, vợ/chồng không có khả năng lao động hoặc không có thu nhập hoặc thu nhập ≤1 triệu/tháng."},
+        {"id": "TAX04", "ref": "Điều 25, Thông tư 111/2013/TT-BTC", "text": "Tổ chức trả thu nhập khấu trừ 10% đối với HĐLĐ dưới 3 tháng từ 2 triệu/lần. Với HĐLĐ từ 3 tháng trở lên, khấu trừ theo biểu lũy tiến từng phần hàng tháng."},
+    ],
+    "bhyt": [
+        {"id": "BHYT01", "ref": "Điều 13, Luật BHYT 2008 (sửa đổi 2014)", "text": "Mức đóng BHYT = 4,5% tiền lương: NLĐ đóng 1,5%, NSDLĐ đóng 3%."},
+        {"id": "BHYT02", "ref": "Điều 22, Luật BHYT 2008 (sửa đổi 2014)", "text": "Mức hưởng BHYT: đúng tuyến 80% chi phí; tuyến tỉnh không đúng tuyến 60%; tuyến TW không đúng tuyến 40%; cấp cứu 100% đến khi ổn định. Người có công, người nghèo: 100%."},
+        {"id": "BHYT03", "ref": "Khoản 1 Điều 23, Luật BHYT sửa đổi 2014", "text": "Người tham gia BHYT liên tục từ 05 năm trở lên, tổng tiền cùng chi trả trong năm vượt 6 tháng lương cơ sở thì chỉ cùng chi trả tối đa bằng 6 tháng lương cơ sở."},
+    ],
+    "hopdong": [
+        {"id": "HD01", "ref": "Điều 34, Bộ luật Lao động 2019", "text": "HĐLĐ xác định thời hạn không quá 36 tháng. Hết hạn 01 lần nếu tiếp tục sử dụng thì phải ký HĐLĐ không xác định thời hạn, trừ lao động cao tuổi và lao động nước ngoài."},
+        {"id": "HD02", "ref": "Điều 46, Bộ luật Lao động 2019", "text": "Trợ cấp thôi việc: NLĐ làm việc đủ 12 tháng, mỗi năm làm việc được trợ cấp ½ tháng lương. Tiền lương tính là bình quân 06 tháng liền kề. Thời gian tính trợ cấp là tổng thời gian làm việc trừ thời gian đã hưởng TCTN từ BHTN."},
+        {"id": "HD03", "ref": "Điều 36, Bộ luật Lao động 2019", "text": "NLĐ đơn phương chấm dứt HĐLĐ phải báo trước: không xác định thời hạn ≥45 ngày; xác định thời hạn 12–36 tháng ≥30 ngày; dưới 12 tháng ≥03 ngày làm việc."},
+        {"id": "HD04", "ref": "Điều 41, Bộ luật Lao động 2019", "text": "NSDLĐ đơn phương chấm dứt HĐLĐ trái pháp luật: phải nhận NLĐ trở lại, trả lương những ngày không được làm việc, và bồi thường thêm ít nhất 02 tháng tiền lương theo HĐLĐ."},
+    ],
+}
+
+def _chatbot_detect_laws(q):
+    """Dò các điều luật liên quan tới câu hỏi (dựa vào từ khoá), tương đương hàm dLaws() bản JS."""
+    import re as _re
+    t = q.lower()
+    laws = []
+    patterns = [
+        (r"bhxh|bảo hiểm xã hội|hưu|ốm đau|đóng bảo hiểm|lương hưu", "bhxh"),
+        (r"thai sản|sinh con|nghỉ thai|mang thai|khám thai", "thaisan"),
+        (r"thất nghiệp|bhtn|mất việc", "thatnghiep"),
+        (r"thuế|tncn|thu nhập|giảm trừ|gia cảnh|phụ thuộc", "thuetncn"),
+        (r"bhyt|bảo hiểm y tế|khám bệnh|viện phí", "bhyt"),
+        (r"hợp đồng|hđlđ|thôi việc|sa thải|chấm dứt|báo trước|trợ cấp", "hopdong"),
+    ]
+    for pattern, key in patterns:
+        if _re.search(pattern, t):
+            laws.extend(CHATBOT_LAW_DB[key])
+    if not laws:
+        for arr in CHATBOT_LAW_DB.values():
+            laws.extend(arr[:2])
+    return laws
+
+def _chatbot_all_laws():
+    ket_qua = []
+    for arr in CHATBOT_LAW_DB.values():
+        ket_qua.extend(arr)
+    return ket_qua
+
+def _chatbot_system_prompt(laws):
+    laws_text = "\n".join(f'[{l["id"]}] {l["ref"]}: "{l["text"]}"' for l in laws)
+    return f"""Bạn là chuyên gia tư vấn pháp luật hành chính nhân sự Việt Nam với 15+ năm kinh nghiệm. Tư vấn chuyên nghiệp, cụ thể, có căn cứ pháp lý.
+
+ĐIỀU LUẬT ĐÃ TRUY XUẤT:
+{laws_text}
+
+Trả về JSON thuần (KHÔNG markdown, KHÔNG text ngoài JSON):
+{{"summary":"Tóm tắt 1-2 câu","analysis":"Phân tích chi tiết 3-5 câu","options":[{{"label":"Phương án A – tên ngắn","detail":"Mô tả cụ thể","risk":"Rủi ro hoặc rỗng","type":"recommended|alternative|risky"}}],"citations":["ID1","ID2"],"calculations":[{{"label":"Tên khoản","formula":"Công thức","result":"Kết quả nếu đủ số liệu"}}],"note":"Lưu ý quan trọng hoặc thông tin cần bổ sung"}}"""
+
+def _chatbot_get_api_key():
+    try:
+        return st.secrets.get("ANTHROPIC_API_KEY") or st.secrets.get("anthropic", {}).get("api_key")
+    except Exception:
+        return None
+
+def _chatbot_call_claude(system_prompt, history):
+    """Gọi Anthropic Messages API từ phía server (Streamlit backend), trả về dict đã parse JSON."""
+    api_key = _chatbot_get_api_key()
+    if not api_key:
+        return {"summary": "⚠️ Chưa cấu hình ANTHROPIC_API_KEY trong Secrets của app.", "analysis": "",
+                "options": [], "citations": [], "calculations": [], "note": "Vào Streamlit Cloud → Manage app → Secrets, thêm dòng: ANTHROPIC_API_KEY = \"sk-ant-...\""}
+    try:
+        resp = requests.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json",
+            },
+            json={
+                "model": "claude-sonnet-4-5-20250929",
+                "max_tokens": 1200,
+                "system": system_prompt,
+                "messages": history,
+            },
+            timeout=30,
+        )
+        data = resp.json()
+        if "content" not in data:
+            err_msg = data.get("error", {}).get("message", str(data))
+            return {"summary": f"❌ Lỗi gọi API: {err_msg}", "analysis": "", "options": [],
+                    "citations": [], "calculations": [], "note": ""}
+        raw = "".join(b.get("text", "") for b in data["content"])
+        raw_clean = raw.replace("```json", "").replace("```", "").strip()
+        try:
+            return json.loads(raw_clean)
+        except Exception:
+            return {"summary": raw[:400], "analysis": "", "options": [], "citations": [], "calculations": [], "note": ""}
+    except Exception as e:
+        return {"summary": f"❌ Lỗi kết nối: {e}", "analysis": "", "options": [], "citations": [], "calculations": [], "note": ""}
+
+def _chatbot_badge_html(loai):
+    return {
+        "recommended": '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#e6f4ea;color:#1e6e3a;border:1px solid #8fc8a3;font-weight:600">Khuyến nghị</span>',
+        "alternative": '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#e8f0fe;color:#1a56c4;border:1px solid #93b4f5;font-weight:600">Thay thế</span>',
+        "risky": '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#fce8e6;color:#b91c1c;border:1px solid #f5a3a3;font-weight:600">Rủi ro cao</span>',
+    }.get(loai, '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#e8f0fe;color:#1a56c4;border:1px solid #93b4f5;font-weight:600">Thay thế</span>')
+
+def _chatbot_render_answer_html(data):
+    """Dựng HTML thẻ trả lời có cấu trúc (tương đương hàm render() bản JS), hiển thị qua st.markdown."""
+    import html as _html
+    al = _chatbot_all_laws()
+    h = '<div style="padding:14px 16px;background:#fff;border:1px solid #e5e7eb;border-radius:4px 14px 14px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05)">'
+    h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:11px;padding-bottom:8px;border-bottom:1px solid #f1f5f9">' \
+         '<div style="width:22px;height:22px;border-radius:6px;background:#1e3a5f;display:flex;align-items:center;justify-content:center;font-size:11px">⚖️</div>' \
+         '<span style="font-size:10.5px;font-weight:700;color:#1e3a5f;letter-spacing:.06em">CHUYÊN GIA TƯ VẤN HCNS</span></div>'
+    if data.get("summary"):
+        h += f'<div style="padding:10px 13px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;margin-bottom:11px;font-size:13px;color:#0c4a6e;font-weight:500;line-height:1.65">{_html.escape(data["summary"])}</div>'
+    if data.get("analysis"):
+        h += f'<div style="font-size:13.5px;color:#374151;line-height:1.8;margin-bottom:13px">{_html.escape(data["analysis"])}</div>'
+    if data.get("options"):
+        h += '<div style="font-size:10px;font-weight:700;color:#6b7280;letter-spacing:.07em;text-transform:uppercase;margin-bottom:7px">⚖️ Phương án xử lý</div>'
+        for o in data["options"]:
+            risk_html = f'<div style="margin-top:5px;font-size:12px;color:#b91c1c;background:#fef2f2;padding:4px 9px;border-radius:5px">⚠️ {_html.escape(o.get("risk",""))}</div>' if o.get("risk") else ""
+            h += f'<div style="margin-bottom:7px;padding:10px 13px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px">' \
+                 f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">' \
+                 f'<span style="font-size:13px;font-weight:700;color:#111827">{_html.escape(o.get("label",""))}</span>{_chatbot_badge_html(o.get("type"))}</div>' \
+                 f'<div style="font-size:13px;color:#4b5563;line-height:1.65">{_html.escape(o.get("detail",""))}</div>{risk_html}</div>'
+    if data.get("calculations"):
+        h += '<div style="font-size:10px;font-weight:700;color:#6b7280;letter-spacing:.07em;text-transform:uppercase;margin:10px 0 7px">🔢 Tính toán cụ thể</div>'
+        for c in data["calculations"]:
+            ket_qua = f'<span style="font-weight:700;color:#14532d"> = {_html.escape(str(c.get("result","")))}</span>' if c.get("result") else ""
+            h += f'<div style="margin-bottom:5px;padding:8px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:13px">' \
+                 f'<span style="font-weight:700;color:#166534">{_html.escape(c.get("label",""))}: </span>' \
+                 f'<span style="color:#15803d">{_html.escape(c.get("formula",""))}</span>{ket_qua}</div>'
+    if data.get("citations"):
+        matched = [l for l in al if l["id"] in data["citations"]]
+        if matched:
+            h += '<div style="margin-top:13px;border-top:1px solid #f3f4f6;padding-top:11px">' \
+                 '<div style="font-size:10px;font-weight:700;color:#6b7280;letter-spacing:.07em;text-transform:uppercase;margin-bottom:7px">📚 Căn cứ pháp lý</div>'
+            for law in matched:
+                h += f'<div style="margin-bottom:8px;padding:8px 12px;background:#fffbeb;border:1px solid #fde68a;border-left:3px solid #f59e0b;border-radius:6px">' \
+                     f'<div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:3px">{_html.escape(law["ref"])}</div>' \
+                     f'<div style="font-size:12px;color:#78350f;line-height:1.65">{_html.escape(law["text"])}</div></div>'
+            h += '</div>'
+    if data.get("note"):
+        h += f'<div style="margin-top:9px;padding:8px 12px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:6px;font-size:12.5px;color:#6b21a8;line-height:1.65">💡 <strong>Lưu ý:</strong> {_html.escape(data["note"])}</div>'
+    h += '</div>'
+    return h
 
 def upload_anh_ho_so(ma_nv_or_id, ho_ten, uploaded_file):
     """Upload ảnh hồ sơ nhân viên lên Supabase Storage (dùng chung bucket hồ sơ,
@@ -3885,8 +4059,159 @@ def remove_table_border(tbl):
             if b is not None: tcPr.remove(b)
 
 # ========== CÁC HÀM TẠO HỢP ĐỒNG (GIỮ NGUYÊN) ==========
+def ensure_mau_dieu_hop_dong_table():
+    """Bảng lưu nội dung tuỳ chỉnh của từng Điều trong HĐLĐ/HĐTV, do admin cấu hình.
+    Mỗi dòng = 1 Điều của 1 loại hợp đồng. Nếu chưa có dòng nào cho 1 mã Điều,
+    hệ thống dùng nội dung mặc định (DEFAULT_DIEU_HDLD / DEFAULT_DIEU_HDTV)."""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS mau_dieu_hop_dong (
+                id SERIAL PRIMARY KEY,
+                loai_hd VARCHAR(10) NOT NULL,
+                ma_dieu VARCHAR(30) NOT NULL,
+                tieu_de TEXT,
+                noi_dung TEXT,
+                thu_tu INT DEFAULT 0,
+                updated_at TIMESTAMP DEFAULT NOW(),
+                UNIQUE(loai_hd, ma_dieu)
+            )
+        """)
+        db.commit()
+        c.close(); db.close()
+        return True
+    except Exception as e:
+        print(f"Lỗi ensure_mau_dieu_hop_dong_table: {e}")
+        return False
+
+# Nội dung MẶC ĐỊNH của từng Điều — dùng khi admin CHƯA tuỳ chỉnh gì.
+# Dòng bắt đầu bằng "## " sẽ được in đậm (tiêu đề phụ, VD "1. Nghĩa vụ:").
+# Có thể dùng {vi_tri}, {ngay_hieu_luc} trong nội dung Điều 1 — sẽ tự thay bằng thông tin nhân viên.
+DEFAULT_DIEU_HDLD = {
+    "dieu1": ("Điều 1. Thời hạn và công việc hợp đồng:",
+        "-    Bên B làm việc theo chế độ hợp đồng lao động không xác định thời hạn;\n"
+        "-    Thời gian: Từ ngày {ngay_hieu_luc};\n"
+        "-    Địa điểm làm việc: Tại Cảng tổng hợp quốc tế Hòn La và các địa điểm khác theo sự sắp xếp của Công ty;\n"
+        "-    Vị trí: {vi_tri};\n"
+        "-    Công việc phải làm: Thực hiện công việc theo đúng chuyên môn dưới sự quản lý, điều hành của cấp trên;\n"
+        "-    Mức lương và phụ cấp: Theo thỏa thuận;\n"
+        "-    Hình thức trả lương: Tiền mặt hoặc chuyển khoản, theo lần chi trả;\n"
+        "-    Kỳ hạn trả lương: Theo quy định Công ty;\n"
+        "-    Chế độ nâng lương: Theo thỏa thuận."),
+    "dieu2": ("Điều 2. Chế độ làm việc:",
+        "-    Thời gian làm việc: Theo tính chất công việc, do nhu cầu kinh doanh của Công ty nên thời gian làm việc của bên B là linh hoạt nhưng phải đảm bảo hoàn thành công việc được giao;\n"
+        "-    Thời gian nghỉ ngơi của người lao động: Theo thỏa thuận và phù hợp với quy định của pháp luật;\n"
+        "-    Ngoài giờ làm việc: Người lao động phải tự chịu trách nhiệm về các hoạt động cá nhân của mình."),
+    "dieu3": ("Điều 3. Nghĩa vụ, quyền lợi NLĐ:",
+        "## 1. Nghĩa vụ:\n"
+        "-    Hoàn thành những công việc được giao và sẵn sàng chấp nhận mọi sự điều động khi có yêu cầu;\n"
+        "-    Chấp hành nghiêm túc nội quy, kỷ luật lao động, an toàn lao động và các quy định của Công ty và pháp luật của Nhà nước;\n"
+        "-    Người lao động có trách nhiệm tuân thủ đầy đủ quy định về an toàn lao động, quy trình vận hành thiết bị và hướng dẫn của Công ty. Trường hợp NLĐ cố ý vi phạm hoặc vi phạm nghiêm trọng quy định an toàn lao động gây thiệt hại thì phải chịu trách nhiệm theo quy định pháp luật và nội quy Công ty;\n"
+        "-    Bồi thường vi phạm vật chất : Phải bồi thường vật chất do cá nhân vi phạm quy định của Công ty về bảo quản trang thiết bị được giao.\n"
+        "## 2. Quyền Lợi:\n"
+        "-    Phương tiện đi lại: Tự túc;\n"
+        "-    Được Công ty đóng Bảo hiểm xã hội, bảo hiểm y tế, BHTN: theo chế độ hiện hành của Nhà nước và Quy định của Công ty;\n"
+        "-    Được Công ty cấp đầy đủ bảo hộ lao động theo đúng vị trí làm việc;\n"
+        "-    Được phân công công việc theo yêu cầu của Công ty phù hợp với khả năng và trình độ chuyên môn mà người lao động đáp ứng;\n"
+        "-    Các quyền lợi khác thực hiện theo quy định của Pháp luật Lao động như tạm dừng, chấm dứt hợp đồng."),
+    "dieu4": ("Điều 4. Nghĩa vụ, quyền hạn NSDLĐ:",
+        "-    Bảo đảm việc làm và thực hiện đầy đủ những điều đã cam kết trong hợp đồng;\n"
+        "-    Thanh toán đầy đủ, đúng hạn các chế độ và quyền lợi cho người lao động theo hợp đồng;\n"
+        "-    Điều hành người lao động hoàn thành công việc theo hợp đồng;\n"
+        "-    Tạm hoãn, chấm dứt hợp đồng, kỷ luật người lao động theo quy định của pháp luật, và nội quy lao động của Công ty."),
+    "dieu5": ("Điều 5. Điều khoản chung:",
+        "-    Những nội dung về quan hệ lao động không ghi trong hợp đồng này thì được áp dụng theo pháp luật lao động;\n"
+        "-    Những thoả thuận khác (nếu có): không;\n"
+        "-    Hợp đồng này có hiệu lực từ ngày ký và được làm thành 02 bản, Bên A giữ 01 bản, Bên B giữ 01 có giá trị pháp lý như nhau, để làm căn cứ thực hiện."),
+}
+
+DEFAULT_DIEU_HDTV = {
+    "dieu1": ("Điều 1. Thời hạn và công việc hợp đồng:",
+        "-    Bên B làm việc theo chế độ hợp đồng thử việc, có thời hạn 01 tháng;\n"
+        "-    Bắt đầu: {ngay_bat_dau};\n"
+        "-    Kết thúc: {ngay_ket_thuc};\n"
+        "-    Địa điểm làm việc: Tại Cảng tổng hợp quốc tế Hòn La và các địa điểm khác theo sự sắp xếp của Công ty;\n"
+        "-    Vị trí: {vi_tri};\n"
+        "-    Công việc phải làm: Thực hiện công việc theo đúng chuyên môn dưới sự quản lý, điều hành của cấp trên;\n"
+        "-    Mức lương và phụ cấp: Theo thỏa thuận;\n"
+        "-    Hình thức trả lương: Tiền mặt hoặc chuyển khoản, theo lần chi trả;\n"
+        "-    Kỳ hạn trả lương: Theo quy định Công ty."),
+    "dieu2": ("Điều 2. Chế độ làm việc:",
+        "-    Thời gian làm việc: Theo tính chất công việc, do nhu cầu kinh doanh của Công ty nên thời gian làm việc của bên B là linh hoạt nhưng phải đảm bảo hoàn thành công việc được giao;\n"
+        "-    Thời gian nghỉ ngơi của người lao động: Theo thỏa thuận và phù hợp với quy định của pháp luật;\n"
+        "-    Ngoài giờ làm việc: Người lao động phải tự chịu trách nhiệm về các hoạt động cá nhân của mình."),
+    "dieu3": ("Điều 3. Nghĩa vụ, quyền lợi NLĐ:",
+        "## 1. Nghĩa vụ:\n"
+        "-    Hoàn thành những công việc được giao và sẵn sàng chấp nhận mọi sự điều động khi có yêu cầu;\n"
+        "-    Chấp hành nghiêm túc nội quy, kỷ luật lao động, an toàn lao động và các quy định của Công ty và pháp luật của Nhà nước;\n"
+        "-    Người lao động có trách nhiệm tuân thủ đầy đủ quy định về an toàn lao động, quy trình vận hành thiết bị và hướng dẫn của Công ty. Trường hợp NLĐ cố ý vi phạm hoặc vi phạm nghiêm trọng quy định an toàn lao động gây thiệt hại thì phải chịu trách nhiệm theo quy định pháp luật và nội quy Công ty;\n"
+        "-    Bồi thường vi phạm vật chất : Phải bồi thường vật chất do cá nhân vi phạm quy định của Công ty về bảo quản trang thiết bị được giao.\n"
+        "## 2. Quyền Lợi:\n"
+        "-    Phương tiện đi lại: Tự túc;\n"
+        "-    Được Công ty cấp đầy đủ bảo hộ lao động theo đúng vị trí làm việc;\n"
+        "-    Được phân công công việc theo yêu cầu của Công ty phù hợp với khả năng và trình độ chuyên môn mà người lao động đáp ứng;\n"
+        "-    Các quyền lợi khác thực hiện theo quy định của Pháp luật Lao động như tạm dừng, chấm dứt hợp đồng."),
+    "dieu4": ("Điều 4. Nghĩa vụ, quyền hạn NSDLĐ:",
+        "-    Bảo đảm việc làm và thực hiện đầy đủ những điều đã cam kết trong hợp đồng;\n"
+        "-    Thanh toán đầy đủ, đúng hạn các chế độ và quyền lợi cho người lao động theo hợp đồng;\n"
+        "-    Điều hành người lao động hoàn thành công việc theo hợp đồng;\n"
+        "-    Tạm hoãn, chấm dứt hợp đồng theo quy định của pháp luật, và nội quy lao động của Công ty;"),
+    "dieu5": ("Điều 5. Điều khoản chung:",
+        "-    Những nội dung về quan hệ lao động không ghi trong hợp đồng này thì được áp dụng theo pháp luật lao động;\n"
+        "-    Những thoả thuận khác (nếu có): không;\n"
+        "-    Hợp đồng này có hiệu lực từ ngày ký và được làm thành 02 bản, Bên A giữ 01 bản, Bên B giữ 01 có giá trị pháp lý như nhau, để làm căn cứ thực hiện."),
+}
+
+class _SafeDict(dict):
+    """Dict để .format_map() không lỗi khi thiếu placeholder — giữ nguyên {ten} nếu không có dữ liệu."""
+    def __missing__(self, key):
+        return '{' + key + '}'
+
+@st.cache_data(ttl=60, show_spinner=False)
+def get_all_dieu_hop_dong(loai_hd):
+    """Lấy toàn bộ nội dung Điều đã tuỳ chỉnh (nếu có) cho 1 loại hợp đồng ('HDLD'/'HDTV').
+    Trả về dict {ma_dieu: (tieu_de, noi_dung)}."""
+    ket_qua = {}
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("SELECT ma_dieu, tieu_de, noi_dung FROM mau_dieu_hop_dong WHERE loai_hd=%s", (loai_hd,))
+        for ma_dieu, tieu_de, noi_dung in c.fetchall():
+            ket_qua[ma_dieu] = (tieu_de, noi_dung)
+        db.close()
+    except Exception:
+        pass
+    return ket_qua
+
+def get_dieu_content(loai_hd, ma_dieu, tuy_chinh, mac_dinh):
+    """Trả về (tieu_de, noi_dung) — ưu tiên bản admin đã tuỳ chỉnh, nếu chưa có thì dùng mặc định."""
+    if ma_dieu in tuy_chinh:
+        return tuy_chinh[ma_dieu]
+    return mac_dinh.get(ma_dieu, ("", ""))
+
+def render_dieu(doc, add_p, tieu_de, noi_dung, context=None):
+    """In 1 Điều ra file Word: tiêu đề in đậm, các dòng nội dung xuống dòng theo \\n.
+    Dòng bắt đầu bằng '## ' sẽ in đậm (tiêu đề phụ như '1. Nghĩa vụ:')."""
+    if tieu_de:
+        p = doc.add_paragraph(); r = p.add_run(tieu_de); r.bold = True
+    if not noi_dung:
+        return
+    text = noi_dung.format_map(_SafeDict(context or {}))
+    for line in text.split('\n'):
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith('## '):
+            p = doc.add_paragraph(); r = p.add_run(line[3:]); r.bold = True
+        else:
+            add_p(line)
+
+
 def tao_hop_dong(nv):
-    # ... giữ nguyên code cũ (quá dài, tôi giữ lại)
+    """In Hợp đồng lao động (không xác định thời hạn). Nội dung 5 Điều lấy từ bảng
+    mau_dieu_hop_dong nếu admin đã tuỳ chỉnh (Danh mục → Mẫu Điều khoản Hợp đồng),
+    nếu chưa có thì dùng nội dung mặc định DEFAULT_DIEU_HDLD."""
     CC = COMPANY_CONFIG; doc = Document()
     s = doc.styles['Normal']; s.font.name='Times New Roman'; s.font.size=Pt(13)
     s.paragraph_format.space_after=Pt(0); s.paragraph_format.space_before=Pt(0)
@@ -3959,47 +4284,18 @@ def tao_hop_dong(nv):
     al('Nơi cấp',nv.get('noi_cap_cccd','')); al('Số TKNH',sk)
     al('Điện thoại',nv.get('dien_thoai','')); al('Thường trú',nv.get('thuong_tru',''))
     doc.add_paragraph('Thoả thuận ký kết Hợp đồng lao động với những điều khoản dưới đây:')
-    p=doc.add_paragraph(); r=p.add_run('Điều 1. Thời hạn và công việc hợp đồng:'); r.bold=True
     ngay_hieu_luc = nv.get("ngay_ky_hd") or nv.get("ngay_vao_lam")
     ns2 = '.../.../..........'
     if ngay_hieu_luc and hasattr(ngay_hieu_luc, 'day'):
         ns2 = f'{ngay_hieu_luc.day} tháng {ngay_hieu_luc.month:02d} năm {ngay_hieu_luc.year}'
     elif ngay_hieu_luc:
         ns2 = str(ngay_hieu_luc)
-    add_p(f'-    Bên B làm việc theo chế độ hợp đồng lao động không xác định thời hạn;')
-    add_p(f'-    Thời gian: Từ ngày {ns2};')
-    add_p('-    Địa điểm làm việc: Tại Cảng tổng hợp quốc tế Hòn La và các địa điểm khác theo sự sắp xếp của Công ty;')
-    add_p(f'-    Vị trí: {nv.get("chuc_danh_nghe","")};')
-    add_p('-    Công việc phải làm: Thực hiện công việc theo đúng chuyên môn dưới sự quản lý, điều hành của cấp trên;')
-    add_p('-    Mức lương và phụ cấp: Theo thỏa thuận;')
-    add_p('-    Hình thức trả lương: Tiền mặt hoặc chuyển khoản, theo lần chi trả;')
-    add_p('-    Kỳ hạn trả lương: Theo quy định Công ty;')
-    add_p('-    Chế độ nâng lương: Theo thỏa thuận.')
-    p=doc.add_paragraph(); r=p.add_run('Điều 2. Chế độ làm việc:'); r.bold=True
-    add_p('-    Thời gian làm việc: Theo tính chất công việc, do nhu cầu kinh doanh của Công ty nên thời gian làm việc của bên B là linh hoạt nhưng phải đảm bảo hoàn thành công việc được giao;')
-    add_p('-    Thời gian nghỉ ngơi của người lao động: Theo thỏa thuận và phù hợp với quy định của pháp luật;')
-    add_p('-    Ngoài giờ làm việc: Người lao động phải tự chịu trách nhiệm về các hoạt động cá nhân của mình.')
-    p=doc.add_paragraph(); r=p.add_run('Điều 3. Nghĩa vụ, quyền lợi NLĐ:'); r.bold=True
-    p=doc.add_paragraph(); r=p.add_run('1. Nghĩa vụ:'); r.bold=True
-    add_p('-    Hoàn thành những công việc được giao và sẵn sàng chấp nhận mọi sự điều động khi có yêu cầu;')
-    add_p('-    Chấp hành nghiêm túc nội quy, kỷ luật lao động, an toàn lao động và các quy định của Công ty và pháp luật của Nhà nước;')
-    add_p('-    Người lao động có trách nhiệm tuân thủ đầy đủ quy định về an toàn lao động, quy trình vận hành thiết bị và hướng dẫn của Công ty. Trường hợp NLĐ cố ý vi phạm hoặc vi phạm nghiêm trọng quy định an toàn lao động gây thiệt hại thì phải chịu trách nhiệm theo quy định pháp luật và nội quy Công ty;')
-    add_p('-    Bồi thường vi phạm vật chất : Phải bồi thường vật chất do cá nhân vi phạm quy định của Công ty về bảo quản trang thiết bị được giao.')
-    p=doc.add_paragraph(); r=p.add_run('2. Quyền Lợi:'); r.bold=True
-    add_p('-    Phương tiện đi lại: Tự túc;')
-    add_p('-    Được Công ty đóng Bảo hiểm xã hội, bảo hiểm y tế, BHTN: theo chế độ hiện hành của Nhà nước và Quy định của Công ty;')
-    add_p('-    Được Công ty cấp đầy đủ bảo hộ lao động theo đúng vị trí làm việc;')
-    add_p('-    Được phân công công việc theo yêu cầu của Công ty phù hợp với khả năng và trình độ chuyên môn mà người lao động đáp ứng;')
-    add_p('-    Các quyền lợi khác thực hiện theo quy định của Pháp luật Lao động như tạm dừng, chấm dứt hợp đồng.')
-    p=doc.add_paragraph(); r=p.add_run('Điều 4. Nghĩa vụ, quyền hạn NSDLĐ:'); r.bold=True
-    add_p('-    Bảo đảm việc làm và thực hiện đầy đủ những điều đã cam kết trong hợp đồng;')
-    add_p('-    Thanh toán đầy đủ, đúng hạn các chế độ và quyền lợi cho người lao động theo hợp đồng;')
-    add_p('-    Điều hành người lao động hoàn thành công việc theo hợp đồng;')
-    add_p('-    Tạm hoãn, chấm dứt hợp đồng, kỷ luật người lao động theo quy định của pháp luật, và nội quy lao động của Công ty.')
-    p=doc.add_paragraph(); r=p.add_run('Điều 5. Điều khoản chung:'); r.bold=True
-    add_p('-    Những nội dung về quan hệ lao động không ghi trong hợp đồng này thì được áp dụng theo pháp luật lao động;')
-    add_p('-    Những thoả thuận khác (nếu có): không;')
-    add_p('-    Hợp đồng này có hiệu lực từ ngày ký và được làm thành 02 bản, Bên A giữ 01 bản, Bên B giữ 01 có giá trị pháp lý như nhau, để làm căn cứ thực hiện.')
+    # ===== NỘI DUNG CÁC ĐIỀU: lấy bản admin đã tuỳ chỉnh (nếu có), fallback về mặc định =====
+    tuy_chinh_hdld = get_all_dieu_hop_dong('HDLD')
+    ctx_hdld = {"vi_tri": nv.get("chuc_danh_nghe", ""), "ngay_hieu_luc": ns2}
+    for ma_dieu in ["dieu1", "dieu2", "dieu3", "dieu4", "dieu5"]:
+        tieu_de, noi_dung = get_dieu_content("HDLD", ma_dieu, tuy_chinh_hdld, DEFAULT_DIEU_HDLD)
+        render_dieu(doc, add_p, tieu_de, noi_dung, context=ctx_hdld)
     add_p('Bản HĐ này lập tại văn phòng Công ty CP Cảng Hòn La.'); doc.add_paragraph()
     ts=doc.add_table(rows=3,cols=2); ts.alignment=WD_TABLE_ALIGNMENT.CENTER; remove_table_border(ts)
     c=ts.rows[0].cells[0]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
@@ -4031,6 +4327,16 @@ def tao_hop_dong_thu_viec(nv):
         r=p.add_run(f'{label}'); r.font.size=Pt(13)
         r=p.add_run('\t: '); r.font.size=Pt(13)
         r=p.add_run(f'{value}'); r.font.size=Pt(13)
+    def add_p(text='', bold=False, size=Pt(13)):
+        p = doc.add_paragraph(text)
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        p.paragraph_format.space_after = Pt(2)
+        p.paragraph_format.space_before = Pt(2)
+        if bold and p.runs:
+            p.runs[0].bold = True
+        if p.runs:
+            p.runs[0].font.size = size
+        return p
     ht=doc.add_table(rows=4,cols=2); ht.alignment=WD_TABLE_ALIGNMENT.CENTER; ht.autofit=False; remove_table_border(ht)
     for row in ht.rows: row.cells[0].width=Cm(6); row.cells[1].width=Cm(11)
     c=ht.rows[0].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
@@ -4078,47 +4384,16 @@ def tao_hop_dong_thu_viec(nv):
     al('Nơi cấp',nv.get('noi_cap_cccd','')); al('Số TKNH',sk)
     al('Điện thoại',nv.get('dien_thoai','')); al('Thường trú',nv.get('thuong_tru',''))
     doc.add_paragraph('Thoả thuận ký kết Hợp đồng Thử việc với những điều khoản dưới đây:')
-    p=doc.add_paragraph(); r=p.add_run('Điều 1. Thời hạn và công việc hợp đồng:'); r.bold=True
-    ns2='.../.../..........'
-    if nk and hasattr(nk,'day'): ns2=f'{nk.day} tháng {nk.month} năm {nk.year}'
-    elif nk: ns2=str(nk)
-    p=doc.add_paragraph(f'-    Bên B làm việc theo chế độ hợp đồng thử việc, có thời hạn 01 tháng;')
-    if nk and hasattr(nk,'day'):
-        nkt=nk+timedelta(days=30)
-        p=doc.add_paragraph(f'     + Bắt đầu: {nk.day:02d}/{nk.month:02d}/{nk.year}')
-        p=doc.add_paragraph(f'     + Kết thúc: {nkt.day:02d}/{nkt.month:02d}/{nkt.year}')
-    else: doc.add_paragraph('     + Bắt đầu: .../.../......'); doc.add_paragraph('     + Kết thúc: .../.../......')
-    p=doc.add_paragraph('-    Địa điểm làm việc: Tại Cảng tổng hợp quốc tế Hòn La và các địa điểm khác theo sự sắp xếp của Công ty;')
-    p=doc.add_paragraph(f'-    Vị trí: {nv.get("chuc_danh_nghe","")};')
-    p=doc.add_paragraph('-    Công việc phải làm: Thực hiện công việc theo đúng chuyên môn dưới sự quản lý, điều hành của cấp trên;')
-    p=doc.add_paragraph('-    Mức lương và phụ cấp: Theo thỏa thuận;')
-    p=doc.add_paragraph('-    Hình thức trả lương: Tiền mặt hoặc chuyển khoản, theo lần chi trả;')
-    p=doc.add_paragraph('-    Kỳ hạn trả lương: Theo quy định Công ty;')
-    p=doc.add_paragraph(); r=p.add_run('Điều 2. Chế độ làm việc:'); r.bold=True
-    p=doc.add_paragraph('-    Thời gian làm việc: Theo tính chất công việc, do nhu cầu kinh doanh của Công ty nên thời gian làm việc của bên B là linh hoạt nhưng phải đảm bảo hoàn thành công việc được giao;')
-    p=doc.add_paragraph('-    Thời gian nghỉ ngơi của người lao động: Theo thỏa thuận và phù hợp với quy định của pháp luật;')
-    p=doc.add_paragraph('-    Ngoài giờ làm việc: Người lao động phải tự chịu trách nhiệm về các hoạt động cá nhân của mình.')
-    p=doc.add_paragraph(); r=p.add_run('Điều 3. Nghĩa vụ, quyền lợi NLĐ:'); r.bold=True
-    p=doc.add_paragraph(); r=p.add_run('1. Nghĩa vụ:'); r.bold=True
-    p=doc.add_paragraph('-    Hoàn thành những công việc được giao và sẵn sàng chấp nhận mọi sự điều động khi có yêu cầu;')
-    p=doc.add_paragraph('-    Chấp hành nghiêm túc nội quy, kỷ luật lao động, an toàn lao động và các quy định của Công ty và pháp luật của Nhà nước;')
-    p=doc.add_paragraph('-    Người lao động có trách nhiệm tuân thủ đầy đủ quy định về an toàn lao động, quy trình vận hành thiết bị và hướng dẫn của Công ty. Trường hợp NLĐ cố ý vi phạm hoặc vi phạm nghiêm trọng quy định an toàn lao động gây thiệt hại thì phải chịu trách nhiệm theo quy định pháp luật và nội quy Công ty;')
-    p=doc.add_paragraph('-    Bồi thường vi phạm vật chất : Phải bồi thường vật chất do cá nhân vi phạm quy định của Công ty về bảo quản trang thiết bị được giao.')
-    p=doc.add_paragraph(); r=p.add_run('2. Quyền Lợi:'); r.bold=True
-    p=doc.add_paragraph('-    Phương tiện đi lại: Tự túc;')
-    p=doc.add_paragraph('-    Được Công ty cấp đầy đủ bảo hộ lao động theo đúng vị trí làm việc;')
-    p=doc.add_paragraph('-    Được phân công công việc theo yêu cầu của Công ty phù hợp với khả năng và trình độ chuyên môn mà người lao động đáp ứng;')
-    p=doc.add_paragraph('-    Các quyền lợi khác thực hiện theo quy định của Pháp luật Lao động như tạm dừng, chấm dứt hợp đồng.')
-    p=doc.add_paragraph(); r=p.add_run('Điều 4. Nghĩa vụ, quyền hạn NSDLĐ:'); r.bold=True
-    p=doc.add_paragraph('-    Bảo đảm việc làm và thực hiện đầy đủ những điều đã cam kết trong hợp đồng;')
-    p=doc.add_paragraph('-    Thanh toán đầy đủ, đúng hạn các chế độ và quyền lợi cho người lao động theo hợp đồng;')
-    p=doc.add_paragraph('-    Điều hành người lao động hoàn thành công việc theo hợp đồng;')
-    p=doc.add_paragraph('-    Tạm hoãn, chấm dứt hợp đồng theo quy định của pháp luật, và nội quy lao động của Công ty;')
-    p=doc.add_paragraph(); r=p.add_run('Điều 5. Điều khoản chung:'); r.bold=True
-    p=doc.add_paragraph('-    Những nội dung về quan hệ lao động không ghi trong hợp đồng này thì được áp dụng theo pháp luật lao động;')
-    p=doc.add_paragraph('-    Những thoả thuận khác (nếu có): không;')
-    p=doc.add_paragraph('-    Hợp đồng này có hiệu lực từ ngày ký và được làm thành 02 bản, Bên A giữ 01 bản, Bên B giữ 01 có giá trị pháp lý như nhau, để làm căn cứ thực hiện.'); doc.add_paragraph()
-    p=doc.add_paragraph('Bản HĐ này lập tại văn phòng Công ty CP Cảng Hòn La.'); doc.add_paragraph()
+    nkt = nk + timedelta(days=30) if (nk and hasattr(nk, 'day')) else None
+    ns_bd = f'{nk.day:02d}/{nk.month:02d}/{nk.year}' if (nk and hasattr(nk, 'day')) else '.../.../......'
+    ns_kt = f'{nkt.day:02d}/{nkt.month:02d}/{nkt.year}' if nkt else '.../.../......'
+    # ===== NỘI DUNG CÁC ĐIỀU: lấy bản admin đã tuỳ chỉnh (nếu có), fallback về mặc định =====
+    tuy_chinh_hdtv = get_all_dieu_hop_dong('HDTV')
+    ctx_hdtv = {"vi_tri": nv.get("chuc_danh_nghe", ""), "ngay_bat_dau": ns_bd, "ngay_ket_thuc": ns_kt}
+    for ma_dieu in ["dieu1", "dieu2", "dieu3", "dieu4", "dieu5"]:
+        tieu_de, noi_dung = get_dieu_content("HDTV", ma_dieu, tuy_chinh_hdtv, DEFAULT_DIEU_HDTV)
+        render_dieu(doc, add_p, tieu_de, noi_dung, context=ctx_hdtv)
+    add_p('Bản HĐ này lập tại văn phòng Công ty CP Cảng Hòn La.'); doc.add_paragraph()
     ts=doc.add_table(rows=3,cols=2); ts.alignment=WD_TABLE_ALIGNMENT.CENTER; remove_table_border(ts)
     c=ts.rows[0].cells[0]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=c.paragraphs[0].add_run('NGƯỜI LAO ĐỘNG'); r.bold=True; r.font.size=Pt(13)
@@ -4376,6 +4651,44 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
                 if ma_xoa:
                     control_plane.delete_tenant(ma_xoa)
                     st.success("✅ Đã xoá!"); st.rerun()
+
+        st.divider()
+        st.markdown("##### 🖼️ Upload logo cho khách hàng")
+        col_logo1, col_logo2 = st.columns([1, 2])
+        with col_logo1:
+            ma_cty_logo = st.text_input("Mã công ty", key="ma_cty_upload_logo")
+        with col_logo2:
+            logo_file = st.file_uploader("Chọn file logo (PNG/JPG)", type=["png", "jpg", "jpeg"], key="logo_file_uploader")
+        if st.button("📤 Upload logo", key="btn_upload_logo"):
+            if not ma_cty_logo or not logo_file:
+                st.warning("⚠️ Vui lòng nhập Mã công ty và chọn file logo.")
+            else:
+                sb = get_supabase_storage()
+                if not sb:
+                    st.error("❌ Chưa cấu hình Supabase Storage.")
+                else:
+                    try:
+                        safe_name = sanitize_storage_filename(logo_file.name)
+                        storage_path = f"logos/{sanitize_storage_filename(ma_cty_logo)}/{safe_name}"
+                        upload_to_storage_unique(
+                            sb, SUPABASE_BUCKET, storage_path,
+                            logo_file.getvalue(), logo_file.type
+                        )
+                        # Lấy public URL để lưu vào tenant.logo_url (bucket/đường dẫn logo cần để PUBLIC
+                        # vì logo hiển thị cả ở màn hình đăng nhập, trước khi xác thực người dùng)
+                        public_url = sb.storage.from_(SUPABASE_BUCKET).get_public_url(storage_path)
+                        control_plane.update_tenant_logo(ma_cty_logo.strip().upper(), public_url)
+                        st.success(f"✅ Đã upload logo và cập nhật cho công ty {ma_cty_logo.strip().upper()}. Link: {public_url}")
+                        st.image(public_url, width=160)
+                        st.caption("ℹ️ Lưu ý: cần bật chế độ **Public** cho bucket/đường dẫn "
+                                   f"`{SUPABASE_BUCKET}` (hoặc riêng thư mục `logos/`) trên Supabase Dashboard, "
+                                   "nếu không link này sẽ không tải được vì bucket hồ sơ nhân viên mặc định là riêng tư.")
+                        st.rerun()
+                    except AttributeError:
+                        st.error("❌ Chưa có hàm `update_tenant_logo()` trong control_plane.py. "
+                                 "Cần thêm hàm này (UPDATE tenants SET logo_url=%s WHERE ma_cty=%s) để nút này hoạt động.")
+                    except Exception as e:
+                        st.error(f"❌ Lỗi upload logo: {e}")
     else:
         st.info("Chưa có khách hàng nào. Thêm khách hàng đầu tiên ở form phía trên.")
 
@@ -4559,20 +4872,20 @@ if st.session_state.get('phai_doi_mat_khau'):
 # Menu theo role — 4 vai trò cố định: admin / hr / kt_luong / viewer (+ 'nhan_vien' tự phục vụ)
 if st.session_state.role == "admin":
     # Toàn quyền
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ",]
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo 01/PLI","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role in ["văn thư", "hr"]:
     # HR: như admin trừ Upload hồ sơ, Danh mục — và KHÔNG được xem Tính thu nhập (dữ liệu lương)
-    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","📋 Báo cáo 01/PLI","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ",]
+    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","📋 Báo cáo 01/PLI","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role == "kt_luong":
     # Kế toán lương: tập trung vào Chấm công + Tính thu nhập, không có Upload hồ sơ/Danh mục
-    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ",]
+    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role == "van_thu":
-    menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ",]
+    menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role == "viewer":
     # Viewer: chỉ xem, thu hẹp — không có BHXH, không có Tính thu nhập
-    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo 01/PLI","🕒 Chấm công","💬 Chat nội bộ",]
+    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo 01/PLI","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
 else:  # 'nhan_vien' thường — chỉ xem hồ sơ bản thân + chat nội bộ
-    menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","💬 Chat nội bộ"]
+    menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng"]
 menu = st.sidebar.radio("📋 Menu", menu_options)
 st.sidebar.divider()
 st.sidebar.caption(f"👤 {st.session_state.get('ho_ten_dang_nhap', st.session_state.username)} ({st.session_state.role})")
@@ -4674,23 +4987,23 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
             st.markdown(f"**📅 Ngày sinh:** {format_date(nv.get('ngay_sinh'))}")
             st.markdown(f"**⚧ Giới tính:** {nv.get('gioi_tinh', 'Chưa cập nhật')}")
             st.markdown(f"**💼 Chức danh:** {nv.get('chuc_danh_nghe', 'Chưa cập nhật')}")
-            st.markdown(f"**🏢 Phòng ban:** {nv.get('phong_ban_lam_viec', 'Chưa cập nhật')}")
+            st.markdown(f"**🏢 Phòng:** {nv.get('phong_ban_lam_viec', 'Chưa cập nhật')}")
+            st.markdown(f"**Chức vụ:** {nv.get('chuc_vu', 'Chưa cập nhật')}")
             st.markdown(f"**📞 SĐT:** {nv.get('dien_thoai', 'Chưa cập nhật')}")
 
         with info_col2:
-            st.markdown(f"**📧 Email:** {nv.get('email_lien_he', 'Chưa cập nhật')}")
+            st.markdown(f"**Số Hợp đồng:** {nv.get('so_hdld', 'Chưa cập nhật')}")
             st.markdown(f"**📋 Loại HĐ:** {nv.get('loai_hop_dong', 'Chưa cập nhật')}")
             st.markdown(f"**📅 Ngày vào làm:** {format_date(nv.get('ngay_vao_lam'))}")
             st.markdown(f"**🎓 Trình độ:** {nv.get('trinh_do', 'Chưa cập nhật')}")
             st.markdown(f"**📇 Mã BHXH:** {nv.get('ma_so_bhxh', 'Chưa có')}")
-
-        trang_thai_text = {
-            'DANG_LAM': '🟢 Đang làm',
-            'THU_VIEC': '🔵 Thử việc',
-            'NGHI_VIEC': '🔴 Đã nghỉ'
-        }
-        status = trang_thai_text.get(nv.get('trang_thai'), nv.get('trang_thai', 'Chưa xác định'))
-        st.markdown(f"**📊 Trạng thái:** {status}")
+            trang_thai_text = {
+                'DANG_LAM': '🟢 Đang làm',
+                'THU_VIEC': '🔵 Thử việc',
+                'NGHI_VIEC': '🔴 Đã nghỉ'
+            }
+            status = trang_thai_text.get(nv.get('trang_thai'), nv.get('trang_thai', 'Chưa xác định'))
+            st.markdown(f"**📊 Trạng thái:** {status}")
 
     # ===== Nút hành động (thêm nút "Đóng" ở cuối) =====
     st.divider()
@@ -5259,21 +5572,21 @@ if menu == "📊 Dashboard":
         """)
         role_data = c_dash.fetchall()
 
-        # e. Cơ cấu theo Thâm niên
+        # e. Cơ cấu theo Độ tuổi
         c_dash.execute("""
             SELECT 
                 CASE 
-                    WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)) < 1 THEN 'Dưới 1 năm'
-                    WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)) BETWEEN 1 AND 3 THEN '1-3 năm'
-                    WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)) BETWEEN 3 AND 5 THEN '3-5 năm'
-                    WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)) BETWEEN 5 AND 10 THEN '5-10 năm'
-                    ELSE 'Trên 10 năm'
-                END as "Thâm niên",
+                    WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_sinh)) < 25 THEN 'Dưới 25 tuổi'
+                    WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_sinh)) BETWEEN 25 AND 34 THEN '25-34 tuổi'
+                    WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_sinh)) BETWEEN 35 AND 44 THEN '35-44 tuổi'
+                    WHEN EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_sinh)) BETWEEN 45 AND 54 THEN '45-54 tuổi'
+                    ELSE 'Từ 55 tuổi trở lên'
+                END as "Độ tuổi",
                 COUNT(*) as "Số lượng"
             FROM nhan_vien
-            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
-            GROUP BY "Thâm niên"
-            ORDER BY MIN(EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_vao_lam)))
+            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') AND ngay_sinh IS NOT NULL
+            GROUP BY "Độ tuổi"
+            ORDER BY MIN(EXTRACT(YEAR FROM age(CURRENT_DATE, ngay_sinh)))
         """)
         seniority_data = c_dash.fetchall()
 
@@ -5539,17 +5852,17 @@ if menu == "📊 Dashboard":
                 st.info("Không có dữ liệu")
 
         with row3_col2:
-            st.markdown("**⏳ Cơ cấu theo Thâm niên**")
+            st.markdown("**🎂 Cơ cấu theo Độ tuổi**")
             if seniority_data:
                 df_sen = pd.DataFrame(seniority_data)
-                order = ['Dưới 1 năm', '1-3 năm', '3-5 năm', '5-10 năm', 'Trên 10 năm']
-                df_sen['Thâm niên'] = pd.Categorical(df_sen['Thâm niên'], categories=order, ordered=True)
-                df_sen = df_sen.sort_values('Thâm niên')
+                order = ['Dưới 25 tuổi', '25-34 tuổi', '35-44 tuổi', '45-54 tuổi', 'Từ 55 tuổi trở lên']
+                df_sen['Độ tuổi'] = pd.Categorical(df_sen['Độ tuổi'], categories=order, ordered=True)
+                df_sen = df_sen.sort_values('Độ tuổi')
                 
                 # Sử dụng biểu đồ tròn với màu sắc gradient
                 colors = ['#FFEAA7', '#FDCB6E', '#E17055', '#D63031', '#6C5CE7']
                 fig_sen = go.Figure(data=[go.Pie(
-                    labels=df_sen['Thâm niên'],
+                    labels=df_sen['Độ tuổi'],
                     values=df_sen['Số lượng'],
                     marker=dict(colors=colors[:len(df_sen)]),
                     textinfo='label+percent',
@@ -6211,6 +6524,7 @@ elif menu == "✅ Nhân viên":
     st.title("✅ Quản lý nhân viên")
     ensure_qdns_columns()
     ensure_qdns_table()
+    ensure_mau_dieu_hop_dong_table()
 
     tab_dang_lam, tab_da_nghi, tab_qtct, tab_qdns = st.tabs(["📌 ĐANG LÀM VIỆC", "📋 ĐÃ NGHỈ VIỆC", "📜 LỊCH SỬ CÔNG TÁC", "📜 QUYẾT ĐỊNH NHÂN SỰ"])
     
@@ -7735,12 +8049,13 @@ elif menu == "✅ Nhân viên":
     st.divider()
     st.subheader("📊 Báo cáo tăng/giảm nhân sự trong kỳ")
     
-    col_from, col_to, col_btn = st.columns([2, 2, 1])
+    col_from, col_to = st.columns(2)
     with col_from:
         tu_ngay_bc = st.date_input("Từ ngày:", value=date.today().replace(day=1), key="bc_tu")
     with col_to:
         den_ngay_bc = st.date_input("Đến ngày:", value=date.today(), key="bc_den")
-    with col_btn:
+    row2_c1, row2_c2, row2_c3 = st.columns(3)
+    with row2_c3:
         xuat_bc = st.button("📄 XUẤT BÁO CÁO WORD", width='stretch')
     
     if xuat_bc:
@@ -7820,7 +8135,8 @@ elif menu == "✅ Nhân viên":
             st.info("Không có nhân viên đang làm việc.")
         else:
             nv_qd_options = {f"{nv['ma_nv']} - {nv['ho_ten']}": nv for nv in nv_qd_list}
-            chon_nv_label = st.selectbox("👤 Chọn nhân viên:", list(nv_qd_options.keys()), key="qdns_chon_nv")
+            chon_nv_label = st.selectbox("👤 Chọn nhân viên:", list(nv_qd_options.keys()), key="qdns_chon_nv",
+                                          help="💡 Bấm vào ô rồi gõ tên/mã NV để lọc nhanh — không cần scroll (Ctrl+F trình duyệt không lọc được ô này).")
             nv_qd = nv_qd_options[chon_nv_label]
 
             col_info1, col_info2, col_info3 = st.columns(3)
@@ -8915,7 +9231,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
         else:
             st.info(f"Chưa có {tieu_de.lower()} nào.")
 
-    tab_pb, tab_cd, tab_hd, tab_hv = st.tabs(["🏢 Phòng ban", "💼 Chức danh", "📄 Loại hợp đồng", "🎓 Trình độ học vấn"])
+    tab_pb, tab_cd, tab_hd, tab_hv, tab_mau_hd = st.tabs(["🏢 Phòng ban", "💼 Chức danh", "📄 Loại hợp đồng", "🎓 Trình độ học vấn", "📃 Mẫu Hợp đồng"])
 
     with tab_pb:
         _quan_ly_danh_muc_don_gian("danh_muc_phong_ban", "ten_phong_ban", "Phòng ban", "VD: Kinh doanh")
@@ -8953,6 +9269,59 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
 
     with tab_hv:
         _quan_ly_danh_muc_don_gian("danh_muc_trinh_do_hoc_van", "ten_trinh_do", "Trình độ học vấn", "VD: Cử nhân")
+
+    with tab_mau_hd:
+        st.caption("Tuỳ chỉnh nội dung từng Điều trong Hợp đồng lao động (HĐLĐ) và Hợp đồng thử việc (HĐTV). "
+                   "Điều nào chưa tuỳ chỉnh sẽ tự dùng nội dung mặc định. "
+                   "Có thể dùng {vi_tri}, {ngay_hieu_luc} (HĐLĐ - Điều 1) hoặc {vi_tri}, {ngay_bat_dau}, {ngay_ket_thuc} (HĐTV - Điều 1) "
+                   "— hệ thống sẽ tự thay bằng thông tin thực tế của từng nhân viên khi in. "
+                   "Dòng bắt đầu bằng '## ' sẽ in đậm làm tiêu đề phụ (VD: '## 1. Nghĩa vụ:').")
+
+        loai_hd_chon = st.radio("Chọn loại hợp đồng:", ["HĐLĐ (không xác định thời hạn)", "HĐTV (thử việc)"],
+                                 horizontal=True, key="mau_hd_loai")
+        loai_hd_ma = "HDLD" if loai_hd_chon.startswith("HĐLĐ") else "HDTV"
+        mac_dinh = DEFAULT_DIEU_HDLD if loai_hd_ma == "HDLD" else DEFAULT_DIEU_HDTV
+
+        tuy_chinh_hien_tai = get_all_dieu_hop_dong(loai_hd_ma)
+
+        for ma_dieu in ["dieu1", "dieu2", "dieu3", "dieu4", "dieu5"]:
+            mac_dinh_tieu_de, mac_dinh_noi_dung = mac_dinh.get(ma_dieu, ("", ""))
+            if not mac_dinh_tieu_de and ma_dieu not in mac_dinh:
+                continue  # loại HĐ này không có điều này (VD HĐTV không có dieu1 mặc định cũ)
+            hien_tai_tieu_de, hien_tai_noi_dung = tuy_chinh_hien_tai.get(ma_dieu, (mac_dinh_tieu_de, mac_dinh_noi_dung))
+            with st.expander(f"📝 {hien_tai_tieu_de or ma_dieu}", expanded=False):
+                tieu_de_moi = st.text_input("Tiêu đề Điều:", value=hien_tai_tieu_de, key=f"mau_hd_td_{loai_hd_ma}_{ma_dieu}")
+                noi_dung_moi = st.text_area("Nội dung:", value=hien_tai_noi_dung, height=220, key=f"mau_hd_nd_{loai_hd_ma}_{ma_dieu}")
+                col_luu, col_reset = st.columns(2)
+                with col_luu:
+                    if st.button("💾 Lưu", key=f"mau_hd_save_{loai_hd_ma}_{ma_dieu}", width='stretch', type="primary"):
+                        try:
+                            db = st.session_state.db_engine.get_connection()
+                            c = db.cursor()
+                            c.execute("""
+                                INSERT INTO mau_dieu_hop_dong (loai_hd, ma_dieu, tieu_de, noi_dung, updated_at)
+                                VALUES (%s, %s, %s, %s, NOW())
+                                ON CONFLICT (loai_hd, ma_dieu) DO UPDATE
+                                SET tieu_de = EXCLUDED.tieu_de, noi_dung = EXCLUDED.noi_dung, updated_at = NOW()
+                            """, (loai_hd_ma, ma_dieu, tieu_de_moi, noi_dung_moi))
+                            db.commit(); db.close()
+                            get_all_dieu_hop_dong.clear()
+                            st.success(f"✅ Đã lưu {ma_dieu}")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Lỗi: {e}")
+                with col_reset:
+                    if st.button("↩️ Khôi phục mặc định", key=f"mau_hd_reset_{loai_hd_ma}_{ma_dieu}", width='stretch'):
+                        try:
+                            db = st.session_state.db_engine.get_connection()
+                            c = db.cursor()
+                            c.execute("DELETE FROM mau_dieu_hop_dong WHERE loai_hd=%s AND ma_dieu=%s", (loai_hd_ma, ma_dieu))
+                            db.commit(); db.close()
+                            get_all_dieu_hop_dong.clear()
+                            st.success("✅ Đã khôi phục mặc định")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Lỗi: {e}")
 
 # ========== BHXH ==========
 elif menu == "📋 BHXH":
@@ -10520,6 +10889,119 @@ elif menu == "💬 Chat nội bộ":
             </div>
             """, unsafe_allow_html=True)
 
+
+
+# ========== CHATBOT GIẢI ĐÁP ==========
+elif menu == "🤖 Chatbot Giải đáp":
+    st.title("🤖 AI Tư vấn Hành chính Nhân sự")
+    st.caption("BHXH · BHYT · Thuế TNCN · Lao động · Thai sản · Thất nghiệp — AI phân tích và trích dẫn điều luật cụ thể.")
+
+    if "chatbot_history" not in st.session_state:
+        st.session_state.chatbot_history = []
+    if "chatbot_display" not in st.session_state:
+        st.session_state.chatbot_display = []
+
+    cau_hoi_bam = None
+    if not st.session_state.chatbot_display:
+        st.markdown("""
+        <div style="text-align:center;padding-top:10px;">
+            <div style="font-size:36px;margin-bottom:8px;">⚖️</div>
+            <h3 style="color:#1e3a5f;">Chào mừng đến với AI Tư vấn HCNS</h3>
+            <p style="font-size:13px;color:#6b7280;line-height:1.7;">Hỏi về quyền lợi BHXH, BHYT, thai sản, thất nghiệp,
+            thuế TNCN, hợp đồng lao động — tôi sẽ phân tích và trích dẫn điều luật cụ thể.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        cau_hoi_mau = [
+            ("🤰", "Chế độ thai sản", "Tôi đang mang thai, cần đóng BHXH bao lâu để hưởng thai sản? Nghỉ được mấy tháng và hưởng mức lương bao nhiêu?"),
+            ("💰", "Tính thuế TNCN", "Lương gross 20 triệu, có 1 người phụ thuộc, đóng BHXH 8%, thuế TNCN phải nộp bao nhiêu?"),
+            ("📋", "Trợ cấp thất nghiệp", "Tôi đã đóng BHTN được 3 năm liên tục, vừa mất việc. Được hưởng trợ cấp thất nghiệp bao nhiêu tháng và mức hưởng tính thế nào?"),
+            ("🏥", "BHXH ốm đau", "Nhân viên đã đóng BHXH 10 năm, bị ốm nghỉ 45 ngày liên tiếp trong năm. Mức hưởng BHXH ốm đau tính thế nào?"),
+            ("📝", "Hợp đồng lao động", "Công ty muốn chấm dứt hợp đồng với nhân viên đã làm 3 năm. Cần thực hiện đúng quy trình gì và có phải trả trợ cấp thôi việc không?"),
+            ("👨‍👩‍👧", "Giảm trừ gia cảnh", "Điều kiện và thủ tục đăng ký người phụ thuộc để giảm trừ gia cảnh thuế TNCN là gì? Hồ sơ gồm những gì?"),
+        ]
+        cols_q = st.columns(3)
+        for i, (icon, label, full_q) in enumerate(cau_hoi_mau):
+            with cols_q[i % 3]:
+                if st.button(f"{icon} {label}", key=f"chatbot_qb_{i}", width='stretch'):
+                    cau_hoi_bam = full_q
+    else:
+        for msg in st.session_state.chatbot_display:
+            if msg["role"] == "user":
+                with st.chat_message("user"):
+                    st.markdown(msg["text"])
+            else:
+                with st.chat_message("assistant", avatar="⚖️"):
+                    st.markdown(_chatbot_render_answer_html(msg["data"]), unsafe_allow_html=True)
+
+    cau_hoi_go = st.chat_input("Đặt câu hỏi về BHXH, thuế TNCN, thai sản, hợp đồng lao động...")
+    cau_hoi_cuoi = cau_hoi_bam or cau_hoi_go
+
+    if cau_hoi_cuoi:
+        st.session_state.chatbot_display.append({"role": "user", "text": cau_hoi_cuoi})
+        st.session_state.chatbot_history.append({"role": "user", "content": cau_hoi_cuoi})
+        with st.spinner("⚖️ Đang phân tích điều luật liên quan..."):
+            laws = _chatbot_detect_laws(cau_hoi_cuoi)
+            system_prompt = _chatbot_system_prompt(laws)
+            ket_qua = _chatbot_call_claude(system_prompt, st.session_state.chatbot_history)
+        st.session_state.chatbot_history.append({"role": "assistant", "content": json.dumps(ket_qua, ensure_ascii=False)})
+        st.session_state.chatbot_display.append({"role": "ai", "data": ket_qua})
+        st.rerun()
+
+    st.caption("ℹ️ Kết quả tư vấn mang tính tham khảo. Vui lòng xác nhận với chuyên gia pháp lý cho các quyết định quan trọng.")
+    if st.session_state.chatbot_display:
+        if st.button("🗑️ Xoá lịch sử trò chuyện"):
+            st.session_state.chatbot_history = []
+            st.session_state.chatbot_display = []
+            st.rerun()
+
+# ========== HƯỚNG DẪN SỬ DỤNG ==========
+elif menu == "📘 Hướng dẫn sử dụng":
+    st.title("📘 Hướng dẫn sử dụng HRM-Port")
+    st.caption("Tổng quan các chức năng chính của hệ thống — dành cho người dùng mới.")
+
+    st.markdown("""
+### 📊 Dashboard
+Bức tranh tổng quan về nhân sự: tổng số nhân viên, cơ cấu theo phòng ban, độ tuổi, giới tính, xu hướng tuyển dụng...
+giúp Ban điều hành nắm tình hình chỉ trong vài giây, không cần chờ báo cáo tổng hợp thủ công.
+
+### ✅ Nhân viên
+Quản lý toàn bộ hồ sơ nhân viên: thêm mới, cập nhật thông tin, tra cứu nhanh, in Hợp đồng lao động/Hợp đồng thử việc,
+ra các Quyết định nhân sự (bổ nhiệm, điều chuyển, chấm dứt HĐLĐ...).
+
+🎉 **Đặc biệt: Gửi lời chúc sinh nhật tự động** — hệ thống tự nhắc và hỗ trợ gửi lời chúc mừng sinh nhật đến từng
+CBCNV. Đây là một chi tiết nhỏ nhưng có sức nặng lớn: nó giúp gắn kết giữa Ban điều hành với người lao động,
+khiến nhân viên cảm thấy được quan tâm như một cá nhân chứ không chỉ là một con số trên bảng lương — góp phần
+xây dựng văn hoá doanh nghiệp gắn bó, nhân văn.
+
+### 📋 BHXH / 📋 Báo cáo 01/PLI
+Theo dõi tình hình đóng BHXH, tự tạo báo cáo tăng/giảm D02-LT, dự toán số tiền phải đóng theo kỳ — giảm tối đa
+thao tác thủ công so với việc tự tổng hợp trên Excel.
+
+### 🕒 Chấm công / 💰 Tính thu nhập
+Quản lý chấm công theo ca, tự động tính lương, phụ cấp, các khoản khấu trừ theo đúng quy định hiện hành.
+
+### 📄 Quản lý Công văn & HĐ kinh tế
+Lưu trữ, tra cứu công văn đến/đi và hợp đồng kinh tế tập trung — tránh thất lạc, dễ dàng tìm lại khi cần đối chiếu.
+
+### ⏰ Báo cáo tự động & Nhắc hạn — không lo bị "miss" deadline
+Hệ thống có các loại **báo cáo tự động** (tăng/giảm nhân sự, BHXH, hợp đồng...) giúp tiết kiệm thời gian tổng hợp
+thủ công, đồng thời có **thông báo nhắc nhở các mốc quan trọng sắp đến hạn** (hết hạn HĐLĐ, hết hạn thử việc...),
+giúp bộ phận Nhân sự chủ động xử lý trước hạn, tránh bỏ sót ảnh hưởng đến quyền lợi người lao động và rủi ro pháp lý
+cho doanh nghiệp.
+
+### 📊 Menu Báo cáo
+Nơi tập trung liệt kê và chạy tất cả các loại báo cáo nhân sự sẵn có, xuất trực tiếp ra file để gửi cho Ban giám đốc,
+cơ quan BHXH, hoặc lưu trữ nội bộ mà không cần thao tác qua nhiều màn hình.
+
+### 🤖 Chatbot Giải đáp
+Trợ lý AI trả lời nhanh các câu hỏi về BHXH, BHYT, thuế TNCN, thai sản, thất nghiệp, hợp đồng lao động — có trích dẫn
+điều luật cụ thể, giúp CBCNV và bộ phận Nhân sự tự tra cứu quyền lợi mà không cần chờ hỏi trực tiếp.
+
+### 💬 Chat nội bộ
+Kênh trao đổi nội bộ ngay trong app — không cần chuyển qua ứng dụng nhắn tin khác.
+""")
+
+    st.info("💡 Có thắc mắc trong quá trình sử dụng, hãy dùng ngay mục **🤖 Chatbot Giải đáp** hoặc liên hệ bộ phận Nhân sự / IT để được hỗ trợ.")
 
 st.sidebar.divider()
 st.sidebar.caption("© 2026 HRM | Nền tảng Quản lý nhân sự đa doanh nghiệp")

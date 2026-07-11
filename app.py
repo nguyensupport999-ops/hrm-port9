@@ -555,6 +555,16 @@ def sap_xep_nhan_vien(ds_nv):
         return (pb_key, cv_key, nv.get('ho_ten') or '')
     return sorted(ds_nv, key=key_fn)
 
+def sap_xep_phong_ban_rows(rows, key_field="Phòng ban"):
+    """Sắp xếp list các dict/RealDictRow theo thứ tự phòng ban chuẩn (PHONG_BAN_THU_TU)."""
+    def key_fn(row):
+        ten = row.get(key_field) or ""
+        try:
+            return (0, PHONG_BAN_THU_TU.index(ten))
+        except ValueError:
+            return (1, ten)
+    return sorted(rows, key=key_fn)
+
 def get_phong_ban_options():
     try:
         db = st.session_state.db_engine.get_connection()
@@ -5191,7 +5201,8 @@ if menu == "📊 Dashboard":
             GROUP BY phong_ban_lam_viec
             ORDER BY "Tổng số" DESC
         """)
-        table_data = sap_xep_phong_ban_rows(table_data, "Phòng ban")   # xem hàm phụ bên dưới
+        table_data = c_dash.fetchall()
+        table_data = sap_xep_phong_ban_rows(table_data, "Phòng ban")
         
         # 2. Dữ liệu cho các biểu đồ
         # a. Tỷ lệ nhân sự mỗi phòng ban
@@ -5201,6 +5212,7 @@ if menu == "📊 Dashboard":
             GROUP BY phong_ban_lam_viec
             ORDER BY "Số lượng" DESC
         """)
+        dept_data = c_dash.fetchall()
         dept_data = sap_xep_phong_ban_rows(dept_data, "Phòng ban")
 
         # b. Cơ cấu theo giới tính

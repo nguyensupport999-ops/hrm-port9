@@ -2542,6 +2542,53 @@ def update_so_max_cong_van(loai, so_moi):
     except:
         return False
 
+# === Cấu hình + đánh số Hợp đồng kinh tế (HĐKT): mẫu "stt/năm/Prefix-ma_cty" ===
+def get_hdkt_prefix():
+    """Lấy prefix đánh số HĐKT hiện tại (mặc định 'HĐKT'), cho phép admin tuỳ chỉnh."""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("SELECT gia_tri FROM cau_hinh_he_thong WHERE ten_cau_hinh = 'hdkt_prefix'")
+        result = c.fetchone()
+        db.close()
+        return result[0] if result and result[0] else 'HĐKT'
+    except:
+        return 'HĐKT'
+
+def update_hdkt_prefix(prefix):
+    """Cập nhật prefix đánh số HĐKT (chỉ Admin)."""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("""
+            INSERT INTO cau_hinh_he_thong (ten_cau_hinh, gia_tri, ghi_chu)
+            VALUES ('hdkt_prefix', %s, 'Prefix đánh số Hợp đồng kinh tế')
+            ON CONFLICT (ten_cau_hinh) DO UPDATE SET gia_tri = EXCLUDED.gia_tri, updated_at = NOW()
+        """, (prefix,))
+        db.commit(); db.close()
+        return True
+    except:
+        return False
+
+def preview_so_hdkt():
+    """Chỉ XEM TRƯỚC số HĐKT tiếp theo (dạng stt/năm/Prefix-ma_cty) - KHÔNG ghi/tăng số max."""
+    prefix = get_hdkt_prefix()
+    ma_cty = st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL'
+    nam_hien_tai = datetime.now().year
+    so_max = get_so_max_cong_van('HDKT')
+    so_moi = so_max + 1
+    return f"{so_moi:02d}/{nam_hien_tai}/{prefix}-{ma_cty}", prefix
+
+def generate_so_hdkt():
+    """Sinh số HĐKT CHÍNH THỨC + cập nhật số max. CHỈ gọi khi bấm 'Lưu Hợp đồng'."""
+    prefix = get_hdkt_prefix()
+    ma_cty = st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL'
+    nam_hien_tai = datetime.now().year
+    so_max = get_so_max_cong_van('HDKT')
+    so_moi = so_max + 1
+    update_so_max_cong_van('HDKT', so_moi)
+    return f"{so_moi:02d}/{nam_hien_tai}/{prefix}-{ma_cty}"
+
 # === Ánh xạ mã loại công văn (bảng danh_muc_loai_cong_van) <-> mã loại nội bộ dùng cho cấu hình/đánh số ===
 # Lưu ý: cột ma_loai trong danh_muc_loai_cong_van lưu chính là ký hiệu hiển thị (QĐ, CV, BC, TB, TTr),
 # trong khi bảng cau_hinh_cong_van và bộ lọc loại công văn dùng mã nội bộ (QUYET_DINH, CONG_VAN, ...).
@@ -2979,6 +3026,20 @@ def show_quan_ly_cong_van():
                         if st.button("✖️ Hủy", key="cancel_dat_lai_so"):
                             del st.session_state['cv_pending_reset']
                             st.rerun()
+
+        with st.expander("⚙️ Cấu hình đánh số Hợp đồng kinh tế (HĐKT)", expanded=False):
+            st.caption("Số HĐKT tự sinh theo mẫu: **stt/năm/Prefix-ma_cty** (VD: 04/2026/HĐKT-CHL)")
+            prefix_hdkt_hien_tai = get_hdkt_prefix()
+            prefix_hdkt_moi = st.text_input(
+                "Prefix đánh số HĐKT:", value=prefix_hdkt_hien_tai, key="hdkt_prefix_input"
+            )
+            if st.button("✅ Cập nhật prefix HĐKT", key="btn_update_hdkt_prefix"):
+                if prefix_hdkt_moi.strip() and update_hdkt_prefix(prefix_hdkt_moi.strip()):
+                    st.success(f"✅ Đã cập nhật prefix HĐKT sang: {prefix_hdkt_moi.strip()}")
+                    st.cache_data.clear()
+                    st.rerun()
+                else:
+                    st.error("❌ Cập nhật thất bại!")
     
     # Tabs
     tab1, tab2, tab3 = st.tabs(["📥 Công văn đến", "📤 Công văn đi", "📑 Hợp đồng kinh tế"])
@@ -3289,10 +3350,18 @@ def show_quan_ly_cong_van():
         
         # Form thêm mới
         with st.expander("➕ Thêm hợp đồng kinh tế mới", expanded=False):
+            so_hd_xem_truoc, prefix_hdkt_dang_dung = preview_so_hdkt()
+            st.info(
+                f"📄 **Số HĐKT dự kiến:** `{so_hd_xem_truoc}` (Prefix: **{prefix_hdkt_dang_dung}**) "
+                f"— số chính thức sẽ được cấp khi bấm **Lưu Hợp đồng**"
+            )
             with st.form("add_hop_dong_kt"):
                 col1, col2 = st.columns(2)
                 with col1:
-                    so_hd = st.text_input("Số hợp đồng *", placeholder="VD: HD-01/2026/CHL")
+                    so_hd_tuy_chinh = st.text_input(
+                        "Số hợp đồng (để trống sẽ tự cấp số theo cấu hình trên)",
+                        placeholder=so_hd_xem_truoc
+                    )
                     ten_doi_tac = st.text_input("Tên đối tác *", placeholder="VD: Công ty TNHH ABC")
                     ngay_ky = st.date_input("Ngày ký *", value=date.today())
                 with col2:
@@ -3304,10 +3373,14 @@ def show_quan_ly_cong_van():
                 col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
                 with col_btn2:
                     if st.form_submit_button("💾 Lưu hợp đồng", width='stretch', type="primary"):
-                        if not so_hd or not ten_doi_tac:
+                        if not ten_doi_tac:
                             st.error("⚠️ Vui lòng nhập đầy đủ các trường bắt buộc (*)")
                         else:
                             try:
+                                # Số hợp đồng: nếu admin nhập tay thì dùng số đó (không tăng số max),
+                                # nếu để trống thì cấp số CHÍNH THỨC theo cấu hình (và tăng số max)
+                                so_hd = so_hd_tuy_chinh.strip() if so_hd_tuy_chinh.strip() else generate_so_hdkt()
+
                                 # Upload file
                                 file_url = None
                                 if uploaded_file:
@@ -4154,6 +4227,39 @@ def ensure_mau_dieu_hop_dong_table():
         print(f"Lỗi ensure_mau_dieu_hop_dong_table: {e}")
         return False
 
+def ensure_chuc_danh_ung_vien_table():
+    """Danh mục 'Vị trí dự tuyển' RIÊNG cho Ứng viên - độc lập với vi_tri_cong_tac (chức danh
+    Nhân viên), để đổi danh mục chức danh Nhân viên không làm mất khả năng tìm/nhập ứng viên
+    theo các chức danh cũ. Tự động khởi tạo dữ liệu từ các giá trị vi_tri_du_tuyen đã có sẵn
+    trong bảng ung_vien (chỉ chạy 1 lần, khi bảng còn trống)."""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS chuc_danh_ung_vien (
+                id SERIAL PRIMARY KEY,
+                ten_chuc_danh VARCHAR(150) UNIQUE NOT NULL,
+                ghi_chu TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        db.commit()
+        c.execute("SELECT COUNT(*) FROM chuc_danh_ung_vien")
+        so_luong = c.fetchone()[0]
+        if so_luong == 0:
+            # Nạp dữ liệu ban đầu từ các vị trí dự tuyển đã có trong ung_vien (chức danh cũ)
+            c.execute("""SELECT DISTINCT vi_tri_du_tuyen FROM ung_vien 
+                         WHERE vi_tri_du_tuyen IS NOT NULL AND vi_tri_du_tuyen != ''""")
+            ds_cu = [row[0] for row in c.fetchall()]
+            for ten in ds_cu:
+                c.execute("INSERT INTO chuc_danh_ung_vien (ten_chuc_danh) VALUES (%s) ON CONFLICT DO NOTHING", (ten,))
+            db.commit()
+        c.close(); db.close()
+        return True
+    except Exception as e:
+        print(f"Lỗi ensure_chuc_danh_ung_vien_table: {e}")
+        return False
+
 # Nội dung MẶC ĐỊNH của từng Điều — dùng khi admin CHƯA tuỳ chỉnh gì.
 # Dòng bắt đầu bằng "## " sẽ được in đậm (tiêu đề phụ, VD "1. Nghĩa vụ:").
 # Có thể dùng {vi_tri}, {ngay_hieu_luc} trong nội dung Điều 1 — sẽ tự thay bằng thông tin nhân viên.
@@ -4240,23 +4346,43 @@ class _SafeDict(dict):
 @st.cache_data(ttl=60, show_spinner=False)
 def get_all_dieu_hop_dong(loai_hd):
     """Lấy toàn bộ nội dung Điều đã tuỳ chỉnh (nếu có) cho 1 loại hợp đồng ('HDLD'/'HDTV').
-    Trả về dict {ma_dieu: (tieu_de, noi_dung)}."""
+    Trả về dict {ma_dieu: (tieu_de, noi_dung, thu_tu)}."""
     ket_qua = {}
     try:
         db = st.session_state.db_engine.get_connection()
         c = db.cursor()
-        c.execute("SELECT ma_dieu, tieu_de, noi_dung FROM mau_dieu_hop_dong WHERE loai_hd=%s", (loai_hd,))
-        for ma_dieu, tieu_de, noi_dung in c.fetchall():
-            ket_qua[ma_dieu] = (tieu_de, noi_dung)
+        c.execute("SELECT ma_dieu, tieu_de, noi_dung, thu_tu FROM mau_dieu_hop_dong WHERE loai_hd=%s ORDER BY thu_tu ASC, ma_dieu ASC", (loai_hd,))
+        for ma_dieu, tieu_de, noi_dung, thu_tu in c.fetchall():
+            ket_qua[ma_dieu] = (tieu_de, noi_dung, thu_tu)
         db.close()
     except Exception:
         pass
     return ket_qua
 
+def get_ds_ma_dieu(tuy_chinh):
+    """Trả về danh sách mã Điều theo đúng thứ tự hiển thị/in ấn: 5 Điều mặc định (dieu1..dieu5)
+    luôn giữ nguyên thứ tự gốc, cộng thêm các Điều admin tự thêm mới (không giới hạn số lượng)
+    được sắp xếp chèn theo cột thu_tu."""
+    mac_dinh_keys = ["dieu1", "dieu2", "dieu3", "dieu4", "dieu5"]
+    them_moi = [(md, (info[2] if len(info) > 2 and info[2] else 999)) 
+                for md, info in tuy_chinh.items() if md not in mac_dinh_keys]
+    them_moi.sort(key=lambda x: (x[1], x[0]))
+    return mac_dinh_keys + [md for md, _ in them_moi]
+
+def sinh_ma_dieu_moi(tuy_chinh_hdld, tuy_chinh_hdtv):
+    """Sinh mã Điều mới tự động (dieu6, dieu7, ...) không trùng với bất kỳ Điều nào đã có
+    ở CẢ 2 loại hợp đồng, để tránh nhầm lẫn khi admin chuyển qua lại giữa HĐLĐ/HĐTV."""
+    so_hien_co = [5]
+    for md in list(tuy_chinh_hdld.keys()) + list(tuy_chinh_hdtv.keys()):
+        if md.startswith("dieu") and md[4:].isdigit():
+            so_hien_co.append(int(md[4:]))
+    return f"dieu{max(so_hien_co) + 1}"
+
 def get_dieu_content(loai_hd, ma_dieu, tuy_chinh, mac_dinh):
     """Trả về (tieu_de, noi_dung) — ưu tiên bản admin đã tuỳ chỉnh, nếu chưa có thì dùng mặc định."""
     if ma_dieu in tuy_chinh:
-        return tuy_chinh[ma_dieu]
+        info = tuy_chinh[ma_dieu]
+        return info[0], info[1]
     return mac_dinh.get(ma_dieu, ("", ""))
 
 def render_dieu(doc, add_p, tieu_de, noi_dung, context=None):
@@ -4362,8 +4488,10 @@ def tao_hop_dong(nv):
     # ===== NỘI DUNG CÁC ĐIỀU: lấy bản admin đã tuỳ chỉnh (nếu có), fallback về mặc định =====
     tuy_chinh_hdld = get_all_dieu_hop_dong('HDLD')
     ctx_hdld = {"vi_tri": nv.get("chuc_danh_nghe", ""), "ngay_hieu_luc": ns2}
-    for ma_dieu in ["dieu1", "dieu2", "dieu3", "dieu4", "dieu5"]:
+    for ma_dieu in get_ds_ma_dieu(tuy_chinh_hdld):
         tieu_de, noi_dung = get_dieu_content("HDLD", ma_dieu, tuy_chinh_hdld, DEFAULT_DIEU_HDLD)
+        if not tieu_de and not noi_dung:
+            continue
         render_dieu(doc, add_p, tieu_de, noi_dung, context=ctx_hdld)
     add_p('Bản HĐ này lập tại văn phòng Công ty CP Cảng Hòn La.'); doc.add_paragraph()
     ts=doc.add_table(rows=3,cols=2); ts.alignment=WD_TABLE_ALIGNMENT.CENTER; remove_table_border(ts)
@@ -4459,8 +4587,10 @@ def tao_hop_dong_thu_viec(nv):
     # ===== NỘI DUNG CÁC ĐIỀU: lấy bản admin đã tuỳ chỉnh (nếu có), fallback về mặc định =====
     tuy_chinh_hdtv = get_all_dieu_hop_dong('HDTV')
     ctx_hdtv = {"vi_tri": nv.get("chuc_danh_nghe", ""), "ngay_bat_dau": ns_bd, "ngay_ket_thuc": ns_kt}
-    for ma_dieu in ["dieu1", "dieu2", "dieu3", "dieu4", "dieu5"]:
+    for ma_dieu in get_ds_ma_dieu(tuy_chinh_hdtv):
         tieu_de, noi_dung = get_dieu_content("HDTV", ma_dieu, tuy_chinh_hdtv, DEFAULT_DIEU_HDTV)
+        if not tieu_de and not noi_dung:
+            continue
         render_dieu(doc, add_p, tieu_de, noi_dung, context=ctx_hdtv)
     add_p('Bản HĐ này lập tại văn phòng Công ty CP Cảng Hòn La.'); doc.add_paragraph()
     ts=doc.add_table(rows=3,cols=2); ts.alignment=WD_TABLE_ALIGNMENT.CENTER; remove_table_border(ts)
@@ -6083,6 +6213,7 @@ if menu == "📊 Dashboard":
 # ========== ỨNG VIÊN ==========
 elif menu == "👤 Ứng viên":
     st.title("👤 Ứng viên")
+    ensure_chuc_danh_ung_vien_table()
     su = st.text_input("🔍 Tìm kiếm", key="suv")
     
     # Kiểm tra nếu đang chuyển từ ứng viên sang nhân viên
@@ -6306,7 +6437,7 @@ elif menu == "👤 Ứng viên":
     
     db_f = st.session_state.db_engine.get_connection()
     c_f = db_f.cursor()
-    c_f.execute("SELECT ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
+    c_f.execute("SELECT ten_chuc_danh FROM chuc_danh_ung_vien ORDER BY ten_chuc_danh")
     ds_vi_tri = [row[0] for row in c_f.fetchall()]
     c_f.execute("SELECT DISTINCT vi_tri_du_tuyen FROM ung_vien WHERE vi_tri_du_tuyen IS NOT NULL AND vi_tri_du_tuyen != '' ORDER BY vi_tri_du_tuyen")
     for row in c_f.fetchall():
@@ -6324,7 +6455,7 @@ elif menu == "👤 Ứng viên":
             with st.form("add_uv_form"):
                 db_f = st.session_state.db_engine.get_connection()
                 c_f = db_f.cursor()
-                c_f.execute("SELECT ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
+                c_f.execute("SELECT ten_chuc_danh FROM chuc_danh_ung_vien ORDER BY ten_chuc_danh")
                 ds_vt_uv = [row[0] for row in c_f.fetchall()]
                 db_f.close()
                 
@@ -6550,19 +6681,22 @@ elif menu == "👤 Ứng viên":
                         del st.session_state['edit_uv_id']
                         st.rerun()
     
-    # Quản lý danh mục vị trí dự tuyển (chỉ admin)
+    # Quản lý danh mục vị trí dự tuyển (chỉ admin) - bảng RIÊNG chuc_danh_ung_vien,
+    # độc lập với danh mục chức danh Nhân viên (vi_tri_cong_tac)
     if st.session_state.role == "admin":
         st.divider()
-        with st.expander("⚙️ Quản lý danh mục Vị trí dự tuyển", expanded=False):
+        with st.expander("⚙️ Quản lý danh mục Vị trí dự tuyển (riêng cho Ứng viên)", expanded=False):
+            st.caption("Danh mục này độc lập với danh mục Chức danh của Nhân viên — "
+                       "đổi chức danh Nhân viên sẽ không ảnh hưởng đến danh mục và dữ liệu Ứng viên.")
             with st.form("add_vi_tri_uv"):
                 ten_vt_moi = st.text_input("Tên vị trí dự tuyển mới *")
                 if st.form_submit_button("➕ Thêm"):
                     if ten_vt_moi:
                         db = st.session_state.db_engine.get_connection()
                         c = db.cursor()
-                        c.execute("SELECT COUNT(*) FROM vi_tri_cong_tac WHERE ten_vi_tri = %s", (ten_vt_moi,))
+                        c.execute("SELECT COUNT(*) FROM chuc_danh_ung_vien WHERE ten_chuc_danh = %s", (ten_vt_moi,))
                         if c.fetchone()[0] == 0:
-                            c.execute("INSERT INTO vi_tri_cong_tac (ten_vi_tri) VALUES (%s)", (ten_vt_moi,))
+                            c.execute("INSERT INTO chuc_danh_ung_vien (ten_chuc_danh) VALUES (%s)", (ten_vt_moi,))
                             db.commit()
                             st.success(f"✅ Đã thêm: {ten_vt_moi}")
                             st.rerun()
@@ -6574,13 +6708,23 @@ elif menu == "👤 Ứng viên":
             
             db = st.session_state.db_engine.get_connection()
             c = db.cursor()
-            c.execute("SELECT id, ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
+            c.execute("SELECT id, ten_chuc_danh FROM chuc_danh_ung_vien ORDER BY ten_chuc_danh")
             ds_vt = c.fetchall()
             db.close()
             if ds_vt:
                 st.caption("📋 Danh sách vị trí dự tuyển:")
                 for row in ds_vt:
-                    st.write(f"- {row[1]}")
+                    col_ten, col_xoa = st.columns([4, 1])
+                    with col_ten:
+                        st.write(f"- {row[1]}")
+                    with col_xoa:
+                        if st.button("🗑️", key=f"xoa_cdv_{row[0]}"):
+                            db = st.session_state.db_engine.get_connection()
+                            c = db.cursor()
+                            c.execute("DELETE FROM chuc_danh_ung_vien WHERE id=%s", (row[0],))
+                            db.commit(); db.close()
+                            st.success("🗑️ Đã xóa!")
+                            st.rerun()
 
 # ========== NHÂN VIÊN ==========
 elif menu == "✅ Nhân viên":
@@ -8098,7 +8242,12 @@ elif menu == "✅ Nhân viên":
 
         db_ct = st.session_state.db_engine.get_connection()
         c_ct = db_ct.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        c_ct.execute("SELECT * FROM nhan_vien WHERE phong_ban_lam_viec IS NOT NULL AND phong_ban_lam_viec != ''")
+        # Chỉ lấy nhân sự đang làm việc (đang làm hoặc thử việc) - bỏ nhân viên đã nghỉ việc
+        c_ct.execute("""
+            SELECT * FROM nhan_vien 
+            WHERE phong_ban_lam_viec IS NOT NULL AND phong_ban_lam_viec != ''
+            AND trang_thai IN ('DANG_LAM', 'THU_VIEC')
+        """)
         tat_ca_nv_ct = c_ct.fetchall()
         db_ct.close()
 
@@ -8121,6 +8270,30 @@ elif menu == "✅ Nhân viên":
 
         st.divider()
 
+        # CSS avatar: to bằng ảnh profile (200px, viền cam) khi cột đủ rộng; khi màn hình hẹp
+        # (5 cột co lại) tự chuyển sang ảnh chữ nhật bo góc, rộng tối đa theo cột, vẫn giữ viền cam.
+        st.markdown("""
+        <style>
+        .co-cau-avatar-wrap { display:flex; justify-content:center; }
+        .co-cau-avatar-img {
+            width: 100%;
+            max-width: 200px;
+            aspect-ratio: 1 / 1;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid #f59e0b;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+        }
+        @media (max-width: 1400px) {
+            .co-cau-avatar-img {
+                aspect-ratio: 4 / 3;
+                border-radius: 12px;
+                max-width: 100%;
+            }
+        }
+        </style>
+        """, unsafe_allow_html=True)
+
         # Phòng ban đặc biệt: không hiện Lao động chính thức/Thử việc và Đang làm/Nghỉ việc,
         # thay bằng chức vụ (không đúng bản chất & hình thức đối với 2 phòng ban này)
         PHONG_BAN_KHONG_HIEN_TT = ('Hội đồng Quản trị', 'Ban Tổng Giám đốc')
@@ -8134,6 +8307,19 @@ elif menu == "✅ Nhân viên":
         def _la_dung_dau(nv):
             cv = (nv.get('chuc_vu') or '').strip()
             return cv in CHUC_VU_DUNG_DAU
+
+        def _vi_tri_hang_cuoi(so_luong, so_cot=5):
+            """Vị trí cột (0..4) cho 1 hàng có `so_luong` người (< so_cot, tức hàng cuối chưa đủ).
+            Ưu tiên cân xứng quanh cột giữa (index 2 = 'col 3'); người đầu danh sách (đã ưu tiên
+            cấp phó) sẽ rơi vào vị trí bên trái nhất trong bộ vị trí được chọn."""
+            if so_luong == 1:
+                return [2]
+            elif so_luong == 2:
+                return [1, 3]
+            elif so_luong == 3:
+                return [1, 2, 3]
+            else:
+                return list(range(so_luong))  # 4 hoặc 5 người -> bố trí tự do, lấp đầy từ trái
 
         def _lay_anh_src(nv_ct):
             """Trả về src cho thẻ <img>: ảnh hồ sơ nếu có, không thì ảnh mẫu trong static/,
@@ -8157,9 +8343,8 @@ elif menu == "✅ Nhân viên":
             with cols_ct[idx_c]:
                 img_src = _lay_anh_src(nv_ct)
                 st.markdown(f"""
-                <div style="display:flex;justify-content:center;">
-                    <img src="{img_src}" style="width:120px;height:120px;border-radius:50%;
-                    object-fit:cover;border:3px solid #f59e0b;box-shadow:0 4px 15px rgba(0,0,0,0.15);">
+                <div class="co-cau-avatar-wrap">
+                    <img src="{img_src}" class="co-cau-avatar-img">
                 </div>
                 """, unsafe_allow_html=True)
 
@@ -8174,11 +8359,7 @@ elif menu == "✅ Nhân viên":
                         st.markdown("<p style='text-align:center;color:red;'>Thử việc</p>", unsafe_allow_html=True)
                     elif nv_ct.get('loai_hop_dong'):
                         st.markdown("<p style='text-align:center;color:green;'>Lao động chính thức</p>", unsafe_allow_html=True)
-
-                    if nv_ct.get('trang_thai') == 'NGHI_VIEC':
-                        st.markdown("<p style='text-align:center;'>🔴 Nghỉ việc</p>", unsafe_allow_html=True)
-                    elif nv_ct.get('trang_thai') in ('DANG_LAM', 'THU_VIEC'):
-                        st.markdown("<p style='text-align:center;'>✅ Đang làm việc</p>", unsafe_allow_html=True)
+                    st.markdown("<p style='text-align:center;'>✅ Đang làm việc</p>", unsafe_allow_html=True)
 
                 if st.button("Xem chi tiết>>", key=f"xem_ct_{nv_ct['id']}", width='stretch'):
                     st.session_state['_nv_xem_chi_tiet_dashboard'] = nv_ct['id']
@@ -8201,7 +8382,8 @@ elif menu == "✅ Nhân viên":
             for i in range(0, len(ds_con_lai), so_cot):
                 hang = ds_con_lai[i:i + so_cot]
                 cols_ct = st.columns(so_cot)
-                for idx_c, nv_ct in enumerate(hang):
+                vi_tri_cot = _vi_tri_hang_cuoi(len(hang), so_cot) if len(hang) < so_cot else list(range(so_cot))
+                for nv_ct, idx_c in zip(hang, vi_tri_cot):
                     _render_the_nv(nv_ct, cols_ct, idx_c)
 
             if st.session_state.get('_nv_xem_chi_tiet_dashboard'):
@@ -9202,27 +9384,40 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
         mac_dinh = DEFAULT_DIEU_HDLD if loai_hd_ma == "HDLD" else DEFAULT_DIEU_HDTV
 
         tuy_chinh_hien_tai = get_all_dieu_hop_dong(loai_hd_ma)
+        ds_ma_dieu_hien_thi = get_ds_ma_dieu(tuy_chinh_hien_tai)
+        MAC_DINH_KEYS = ("dieu1", "dieu2", "dieu3", "dieu4", "dieu5")
 
-        for ma_dieu in ["dieu1", "dieu2", "dieu3", "dieu4", "dieu5"]:
+        for ma_dieu in ds_ma_dieu_hien_thi:
+            la_mac_dinh = ma_dieu in MAC_DINH_KEYS
             mac_dinh_tieu_de, mac_dinh_noi_dung = mac_dinh.get(ma_dieu, ("", ""))
-            if not mac_dinh_tieu_de and ma_dieu not in mac_dinh:
+            if la_mac_dinh and not mac_dinh_tieu_de and ma_dieu not in mac_dinh:
                 continue  # loại HĐ này không có điều này (VD HĐTV không có dieu1 mặc định cũ)
-            hien_tai_tieu_de, hien_tai_noi_dung = tuy_chinh_hien_tai.get(ma_dieu, (mac_dinh_tieu_de, mac_dinh_noi_dung))
-            with st.expander(f"📝 {hien_tai_tieu_de or ma_dieu}", expanded=False):
+            info_hien_tai = tuy_chinh_hien_tai.get(ma_dieu)
+            hien_tai_tieu_de = info_hien_tai[0] if info_hien_tai else mac_dinh_tieu_de
+            hien_tai_noi_dung = info_hien_tai[1] if info_hien_tai else mac_dinh_noi_dung
+            hien_tai_thu_tu = info_hien_tai[2] if (info_hien_tai and len(info_hien_tai) > 2 and info_hien_tai[2]) else 0
+            with st.expander(f"📝 {hien_tai_tieu_de or ma_dieu}" + ("" if la_mac_dinh else "  🆕"), expanded=False):
                 tieu_de_moi = st.text_input("Tiêu đề Điều:", value=hien_tai_tieu_de, key=f"mau_hd_td_{loai_hd_ma}_{ma_dieu}")
                 noi_dung_moi = st.text_area("Nội dung:", value=hien_tai_noi_dung, height=220, key=f"mau_hd_nd_{loai_hd_ma}_{ma_dieu}")
-                col_luu, col_reset = st.columns(2)
+                if not la_mac_dinh:
+                    thu_tu_moi = st.number_input("Vị trí hiển thị (số nhỏ hơn đứng trước, chèn xen giữa các Điều mặc định):",
+                                                  min_value=1, max_value=999, value=int(hien_tai_thu_tu) or 999,
+                                                  key=f"mau_hd_tt_{loai_hd_ma}_{ma_dieu}")
+                else:
+                    thu_tu_moi = 0
+                col_luu, col_reset, col_xoa = st.columns(3)
                 with col_luu:
                     if st.button("💾 Lưu", key=f"mau_hd_save_{loai_hd_ma}_{ma_dieu}", width='stretch', type="primary"):
                         try:
                             db = st.session_state.db_engine.get_connection()
                             c = db.cursor()
                             c.execute("""
-                                INSERT INTO mau_dieu_hop_dong (loai_hd, ma_dieu, tieu_de, noi_dung, updated_at)
-                                VALUES (%s, %s, %s, %s, NOW())
+                                INSERT INTO mau_dieu_hop_dong (loai_hd, ma_dieu, tieu_de, noi_dung, thu_tu, updated_at)
+                                VALUES (%s, %s, %s, %s, %s, NOW())
                                 ON CONFLICT (loai_hd, ma_dieu) DO UPDATE
-                                SET tieu_de = EXCLUDED.tieu_de, noi_dung = EXCLUDED.noi_dung, updated_at = NOW()
-                            """, (loai_hd_ma, ma_dieu, tieu_de_moi, noi_dung_moi))
+                                SET tieu_de = EXCLUDED.tieu_de, noi_dung = EXCLUDED.noi_dung,
+                                    thu_tu = EXCLUDED.thu_tu, updated_at = NOW()
+                            """, (loai_hd_ma, ma_dieu, tieu_de_moi, noi_dung_moi, thu_tu_moi))
                             db.commit(); db.close()
                             get_all_dieu_hop_dong.clear()
                             st.success(f"✅ Đã lưu {ma_dieu}")
@@ -9230,17 +9425,60 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
                         except Exception as e:
                             st.error(f"❌ Lỗi: {e}")
                 with col_reset:
-                    if st.button("↩️ Khôi phục mặc định", key=f"mau_hd_reset_{loai_hd_ma}_{ma_dieu}", width='stretch'):
-                        try:
-                            db = st.session_state.db_engine.get_connection()
-                            c = db.cursor()
-                            c.execute("DELETE FROM mau_dieu_hop_dong WHERE loai_hd=%s AND ma_dieu=%s", (loai_hd_ma, ma_dieu))
-                            db.commit(); db.close()
-                            get_all_dieu_hop_dong.clear()
-                            st.success("✅ Đã khôi phục mặc định")
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Lỗi: {e}")
+                    if la_mac_dinh:
+                        if st.button("↩️ Khôi phục mặc định", key=f"mau_hd_reset_{loai_hd_ma}_{ma_dieu}", width='stretch'):
+                            try:
+                                db = st.session_state.db_engine.get_connection()
+                                c = db.cursor()
+                                c.execute("DELETE FROM mau_dieu_hop_dong WHERE loai_hd=%s AND ma_dieu=%s", (loai_hd_ma, ma_dieu))
+                                db.commit(); db.close()
+                                get_all_dieu_hop_dong.clear()
+                                st.success("✅ Đã khôi phục mặc định")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Lỗi: {e}")
+                with col_xoa:
+                    if not la_mac_dinh:
+                        if st.button("🗑️ Xoá Điều này", key=f"mau_hd_xoa_{loai_hd_ma}_{ma_dieu}", width='stretch'):
+                            try:
+                                db = st.session_state.db_engine.get_connection()
+                                c = db.cursor()
+                                c.execute("DELETE FROM mau_dieu_hop_dong WHERE loai_hd=%s AND ma_dieu=%s", (loai_hd_ma, ma_dieu))
+                                db.commit(); db.close()
+                                get_all_dieu_hop_dong.clear()
+                                st.success("✅ Đã xoá Điều")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Lỗi: {e}")
+
+        st.divider()
+        with st.expander("➕ Thêm Điều mới", expanded=False):
+            tuy_chinh_hdld_all = get_all_dieu_hop_dong("HDLD")
+            tuy_chinh_hdtv_all = get_all_dieu_hop_dong("HDTV")
+            ma_dieu_de_xuat = sinh_ma_dieu_moi(tuy_chinh_hdld_all, tuy_chinh_hdtv_all)
+            st.caption(f"Mã Điều mới sẽ được tạo tự động: **{ma_dieu_de_xuat}**")
+            tieu_de_them = st.text_input("Tiêu đề Điều mới:", placeholder="VD: Điều 6. Bảo mật thông tin:", key=f"mau_hd_them_td_{loai_hd_ma}")
+            noi_dung_them = st.text_area("Nội dung:", height=180, key=f"mau_hd_them_nd_{loai_hd_ma}",
+                                          placeholder="-    Nội dung dòng 1;\n-    Nội dung dòng 2;\n## Tiêu đề phụ in đậm\n-    Nội dung...")
+            thu_tu_them = st.number_input("Vị trí hiển thị (số nhỏ hơn đứng trước, VD: 6 = ngay sau Điều 5):",
+                                           min_value=1, max_value=999, value=6, key=f"mau_hd_them_tt_{loai_hd_ma}")
+            if st.button("➕ Thêm Điều này", key=f"mau_hd_them_btn_{loai_hd_ma}", type="primary"):
+                if not tieu_de_them.strip():
+                    st.error("⚠️ Vui lòng nhập tiêu đề Điều!")
+                else:
+                    try:
+                        db = st.session_state.db_engine.get_connection()
+                        c = db.cursor()
+                        c.execute("""
+                            INSERT INTO mau_dieu_hop_dong (loai_hd, ma_dieu, tieu_de, noi_dung, thu_tu, updated_at)
+                            VALUES (%s, %s, %s, %s, %s, NOW())
+                        """, (loai_hd_ma, ma_dieu_de_xuat, tieu_de_them, noi_dung_them, thu_tu_them))
+                        db.commit(); db.close()
+                        get_all_dieu_hop_dong.clear()
+                        st.success(f"✅ Đã thêm {ma_dieu_de_xuat} vào {loai_hd_chon}")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"❌ Lỗi: {e}")
 
 # ========== BHXH ==========
 elif menu == "📋 BHXH":

@@ -511,6 +511,7 @@ TRINH_DO_LIST = ["THPT", "Chứng chỉ nghề", "Cao đẳng", "Đại học", 
 
 # Thứ tự ưu tiên CHUẨN — dùng thống nhất cho mọi biểu đồ / bảng / dropdown / tìm kiếm
 PHONG_BAN_THU_TU = [
+    "Hội đồng Quản trị",
     "Ban Tổng Giám đốc",
     "Phòng Hành chính Nhân sự",
     "Phòng Tài chính",
@@ -524,12 +525,15 @@ PHONG_BAN_THU_TU = [
 
 CHUC_VU_THU_TU = [
     "Chủ tịch HĐQT",
+    "Phó Chủ tịch HĐQT",
+    "Thành viên HĐQT",
     "Tổng Giám đốc",
     "Phó Tổng Giám đốc",
+    "Chánh Văn phòng",
+    "Phó Chánh VP",
     "Trưởng phòng",
     "Phó Trưởng phòng",
 ]
-
 def sap_xep_phong_ban(danh_sach_phong_ban):
     """Sắp xếp tên phòng ban theo thứ tự ưu tiên chuẩn; phòng ban lạ xếp cuối theo alpha bê."""
     def key_fn(ten):

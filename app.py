@@ -8298,7 +8298,7 @@ elif menu == "✅ Nhân viên":
         # thay bằng chức vụ (không đúng bản chất & hình thức đối với 2 phòng ban này)
         PHONG_BAN_KHONG_HIEN_TT = ('Hội đồng Quản trị', 'Ban Tổng Giám đốc')
         # Các chức vụ được coi là "người đứng đầu" phòng ban -> luôn xếp hàng đầu, cột giữa
-        CHUC_VU_DUNG_DAU = ["Chủ tịch HĐQT", "Tổng Giám đốc", "Trưởng phòng", "Tổ Trưởng", "Đội Trưởng"]
+        CHUC_VU_DUNG_DAU = ["Chủ tịch HĐQT", "Tổng Giám Đốc", "Trưởng Phòng", "Tổ Trưởng", "Đội Trưởng"]
 
         def _la_cap_pho(nv):
             cv = (nv.get('chuc_vu') or '').strip().lower()
@@ -8306,7 +8306,7 @@ elif menu == "✅ Nhân viên":
 
         def _la_dung_dau(nv):
             cv = (nv.get('chuc_vu') or '').strip()
-            return cv in CHUC_VU_DUNG_DAU
+            return cv in CHUC_VU_DUNG_DAU or cv.lower().startswith('phụ trách')
 
         def _vi_tri_hang_cuoi(so_luong, so_cot=5):
             """Vị trí cột (0..4) cho 1 hàng có `so_luong` người (< so_cot, tức hàng cuối chưa đủ).
@@ -8370,6 +8370,9 @@ elif menu == "✅ Nhân viên":
             # Tách người đứng đầu phòng ban (nếu có) -> luôn ở hàng đầu tiên, cột giữa (index 2/5).
             # Nếu không có người đứng đầu -> bỏ qua hàng riêng này, các hàng sau tịnh tiến lên.
             nguoi_dung_dau = next((nv for nv in ds_nv_ct if _la_dung_dau(nv)), None)
+            if not nguoi_dung_dau:
+                # Không có Tổng/Giám Đốc/Trưởng/Phụ Trách -> đôn "Phó" đầu tiên (theo alpha) lên hàng 1
+                nguoi_dung_dau = next((nv for nv in sorted(ds_nv_ct, key=lambda x: x.get('ho_ten') or '') if _la_cap_pho(nv)), None)
             ds_con_lai = [nv for nv in ds_nv_ct if nv is not nguoi_dung_dau]
             # Cấp phó ưu tiên lên đầu (bên trái), sau đó xếp theo alpha bê tên
             ds_con_lai = sorted(ds_con_lai, key=lambda nv: (0 if _la_cap_pho(nv) else 1, nv.get('ho_ten') or ''))
@@ -10397,7 +10400,7 @@ elif menu == "📋 Báo cáo định kỳ":
         with col_to:
             den_ngay_bc = st.date_input("Đến ngày:", value=date.today(), key="bc_den")
         row2_c1, row2_c2, row2_c3 = st.columns(3)
-        with row2_c2:
+        with row1_c2:
             xuat_bc = st.button("📄 XUẤT BÁO CÁO WORD", width='stretch')
 
         if xuat_bc:

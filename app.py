@@ -5,6 +5,7 @@ import streamlit as st
 import psycopg2
 import psycopg2.extras
 from datetime import datetime, date, timedelta
+import calendar
 import pandas as pd
 from docx import Document
 from docx.shared import Pt, Cm
@@ -2543,6 +2544,33 @@ def update_so_max_cong_van(loai, so_moi):
         return False
 
 # === Cấu hình + đánh số Hợp đồng kinh tế (HĐKT): mẫu "stt/năm/Prefix-ma_cty" ===
+# === Cấu hình hạn nộp Báo cáo Tăng/Giảm BHXH hàng tháng (mỗi doanh nghiệp 1 ngày riêng) ===
+def get_han_nop_bhxh():
+    """Ngày trong tháng phải nộp BC Tăng/Giảm BHXH (mặc định 20, VD CHL nộp trước ngày 20)."""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("SELECT gia_tri FROM cau_hinh_he_thong WHERE ten_cau_hinh = 'han_nop_bhxh_ngay'")
+        r = c.fetchone()
+        db.close()
+        return int(r[0]) if r and r[0] else 20
+    except:
+        return 20
+
+def update_han_nop_bhxh(ngay):
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("""
+            INSERT INTO cau_hinh_he_thong (ten_cau_hinh, gia_tri, ghi_chu)
+            VALUES ('han_nop_bhxh_ngay', %s, 'Ngày trong tháng phải nộp BC Tăng/Giảm BHXH')
+            ON CONFLICT (ten_cau_hinh) DO UPDATE SET gia_tri = EXCLUDED.gia_tri, updated_at = NOW()
+        """, (str(ngay),))
+        db.commit(); db.close()
+        return True
+    except:
+        return False
+
 def get_hdkt_prefix():
     """Lấy prefix đánh số HĐKT hiện tại (mặc định 'HĐKT'), cho phép admin tuỳ chỉnh."""
     try:
@@ -3308,7 +3336,48 @@ def show_quan_ly_cong_van():
             
             st.caption(f"📌 Tổng số: {len(data_cv_di)} công văn đi")
             st.dataframe(df_display, width='stretch', hide_index=True, height=400)
-            
+
+            # ----- Sửa / Xóa công văn đi -----
+            with st.expander("✏️ Sửa / 🗑️ Xóa công văn đi", expanded=False):
+                tuy_chon_cvd = {f"{r['so_cong_van']} - {r.get('tieu_de') or ''}": r for r in data_cv_di}
+                chon_cvd = st.selectbox("Chọn công văn đi:", ["-- Chọn --"] + list(tuy_chon_cvd.keys()), key="chon_sua_cvd")
+                if chon_cvd != "-- Chọn --":
+                    bg_sua = tuy_chon_cvd[chon_cvd]
+                    col_s1, col_s2 = st.columns(2)
+                    with col_s1:
+                        tieu_de_sua_cvd = st.text_input("Tiêu đề:", value=bg_sua.get('tieu_de') or '', key=f"sua_td_cvd_{bg_sua['id']}")
+                        ma_vach_sua_cvd = st.text_input("Mã vạch Bưu điện:", value=bg_sua.get('ma_vach_buu_dien') or '', key=f"sua_mv_cvd_{bg_sua['id']}")
+                    with col_s2:
+                        trich_yeu_sua_cvd = st.text_area("Trích yếu:", value=bg_sua.get('trich_yeu') or '', key=f"sua_ty_cvd_{bg_sua['id']}", height=80)
+                    col_luu_cvd, col_xoa_cvd = st.columns(2)
+                    with col_luu_cvd:
+                        if st.button("💾 Lưu thay đổi", key=f"btn_luu_cvd_{bg_sua['id']}", type="primary", width='stretch'):
+                            try:
+                                db_s = st.session_state.db_engine.get_connection()
+                                c_s = db_s.cursor()
+                                c_s.execute("""
+                                    UPDATE cong_van_di SET tieu_de=%s, trich_yeu=%s, ma_vach_buu_dien=%s
+                                    WHERE id=%s
+                                """, (tieu_de_sua_cvd, trich_yeu_sua_cvd, ma_vach_sua_cvd, bg_sua['id']))
+                                db_s.commit(); db_s.close()
+                                st.success("✅ Đã cập nhật công văn đi")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Lỗi: {e}")
+                    with col_xoa_cvd:
+                        if st.button("🗑️ Xóa công văn này", key=f"btn_xoa_cvd_{bg_sua['id']}", width='stretch'):
+                            try:
+                                db_x = st.session_state.db_engine.get_connection()
+                                c_x = db_x.cursor()
+                                c_x.execute("DELETE FROM cong_van_di WHERE id=%s", (bg_sua['id'],))
+                                db_x.commit(); db_x.close()
+                                st.success("✅ Đã xóa công văn đi")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Lỗi: {e}")
+
             # Nút xuất Excel
             col_export1, col_export2, col_export3 = st.columns([1, 2, 1])
             with col_export2:
@@ -3442,7 +3511,47 @@ def show_quan_ly_cong_van():
             
             st.caption(f"📌 Tổng số: {len(data_hd)} hợp đồng kinh tế")
             st.dataframe(df_display, width='stretch', hide_index=True, height=400)
-            
+
+            # ----- Sửa / Xóa hợp đồng kinh tế -----
+            with st.expander("✏️ Sửa / 🗑️ Xóa hợp đồng kinh tế", expanded=False):
+                tuy_chon_hd = {f"{r['so_hop_dong']} - {r.get('ten_doi_tac') or ''}": r for r in data_hd}
+                chon_hd = st.selectbox("Chọn hợp đồng:", ["-- Chọn --"] + list(tuy_chon_hd.keys()), key="chon_sua_hd")
+                if chon_hd != "-- Chọn --":
+                    hd_sua = tuy_chon_hd[chon_hd]
+                    col_s1, col_s2 = st.columns(2)
+                    with col_s1:
+                        ten_doi_tac_sua = st.text_input("Tên đối tác:", value=hd_sua.get('ten_doi_tac') or '', key=f"sua_dt_hd_{hd_sua['id']}")
+                    with col_s2:
+                        trich_yeu_sua_hd = st.text_area("Trích yếu:", value=hd_sua.get('trich_yeu') or '', key=f"sua_ty_hd_{hd_sua['id']}", height=80)
+                    col_luu_hd, col_xoa_hd = st.columns(2)
+                    with col_luu_hd:
+                        if st.button("💾 Lưu thay đổi", key=f"btn_luu_hd_{hd_sua['id']}", type="primary", width='stretch'):
+                            try:
+                                db_s = st.session_state.db_engine.get_connection()
+                                c_s = db_s.cursor()
+                                c_s.execute("""
+                                    UPDATE hop_dong_kinh_te SET ten_doi_tac=%s, trich_yeu=%s
+                                    WHERE id=%s
+                                """, (ten_doi_tac_sua, trich_yeu_sua_hd, hd_sua['id']))
+                                db_s.commit(); db_s.close()
+                                st.success("✅ Đã cập nhật hợp đồng")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Lỗi: {e}")
+                    with col_xoa_hd:
+                        if st.button("🗑️ Xóa hợp đồng này", key=f"btn_xoa_hd_{hd_sua['id']}", width='stretch'):
+                            try:
+                                db_x = st.session_state.db_engine.get_connection()
+                                c_x = db_x.cursor()
+                                c_x.execute("DELETE FROM hop_dong_kinh_te WHERE id=%s", (hd_sua['id'],))
+                                db_x.commit(); db_x.close()
+                                st.success("✅ Đã xóa hợp đồng")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Lỗi: {e}")
+
             # Nút xuất Excel
             col_export1, col_export2, col_export3 = st.columns([1, 2, 1])
             with col_export2:
@@ -5103,7 +5212,7 @@ if st.sidebar.button("🚪 Đăng xuất", width='stretch'):
 def render_employee_info_card(nv, key_prefix, on_close=None):
     """Hiển thị card '👤 THÔNG TIN NHÂN VIÊN' (avatar + thông tin + nút hành động + nút Đóng).
     Dùng chung cho cả 2 trường hợp: (1) tìm kiếm ra đúng 1 kết quả, (2) tick chọn 1 dòng trong bảng."""
-    st.subheader("👤 THÔNG TIN NHÂN VIÊN")
+    st.subheader("👤 THÔNG TIN NHÂN SỰ")
 
     col_avatar, col_info = st.columns([1, 2])
 
@@ -5185,15 +5294,18 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
         with info_col1:
             st.markdown(f"**📅 Ngày sinh:** {format_date(nv.get('ngay_sinh'))}")
             st.markdown(f"**⚧ Giới tính:** {nv.get('gioi_tinh', 'Chưa cập nhật')}")
-            st.markdown(f"**💼 Chức danh:** {nv.get('chuc_danh_nghe', 'Chưa cập nhật')}")
+            if nv.get('chuc_danh_nghe'):
+                st.markdown(f"**💼 Chức danh:** {nv.get('chuc_danh_nghe')}")
             st.markdown(f"**🏢 Phòng:** {nv.get('phong_ban_lam_viec', 'Chưa cập nhật')}")
             st.markdown(f"**Chức vụ:** {nv.get('chuc_vu', 'Chưa cập nhật')}")
             st.markdown(f"**📞 SĐT:** {nv.get('dien_thoai', 'Chưa cập nhật')}")
 
         with info_col2:
-            st.markdown(f"**Số Hợp đồng:** {nv.get('so_hdld', 'Chưa cập nhật')}")
+            if nv.get('so_hdld'):
+                st.markdown(f"**Số Hợp đồng:** {nv.get('so_hdld')}")
             st.markdown(f"**📋 Loại HĐ:** {nv.get('loai_hop_dong', 'Chưa cập nhật')}")
-            st.markdown(f"**📅 Ngày vào làm:** {format_date(nv.get('ngay_vao_lam'))}")
+            if nv.get('ngay_vao_lam'):
+                st.markdown(f"**📅 Ngày vào làm:** {format_date(nv.get('ngay_vao_lam'))}")
             st.markdown(f"**🎓 Trình độ:** {nv.get('trinh_do', 'Chưa cập nhật')}")
             st.markdown(f"**📇 Mã BHXH:** {nv.get('ma_so_bhxh', 'Chưa có')}")
             trang_thai_text = {
@@ -5305,6 +5417,46 @@ if menu == "📊 Dashboard":
     cl3.metric("Chờ duyệt", cd)
     cl4.metric("Đã nhận", dn)
     cl5.metric("Từ chối", tc)
+
+    # ===== CẢNH BÁO 1: Chuẩn bị 6 Báo cáo định kỳ (30/06-05/07 và 31/12-05/01) =====
+    hom_nay = date.today()
+    md_hien_tai = (hom_nay.month, hom_nay.day)
+    trong_khoang_giua_nam = (6, 30) <= md_hien_tai <= (7, 5)
+    trong_khoang_cuoi_nam = md_hien_tai >= (12, 31) or md_hien_tai <= (1, 5)
+    if trong_khoang_giua_nam or trong_khoang_cuoi_nam:
+        han_nop_bc = "05/7" if trong_khoang_giua_nam else "05/01"
+        st.warning(f"📋 **Chuẩn bị các 6 BC Định kỳ và nộp trước {han_nop_bc} HR nhé!**")
+
+    # ===== CẢNH BÁO 2: Hạn nộp BC Tăng/Giảm BHXH hàng tháng (cấu hình riêng theo DN) =====
+    han_ngay_bhxh = get_han_nop_bhxh()
+    so_ngay_trong_thang = calendar.monthrange(hom_nay.year, hom_nay.month)[1]
+    ngay_han_hop_le = min(han_ngay_bhxh, so_ngay_trong_thang)
+    han_thang_nay = date(hom_nay.year, hom_nay.month, ngay_han_hop_le)
+    so_ngay_con_lai_bhxh = (han_thang_nay - hom_nay).days
+    if 0 <= so_ngay_con_lai_bhxh <= 5:
+        thong_diep_bhxh = (f"Chuẩn bị nộp BC Tăng/Giảm BHXH tháng này nhé HR! "
+                            f"(Hạn nộp: {han_thang_nay.strftime('%d/%m/%Y')}, còn {so_ngay_con_lai_bhxh} ngày)")
+        if so_ngay_con_lai_bhxh <= 1:
+            st.error(f"🚨 **KHẨN:** {thong_diep_bhxh}")
+        elif so_ngay_con_lai_bhxh <= 3:
+            st.warning(f"⚠️ {thong_diep_bhxh}")
+        else:
+            st.info(f"📌 {thong_diep_bhxh}")
+
+    if st.session_state.role == "admin":
+        with st.expander("⚙️ Cấu hình hạn nộp Báo cáo Tăng/Giảm BHXH hàng tháng", expanded=False):
+            st.caption("Mỗi doanh nghiệp có 1 ngày chốt hạn nộp riêng trong tháng (VD: CHL nộp trước ngày 20).")
+            ngay_moi_bhxh = st.number_input(
+                "Ngày trong tháng phải nộp (1-28):", min_value=1, max_value=28,
+                value=han_ngay_bhxh, step=1, key="input_han_bhxh"
+            )
+            if st.button("✅ Lưu cấu hình hạn nộp BHXH", key="btn_luu_han_bhxh"):
+                if update_han_nop_bhxh(int(ngay_moi_bhxh)):
+                    st.success(f"✅ Đã lưu: nộp trước ngày {int(ngay_moi_bhxh)} hàng tháng")
+                    st.rerun()
+                else:
+                    st.error("❌ Lưu thất bại!")
+
     st.divider()
         
     
@@ -5970,7 +6122,7 @@ if menu == "📊 Dashboard":
                 sn_options[label] = sn
             
             # SAU KHI SỬA (ĐÚNG) — dùng key động theo từng nhân viên
-            selected_label = st.selectbox("Chọn nhân viên:", list(sn_options.keys()), key="chon_sn_gui")
+            selected_label = st.selectbox("Chọn nhân viên:", list(sn_options.keys()), key="chon_sn_gui", help="💡 Gõ mã NV hoặc tên để tìm nhanh trong danh sách")
             selected_sn = sn_options[selected_label]
 
             # Tính tuổi
@@ -7756,7 +7908,7 @@ elif menu == "✅ Nhân viên":
             st.subheader("🔍 Xem chi tiết / Khôi phục nhân viên")
             
             nv_options = {f"{nv['ma_nv']} - {nv['ho_ten']} (Nghỉ: {format_date(nv.get('ngay_ket_thuc'))})": nv['id'] for nv in ds_nghi}
-            selected_nghi_name = st.selectbox("Chọn nhân viên đã nghỉ:", list(nv_options.keys()))
+            selected_nghi_name = st.selectbox("Chọn nhân viên đã nghỉ:", list(nv_options.keys()), help="💡 Gõ mã NV hoặc tên để tìm nhanh trong danh sách")
             selected_nghi_id = nv_options[selected_nghi_name]
             
             db = st.session_state.db_engine.get_connection()
@@ -7827,7 +7979,7 @@ elif menu == "✅ Nhân viên":
         
         if all_nv:
             nv_options = {f"{x['ma_nv']} - {x['ho_ten']}": x['id'] for x in all_nv}
-            selected_nv_history = st.selectbox("🔍 Chọn nhân viên:", list(nv_options.keys()), key="history_nv")
+            selected_nv_history = st.selectbox("🔍 Chọn nhân viên:", list(nv_options.keys()), key="history_nv", help="💡 Gõ mã NV hoặc tên để tìm nhanh trong danh sách")
             nv_id_history = nv_options[selected_nv_history]
             
             db = st.session_state.db_engine.get_connection()
@@ -8439,7 +8591,12 @@ elif menu == "✅ Nhân viên":
 
                 st.markdown(f"<p style='text-align:center;margin-bottom:0;'><b>{nv_ct['ho_ten']}-{nv_ct['ma_nv']}</b></p>", unsafe_allow_html=True)
                 if pb_chon_ct not in PHONG_BAN_KHONG_HIEN_TT:
-                    st.markdown(f"<p style='text-align:center;color:gray;font-size:0.85em;'>{nv_ct.get('chuc_vu') or ''}</p>", unsafe_allow_html=True)
+                    # Nhóm BHXH = 'Văn phòng' -> hiện chức vụ; ngược lại hiện chức danh nghề (như trước đây)
+                    if (nv_ct.get('nhom_bhxh') or '') == 'Văn phòng':
+                        dong_phu = nv_ct.get('chuc_vu') or ''
+                    else:
+                        dong_phu = nv_ct.get('chuc_danh_nghe') or ''
+                    st.markdown(f"<p style='text-align:center;color:gray;font-size:0.85em;'>{dong_phu}</p>", unsafe_allow_html=True)
 
                 if pb_chon_ct in PHONG_BAN_KHONG_HIEN_TT:
                     # Không đúng bản chất/hình thức với HĐQT & BTGĐ -> hiện chức vụ thay vì loại HĐ/trạng thái
@@ -9000,7 +9157,7 @@ elif menu == "💰 Tính thu nhập":
         
         if nv_list:
             nv_options = {f"{nv['ma_nv']} - {nv['ho_ten']}": nv['id'] for nv in nv_list}
-            selected_nv = st.selectbox("Chọn nhân viên để tính thử:", list(nv_options.keys()))
+            selected_nv = st.selectbox("Chọn nhân viên để tính thử:", list(nv_options.keys()), help="💡 Gõ mã NV hoặc tên để tìm nhanh trong danh sách")
             
             col_luong1, col_luong2 = st.columns(2)
             with col_luong1:
@@ -9868,9 +10025,92 @@ elif menu == "📋 BHXH":
 elif menu == "📋 Báo cáo định kỳ":
     st.title("📋 Báo cáo định kỳ")
 
-    tab_bc_pli, tab_bc_tk, tab_bc_tanggiam = st.tabs([
-        "📋 Báo cáo 01/PLI", "📊 Báo cáo thống kê nhân sự", "📊 Báo cáo tăng/giảm nhân sự trong kỳ"
+    tab_bc_pli, tab_bc_tk, tab_bc_tanggiam, tab_bc_tinhhinh, tab_bc_yte, tab_bc_atvsld, \
+    tab_bc_tnld, tab_bc_huanluyen, tab_bc_socapcuu, tab_bc_quantrac = st.tabs([
+        "📋 Báo cáo 01/PLI", "📊 Báo cáo thống kê nhân sự", "📊 Báo cáo tăng/giảm nhân sự trong kỳ",
+        "📈 Tình hình sử dụng lao động", "🏥 Y tế Lao động", "🦺 Công tác ATVSLĐ",
+        "⚠️ Tai nạn lao động", "🎓 Huấn luyện ATVSLĐ", "🚑 Mạng lưới sơ cấp cứu", "🌡️ Quan trắc môi trường LĐ"
     ])
+
+    def _bao_cao_dang_phat_trien(ten_bao_cao, mo_ta, icon, mau_sac="#f59e0b"):
+        """Card hiện đại cho các báo cáo định kỳ chưa có logic - sẽ bổ sung sau."""
+        st.markdown(f"""
+        <div style="border:1px solid #e5e7eb;border-radius:16px;padding:28px 24px;
+             background:linear-gradient(135deg,#fffbeb 0%,#ffffff 100%);
+             box-shadow:0 2px 10px rgba(0,0,0,0.04);">
+            <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
+                <div style="font-size:34px;">{icon}</div>
+                <div>
+                    <div style="font-size:19px;font-weight:700;color:#111827;">{ten_bao_cao}</div>
+                    <span style="display:inline-block;margin-top:4px;padding:2px 10px;border-radius:999px;
+                          background:{mau_sac};color:white;font-size:11px;font-weight:600;letter-spacing:.3px;">
+                          🚧 SẼ BỔ SUNG SAU
+                    </span>
+                </div>
+            </div>
+            <div style="color:#4b5563;font-size:14px;line-height:1.6;margin-top:8px;">{mo_ta}</div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.write("")
+        with st.expander("ℹ️ Khi triển khai, báo cáo này sẽ cần"):
+            st.markdown("""
+            - Biểu mẫu/Thông tư pháp lý làm căn cứ (bạn cung cấp khi sẵn sàng)
+            - Kỳ báo cáo (tháng/quý/năm) và bộ lọc theo phòng ban
+            - Xuất file Word/Excel theo đúng mẫu quy định
+            """)
+
+    with tab_bc_tinhhinh:
+        st.caption("💡 Lưu ý: tab **📋 Báo cáo 01/PLI** hiện tại cũng đang thể hiện nội dung "
+                   "\"tình hình sử dụng lao động\" theo mẫu 01/PLI. Nếu đây là 1 báo cáo khác "
+                   "(mẫu/kỳ báo cáo khác), bạn gửi mẫu cụ thể để tôi phân biệt rõ khi triển khai.")
+        _bao_cao_dang_phat_trien(
+            "Báo cáo tình hình sử dụng lao động",
+            "Tổng hợp định kỳ tình hình sử dụng lao động của doanh nghiệp (số lượng, cơ cấu, biến động) "
+            "theo quy định báo cáo lao động định kỳ.",
+            "📈"
+        )
+
+    with tab_bc_yte:
+        _bao_cao_dang_phat_trien(
+            "Báo cáo Y tế Lao động",
+            "Báo cáo công tác y tế lao động: khám sức khỏe định kỳ, bệnh nghề nghiệp, tình hình sức khỏe người lao động.",
+            "🏥"
+        )
+
+    with tab_bc_atvsld:
+        _bao_cao_dang_phat_trien(
+            "Báo cáo công tác An toàn, Vệ sinh lao động (ATVSLĐ)",
+            "Tổng hợp công tác an toàn vệ sinh lao động: tổ chức bộ máy ATVSLĐ, tự kiểm tra, cải thiện điều kiện làm việc.",
+            "🦺"
+        )
+
+    with tab_bc_tnld:
+        _bao_cao_dang_phat_trien(
+            "Báo cáo Tai nạn lao động",
+            "Thống kê, khai báo các vụ tai nạn lao động phát sinh trong kỳ báo cáo theo quy định.",
+            "⚠️", mau_sac="#ef4444"
+        )
+
+    with tab_bc_huanluyen:
+        _bao_cao_dang_phat_trien(
+            "Báo cáo Huấn luyện ATVSLĐ",
+            "Tổng hợp tình hình huấn luyện an toàn vệ sinh lao động theo nhóm đối tượng, thời hạn huấn luyện lại.",
+            "🎓"
+        )
+
+    with tab_bc_socapcuu:
+        _bao_cao_dang_phat_trien(
+            "Báo cáo hoạt động mạng lưới sơ cấp cứu",
+            "Tình hình tổ chức, hoạt động của mạng lưới sơ cấp cứu tại doanh nghiệp.",
+            "🚑"
+        )
+
+    with tab_bc_quantrac:
+        _bao_cao_dang_phat_trien(
+            "Báo cáo Quan trắc môi trường lao động",
+            "Kết quả quan trắc môi trường lao động định kỳ (các yếu tố có hại tại nơi làm việc).",
+            "🌡️"
+        )
 
     with tab_bc_pli:
         st.subheader("📋 Báo cáo tình hình sử dụng lao động")

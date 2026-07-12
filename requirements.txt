@@ -11,3 +11,5 @@ python-dotenv
 plotly
 cryptography
 bcrypt
+openpyxl
+psycopg2-binary

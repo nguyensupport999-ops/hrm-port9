@@ -5390,6 +5390,8 @@ if st.sidebar.button("🚪 Đăng xuất", width='stretch'):
     st.rerun()
 
 # ========== HÀM DÙNG CHUNG: CARD THÔNG TIN NHÂN VIÊN ==========
+PHONG_BAN_LANH_DAO_CAO_CAP = ('Hội đồng Quản trị', 'Ban Tổng Giám đốc')
+
 def render_employee_info_card(nv, key_prefix, on_close=None):
     """Hiển thị card '👤 THÔNG TIN NHÂN VIÊN' (avatar + thông tin + nút hành động + nút Đóng).
     Dùng chung cho cả 2 trường hợp: (1) tìm kiếm ra đúng 1 kết quả, (2) tick chọn 1 dòng trong bảng."""
@@ -5468,7 +5470,12 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
                 """, unsafe_allow_html=True)
 
     with col_info:
-        st.markdown(f"### {nv['ho_ten']} ({nv['ma_nv']})")
+        la_lanh_dao_cc = (nv.get('phong_ban_lam_viec') or '') in PHONG_BAN_LANH_DAO_CAO_CAP
+        if la_lanh_dao_cc:
+            xung_ho_card = 'Ông' if nv.get('gioi_tinh') == 'Nam' else ('Bà' if nv.get('gioi_tinh') == 'Nữ' else '')
+            st.markdown(f"### {xung_ho_card} {nv['ho_ten']}".strip())
+        else:
+            st.markdown(f"### {nv['ho_ten']} ({nv['ma_nv']})")
 
         info_col1, info_col2 = st.columns(2)
 
@@ -5484,18 +5491,20 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
         with info_col2:
             if nv.get('so_hdld'):
                 st.markdown(f"**Số Hợp đồng:** {nv.get('so_hdld')}")
-            st.markdown(f"**📋 Loại HĐ:** {nv.get('loai_hop_dong', 'Chưa cập nhật')}")
+            if not la_lanh_dao_cc:
+                st.markdown(f"**📋 Loại HĐ:** {nv.get('loai_hop_dong', 'Chưa cập nhật')}")
             if nv.get('ngay_vao_lam'):
                 st.markdown(f"**📅 Ngày vào làm:** {format_date(nv.get('ngay_vao_lam'))}")
             st.markdown(f"**🎓 Trình độ:** {nv.get('trinh_do', 'Chưa cập nhật')}")
             st.markdown(f"**📇 Mã BHXH:** {nv.get('ma_so_bhxh', 'Chưa có')}")
-            trang_thai_text = {
-                'DANG_LAM': '🟢 Đang làm',
-                'THU_VIEC': '🔵 Thử việc',
-                'NGHI_VIEC': '🔴 Đã nghỉ'
-            }
-            status = trang_thai_text.get(nv.get('trang_thai'), nv.get('trang_thai', 'Chưa xác định'))
-            st.markdown(f"**📊 Trạng thái:** {status}")
+            if not la_lanh_dao_cc:
+                trang_thai_text = {
+                    'DANG_LAM': '🟢 Đang làm',
+                    'THU_VIEC': '🔵 Thử việc',
+                    'NGHI_VIEC': '🔴 Đã nghỉ'
+                }
+                status = trang_thai_text.get(nv.get('trang_thai'), nv.get('trang_thai', 'Chưa xác định'))
+                st.markdown(f"**📊 Trạng thái:** {status}")
 
     # ===== Nút hành động (thêm nút "Đóng" ở cuối) =====
     st.divider()
@@ -7060,8 +7069,6 @@ elif menu == "✅ Nhân viên":
         # Phải làm TRƯỚC khi widget text_input được khởi tạo, nếu không Streamlit sẽ báo lỗi
         if st.session_state.pop('_reset_snv_dang_lam', False):
             st.session_state['snv_dang_lam'] = ''
-        sn = st.text_input("🔍 Tìm kiếm", key="snv_dang_lam")
-
         if st.session_state.role == "admin":
             with st.expander("➕ THÊM NHÂN VIÊN MỚI", expanded=False):
                 with st.form("add_nv"):
@@ -7225,6 +7232,9 @@ elif menu == "✅ Nhân viên":
                         else:
                             st.error("Họ tên không được để trống!")
                 st.divider()
+
+        sn = st.text_input("🔍 Tìm kiếm", key="snv_dang_lam")
+
         
         db_f = st.session_state.db_engine.get_connection()
         c_f = db_f.cursor()
@@ -7232,13 +7242,17 @@ elif menu == "✅ Nhân viên":
         ds_chuc_danh = [row[0] for row in c_f.fetchall()]
         c_f.execute("SELECT DISTINCT loai_hop_dong FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND loai_hop_dong IS NOT NULL AND loai_hop_dong != '' ORDER BY loai_hop_dong")
         ds_loai_hd = [row[0] for row in c_f.fetchall()]
+        c_f.execute("SELECT DISTINCT trinh_do FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND trinh_do IS NOT NULL AND trinh_do != '' ORDER BY trinh_do")
+        ds_bang_cap = [row[0] for row in c_f.fetchall()]
         db_f.close()
         
-        col_f1, col_f2 = st.columns(2)
+        col_f1, col_f2, col_f3 = st.columns(3)
         with col_f1:
             filter_chuc_danh = st.selectbox("🔍 Lọc Chức danh:", ["Tất cả"] + ds_chuc_danh, key="filter_cd_danglam")
         with col_f2:
             filter_loai_hd = st.selectbox("🔍 Lọc Loại HĐ:", ["Tất cả"] + ds_loai_hd, key="filter_lhd_danglam")
+        with col_f3:
+            filter_bang_cap = st.selectbox("🔍 Lọc theo Bằng cấp:", ["Tất cả"] + ds_bang_cap, key="filter_bc_danglam")
         
         db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -7253,6 +7267,9 @@ elif menu == "✅ Nhân viên":
         if filter_loai_hd != "Tất cả":
             sql += " AND loai_hop_dong = %s"
             params.append(filter_loai_hd)
+        if filter_bang_cap != "Tất cả":
+            sql += " AND trinh_do = %s"
+            params.append(filter_bang_cap)
         sql += " ORDER BY id DESC"
         c.execute(sql, tuple(params))
         ds = c.fetchall()

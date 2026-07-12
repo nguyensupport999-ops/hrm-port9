@@ -577,8 +577,13 @@ def get_phong_ban_options():
         db = st.session_state.db_engine.get_connection()
         c = db.cursor()
         c.execute("SELECT ten_phong_ban FROM danh_muc_phong_ban WHERE trang_thai = TRUE")
-        ds = [row[0] for row in c.fetchall()]
+        # Chuẩn hoá viết hoa chữ cái đầu mỗi từ (Title Case) khi hiển thị, bất kể dữ liệu
+        # gốc trong danh mục viết hoa/thường không nhất quán. Dùng dict để loại trùng lặp
+        # phát sinh do khác biệt viết hoa (VD: "phòng kế toán" và "Phòng Kế Toán" từng là
+        # 2 dòng riêng biệt trong danh mục cũ).
+        ds_raw = [row[0] for row in c.fetchall() if row[0]]
         db.close()
+        ds = list(dict.fromkeys(t.strip().title() for t in ds_raw))
         if not ds:
             ds = list(PHONG_BAN_THU_TU)  # fallback khi danh mục chưa cấu hình
         return sap_xep_phong_ban(ds)
@@ -3805,6 +3810,18 @@ def parse_date(s):
     print(f"⚠️ Không thể parse ngày: {s}")
     return None
 
+def get_xung_ho_trang_trong(gioi_tinh):
+    """Xưng hô trang trọng theo giới tính, dùng cho Hợp đồng và các card hiển thị lãnh đạo
+    cấp cao (Hội đồng Quản trị, Ban Tổng Giám đốc...).
+    - Nam -> "Ông"; Nữ -> "Bà"; None/rỗng -> "Ông/Bà"
+    """
+    if gioi_tinh == "Nam":
+        return "Ông"
+    elif gioi_tinh == "Nữ":
+        return "Bà"
+    else:
+        return "Ông/Bà"
+
 def get_xung_ho(gioi_tinh, ho_ten=""):
     """
     Lấy cách xưng hô phù hợp dựa trên giới tính
@@ -4648,7 +4665,7 @@ def tao_hop_dong(nv):
     sk=nv.get('so_tai_khoan_nh','')
     if nv.get('chi_nhanh_nh'): sk+=f' - {nv.get("chi_nhanh_nh")}'
     gt = nv.get('gioi_tinh','')
-    xung_ho = 'Ông' if gt == 'Nam' else ('Bà' if gt == 'Nữ' else 'Ông/Bà')
+    xung_ho = get_xung_ho_trang_trong(gt)
     al(xung_ho, nv.get('ho_ten',''))
     al('Ngày sinh',format_date(nv.get('ngay_sinh')))
     al('Số CMND/CCCD',nv.get('so_cccd','')); al('Ngày cấp',format_date(nv.get('ngay_cap_cccd')))
@@ -4750,7 +4767,7 @@ def tao_hop_dong_thu_viec(nv):
     sk=nv.get('so_tai_khoan_nh','')
     if nv.get('chi_nhanh_nh'): sk+=f' - {nv.get("chi_nhanh_nh")}'
     gt = nv.get('gioi_tinh','')
-    xung_ho = 'Ông' if gt == 'Nam' else ('Bà' if gt == 'Nữ' else 'Ông/Bà')
+    xung_ho = get_xung_ho_trang_trong(gt)
     al(xung_ho, nv.get('ho_ten',''))
     al('Ngày sinh',format_date(nv.get('ngay_sinh')))
     al('Số CMND/CCCD',nv.get('so_cccd','')); al('Ngày cấp',format_date(nv.get('ngay_cap_cccd')))
@@ -5472,7 +5489,7 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
     with col_info:
         la_lanh_dao_cc = (nv.get('phong_ban_lam_viec') or '') in PHONG_BAN_LANH_DAO_CAO_CAP
         if la_lanh_dao_cc:
-            xung_ho_card = 'Ông' if nv.get('gioi_tinh') == 'Nam' else ('Bà' if nv.get('gioi_tinh') == 'Nữ' else '')
+            xung_ho_card = get_xung_ho_trang_trong(nv.get('gioi_tinh'))
             st.markdown(f"### {xung_ho_card} {nv['ho_ten']}".strip())
         else:
             st.markdown(f"### {nv['ho_ten']} ({nv['ma_nv']})")
@@ -7611,7 +7628,8 @@ elif menu == "✅ Nhân viên":
                                 dtnv2 = st.text_input("SĐT", value=nd.get('dien_thoai', ''))
                                 emnv = st.text_input("Email", value=nd.get('email_lien_he', ''))
                                 cdnv = st.selectbox("Chức danh", [""] + dcv_edit, index=([""] + dcv_edit).index(nd.get('chuc_danh_nghe', '')) if nd.get('chuc_danh_nghe') in dcv_edit else 0)
-                                pbnv = st.selectbox("Phòng ban", [""] + dpb_edit, index=([""] + dpb_edit).index(nd.get('phong_ban_lam_viec', '')) if nd.get('phong_ban_lam_viec') in dpb_edit else 0)
+                                pb_hien_tai_chuan = (nd.get('phong_ban_lam_viec') or '').strip().title()
+                                pbnv = st.selectbox("Phòng ban", [""] + dpb_edit, index=([""] + dpb_edit).index(pb_hien_tai_chuan) if pb_hien_tai_chuan in dpb_edit else 0)
                                 nlv2 = st.text_input("Nơi làm việc", value=nd.get('noi_lam_viec', 'Cảng THQT Hòn La'))
                                 trinh_do_v = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, index=([""] + TRINH_DO_LIST).index(nd.get('trinh_do', '')) if nd.get('trinh_do') in TRINH_DO_LIST else 0)
                                 anh_hien_tai = nd.get('anh_ho_so')
@@ -8775,7 +8793,7 @@ elif menu == "✅ Nhân viên":
 
                 if pb_chon_ct in PHONG_BAN_KHONG_HIEN_TT:
                     # HĐQT/BTGĐ: gắn xưng hô Ông/Bà theo giới tính, KHÔNG hiện mã NV
-                    xung_ho_ct = 'Ông' if nv_ct.get('gioi_tinh') == 'Nam' else ('Bà' if nv_ct.get('gioi_tinh') == 'Nữ' else '')
+                    xung_ho_ct = get_xung_ho_trang_trong(nv_ct.get('gioi_tinh'))
                     ten_hien_thi_ct = f"{xung_ho_ct} {nv_ct['ho_ten']}".strip()
                 else:
                     ten_hien_thi_ct = f"{nv_ct['ho_ten']}-{nv_ct['ma_nv']}"
@@ -8796,7 +8814,6 @@ elif menu == "✅ Nhân viên":
                         st.markdown("<p style='text-align:center;color:red;'>Thử việc</p>", unsafe_allow_html=True)
                     elif nv_ct.get('loai_hop_dong'):
                         st.markdown("<p style='text-align:center;color:green;'>Lao động chính thức</p>", unsafe_allow_html=True)
-                    st.markdown("<p style='text-align:center;'>✅ Đang làm việc</p>", unsafe_allow_html=True)
 
                 if st.button("Xem chi tiết>>", key=f"xem_ct_{nv_ct['id']}", width='stretch'):
                     st.session_state['_nv_xem_chi_tiet_dashboard'] = nv_ct['id']
@@ -9748,11 +9765,12 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
             if st.button("💾 Lưu", key=f"btn_add_{ten_bang}"):
                 if ten_moi.strip():
                     try:
+                        ten_chuan_hoa = ten_moi.strip().title()  # viết hoa chữ cái đầu mỗi từ cho nhất quán
                         db = st.session_state.db_engine.get_connection(); c = db.cursor()
                         c.execute(f"INSERT INTO {ten_bang} ({cot_ten}) VALUES (%s) ON CONFLICT DO NOTHING",
-                                  (ten_moi.strip(),))
+                                  (ten_chuan_hoa,))
                         db.commit(); db.close()
-                        st.success(f"✅ Đã thêm: {ten_moi}"); st.cache_data.clear(); st.rerun()
+                        st.success(f"✅ Đã thêm: {ten_chuan_hoa}"); st.cache_data.clear(); st.rerun()
                     except Exception as e:
                         st.error(f"❌ Lỗi: {e}")
                 else:

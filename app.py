@@ -6,6 +6,7 @@ import psycopg2
 import psycopg2.extras
 from datetime import datetime, date, timedelta
 import calendar
+import random
 import pandas as pd
 from docx import Document
 from docx.shared import Pt, Cm
@@ -2571,6 +2572,72 @@ def update_han_nop_bhxh(ngay):
     except:
         return False
 
+# === Cấu hình Chấm công (khung sườn - sẽ tích hợp logic tính công dần theo nhu cầu) ===
+def get_cau_hinh_cham_cong():
+    from datetime import time as _time
+    mac_dinh = {'gio_vao': _time(8, 0), 'gio_ra': _time(17, 0), 'phut_tre': 15}
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("SELECT ten_cau_hinh, gia_tri FROM cau_hinh_he_thong WHERE ten_cau_hinh IN "
+                   "('cc_gio_vao', 'cc_gio_ra', 'cc_phut_tre')")
+        rows = dict(c.fetchall())
+        db.close()
+        if rows.get('cc_gio_vao'):
+            h, m = map(int, rows['cc_gio_vao'].split(':'))
+            mac_dinh['gio_vao'] = _time(h, m)
+        if rows.get('cc_gio_ra'):
+            h, m = map(int, rows['cc_gio_ra'].split(':'))
+            mac_dinh['gio_ra'] = _time(h, m)
+        if rows.get('cc_phut_tre'):
+            mac_dinh['phut_tre'] = int(rows['cc_phut_tre'])
+        return mac_dinh
+    except:
+        return mac_dinh
+
+def update_cau_hinh_cham_cong(gio_vao, gio_ra, phut_tre):
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        for ten, gia_tri in [('cc_gio_vao', gio_vao.strftime('%H:%M')),
+                              ('cc_gio_ra', gio_ra.strftime('%H:%M')),
+                              ('cc_phut_tre', str(phut_tre))]:
+            c.execute("""
+                INSERT INTO cau_hinh_he_thong (ten_cau_hinh, gia_tri, ghi_chu)
+                VALUES (%s, %s, 'Cấu hình chấm công')
+                ON CONFLICT (ten_cau_hinh) DO UPDATE SET gia_tri = EXCLUDED.gia_tri, updated_at = NOW()
+            """, (ten, gia_tri))
+        db.commit(); db.close()
+        return True
+    except:
+        return False
+
+# === Cấu hình công thức tính lương đang áp dụng (khung sườn - salary/salary_{key}.py) ===
+def get_cau_hinh_luong_key():
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("SELECT gia_tri FROM cau_hinh_he_thong WHERE ten_cau_hinh = 'luong_plugin_key'")
+        r = c.fetchone()
+        db.close()
+        return r[0] if r and r[0] else 'salary_1'
+    except:
+        return 'salary_1'
+
+def update_cau_hinh_luong_key(key):
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("""
+            INSERT INTO cau_hinh_he_thong (ten_cau_hinh, gia_tri, ghi_chu)
+            VALUES ('luong_plugin_key', %s, 'Công thức tính lương đang áp dụng (salary/salary_{key}.py)')
+            ON CONFLICT (ten_cau_hinh) DO UPDATE SET gia_tri = EXCLUDED.gia_tri, updated_at = NOW()
+        """, (key,))
+        db.commit(); db.close()
+        return True
+    except:
+        return False
+
 def get_hdkt_prefix():
     """Lấy prefix đánh số HĐKT hiện tại (mặc định 'HĐKT'), cho phép admin tuỳ chỉnh."""
     try:
@@ -4719,6 +4786,24 @@ def tao_hop_dong_thu_viec(nv):
     doc.save(tf.name)
     return tf.name
 
+def gui_email_don(to_email, subject, html_body):
+    """Gửi 1 email đơn (dùng cho OTP reset mật khẩu, thông báo cá nhân...) - dùng chung EMAIL_CONFIG."""
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_CONFIG['email']
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(html_body, 'html', 'utf-8'))
+        srv = smtplib.SMTP(EMAIL_CONFIG['smtp_server'], EMAIL_CONFIG['smtp_port'])
+        srv.starttls()
+        srv.login(EMAIL_CONFIG['email'], EMAIL_CONFIG['password'])
+        srv.send_message(msg)
+        srv.quit()
+        return True
+    except Exception as e:
+        print(f"Lỗi gửi email OTP: {e}")
+        return False
+
 def gui_email(loai, ds, file=None):
     # Không import trong hàm nữa, dùng EMAIL_CONFIG đã có sẵn
     # from config import EMAIL_CONFIG as EC  <-- XÓA DÒNG NÀY
@@ -5145,6 +5230,102 @@ if not st.session_state.logged_in:
                 with st.sidebar.expander("🔍 Chi tiết debug (tạm thời)"):
                     for line in st.session_state['_debug_login']:
                         st.code(line, language=None)
+
+    with st.sidebar.expander("🔑 Quên mật khẩu?"):
+        try:
+            db_qmk = st.session_state.db_engine.get_connection()
+            c_qmk = db_qmk.cursor()
+            c_qmk.execute("""
+                CREATE TABLE IF NOT EXISTS yeu_cau_reset_mk (
+                    id SERIAL PRIMARY KEY,
+                    nhan_vien_id INT NOT NULL,
+                    otp_code VARCHAR(10) NOT NULL,
+                    het_han TIMESTAMP NOT NULL,
+                    da_dung BOOLEAN DEFAULT FALSE,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            db_qmk.commit(); db_qmk.close()
+        except Exception:
+            pass
+
+        buoc_qmk = st.session_state.get('qmk_buoc', 1)
+        if buoc_qmk == 1:
+            st.caption("Nhập SĐT hoặc Tên đăng nhập — mã xác nhận (OTP) sẽ gửi về Email liên hệ đã đăng ký.")
+            tk_qmk = st.text_input("SĐT / Tên đăng nhập:", key="qmk_tk")
+            if st.button("📧 Gửi mã OTP", key="qmk_gui_otp"):
+                db_q = st.session_state.db_engine.get_connection()
+                c_q = db_q.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                c_q.execute("""SELECT id, ho_ten, email_lien_he FROM nhan_vien
+                               WHERE dien_thoai=%s OR ten_dang_nhap=%s""", (tk_qmk, tk_qmk))
+                nv_qmk = c_q.fetchone()
+                db_q.close()
+                if not nv_qmk:
+                    st.error("❌ Không tìm thấy tài khoản này.")
+                elif not nv_qmk.get('email_lien_he'):
+                    st.error("❌ Tài khoản chưa có Email liên hệ. Liên hệ Admin/HR để được hỗ trợ đặt lại mật khẩu.")
+                else:
+                    otp = f"{random.randint(0, 999999):06d}"
+                    het_han = datetime.now() + timedelta(minutes=10)
+                    db_o = st.session_state.db_engine.get_connection()
+                    c_o = db_o.cursor()
+                    c_o.execute("""INSERT INTO yeu_cau_reset_mk (nhan_vien_id, otp_code, het_han)
+                                   VALUES (%s, %s, %s)""", (nv_qmk['id'], otp, het_han))
+                    db_o.commit(); db_o.close()
+                    da_gui = gui_email_don(
+                        nv_qmk['email_lien_he'],
+                        "🔑 Mã xác nhận đặt lại mật khẩu - HRM",
+                        f"<p>Xin chào {nv_qmk['ho_ten']},</p><p>Mã xác nhận (OTP) của bạn là:</p>"
+                        f"<h2 style='letter-spacing:4px;'>{otp}</h2>"
+                        f"<p>Mã có hiệu lực trong 10 phút. Nếu không phải bạn yêu cầu, vui lòng bỏ qua email này.</p>"
+                    )
+                    if da_gui:
+                        st.session_state['qmk_buoc'] = 2
+                        st.session_state['qmk_nv_id'] = nv_qmk['id']
+                        st.success(f"✅ Đã gửi mã OTP về {nv_qmk['email_lien_he'][:3]}***@...")
+                        st.rerun()
+                    else:
+                        st.error("❌ Gửi email thất bại. Vui lòng thử lại hoặc liên hệ Admin.")
+        elif buoc_qmk == 2:
+            st.caption("Nhập mã OTP đã gửi về Email và đặt mật khẩu mới.")
+            otp_nhap = st.text_input("Mã OTP:", key="qmk_otp_nhap")
+            mk_moi_qmk = st.text_input("Mật khẩu mới:", type="password", key="qmk_mk_moi")
+            mk_moi_qmk2 = st.text_input("Nhập lại mật khẩu mới:", type="password", key="qmk_mk_moi2")
+            col_qmk1, col_qmk2 = st.columns(2)
+            with col_qmk1:
+                if st.button("✅ Xác nhận đặt lại", key="qmk_xac_nhan"):
+                    if len(mk_moi_qmk) < 6:
+                        st.error("Mật khẩu mới phải có ít nhất 6 ký tự.")
+                    elif mk_moi_qmk != mk_moi_qmk2:
+                        st.error("Hai mật khẩu nhập lại không khớp.")
+                    else:
+                        db_v = st.session_state.db_engine.get_connection()
+                        c_v = db_v.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                        c_v.execute("""
+                            SELECT id FROM yeu_cau_reset_mk
+                            WHERE nhan_vien_id=%s AND otp_code=%s AND da_dung=FALSE AND het_han > NOW()
+                            ORDER BY id DESC LIMIT 1
+                        """, (st.session_state['qmk_nv_id'], otp_nhap))
+                        yc = c_v.fetchone()
+                        if not yc:
+                            db_v.close()
+                            st.error("❌ Mã OTP không đúng hoặc đã hết hạn.")
+                        else:
+                            c_v2 = db_v.cursor()
+                            new_hash = bcrypt.hashpw(mk_moi_qmk.encode(), bcrypt.gensalt()).decode()
+                            c_v2.execute("UPDATE nhan_vien SET mat_khau_hash=%s, phai_doi_mat_khau=FALSE WHERE id=%s",
+                                         (new_hash, st.session_state['qmk_nv_id']))
+                            c_v2.execute("UPDATE yeu_cau_reset_mk SET da_dung=TRUE WHERE id=%s", (yc['id'],))
+                            db_v.commit(); db_v.close()
+                            st.success("✅ Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại.")
+                            st.session_state.pop('qmk_buoc', None)
+                            st.session_state.pop('qmk_nv_id', None)
+                            st.rerun()
+            with col_qmk2:
+                if st.button("✖️ Hủy", key="qmk_huy"):
+                    st.session_state.pop('qmk_buoc', None)
+                    st.session_state.pop('qmk_nv_id', None)
+                    st.rerun()
     st.stop()
 
 # ---------- Bắt buộc đổi mật khẩu lần đầu (đang dùng mật khẩu mặc định = SĐT) ----------
@@ -5180,20 +5361,20 @@ if st.session_state.get('phai_doi_mat_khau'):
 # Menu theo role — 4 vai trò cố định: admin / hr / kt_luong / viewer (+ 'nhan_vien' tự phục vụ)
 if st.session_state.role == "admin":
     # Toàn quyền
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role in ["văn thư", "hr"]:
     # HR: như admin trừ Upload hồ sơ, Danh mục — và KHÔNG được xem Tính thu nhập (dữ liệu lương)
-    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
+    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role == "kt_luong":
     # Kế toán lương: tập trung vào Chấm công + Tính thu nhập, không có Upload hồ sơ/Danh mục
-    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
+    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role == "van_thu":
-    menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
+    menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role == "viewer":
     # Viewer: chỉ xem, thu hẹp — không có BHXH, không có Tính thu nhập
-    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo định kỳ","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng",]
+    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo định kỳ","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","📘 Hướng dẫn sử dụng",]
 else:  # 'nhan_vien' thường — chỉ xem hồ sơ bản thân + chat nội bộ
-    menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","📘 Hướng dẫn sử dụng"]
+    menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","📘 Hướng dẫn sử dụng"]
 menu = st.sidebar.radio("📋 Menu", menu_options)
 st.sidebar.divider()
 st.sidebar.caption(f"👤 {st.session_state.get('ho_ten_dang_nhap', st.session_state.username)} ({st.session_state.role})")
@@ -5442,20 +5623,6 @@ if menu == "📊 Dashboard":
             st.warning(f"⚠️ {thong_diep_bhxh}")
         else:
             st.info(f"📌 {thong_diep_bhxh}")
-
-    if st.session_state.role == "admin":
-        with st.expander("⚙️ Cấu hình hạn nộp Báo cáo Tăng/Giảm BHXH hàng tháng", expanded=False):
-            st.caption("Mỗi doanh nghiệp có 1 ngày chốt hạn nộp riêng trong tháng (VD: CHL nộp trước ngày 20).")
-            ngay_moi_bhxh = st.number_input(
-                "Ngày trong tháng phải nộp (1-28):", min_value=1, max_value=28,
-                value=han_ngay_bhxh, step=1, key="input_han_bhxh"
-            )
-            if st.button("✅ Lưu cấu hình hạn nộp BHXH", key="btn_luu_han_bhxh"):
-                if update_han_nop_bhxh(int(ngay_moi_bhxh)):
-                    st.success(f"✅ Đã lưu: nộp trước ngày {int(ngay_moi_bhxh)} hàng tháng")
-                    st.rerun()
-                else:
-                    st.error("❌ Lưu thất bại!")
 
     st.divider()
         
@@ -8589,7 +8756,13 @@ elif menu == "✅ Nhân viên":
                 </div>
                 """, unsafe_allow_html=True)
 
-                st.markdown(f"<p style='text-align:center;margin-bottom:0;'><b>{nv_ct['ho_ten']}-{nv_ct['ma_nv']}</b></p>", unsafe_allow_html=True)
+                if pb_chon_ct in PHONG_BAN_KHONG_HIEN_TT:
+                    # HĐQT/BTGĐ: gắn xưng hô Ông/Bà theo giới tính, KHÔNG hiện mã NV
+                    xung_ho_ct = 'Ông' if nv_ct.get('gioi_tinh') == 'Nam' else ('Bà' if nv_ct.get('gioi_tinh') == 'Nữ' else '')
+                    ten_hien_thi_ct = f"{xung_ho_ct} {nv_ct['ho_ten']}".strip()
+                else:
+                    ten_hien_thi_ct = f"{nv_ct['ho_ten']}-{nv_ct['ma_nv']}"
+                st.markdown(f"<p style='text-align:center;margin-bottom:0;'><b>{ten_hien_thi_ct}</b></p>", unsafe_allow_html=True)
                 if pb_chon_ct not in PHONG_BAN_KHONG_HIEN_TT:
                     # Nhóm BHXH = 'Văn phòng' -> hiện chức vụ; ngược lại hiện chức danh nghề (như trước đây)
                     if (nv_ct.get('nhom_bhxh') or '') == 'Văn phòng':
@@ -9582,7 +9755,10 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
         else:
             st.info(f"Chưa có {tieu_de.lower()} nào.")
 
-    tab_pb, tab_cd, tab_hd, tab_hv, tab_mau_hd = st.tabs(["🏢 Phòng ban", "💼 Chức danh", "📄 Loại hợp đồng", "🎓 Trình độ học vấn", "📃 Mẫu Hợp đồng"])
+    tab_pb, tab_cd, tab_hd, tab_hv, tab_mau_hd, tab_cv, tab_cty = st.tabs([
+        "🏢 Phòng ban", "💼 Chức danh", "📄 Loại hợp đồng", "🎓 Trình độ học vấn",
+        "📃 Mẫu Hợp đồng", "🎖️ Chức vụ", "⚙️ Cấu hình Doanh nghiệp"
+    ])
 
     with tab_pb:
         _quan_ly_danh_muc_don_gian("danh_muc_phong_ban", "ten_phong_ban", "Phòng ban", "VD: Kinh doanh")
@@ -9740,6 +9916,111 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Lỗi: {e}")
+
+    with tab_cv:
+        st.subheader("🎖️ Danh mục Chức vụ")
+        st.caption("Chức vụ (Trưởng phòng, Phó phòng, Tổ trưởng...) có thể gọi khác nhau tuỳ doanh nghiệp — quản lý danh mục riêng tại đây.")
+        try:
+            db_cv0 = st.session_state.db_engine.get_connection()
+            c_cv0 = db_cv0.cursor()
+            c_cv0.execute("""
+                CREATE TABLE IF NOT EXISTS chuc_vu_danh_muc (
+                    id SERIAL PRIMARY KEY,
+                    ten_chuc_vu VARCHAR(150) UNIQUE NOT NULL,
+                    thu_tu INT DEFAULT 0,
+                    trang_thai VARCHAR(20) DEFAULT 'Hoạt động'
+                )
+            """)
+            db_cv0.commit(); db_cv0.close()
+        except Exception as e:
+            st.error(f"❌ Lỗi khởi tạo danh mục Chức vụ: {e}")
+        _quan_ly_danh_muc_don_gian('chuc_vu_danh_muc', 'ten_chuc_vu', 'Chức vụ', 'VD: Trưởng phòng, Tổ trưởng, Phó Tổng Giám đốc...')
+
+    with tab_cty:
+        st.subheader("⚙️ Cấu hình chung của Doanh nghiệp")
+        st.caption("Toàn bộ thiết lập áp dụng cho doanh nghiệp bạn — tập trung quản lý tại đây thay vì rải rác nhiều trang.")
+
+        tenant_info = st.session_state.get('tenant', {}) or {}
+        st.text_input(
+            "🏷️ Mã công ty (ma_cty)", value=tenant_info.get('ma_cty', 'CHL'), disabled=True,
+            help="Mã công ty được cấp khi khởi tạo tài khoản. Không tự đổi tại đây vì sẽ làm sai lệch số văn bản/hợp đồng đã phát hành theo mã cũ — liên hệ nhà cung cấp app nếu thực sự cần đổi."
+        )
+
+        st.divider()
+        st.markdown("**📄 Đánh số Công văn đi**")
+        cv_option_hien_tai = get_cv_danh_so_option()
+        cv_option_moi = st.radio(
+            "Phương án đánh số công văn đi:",
+            options=['CHUNG', 'RIENG'],
+            index=0 if cv_option_hien_tai == 'CHUNG' else 1,
+            format_func=lambda x: "📌 Số chung cho tất cả loại công văn" if x == 'CHUNG' else "📌 Mỗi loại công văn có số riêng",
+            key="cty_cv_option_radio"
+        )
+        st.caption("💡 Muốn xem trạng thái số hiện tại theo từng loại hoặc đặt lại số, vào menu "
+                   "**Quản lý Công văn & HĐ kinh tế → ⚙️ Cấu hình đánh số công văn**.")
+
+        st.markdown("**📄 Đánh số Hợp đồng kinh tế (HĐKT)**")
+        st.caption("Mẫu số: **stt/năm/Prefix-ma_cty** (VD: 04/2026/HĐKT-CHL)")
+        hdkt_prefix_hien_tai = get_hdkt_prefix()
+        hdkt_prefix_moi = st.text_input("Prefix đánh số HĐKT:", value=hdkt_prefix_hien_tai, key="cty_hdkt_prefix_input")
+
+        st.divider()
+        st.markdown("**📋 Hạn nộp Báo cáo Tăng/Giảm BHXH hàng tháng**")
+        st.caption("Mỗi doanh nghiệp có 1 ngày chốt hạn riêng trong tháng (VD: CHL nộp trước ngày 20). "
+                   "Dashboard sẽ tự cảnh báo tăng dần mức độ trong 5 ngày trước hạn.")
+        han_bhxh_hien_tai = get_han_nop_bhxh()
+        han_bhxh_moi = st.number_input(
+            "Ngày trong tháng phải nộp (1-28):", min_value=1, max_value=28,
+            value=han_bhxh_hien_tai, step=1, key="cty_han_bhxh_input"
+        )
+
+        st.divider()
+        st.markdown("**🕒 Cấu hình Chấm công**")
+        st.caption("⚠️ Khung sườn cấu hình — logic tính công/đi trễ sẽ được tích hợp và hoàn thiện dần theo nhu cầu phát sinh.")
+        cc_hien_tai = get_cau_hinh_cham_cong()
+        col_cc1, col_cc2, col_cc3 = st.columns(3)
+        with col_cc1:
+            cc_gio_vao_moi = st.time_input("Giờ vào chuẩn:", value=cc_hien_tai['gio_vao'], key="cty_cc_gio_vao")
+        with col_cc2:
+            cc_gio_ra_moi = st.time_input("Giờ ra chuẩn:", value=cc_hien_tai['gio_ra'], key="cty_cc_gio_ra")
+        with col_cc3:
+            cc_phut_tre_moi = st.number_input("Số phút cho phép trễ:", min_value=0, max_value=120,
+                                               value=cc_hien_tai['phut_tre'], step=5, key="cty_cc_phut_tre")
+
+        st.divider()
+        st.markdown("**💰 Phần mềm tính lương**")
+        st.caption("⚠️ [SẼ BUILD HOÀN THIỆN SAU] Mỗi công thức tính lương là 1 file riêng trong thư mục `salary/salary_{key}.py`. "
+                   "Chọn công thức áp dụng cho doanh nghiệp tại đây; các công thức mới sẽ được bổ sung theo nhu cầu phát sinh.")
+        luong_key_hien_tai = get_cau_hinh_luong_key()
+        luong_key_moi = st.selectbox(
+            "Công thức tính lương áp dụng:",
+            options=["salary_1"],
+            index=0,
+            format_func=lambda x: f"{x} (mặc định — chưa có công thức khác)",
+            key="cty_luong_key_select",
+            help="Danh sách sẽ tự động mở rộng khi có thêm file salary/salary_{key}.py mới."
+        )
+
+        st.divider()
+        if st.button("💾 SAVE CẤU HÌNH", type="primary", width='stretch', key="btn_save_cau_hinh_cty"):
+            loi_luu = []
+            if not update_cv_danh_so_option(cv_option_moi):
+                loi_luu.append("Đánh số công văn")
+            if not update_hdkt_prefix(hdkt_prefix_moi.strip()):
+                loi_luu.append("Prefix HĐKT")
+            if not update_han_nop_bhxh(int(han_bhxh_moi)):
+                loi_luu.append("Hạn nộp BHXH")
+            if not update_cau_hinh_cham_cong(cc_gio_vao_moi, cc_gio_ra_moi, int(cc_phut_tre_moi)):
+                loi_luu.append("Cấu hình chấm công")
+            if not update_cau_hinh_luong_key(luong_key_moi):
+                loi_luu.append("Công thức lương")
+
+            if loi_luu:
+                st.error(f"❌ Lưu thất bại một số mục: {', '.join(loi_luu)}")
+            else:
+                st.success("✅ Đã lưu toàn bộ cấu hình doanh nghiệp!")
+                st.cache_data.clear()
+                st.rerun()
 
 # ========== BHXH ==========
 elif menu == "📋 BHXH":
@@ -11775,6 +12056,74 @@ elif menu == "🤖 Chatbot Giải đáp":
             st.rerun()
 
 # ========== HƯỚNG DẪN SỬ DỤNG ==========
+elif menu == "🔑 Quản lý MK":
+    st.title("🔑 Quản lý mật khẩu")
+
+    if st.session_state.role == "admin":
+        tab_doi_mk, tab_admin_reset = st.tabs(["🔒 Đổi mật khẩu của tôi", "🛠️ Reset mật khẩu nhân viên (Admin)"])
+    else:
+        tab_doi_mk = st.container()
+
+    with tab_doi_mk:
+        st.subheader("🔒 Đổi mật khẩu của tôi")
+        st.caption("Nếu nghi ngờ mật khẩu bị lộ, hãy chủ động đổi ngay tại đây.")
+        mk_hien_tai = st.text_input("Mật khẩu hiện tại:", type="password", key="doimk_hientai")
+        mk_moi_ts = st.text_input("Mật khẩu mới:", type="password", key="doimk_moi")
+        mk_moi_ts2 = st.text_input("Nhập lại mật khẩu mới:", type="password", key="doimk_moi2")
+        if st.button("✅ Xác nhận đổi mật khẩu", key="btn_doi_mk_tuchu", type="primary"):
+            if not st.session_state.get('nhan_vien_id'):
+                st.error("❌ Không xác định được tài khoản đang đăng nhập (tài khoản Admin hệ thống không đổi được ở đây).")
+            else:
+                db_dmk = st.session_state.db_engine.get_connection()
+                c_dmk = db_dmk.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                c_dmk.execute("SELECT mat_khau_hash FROM nhan_vien WHERE id=%s", (st.session_state.nhan_vien_id,))
+                row_dmk = c_dmk.fetchone()
+                if not row_dmk or not bcrypt.checkpw(mk_hien_tai.encode(), row_dmk['mat_khau_hash'].encode()):
+                    db_dmk.close()
+                    st.error("❌ Mật khẩu hiện tại không đúng.")
+                elif len(mk_moi_ts) < 6:
+                    db_dmk.close()
+                    st.error("Mật khẩu mới phải có ít nhất 6 ký tự.")
+                elif mk_moi_ts != mk_moi_ts2:
+                    db_dmk.close()
+                    st.error("Hai mật khẩu nhập lại không khớp.")
+                else:
+                    c_dmk2 = db_dmk.cursor()
+                    new_hash_ts = bcrypt.hashpw(mk_moi_ts.encode(), bcrypt.gensalt()).decode()
+                    c_dmk2.execute("UPDATE nhan_vien SET mat_khau_hash=%s WHERE id=%s",
+                                   (new_hash_ts, st.session_state.nhan_vien_id))
+                    db_dmk.commit(); db_dmk.close()
+                    st.success("✅ Đổi mật khẩu thành công!")
+
+    if st.session_state.role == "admin":
+        with tab_admin_reset:
+            st.subheader("🛠️ Reset mật khẩu nhân viên (dành cho trường hợp quên mật khẩu & không có Email liên hệ)")
+            st.caption("Mật khẩu sẽ được đặt lại về mặc định = **số điện thoại** của nhân viên, "
+                       "và nhân viên sẽ bị buộc đổi mật khẩu ngay trong lần đăng nhập tiếp theo.")
+            db_rst = st.session_state.db_engine.get_connection()
+            c_rst = db_rst.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            c_rst.execute("""SELECT id, ho_ten, ma_nv, dien_thoai FROM nhan_vien
+                              WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY ho_ten""")
+            ds_nv_rst = c_rst.fetchall()
+            db_rst.close()
+            tuy_chon_rst = {f"{r['ho_ten']} ({r['ma_nv']}) - SĐT: {r.get('dien_thoai') or 'chưa có'}": r for r in ds_nv_rst}
+            chon_rst = st.selectbox("Chọn nhân viên:", ["-- Chọn --"] + list(tuy_chon_rst.keys()),
+                                     key="chon_reset_mk", help="💡 Gõ tên/mã NV để tìm nhanh")
+            if chon_rst != "-- Chọn --":
+                nv_rst = tuy_chon_rst[chon_rst]
+                if not nv_rst.get('dien_thoai'):
+                    st.error("❌ Nhân viên chưa có số điện thoại trong hồ sơ nên không thể đặt mật khẩu mặc định. Vui lòng cập nhật SĐT trước.")
+                else:
+                    st.warning(f"Sẽ đặt lại mật khẩu của **{nv_rst['ho_ten']}** về **{nv_rst['dien_thoai']}** và buộc đổi mật khẩu ở lần đăng nhập tới.")
+                    if st.button("🔄 Xác nhận Reset mật khẩu", key=f"btn_reset_mk_{nv_rst['id']}", type="primary"):
+                        db_r2 = st.session_state.db_engine.get_connection()
+                        c_r2 = db_r2.cursor()
+                        new_hash_rst = bcrypt.hashpw(nv_rst['dien_thoai'].encode(), bcrypt.gensalt()).decode()
+                        c_r2.execute("UPDATE nhan_vien SET mat_khau_hash=%s, phai_doi_mat_khau=TRUE WHERE id=%s",
+                                     (new_hash_rst, nv_rst['id']))
+                        db_r2.commit(); db_r2.close()
+                        st.success(f"✅ Đã reset mật khẩu về SĐT ({nv_rst['dien_thoai']}). Thông báo cho nhân viên đăng nhập lại và đổi mật khẩu mới.")
+
 elif menu == "📘 Hướng dẫn sử dụng":
     st.title("📘 Hướng dẫn sử dụng HRM-Port")
     st.caption("Tổng quan các chức năng chính của hệ thống — dành cho người dùng mới.")

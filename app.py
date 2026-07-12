@@ -8210,30 +8210,111 @@ elif menu == "✅ Nhân viên":
         # ===== Lịch sử các quyết định nhân sự đã ban hành =====
         st.divider()
         st.subheader("📚 Lịch sử Quyết định nhân sự")
+        search_qd = st.text_input("🔍 Tìm Quyết định (theo Số QĐ, Mã NV, Họ tên, Nội dung):", key="search_qdns")
+
         db_h = st.session_state.db_engine.get_connection()
         c_h = db_h.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         try:
             db_h.rollback()  # dọn transaction lỡ bị abort từ thao tác trước đó
-            c_h.execute("""
-                SELECT q.so_qd, q.loai_qd, q.ngay_qd, q.noi_dung, n.ho_ten, n.ma_nv
+            sql_qd = """
+                SELECT q.id, q.so_qd, q.loai_qd, q.ngay_qd, q.noi_dung, q.gia_tri_truoc, q.gia_tri_sau,
+                       n.ho_ten, n.ma_nv
                 FROM quyet_dinh_nhan_su q
                 JOIN nhan_vien n ON n.id = q.nhan_vien_id
-                ORDER BY q.id DESC LIMIT 100
-            """)
+                WHERE 1=1
+            """
+            params_qd = []
+            if search_qd.strip():
+                sql_qd += """ AND (q.so_qd ILIKE %s OR n.ma_nv ILIKE %s OR n.ho_ten ILIKE %s OR q.noi_dung ILIKE %s)"""
+                p = f"%{search_qd.strip()}%"
+                params_qd.extend([p, p, p, p])
+            sql_qd += " ORDER BY q.id DESC LIMIT 200"
+            c_h.execute(sql_qd, params_qd)
             lich_su_qd = c_h.fetchall()
         except Exception as e:
             st.error(f"❌ Lỗi tải lịch sử quyết định: {e}")
             lich_su_qd = []
         finally:
             db_h.close()
+
         if lich_su_qd:
-            df_qd = pd.DataFrame(lich_su_qd)
-            df_qd['loai_qd'] = df_qd['loai_qd'].map(LOAI_QDNS_LABEL).fillna(df_qd['loai_qd'])
-            df_qd = df_qd.rename(columns={
-                'so_qd': 'Số QĐ', 'loai_qd': 'Loại QĐ', 'ngay_qd': 'Ngày QĐ',
-                'ho_ten': 'Nhân viên', 'ma_nv': 'Mã NV', 'noi_dung': 'Nội dung'
-            })
-            st.dataframe(df_qd[['Số QĐ', 'Loại QĐ', 'Ngày QĐ', 'Mã NV', 'Nhân viên', 'Nội dung']], hide_index=True, width='stretch')
+            # Header
+            h1, h2, h3, h4, h5, h6, h7 = st.columns([1.2, 1.3, 1, 1.6, 2.2, 0.6, 0.6])
+            for h, txt in zip((h1, h2, h3, h4, h5), ("Số QĐ", "Loại QĐ", "Ngày QĐ", "Nhân viên", "Nội dung")):
+                h.markdown(f"**{txt}**")
+            st.divider()
+            for qd in lich_su_qd:
+                r1, r2, r3, r4, r5, r6, r7 = st.columns([1.2, 1.3, 1, 1.6, 2.2, 0.6, 0.6])
+                r1.write(qd['so_qd'])
+                r2.write(LOAI_QDNS_LABEL.get(qd['loai_qd'], qd['loai_qd']))
+                r3.write(format_date(qd['ngay_qd']))
+                r4.write(f"{qd['ho_ten']} ({qd['ma_nv']})")
+                r5.write(qd['noi_dung'] or '')
+                if r6.button("✏️", key=f"sua_qd_{qd['id']}", help="Sửa Quyết định"):
+                    st.session_state['qdns_dang_sua'] = qd['id']
+                    st.rerun()
+                if r7.button("🗑️", key=f"xoa_qd_{qd['id']}", help="Xóa Quyết định"):
+                    st.session_state['qdns_dang_xoa'] = qd['id']
+                    st.rerun()
+
+            # ----- Form SỬA Quyết định -----
+            if st.session_state.get('qdns_dang_sua'):
+                qd_id_sua = st.session_state['qdns_dang_sua']
+                qd_sua = next((q for q in lich_su_qd if q['id'] == qd_id_sua), None)
+                if qd_sua:
+                    with st.expander(f"✏️ Sửa Quyết định số {qd_sua['so_qd']}", expanded=True):
+                        st.caption("⚠️ Chỉ chỉnh sửa thông tin lưu trữ của Quyết định. Việc sửa KHÔNG tự động "
+                                   "hoàn tác/áp dụng lại thay đổi tương ứng trên hồ sơ nhân viên (chức vụ, chức danh, phòng ban...).")
+                        so_qd_moi = st.text_input("Số QĐ:", value=qd_sua['so_qd'], key=f"edit_so_{qd_id_sua}")
+                        ngay_qd_moi = st.date_input("Ngày QĐ:", value=qd_sua['ngay_qd'], key=f"edit_ngay_{qd_id_sua}")
+                        noi_dung_moi = st.text_area("Nội dung:", value=qd_sua['noi_dung'] or '', key=f"edit_nd_{qd_id_sua}", height=100)
+                        col_luu_qd, col_huy_qd = st.columns(2)
+                        with col_luu_qd:
+                            if st.button("💾 Lưu thay đổi", key=f"btn_luu_sua_qd_{qd_id_sua}", type="primary", width='stretch'):
+                                try:
+                                    db_u = st.session_state.db_engine.get_connection()
+                                    c_u = db_u.cursor()
+                                    c_u.execute("""
+                                        UPDATE quyet_dinh_nhan_su SET so_qd=%s, ngay_qd=%s, noi_dung=%s
+                                        WHERE id=%s
+                                    """, (so_qd_moi, ngay_qd_moi, noi_dung_moi, qd_id_sua))
+                                    db_u.commit(); db_u.close()
+                                    st.session_state.pop('qdns_dang_sua', None)
+                                    st.success("✅ Đã cập nhật Quyết định")
+                                    st.cache_data.clear()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"❌ Lỗi: {e}")
+                        with col_huy_qd:
+                            if st.button("✖️ Hủy", key=f"btn_huy_sua_qd_{qd_id_sua}", width='stretch'):
+                                st.session_state.pop('qdns_dang_sua', None)
+                                st.rerun()
+
+            # ----- Xác nhận XÓA Quyết định -----
+            if st.session_state.get('qdns_dang_xoa'):
+                qd_id_xoa = st.session_state['qdns_dang_xoa']
+                qd_xoa = next((q for q in lich_su_qd if q['id'] == qd_id_xoa), None)
+                if qd_xoa:
+                    st.warning(f"⚠️ Xác nhận xóa Quyết định số **{qd_xoa['so_qd']}** ({LOAI_QDNS_LABEL.get(qd_xoa['loai_qd'], qd_xoa['loai_qd'])} — {qd_xoa['ho_ten']})? "
+                               f"Việc xóa KHÔNG tự động hoàn tác thay đổi đã áp dụng trên hồ sơ nhân viên.")
+                    col_xn_xoa, col_huy_xoa = st.columns(2)
+                    with col_xn_xoa:
+                        if st.button("🗑️ Xác nhận xóa", key=f"btn_xn_xoa_qd_{qd_id_xoa}", type="primary", width='stretch'):
+                            try:
+                                db_d = st.session_state.db_engine.get_connection()
+                                c_d = db_d.cursor()
+                                c_d.execute("DELETE FROM quyet_dinh_nhan_su WHERE id=%s", (qd_id_xoa,))
+                                db_d.commit(); db_d.close()
+                                st.session_state.pop('qdns_dang_xoa', None)
+                                st.success("✅ Đã xóa Quyết định")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Lỗi: {e}")
+                    with col_huy_xoa:
+                        if st.button("✖️ Hủy", key=f"btn_huy_xoa_qd_{qd_id_xoa}", width='stretch'):
+                            st.session_state.pop('qdns_dang_xoa', None)
+                            st.rerun()
         else:
             st.info("Chưa có Quyết định nhân sự nào được tạo.")
 
@@ -8297,16 +8378,24 @@ elif menu == "✅ Nhân viên":
         # Phòng ban đặc biệt: không hiện Lao động chính thức/Thử việc và Đang làm/Nghỉ việc,
         # thay bằng chức vụ (không đúng bản chất & hình thức đối với 2 phòng ban này)
         PHONG_BAN_KHONG_HIEN_TT = ('Hội đồng Quản trị', 'Ban Tổng Giám đốc')
-        # Các chức vụ được coi là "người đứng đầu" phòng ban -> luôn xếp hàng đầu, cột giữa
-        CHUC_VU_DUNG_DAU = ["Chủ tịch HĐQT", "Tổng Giám đốc", "Trưởng phòng", "Tổ Trưởng", "Đội Trưởng"]
+        # Từ khóa nhận diện "người đứng đầu" phòng ban -> luôn xếp hàng đầu, cột giữa.
+        # QUAN TRỌNG: so khớp theo TỪ KHÓA (không phân biệt hoa/thường), KHÔNG so khớp
+        # chính xác nguyên chuỗi — vì dữ liệu chuc_vu thực tế có thể viết khác đi chút
+        # (VD: "Trưởng Phòng", "Tổ trưởng", "Giám đốc", "Trưởng Ban"...). So khớp chính xác
+        # từng ký tự trước đây khiến nhiều Trưởng phòng/Tổ trưởng/Đội trưởng không được
+        # nhận diện đúng, làm họ bị rơi khỏi hàng đầu (bug đã sửa).
+        TU_KHOA_DUNG_DAU = ['chủ tịch', 'tổng giám đốc', 'giám đốc', 'trưởng phòng',
+                            'tổ trưởng', 'đội trưởng', 'trưởng ban', 'trưởng bộ phận', 'phụ trách']
 
         def _la_cap_pho(nv):
             cv = (nv.get('chuc_vu') or '').strip().lower()
             return cv.startswith('phó')
 
         def _la_dung_dau(nv):
-            cv = (nv.get('chuc_vu') or '').strip()
-            return cv in CHUC_VU_DUNG_DAU
+            cv = (nv.get('chuc_vu') or '').strip().lower()
+            if not cv or cv.startswith('phó'):
+                return False
+            return any(tk in cv for tk in TU_KHOA_DUNG_DAU)
 
         def _vi_tri_hang_cuoi(so_luong, so_cot=5):
             """Vị trí cột (0..4) cho 1 hàng có `so_luong` người (< so_cot, tức hàng cuối chưa đủ).
@@ -8349,7 +8438,8 @@ elif menu == "✅ Nhân viên":
                 """, unsafe_allow_html=True)
 
                 st.markdown(f"<p style='text-align:center;margin-bottom:0;'><b>{nv_ct['ho_ten']}-{nv_ct['ma_nv']}</b></p>", unsafe_allow_html=True)
-                st.markdown(f"<p style='text-align:center;color:gray;font-size:0.85em;'>{nv_ct.get('chuc_danh_nghe') or ''}</p>", unsafe_allow_html=True)
+                if pb_chon_ct not in PHONG_BAN_KHONG_HIEN_TT:
+                    st.markdown(f"<p style='text-align:center;color:gray;font-size:0.85em;'>{nv_ct.get('chuc_vu') or ''}</p>", unsafe_allow_html=True)
 
                 if pb_chon_ct in PHONG_BAN_KHONG_HIEN_TT:
                     # Không đúng bản chất/hình thức với HĐQT & BTGĐ -> hiện chức vụ thay vì loại HĐ/trạng thái
@@ -8370,6 +8460,9 @@ elif menu == "✅ Nhân viên":
             # Tách người đứng đầu phòng ban (nếu có) -> luôn ở hàng đầu tiên, cột giữa (index 2/5).
             # Nếu không có người đứng đầu -> bỏ qua hàng riêng này, các hàng sau tịnh tiến lên.
             nguoi_dung_dau = next((nv for nv in ds_nv_ct if _la_dung_dau(nv)), None)
+            if not nguoi_dung_dau:
+                # Không có Tổng/Giám đốc/Trưởng/Phụ trách -> đôn "Phó" đầu tiên (theo alpha) lên hàng 1
+                nguoi_dung_dau = next((nv for nv in sorted(ds_nv_ct, key=lambda x: x.get('ho_ten') or '') if _la_cap_pho(nv)), None)
             ds_con_lai = [nv for nv in ds_nv_ct if nv is not nguoi_dung_dau]
             # Cấp phó ưu tiên lên đầu (bên trái), sau đó xếp theo alpha bê tên
             ds_con_lai = sorted(ds_con_lai, key=lambda nv: (0 if _la_cap_pho(nv) else 1, nv.get('ho_ten') or ''))
@@ -9397,8 +9490,15 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
             hien_tai_noi_dung = info_hien_tai[1] if info_hien_tai else mac_dinh_noi_dung
             hien_tai_thu_tu = info_hien_tai[2] if (info_hien_tai and len(info_hien_tai) > 2 and info_hien_tai[2]) else 0
             with st.expander(f"📝 {hien_tai_tieu_de or ma_dieu}" + ("" if la_mac_dinh else "  🆕"), expanded=False):
-                tieu_de_moi = st.text_input("Tiêu đề Điều:", value=hien_tai_tieu_de, key=f"mau_hd_td_{loai_hd_ma}_{ma_dieu}")
-                noi_dung_moi = st.text_area("Nội dung:", value=hien_tai_noi_dung, height=220, key=f"mau_hd_nd_{loai_hd_ma}_{ma_dieu}")
+                da_tuy_chinh = info_hien_tai is not None
+                if da_tuy_chinh:
+                    tieu_de_moi = st.text_input("Tiêu đề Điều:", value=hien_tai_tieu_de, key=f"mau_hd_td_{loai_hd_ma}_{ma_dieu}")
+                    noi_dung_moi = st.text_area("Nội dung:", value=hien_tai_noi_dung, height=220, key=f"mau_hd_nd_{loai_hd_ma}_{ma_dieu}")
+                else:
+                    st.caption("💡 Nội dung hiển thị mờ bên dưới chỉ là **gợi ý mặc định**, chưa phải nội dung đã lưu. "
+                               "Nhập nội dung để tạo bản tuỳ chỉnh riêng, hoặc để trống & không bấm Lưu để tiếp tục dùng mặc định.")
+                    tieu_de_moi = st.text_input("Tiêu đề Điều:", value="", placeholder=hien_tai_tieu_de, key=f"mau_hd_td_{loai_hd_ma}_{ma_dieu}")
+                    noi_dung_moi = st.text_area("Nội dung:", value="", placeholder=hien_tai_noi_dung, height=220, key=f"mau_hd_nd_{loai_hd_ma}_{ma_dieu}")
                 if not la_mac_dinh:
                     thu_tu_moi = st.number_input("Vị trí hiển thị (số nhỏ hơn đứng trước, chèn xen giữa các Điều mặc định):",
                                                   min_value=1, max_value=999, value=int(hien_tai_thu_tu) or 999,
@@ -9408,7 +9508,11 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
                 col_luu, col_reset, col_xoa = st.columns(3)
                 with col_luu:
                     if st.button("💾 Lưu", key=f"mau_hd_save_{loai_hd_ma}_{ma_dieu}", width='stretch', type="primary"):
-                        try:
+                        if not da_tuy_chinh and not tieu_de_moi.strip() and not noi_dung_moi.strip():
+                            st.warning("⚠️ Bạn chưa nhập nội dung tuỳ chỉnh nào (nội dung mờ chỉ là gợi ý). "
+                                       "Vẫn tiếp tục dùng nội dung mặc định, không có gì để lưu.")
+                        else:
+                          try:
                             db = st.session_state.db_engine.get_connection()
                             c = db.cursor()
                             c.execute("""
@@ -9422,7 +9526,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
                             get_all_dieu_hop_dong.clear()
                             st.success(f"✅ Đã lưu {ma_dieu}")
                             st.rerun()
-                        except Exception as e:
+                          except Exception as e:
                             st.error(f"❌ Lỗi: {e}")
                 with col_reset:
                     if la_mac_dinh:
@@ -10391,13 +10495,13 @@ elif menu == "📋 Báo cáo định kỳ":
 
 
     with tab_bc_tanggiam:
-        col_from, col_to, col_bc_spacer = st.columns(3)
+        col_from, col_to, col_xuat_bc = st.columns(3)
         with col_from:
             tu_ngay_bc = st.date_input("Từ ngày:", value=date.today().replace(day=1), key="bc_tu")
         with col_to:
             den_ngay_bc = st.date_input("Đến ngày:", value=date.today(), key="bc_den")
-        row2_c1, row2_c2, row2_c3 = st.columns(3)
-        with row2_c2:
+        with col_xuat_bc:
+            st.write("")  # căn chỉnh cho nút thẳng hàng với 2 ô ngày (bù khoảng trống label)
             xuat_bc = st.button("📄 XUẤT BÁO CÁO WORD", width='stretch')
 
         if xuat_bc:

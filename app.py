@@ -7851,7 +7851,12 @@ elif menu == "✅ Nhân viên":
                                         st.error("❌ Bạn không có quyền xóa dữ liệu!")
                                     else:
                                         st.warning("⚠️ Tính năng xóa nhân viên đã được chuyển sang mục 'CÔNG CỤ XÓA NHÂN VIÊN' ở cuối tab 'ĐANG LÀM VIỆC'")
-
+            
+                    except Exception as e:
+                        st.error(f"Lỗi khi tải thông tin nhân viên: {e}")
+                        st.session_state.selected_nv_id = None
+                        st.rerun()
+            
             # Form nhập thông tin hộ gia đình (chỉ admin) - Đặt NGOÀI form sửa nhân viên
             if 'bhxh_family_nv_id' in st.session_state and st.session_state.bhxh_family_nv_id is not None and st.session_state.role == "admin":
                 nv_id = st.session_state['bhxh_family_nv_id']

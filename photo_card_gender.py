@@ -250,7 +250,14 @@ def render():
             target_path = TARGETS_DIR / item["file"]
             with col:
                 is_selected = st.session_state.pcg_selected_target == item["file"]
-                with open(target_path, "rb") as f:
+                if os.path.exists(target_path):
+                    with open(target_path, "rb") as f:
+                        img_data = base64.b64encode(f.read()).decode()
+                        # ... code hiện tại
+                else:
+                    st.error(f"❌ Không tìm thấy file ảnh: {target_path}")
+                    st.info("💡 Vui lòng kiểm tra lại thư mục 'static' hoặc đường dẫn file ảnh.")
+                    return
                     b64_thumb = base64.b64encode(f.read()).decode()
                 mime = mimetypes.guess_type(item["file"])[0] or "image/jpeg"
                 css_class = "pcg-target-card selected" if is_selected else "pcg-target-card"

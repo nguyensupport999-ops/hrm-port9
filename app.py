@@ -5546,7 +5546,8 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
             # Chỉ hiển thị chức vụ nếu có
             if nv.get('chuc_vu'):
                 st.markdown(f"**🎖️ Chức vụ:** {nv.get('chuc_vu')}")
-            st.markdown(f"**📞 SĐT:** {nv.get('dien_thoai', 'Chưa cập nhật')}")
+            if not la_lanh_dao_cc:
+                st.markdown(f"**📞 SĐT:** {nv.get('dien_thoai', 'Chưa cập nhật')}")
 
         with info_col2:
             if nv.get('so_hdld'):
@@ -5568,8 +5569,8 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
                 status = trang_thai_text.get(nv.get('trang_thai'), nv.get('trang_thai', 'Chưa xác định'))
                 st.markdown(f"**📊 Trạng thái:** {status}")
             # Nếu là lãnh đạo cấp cao, hiển thị chức vụ thay vì trạng thái
-            #else:
-            #    st.markdown(f"**🎖️ Chức vụ:** {nv.get('chuc_vu', 'Thành viên')}")
+            else:
+                st.markdown(f"**📞 SĐT:** {nv.get('dien_thoai', 'Chưa cập nhật')}")
 
     # ===== Nút hành động (thêm nút "Đóng" ở cuối) =====
     st.divider()

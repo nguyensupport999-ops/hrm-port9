@@ -100,12 +100,32 @@ def ensure_npt_column():
         return False
 
 def chuan_hoa_ten_phong_ban(ten):
-    """Chuẩn hóa tên phòng ban: viết hoa chữ cái đầu mỗi từ"""
+    """Chuẩn hóa tên phòng ban.
+    QUAN TRỌNG: tiếng Việt không viết hoa chữ cái đầu của MỌI từ (kiểu .title()/
+    .capitalize() theo từng từ sẽ biến "Phòng KT-Cơ điện" thành "Phòng Kt-Cơ Điện",
+    sai chính tả và không khớp với PHONG_BAN_THU_TU/PHONG_BAN_LANH_DAO_CAO_CAP).
+    Thay vào đó:
+    1) Nếu tên (không phân biệt hoa/thường, khoảng trắng thừa) trùng với 1 tên
+       trong danh sách chuẩn PHONG_BAN_THU_TU -> trả về đúng tên chuẩn đó.
+    2) Nếu không khớp -> chỉ viết hoa chữ cái đầu tiên của cả chuỗi, giữ nguyên
+       phần còn lại như người dùng đã nhập (đúng kiểu viết hoa tên riêng tiếng Việt).
+    """
     if not ten:
         return ""
-    # Tách chuỗi, viết hoa chữ cái đầu mỗi từ
-    words = ten.strip().split()
-    return " ".join(word.capitalize() for word in words)
+    ten_sach = " ".join(ten.strip().split())
+    if not ten_sach:
+        return ""
+    for chuan in PHONG_BAN_THU_TU:
+        if ten_sach.lower() == chuan.lower():
+            return chuan
+    return ten_sach[0].upper() + ten_sach[1:]
+
+
+def la_phong_ban_lanh_dao_cao_cap(ten):
+    """So khớp phòng ban HĐQT/BTGĐ không phân biệt hoa/thường và khoảng trắng thừa,
+    để không bị lệ thuộc vào cách viết hoa của dữ liệu cũ đã lưu trong DB."""
+    ten_sach = " ".join((ten or "").strip().split()).lower()
+    return any(ten_sach == pb.lower() for pb in PHONG_BAN_LANH_DAO_CAO_CAP)
 
 def ensure_qdns_columns():
     """Bổ sung cột 'chuc_vu' và 'ngay_qd_ns' vào bảng nhan_vien nếu chưa có"""
@@ -649,7 +669,7 @@ def get_phong_ban_options():
         # 2 dòng riêng biệt trong danh mục cũ).
         ds_raw = [row[0] for row in c.fetchall() if row[0]]
         db.close()
-        ds = list(dict.fromkeys(t.strip().title() for t in ds_raw))
+        ds = list(dict.fromkeys(chuan_hoa_ten_phong_ban(t) for t in ds_raw))
         if not ds:
             ds = list(PHONG_BAN_THU_TU)  # fallback khi danh mục chưa cấu hình
         return sap_xep_phong_ban(ds)
@@ -5554,7 +5574,7 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
 
     with col_info:
         # Xác định xem có phải lãnh đạo cấp cao không
-        la_lanh_dao_cc = (nv.get('phong_ban_lam_viec') or '') in PHONG_BAN_LANH_DAO_CAO_CAP
+        la_lanh_dao_cc = la_phong_ban_lanh_dao_cao_cap(nv.get('phong_ban_lam_viec'))
         
         if la_lanh_dao_cc:
             # Lãnh đạo cấp cao: chỉ hiển thị Ông/Bà + Họ tên, KHÔNG có ma_nv
@@ -7674,10 +7694,8 @@ elif menu == "✅ Nhân viên":
                                             if st.button("❌ HỦY", key=f"cancel_convert_{nv_id_key}", width='stretch'):
                                                 st.session_state[f'convert_open_{nv_id_key}'] = False
                                                 st.rerun()
-                         
+
                             st.divider()
-                                    
-                        st.divider()
             
             # Form sửa nhân viên (chỉ admin)
             if 'selected_nv_id' in st.session_state and st.session_state.selected_nv_id is not None and st.session_state.role == "admin":
@@ -7699,26 +7717,24 @@ elif menu == "✅ Nhân viên":
                         st.subheader(f"✏️ Cập nhật: {nd.get('ho_ten', '')} ({nd.get('ma_nv', '')})")
                         with st.form("edit_nv"):
                             col1, col2, col3 = st.columns(3)
-                            with c1:
-                                htn = st.text_input("Họ và tên *")
-                                nsn = st.text_input("Ngày sinh (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
-                                gtn = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"])
-                                scc = st.text_input("CCCD")
-                                ncc = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
-                                ncc2 = st.text_input("Nơi cấp CCCD")
-                                trinh_do_moi = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, key="trinh_do_add")
-                            with c2:
-                                nqn = st.text_input("Nguyên quán")
-                                ttn = st.text_input("Thường trú")
-                                qtn = st.text_input("Quốc tịch", value="Việt Nam")
-                                dtn = st.text_input("Dân tộc", value="Kinh")
-                                so_luong_npt = st.number_input("Số người phụ thuộc", min_value=0, value=0, step=1, key="so_luong_npt_add")
+                            with col1:
+                                hnv = st.text_input("Họ và tên *", value=nd.get('ho_ten', ''))
+                                nsnv = st.text_input("Ngày sinh (dd/mm/yyyy)", value=format_date(nd.get('ngay_sinh')), placeholder="dd/mm/yyyy", max_chars=10)
+                                gtnv = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"], index=["", "Nam", "Nữ", "Khác"].index(nd.get('gioi_tinh', '')) if nd.get('gioi_tinh') in ["Nam", "Nữ", "Khác"] else 0)
+                                sccv = st.text_input("CCCD", value=nd.get('so_cccd', ''))
+                                nccv = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", value=format_date(nd.get('ngay_cap_cccd')), placeholder="dd/mm/yyyy", max_chars=10)
+                                ncv = st.text_input("Nơi cấp CCCD", value=nd.get('noi_cap_cccd', ''))
+                            with col2:
+                                nqnv = st.text_input("Nguyên quán", value=nd.get('nguyen_quan', ''))
+                                ttnv = st.text_input("Thường trú", value=nd.get('thuong_tru', ''))
+                                qtnv = st.text_input("Quốc tịch", value=nd.get('quoc_tich', 'Việt Nam'))
+                                dtnv = st.text_input("Dân tộc", value=nd.get('dan_toc', 'Kinh'))
+                                so_luong_npt_edit = st.number_input("Số người phụ thuộc", min_value=0, value=int(nd.get('so_luong_npt') or 0), step=1, key=f"so_luong_npt_edit_{nid}")
                             with col3:
                                 dtnv2 = st.text_input("SĐT", value=nd.get('dien_thoai', ''))
                                 emnv = st.text_input("Email", value=nd.get('email_lien_he', ''))
                                 cdnv = st.selectbox("Chức danh", [""] + dcv_edit, index=([""] + dcv_edit).index(nd.get('chuc_danh_nghe', '')) if nd.get('chuc_danh_nghe') in dcv_edit else 0)
-                                pb_hien_tai_chuan = (nd.get('phong_ban_lam_viec') or '').strip().title()
-                                pbnv_chuan = chuan_hoa_ten_phong_ban(pbnv)
+                                pb_hien_tai_chuan = chuan_hoa_ten_phong_ban(nd.get('phong_ban_lam_viec'))
                                 pbnv = st.selectbox("Phòng ban", [""] + dpb_edit, index=([""] + dpb_edit).index(pb_hien_tai_chuan) if pb_hien_tai_chuan in dpb_edit else 0)
                                 nlv2 = st.text_input("Nơi làm việc", value=nd.get('noi_lam_viec', 'Cảng THQT Hòn La'))
                                 trinh_do_v = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, index=([""] + TRINH_DO_LIST).index(nd.get('trinh_do', '')) if nd.get('trinh_do') in TRINH_DO_LIST else 0)
@@ -8694,6 +8710,12 @@ elif menu == "✅ Nhân viên":
         tat_ca_nv_ct = c_ct.fetchall()
         db_ct.close()
 
+        # Chuẩn hóa tên phòng ban của từng nhân viên trước khi gộp nhóm — dữ liệu cũ có thể
+        # đã bị lưu với cách viết hoa khác nhau (VD: "Tổ Cơ Giới" vs "Tổ Cơ giới"), nếu so
+        # khớp nguyên văn sẽ khiến 1 phòng ban bị tách thành nhiều nhóm và thiếu nhân viên.
+        for nv_norm in tat_ca_nv_ct:
+            nv_norm['phong_ban_lam_viec'] = chuan_hoa_ten_phong_ban(nv_norm.get('phong_ban_lam_viec'))
+
         cac_phong_ban_ct = sap_xep_phong_ban(list({nv['phong_ban_lam_viec'] for nv in tat_ca_nv_ct}))
 
         # Hàng search + 2 chỉ số tổng quan (giữ nguyên logic cũ, chỉ bỏ cột tiêu đề vì
@@ -8739,7 +8761,7 @@ elif menu == "✅ Nhân viên":
 
         # Phòng ban đặc biệt: không hiện Lao động chính thức/Thử việc và Đang làm/Nghỉ việc,
         # thay bằng chức vụ (không đúng bản chất & hình thức đối với 2 phòng ban này)
-        PHONG_BAN_KHONG_HIEN_TT = ('Hội đồng Quản trị', 'Ban Tổng Giám đốc')
+        PHONG_BAN_KHONG_HIEN_TT = PHONG_BAN_LANH_DAO_CAO_CAP
         # Từ khóa nhận diện "người đứng đầu" phòng ban -> luôn xếp hàng đầu, cột giữa.
         # QUAN TRỌNG: so khớp theo TỪ KHÓA (không phân biệt hoa/thường), KHÔNG so khớp
         # chính xác nguyên chuỗi — vì dữ liệu chuc_vu thực tế có thể viết khác đi chút
@@ -9773,7 +9795,11 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
             if st.button("💾 Lưu", key=f"btn_add_{ten_bang}"):
                 if ten_moi.strip():
                     try:
-                        ten_chuan_hoa = ten_moi.strip().title()  # viết hoa chữ cái đầu mỗi từ cho nhất quán
+                        if ten_bang == "danh_muc_phong_ban":
+                            # Phòng ban: dùng chuẩn hóa kiểu tiếng Việt (không viết hoa mọi từ)
+                            ten_chuan_hoa = chuan_hoa_ten_phong_ban(ten_moi)
+                        else:
+                            ten_chuan_hoa = ten_moi.strip()[:1].upper() + ten_moi.strip()[1:]  # chỉ viết hoa chữ cái đầu
                         db = st.session_state.db_engine.get_connection(); c = db.cursor()
                         c.execute(f"INSERT INTO {ten_bang} ({cot_ten}) VALUES (%s) ON CONFLICT DO NOTHING",
                                   (ten_chuan_hoa,))

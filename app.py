@@ -7674,9 +7674,7 @@ elif menu == "✅ Nhân viên":
                                             if st.button("❌ HỦY", key=f"cancel_convert_{nv_id_key}", width='stretch'):
                                                 st.session_state[f'convert_open_{nv_id_key}'] = False
                                                 st.rerun()
-                                        except Exception as e:
-                                            st.error(f"❌ Lỗi khi xử lý chuyển đổi: {e}")        
-                            
+                         
                             st.divider()
                                     
                         st.divider()

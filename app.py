@@ -7176,7 +7176,6 @@ elif menu == "✅ Nhân viên":
                         pbn = st.selectbox("Phòng ban", [""] + dpb)
                         pbn_chuan = chuan_hoa_ten_phong_ban(pbn)
                         nlv = st.text_input("Nơi làm việc", value="Cảng THQT Hòn La")
-                        # --- THÊM MỚI: TRƯỜNG ẢNH HỒ SƠ ---
                         anh_ho_so_moi = st.file_uploader("Ảnh hồ sơ", type=["png", "jpg", "jpeg"], key="anh_ho_so_add")
                     st.divider()
                     st.caption("💼 Hợp đồng & BHXH")
@@ -7208,12 +7207,12 @@ elif menu == "✅ Nhân viên":
                         bank_index = 0
                         cnh = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_index, key="add_cnh")
                         tkb = st.text_input("Tỉnh KCB")
-                        nkb = st.text_input("Nơi KCB")
                     with c8:
+                        nkb = st.text_input("Nơi KCB")
                         ths = st.text_input("Tỉnh/TP nhận HS")
                         phs = st.text_input("Phường/Xã nhận HS")
-                        dhs = st.text_area("Địa chỉ nhận HS", height=100)
                     with c9:
+                        dhs = st.text_area("Địa chỉ nhận HS", height=100)
                         dks = st.selectbox("ĐK nhận sổ", ["Có", "Không"])
                         hso = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"])
                     
@@ -7673,22 +7672,22 @@ elif menu == "✅ Nhân viên":
                                 nsnv = st.text_input("Ngày sinh (dd/mm/yyyy)", value=format_date(nd.get('ngay_sinh')), placeholder="dd/mm/yyyy", max_chars=10)
                                 gtnv = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"], index=["", "Nam", "Nữ", "Khác"].index(nd.get('gioi_tinh', '')) if nd.get('gioi_tinh') in ["Nam", "Nữ", "Khác"] else 0)
                                 sccv = st.text_input("CCCD", value=nd.get('so_cccd', ''))
+                                dtnv2 = st.text_input("SĐT", value=nd.get('dien_thoai', ''))
                                 nccv = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", value=format_date(nd.get('ngay_cap_cccd')), placeholder="dd/mm/yyyy", max_chars=10)
                                 ncv = st.text_input("Nơi cấp CCCD", value=nd.get('noi_cap_cccd', ''))
                             with col2:
+                                emnv = st.text_input("Email", value=nd.get('email_lien_he', ''))
                                 nqnv = st.text_input("Nguyên quán", value=nd.get('nguyen_quan', ''))
                                 ttnv = st.text_input("Thường trú", value=nd.get('thuong_tru', ''))
                                 qtnv = st.text_input("Quốc tịch", value=nd.get('quoc_tich', 'Việt Nam'))
                                 dtnv = st.text_input("Dân tộc", value=nd.get('dan_toc', 'Kinh'))
                                 so_luong_npt_edit = st.number_input("Số người phụ thuộc", min_value=0, value=int(nd.get('so_luong_npt') or 0), step=1, key=f"so_luong_npt_edit_{nid}")
+                                trinh_do_v = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, index=([""] + TRINH_DO_LIST).index(nd.get('trinh_do', '')) if nd.get('trinh_do') in TRINH_DO_LIST else 0)
                             with col3:
-                                dtnv2 = st.text_input("SĐT", value=nd.get('dien_thoai', ''))
-                                emnv = st.text_input("Email", value=nd.get('email_lien_he', ''))
                                 cdnv = st.selectbox("Chức danh", [""] + dcv_edit, index=([""] + dcv_edit).index(nd.get('chuc_danh_nghe', '')) if nd.get('chuc_danh_nghe') in dcv_edit else 0)
                                 pb_hien_tai_chuan = chuan_hoa_ten_phong_ban(nd.get('phong_ban_lam_viec'))
                                 pbnv = st.selectbox("Phòng ban", [""] + dpb_edit, index=([""] + dpb_edit).index(pb_hien_tai_chuan) if pb_hien_tai_chuan in dpb_edit else 0)
                                 nlv2 = st.text_input("Nơi làm việc", value=nd.get('noi_lam_viec', 'Cảng THQT Hòn La'))
-                                trinh_do_v = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, index=([""] + TRINH_DO_LIST).index(nd.get('trinh_do', '')) if nd.get('trinh_do') in TRINH_DO_LIST else 0)
                                 anh_hien_tai = nd.get('anh_ho_so')
                                 if anh_hien_tai:
                                     anh_bytes_ht = get_anh_ho_so_bytes(anh_hien_tai)
@@ -7730,15 +7729,14 @@ elif menu == "✅ Nhân viên":
                                     bank_edit_index = BANK_LIST.index(old_bank) + 1
                                 cnhv = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_edit_index, key="edit_cnh")
                                 tkbv = st.text_input("Tỉnh KCB", value=nd.get('tinh_kcb', ''))
-                                nkbv = st.text_input("Nơi KCB", value=nd.get('noi_dang_ky_kcb', ''))
                             with col8:
+                                nkbv = st.text_input("Nơi KCB", value=nd.get('noi_dang_ky_kcb', ''))
                                 thsv = st.text_input("Tỉnh/TP nhận HS", value=nd.get('tinh_nhan_hs', ''))
                                 phsv = st.text_input("Phường/Xã nhận HS", value=nd.get('phuong_nhan_hs', ''))
-                                dhsv = st.text_area("Địa chỉ nhận HS", value=nd.get('dia_chi_nhan_hs', ''), height=100)
                             with col9:
+                                dhsv = st.text_area("Địa chỉ nhận HS", value=nd.get('dia_chi_nhan_hs', ''))
                                 dksv = st.selectbox("ĐK nhận sổ", ["Có", "Không"], index=["Có", "Không"].index(nd.get('dang_ky_nhan_so', 'Có')) if nd.get('dang_ky_nhan_so') in ["Có", "Không"] else 0)
                                 hsov = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"], index=["", "Đã có HS", "Chưa có"].index(nd.get('ho_so', '')) if nd.get('ho_so') in ["Đã có HS", "Chưa có"] else 0)
-
                             col_save, col_delete = st.columns(2)
                             with col_save:
                                 if st.form_submit_button("💾 CẬP NHẬT", width='stretch'):

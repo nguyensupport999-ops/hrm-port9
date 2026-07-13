@@ -5568,8 +5568,8 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
                 status = trang_thai_text.get(nv.get('trang_thai'), nv.get('trang_thai', 'Chưa xác định'))
                 st.markdown(f"**📊 Trạng thái:** {status}")
             # Nếu là lãnh đạo cấp cao, hiển thị chức vụ thay vì trạng thái
-            else:
-                st.markdown(f"**🎖️ Chức vụ:** {nv.get('chuc_vu', 'Thành viên')}")
+            #else:
+            #    st.markdown(f"**🎖️ Chức vụ:** {nv.get('chuc_vu', 'Thành viên')}")
 
     # ===== Nút hành động (thêm nút "Đóng" ở cuối) =====
     st.divider()

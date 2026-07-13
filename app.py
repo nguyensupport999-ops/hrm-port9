@@ -7202,8 +7202,8 @@ elif menu == "✅ Nhân viên":
                         dtn2 = st.text_input("SĐT")
                         emn = st.text_input("Email")
                         cdn = st.selectbox("Chức danh", [""] + dcv)
-                        pbn_chuan = chuan_hoa_ten_phong_ban(pbn)
                         pbn = st.selectbox("Phòng ban", [""] + dpb)
+                        pbn_chuan = chuan_hoa_ten_phong_ban(pbn)
                         nlv = st.text_input("Nơi làm việc", value="Cảng THQT Hòn La")
                         # --- THÊM MỚI: TRƯỜNG ẢNH HỒ SƠ ---
                         anh_ho_so_moi = st.file_uploader("Ảnh hồ sơ", type=["png", "jpg", "jpeg"], key="anh_ho_so_add")

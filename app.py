@@ -5546,8 +5546,7 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
             # Chỉ hiển thị chức vụ nếu có
             if nv.get('chuc_vu'):
                 st.markdown(f"**🎖️ Chức vụ:** {nv.get('chuc_vu')}")
-            if not la_lanh_dao_cc:
-                st.markdown(f"**📞 SĐT:** {nv.get('dien_thoai', 'Chưa cập nhật')}")
+            st.markdown(f"**📞 SĐT:** {nv.get('dien_thoai', 'Chưa cập nhật')}")
 
         with info_col2:
             if nv.get('so_hdld'):
@@ -5570,7 +5569,7 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
                 st.markdown(f"**📊 Trạng thái:** {status}")
             # Nếu là lãnh đạo cấp cao, hiển thị chức vụ thay vì trạng thái
             else:
-                st.markdown(f"**📞 SĐT:** {nv.get('dien_thoai', 'Chưa cập nhật')}")
+                st.markdown(f"**🎖️ Chức vụ:** {nv.get('chuc_vu', 'Thành viên')}")
 
     # ===== Nút hành động (thêm nút "Đóng" ở cuối) =====
     st.divider()
@@ -5773,14 +5772,15 @@ if menu == "📊 Dashboard":
         """)
         education_data = c_dash.fetchall()
 
-        # d. Cơ cấu theo Chức danh (Top 10)
+        # d. Cơ cấu theo Chức danh (Top 10) — LẤY TOÀN BỘ chức danh ở SQL (không LIMIT ở đây),
+        # việc gộp "Top 9 + Khác" để hiển thị được xử lý bên dưới bằng Python, để đảm bảo
+        # Tổng của biểu đồ này luôn khớp với các biểu đồ khác (không bị mất nhân sự do LIMIT).
         c_dash.execute(f"""
             SELECT chuc_danh_nghe, COUNT(*) as "Số lượng"
             FROM nhan_vien WHERE {DK_CHUAN_NV}
             AND chuc_danh_nghe IS NOT NULL AND chuc_danh_nghe != ''
             GROUP BY chuc_danh_nghe
             ORDER BY "Số lượng" DESC
-            LIMIT 10
         """)
         role_data = c_dash.fetchall()
 
@@ -5833,7 +5833,22 @@ if menu == "📊 Dashboard":
                 import plotly.graph_objects as go
                 
                 df_role = pd.DataFrame(role_data)
+                # Tổng luôn tính trên TOÀN BỘ chức danh (không bị ảnh hưởng bởi việc
+                # gộp Top 9 + Khác bên dưới), để khớp với các biểu đồ khác trong Dashboard.
                 total = df_role['Số lượng'].sum()
+
+                # Nếu có nhiều hơn 10 chức danh: giữ 9 chức danh đông nhất, gộp phần còn
+                # lại thành 1 dòng "Khác" — vừa gọn (đúng tinh thần "Top 10"), vừa không
+                # làm mất người khỏi biểu đồ/tổng như khi dùng LIMIT 10 ở SQL.
+                if len(df_role) > 10:
+                    df_top = df_role.iloc[:9].copy()
+                    so_luong_khac = df_role.iloc[9:]['Số lượng'].sum()
+                    cac_chuc_danh_khac = df_role.iloc[9:]['chuc_danh_nghe'].tolist()
+                    df_khac = pd.DataFrame([{
+                        'chuc_danh_nghe': f"Khác ({len(cac_chuc_danh_khac)} chức danh)",
+                        'Số lượng': so_luong_khac
+                    }])
+                    df_role = pd.concat([df_top, df_khac], ignore_index=True)
                 
                 # Tạo labels với format: "Chức danh\nSố lượng (tỷ lệ%)"
                 labels_with_stats = []
@@ -7161,7 +7176,7 @@ elif menu == "✅ Nhân viên":
                         gtn = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"], key="gtn")
                         scc = st.text_input("CCCD", key="scc")
                         ncc = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key="ncc")
-                        ncc2 = st.text_input("Nơi cấp CCCD", value="Cục QLHC về TTXH - Bộ Công An", key="ncc2")
+                        ncc2 = st.text_input("Nơi cấp CCCD", key="ncc2")
                     with c2:
                         nqn = st.text_input("Nguyên quán", key="nqn")
                         ttn = st.text_input("Thường trú", key="ttn")
@@ -7206,13 +7221,13 @@ elif menu == "✅ Nhân viên":
                         stk = st.text_input("STK", key="stk")
                         bank_index = 0
                         cnh = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_index, key="add_cnh")
-                        tkb = st.text_input("Tỉnh KCB", value="Tỉnh Quảng Trị", key="tkb")
+                        tkb = st.text_input("Tỉnh KCB", key="tkb")
                     with c8:
-                        nkb = st.text_input("Nơi KCB", value="Trung tâm Y tế Quảng Trạch", key="nkb")
-                        ths = st.text_input("Tỉnh/TP nhận HS", value="Tỉnh Quảng Trị", key="ths")
-                        phs = st.text_input("Phường/Xã nhận HS", value="Xã Phú Trạch", key="phs")
+                        nkb = st.text_input("Nơi KCB", key="nkb")
+                        ths = st.text_input("Tỉnh/TP nhận HS", key="ths")
+                        phs = st.text_input("Phường/Xã nhận HS", key="phs")
                     with c9:
-                        dhs = st.text_input("Địa chỉ nhận HS", value="Công ty cổ phần Cảng Hòn La", key="dhs")
+                        dhs = st.text_input("Địa chỉ nhận HS", key="dhs")
                         dks = st.selectbox("ĐK nhận sổ", ["Có", "Không"], key="dks")
                         hso = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"], key="hso")
                     
@@ -7696,20 +7711,19 @@ elif menu == "✅ Nhân viên":
                                 sccv = st.text_input("CCCD", value=nd.get('so_cccd', ''))
                                 nccv = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", value=format_date(nd.get('ngay_cap_cccd')), placeholder="dd/mm/yyyy", max_chars=10)
                                 ncv = st.text_input("Nơi cấp CCCD", value=nd.get('noi_cap_cccd', ''))
-                                dtnv2 = st.text_input("SĐT", value=nd.get('dien_thoai', ''))
                             with col2:
+                                dtnv2 = st.text_input("SĐT", value=nd.get('dien_thoai', ''))
                                 emnv = st.text_input("Email", value=nd.get('email_lien_he', ''))
                                 nqnv = st.text_input("Nguyên quán", value=nd.get('nguyen_quan', ''))
                                 ttnv = st.text_input("Thường trú", value=nd.get('thuong_tru', ''))
                                 qtnv = st.text_input("Quốc tịch", value=nd.get('quoc_tich', 'Việt Nam'))
                                 dtnv = st.text_input("Dân tộc", value=nd.get('dan_toc', 'Kinh'))
+                            with col3:
                                 so_luong_npt_edit = st.number_input("Số người phụ thuộc", min_value=0, value=int(nd.get('so_luong_npt') or 0), step=1, key=f"so_luong_npt_edit_{nid}")
                                 trinh_do_v = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, index=([""] + TRINH_DO_LIST).index(nd.get('trinh_do', '')) if nd.get('trinh_do') in TRINH_DO_LIST else 0)
-                            with col3:
                                 cdnv = st.selectbox("Chức danh", [""] + dcv_edit, index=([""] + dcv_edit).index(nd.get('chuc_danh_nghe', '')) if nd.get('chuc_danh_nghe') in dcv_edit else 0)
                                 pb_hien_tai_chuan = chuan_hoa_ten_phong_ban(nd.get('phong_ban_lam_viec'))
                                 pbnv = st.selectbox("Phòng ban", [""] + dpb_edit, index=([""] + dpb_edit).index(pb_hien_tai_chuan) if pb_hien_tai_chuan in dpb_edit else 0)
-                                pbn_chuan = chuan_hoa_ten_phong_ban(pbn)
                                 nlv2 = st.text_input("Nơi làm việc", value=nd.get('noi_lam_viec', 'Cảng THQT Hòn La'))
                                 anh_hien_tai = nd.get('anh_ho_so')
                                 if anh_hien_tai:
@@ -7798,7 +7812,7 @@ elif menu == "✅ Nhân viên":
                                                             tbd_val = parse_date(nvlv)
                                                     
                                                     # Chuẩn hóa tên phòng ban
-                                                    pbn_chuan = chuan_hoa_ten_phong_ban(pbn)
+                                                    pbnv_chuan = chuan_hoa_ten_phong_ban(pbnv)
                                                     
                                                     c_upd.execute("""UPDATE nhan_vien SET ho_ten=%s,chuc_danh_nghe=%s,ngay_sinh=%s,gioi_tinh=%s,
                                                         so_cccd=%s,ngay_cap_cccd=%s,noi_cap_cccd=%s,nguyen_quan=%s,thuong_tru=%s,dien_thoai=%s,
@@ -8764,7 +8778,7 @@ elif menu == "✅ Nhân viên":
             elif so_luong == 2:
                 return [1, 3]
             elif so_luong == 3:
-                return [0, 2, 4]
+                return [1, 2, 3]
             else:
                 return list(range(so_luong))  # 4 hoặc 5 người -> bố trí tự do, lấp đầy từ trái
 

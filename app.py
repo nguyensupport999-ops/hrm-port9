@@ -5414,7 +5414,7 @@ if st.session_state.get('phai_doi_mat_khau'):
 # Menu theo role — 4 vai trò cố định: admin / hr / kt_luong / viewer (+ 'nhan_vien' tự phục vụ)
 if st.session_state.role == "admin":
     # Toàn quyền
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","🔍 Audit Dashboard","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role in ["văn thư", "hr"]:
     # HR: như admin trừ Upload hồ sơ, Danh mục — và KHÔNG được xem Tính thu nhập (dữ liệu lương)
     menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
@@ -5425,8 +5425,7 @@ elif st.session_state.role == "van_thu":
     menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role == "viewer":
     # Viewer: chỉ xem, thu hẹp — không có BHXH, không có Tính thu nhập
-    #menu_options = ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo định kỳ","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
+    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo định kỳ","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
 else:  # 'nhan_vien' thường — chỉ xem hồ sơ bản thân + chat nội bộ
     menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"]
 menu = st.sidebar.radio("📋 Menu", menu_options)
@@ -12200,6 +12199,138 @@ elif menu == "🔑 Quản lý MK":
 
 elif menu == "🖼️ Tạo ảnh thẻ NV":
     photo_card_gender.render()
+
+elif menu == "🔍 Audit Dashboard":
+    st.title("🔍 Audit lệch số liệu Dashboard")
+    st.caption(
+        "Công cụ nội bộ (chỉ Admin) để kiểm tra các biểu đồ trong 📊 Dashboard có "
+        "cùng Tổng với nhau không, và tìm nguyên nhân nếu bị lệch (LIMIT, filter thiếu "
+        "đồng bộ, dữ liệu NULL/rỗng...). Dùng ngay kết nối DB hiện tại của công ty bạn "
+        "đang đăng nhập — không cần cấu hình gì thêm."
+    )
+    if st.session_state.role != "admin":
+        st.error("❌ Chỉ Admin mới được dùng công cụ này!")
+    else:
+        db_a = st.session_state.db_engine.get_connection()
+        c_a = db_a.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+        # Tiêu chuẩn lọc nhân sự — PHẢI giống hệt biến DK_CHUAN_NV dùng ở 📊 Dashboard.
+        # Nếu sửa điều kiện lọc ở Dashboard, nhớ sửa lại y hệt ở đây.
+        DK_CHUAN_NV_AUDIT = "trang_thai IN ('DANG_LAM', 'THU_VIEC') AND so_hdld IS NOT NULL AND so_hdld != ''"
+
+        c_a.execute(f"SELECT COUNT(*) AS t FROM nhan_vien WHERE {DK_CHUAN_NV_AUDIT}")
+        TONG_CHUAN = c_a.fetchone()['t']
+
+        st.subheader("0️⃣ Tổng chuẩn (dùng để đối chiếu mọi biểu đồ)")
+        st.success(f"**Tổng chuẩn = {TONG_CHUAN} nhân viên**")
+        st.caption("Điều kiện: `" + DK_CHUAN_NV_AUDIT + "`")
+        st.divider()
+
+        # 1) So sánh Tổng từng biểu đồ với Tổng chuẩn
+        st.subheader("1️⃣ So sánh Tổng từng biểu đồ với Tổng chuẩn")
+        checks_a = []
+        c_a.execute(f"SELECT COUNT(*) t FROM nhan_vien WHERE {DK_CHUAN_NV_AUDIT}")
+        checks_a.append(("Cơ cấu theo Phòng ban", c_a.fetchone()['t'], "không filter thêm"))
+        c_a.execute(f"SELECT COUNT(*) t FROM nhan_vien WHERE {DK_CHUAN_NV_AUDIT}")
+        checks_a.append(("Cơ cấu theo Giới tính", c_a.fetchone()['t'], "không filter thêm"))
+        c_a.execute(f"SELECT COUNT(*) t FROM nhan_vien WHERE {DK_CHUAN_NV_AUDIT}")
+        checks_a.append(("Cơ cấu theo Trình độ học vấn", c_a.fetchone()['t'], "không filter thêm"))
+        c_a.execute(f"""
+            SELECT COUNT(*) t FROM nhan_vien
+            WHERE {DK_CHUAN_NV_AUDIT} AND chuc_danh_nghe IS NOT NULL AND chuc_danh_nghe != ''
+        """)
+        checks_a.append(("Cơ cấu theo Chức danh (SQL đầy đủ)", c_a.fetchone()['t'], "filter thêm: chuc_danh_nghe IS NOT NULL AND != ''"))
+        c_a.execute(f"SELECT COUNT(*) t FROM nhan_vien WHERE {DK_CHUAN_NV_AUDIT} AND ngay_sinh IS NOT NULL")
+        checks_a.append(("Cơ cấu theo Độ tuổi", c_a.fetchone()['t'], "filter thêm: ngay_sinh IS NOT NULL (chủ ý)"))
+        c_a.execute(f"""
+            SELECT COUNT(*) t FROM nhan_vien
+            WHERE ngay_vao_lam >= (CURRENT_DATE - INTERVAL '6 months') AND {DK_CHUAN_NV_AUDIT}
+        """)
+        checks_a.append(("Xu hướng tuyển dụng 6 tháng", c_a.fetchone()['t'], "filter thêm: chỉ 6 tháng gần nhất (chủ ý)"))
+
+        rows_out_a = []
+        for ten_bd, tong_bd, ghi_chu in checks_a:
+            lech = tong_bd - TONG_CHUAN
+            if lech == 0:
+                trang_thai = "✅ Khớp"
+            elif "chủ ý" in ghi_chu:
+                trang_thai = f"ℹ️ Lệch {lech:+d} — chủ ý (xem ghi chú)"
+            else:
+                trang_thai = f"🚨 LỆCH {lech:+d} — CẦN KIỂM TRA"
+            rows_out_a.append({
+                "Biểu đồ": ten_bd, "Tổng": tong_bd, "Tổng chuẩn": TONG_CHUAN,
+                "Chênh lệch": lech, "Trạng thái": trang_thai, "Ghi chú": ghi_chu,
+            })
+        st.dataframe(pd.DataFrame(rows_out_a), width='stretch', hide_index=True)
+        st.divider()
+
+        # 2) Chi tiết toàn bộ chức danh — lộ ra những chức danh sẽ bị LIMIT cắt mất
+        st.subheader("2️⃣ Chi tiết toàn bộ Chức danh (không LIMIT)")
+        c_a.execute(f"""
+            SELECT chuc_danh_nghe, COUNT(*) as so_luong
+            FROM nhan_vien WHERE {DK_CHUAN_NV_AUDIT}
+            AND chuc_danh_nghe IS NOT NULL AND chuc_danh_nghe != ''
+            GROUP BY chuc_danh_nghe
+            ORDER BY so_luong DESC
+        """)
+        df_full_role_a = pd.DataFrame(c_a.fetchall())
+        if not df_full_role_a.empty:
+            df_full_role_a.index = range(1, len(df_full_role_a) + 1)
+            df_full_role_a['Sẽ bị LIMIT 10 cắt mất?'] = [
+                "🚨 CÓ" if i > 10 else "✅ Không" for i in df_full_role_a.index
+            ]
+            st.dataframe(df_full_role_a, width='stretch')
+            so_bi_cat = (df_full_role_a.index > 10).sum()
+            if so_bi_cat > 0:
+                nguoi_bi_cat = df_full_role_a[df_full_role_a.index > 10]['so_luong'].sum()
+                st.warning(f"⚠️ {so_bi_cat} chức danh ({nguoi_bi_cat} người) sẽ bị mất nếu SQL có LIMIT 10.")
+            else:
+                st.success("✅ Tổng số chức danh ≤ 10, không có nguy cơ bị LIMIT cắt mất dữ liệu.")
+        else:
+            st.info("Không có dữ liệu chức danh.")
+        st.divider()
+
+        # 3) Nhân viên bị loại khỏi Tổng chuẩn kèm lý do
+        st.subheader("3️⃣ Nhân viên KHÔNG nằm trong Tổng chuẩn (kèm lý do)")
+        c_a.execute(f"""
+            SELECT ma_nv, ho_ten, trang_thai, so_hdld,
+                CASE
+                    WHEN trang_thai NOT IN ('DANG_LAM','THU_VIEC') THEN 'Trạng thái không phải Đang làm/Thử việc: ' || COALESCE(trang_thai,'(rỗng)')
+                    WHEN so_hdld IS NULL OR so_hdld = '' THEN 'Chưa có số HĐLĐ (hồ sơ chưa hoàn thiện)'
+                    ELSE 'Không rõ'
+                END as ly_do
+            FROM nhan_vien
+            WHERE NOT ({DK_CHUAN_NV_AUDIT})
+            ORDER BY trang_thai, ho_ten
+        """)
+        loai_tru_a = c_a.fetchall()
+        if loai_tru_a:
+            st.dataframe(pd.DataFrame(loai_tru_a), width='stretch', hide_index=True)
+            st.caption(f"Tổng cộng {len(loai_tru_a)} nhân viên bị loại khỏi Tổng chuẩn vì lý do trên.")
+        else:
+            st.info("Không có nhân viên nào bị loại — mọi bản ghi đều đạt Tổng chuẩn.")
+        st.divider()
+
+        # 4) Cảnh báo NULL/rỗng ở các trường dùng để group biểu đồ
+        st.subheader("4️⃣ Kiểm tra NULL/rỗng ở các trường dùng để nhóm biểu đồ")
+        truong_can_kiem_tra_a = {
+            "gioi_tinh": "Giới tính", "trinh_do": "Trình độ",
+            "phong_ban_lam_viec": "Phòng ban", "ngay_sinh": "Ngày sinh",
+            "chuc_danh_nghe": "Chức danh",
+        }
+        rows_null_a = []
+        for cot, nhan in truong_can_kiem_tra_a.items():
+            c_a.execute(f"""
+                SELECT COUNT(*) t FROM nhan_vien
+                WHERE {DK_CHUAN_NV_AUDIT} AND ({cot} IS NULL OR {cot}::text = '')
+            """)
+            so_luong_null = c_a.fetchone()['t']
+            rows_null_a.append({
+                "Trường": nhan, "Số nhân viên NULL/rỗng": so_luong_null,
+                "Trạng thái": "✅ Không có" if so_luong_null == 0 else f"⚠️ Có {so_luong_null} người thiếu dữ liệu"
+            })
+        st.dataframe(pd.DataFrame(rows_null_a), width='stretch', hide_index=True)
+        db_a.close()
 
 elif menu == "📘 Hướng dẫn sử dụng":
     st.title("📘 Hướng dẫn sử dụng HRM-Port")

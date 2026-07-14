@@ -6207,6 +6207,10 @@ if menu == "📊 Dashboard":
     # Tạo tabs cho sinh nhật
     tab_trong_thang, tab_hom_nay, tab_lich_su = st.tabs(["📅 Sinh nhật trong tháng", "🎉 Hôm nay", "📜 Lịch sử đã gửi"])
 
+    # --- Kết nối DB riêng cho toàn bộ phần Sinh nhật (3 tab bên dưới dùng chung) ---
+    db_bd = st.session_state.db_engine.get_connection()
+    c = db_bd.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
     with tab_trong_thang:
         # Lấy danh sách sinh nhật trong tháng
         c.execute("""
@@ -6442,6 +6446,8 @@ if menu == "📊 Dashboard":
                 st.info("📭 Chưa có dữ liệu lịch sử. Bảng lịch sử có thể chưa được tạo.")
         else:
             st.info("🔒 Chỉ Admin mới xem được lịch sử gửi lời chúc.")
+
+    db_bd.close()
 
     st.divider()
 

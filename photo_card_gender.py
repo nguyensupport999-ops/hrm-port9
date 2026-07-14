@@ -265,9 +265,12 @@ _CSS_INJECTED_KEY = "pcg_css_injected"
 # CSS (chỉ inject 1 lần / phiên)
 # ──────────────────────────────────────────────────────────────────────────
 def _inject_css():
-    if st.session_state.get(_CSS_INJECTED_KEY):
-        return
-    st.session_state[_CSS_INJECTED_KEY] = True
+    # Streamlit không giữ lại các phần tử đã render ở lượt chạy trước — mỗi lần
+    # script chạy lại (vd sau khi upload ảnh, tick chọn mẫu...) toàn bộ DOM cũ
+    # bị thay thế. Vì vậy KHÔNG được chỉ inject CSS 1 lần duy nhất/phiên (nếu
+    # không, ở các lượt rerun sau, thẻ <style> biến mất -> layout lưới ảnh mẫu
+    # bị vỡ). Việc st.markdown lặp lại cùng 1 khối CSS mỗi lượt chạy là bình
+    # thường và không tốn kém.
     st.markdown(
         """
         <style>
@@ -426,6 +429,30 @@ def _render_manual_fallback(selected_item: dict):
         st.link_button("🌐 Mở ChatGPT (webchat)", "https://chatgpt.com/", use_container_width=True)
 
 
+def _on_target_checkbox_change(file_key: str):
+    """
+    Callback cho checkbox "Chọn" của từng thẻ mẫu target.
+    Streamlit chạy callback này TRƯỚC khi thân script được render lại ở lượt
+    kế tiếp, nên tại đây có thể chỉnh sửa st.session_state của các checkbox
+    KHÁC một cách an toàn (chưa bị instantiate trong lượt chạy hiện tại).
+    Nếu làm việc này trực tiếp trong thân hàm render() (sau khi các checkbox
+    khác đã được vẽ) sẽ bị StreamlitAPIException vì widget đã instantiate.
+    """
+    is_now_checked = st.session_state.get(f"pcg_chk_{file_key}", False)
+    if is_now_checked:
+        # User vừa tick chọn mẫu này -> bỏ tick tất cả mẫu khác (chỉ chọn 1)
+        st.session_state.pcg_selected_target = file_key
+        st.session_state.pcg_result_bytes = None
+        st.session_state.pcg_show_manual_fallback = False
+        for other in TARGETS:
+            if other["file"] != file_key:
+                st.session_state[f"pcg_chk_{other['file']}"] = False
+    else:
+        # User vừa bỏ tick mẫu đang chọn
+        if st.session_state.get("pcg_selected_target") == file_key:
+            st.session_state.pcg_selected_target = None
+
+
 # ──────────────────────────────────────────────────────────────────────────
 # HÀM RENDER CHÍNH — gọi từ app.py: photo_card_gender.render()
 # ──────────────────────────────────────────────────────────────────────────
@@ -515,24 +542,15 @@ def render():
                     unsafe_allow_html=True,
                 )
                 st.markdown('<div class="pcg-tick">', unsafe_allow_html=True)
-                checked = st.checkbox(
-                    "Chọn", value=is_selected, key=f"pcg_chk_{item['file']}", label_visibility="visible"
+                st.checkbox(
+                    "Chọn",
+                    value=is_selected,
+                    key=f"pcg_chk_{item['file']}",
+                    label_visibility="visible",
+                    on_change=_on_target_checkbox_change,
+                    args=(item["file"],),
                 )
                 st.markdown("</div>", unsafe_allow_html=True)
-
-                if checked and not is_selected:
-                    # User vừa tick chọn mẫu này -> bỏ tick tất cả mẫu khác (chỉ chọn 1)
-                    st.session_state.pcg_selected_target = item["file"]
-                    st.session_state.pcg_result_bytes = None
-                    st.session_state.pcg_show_manual_fallback = False
-                    for other in TARGETS:
-                        if other["file"] != item["file"]:
-                            st.session_state[f"pcg_chk_{other['file']}"] = False
-                    st.rerun()
-                elif not checked and is_selected:
-                    # User vừa bỏ tick mẫu đang chọn
-                    st.session_state.pcg_selected_target = None
-                    st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
 

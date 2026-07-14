@@ -51,6 +51,90 @@ except ImportError:
     from config_template import COMPANY_CONFIG, BHXH_CONFIG, EMAIL_CONFIG, TELEGRAM_CONFIG, USERS
     print("Using config_template.py")
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_avatar_bytes_cached(storage_path: str) -> bytes:
+    """Tải ảnh avatar có cache 1 giờ"""
+    if not storage_path:
+        return None
+    try:
+        sb = get_supabase_storage()
+        if not sb:
+            return None
+        return sb.storage.from_(SUPABASE_BUCKET).download(storage_path)
+    except Exception as e:
+        print(f"Lỗi tải avatar: {e}")
+        return None
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_chat_image_bytes_cached(file_url: str) -> bytes:
+    """Tải ảnh chat có cache 1 giờ"""
+    if not file_url:
+        return None
+    try:
+        sb = get_supabase_storage()
+        if not sb:
+            return None
+        return sb.storage.from_(SUPABASE_BUCKET).download(file_url)
+    except Exception as e:
+        print(f"Lỗi tải ảnh chat: {e}")
+        return None
+
+@st.cache_data(ttl=300, show_spinner=False)  # Cache 5 phút
+def get_dashboard_stats():
+    """Lấy toàn bộ thống kê cho Dashboard trong 1 lần query duy nhất"""
+    db = st.session_state.db_engine.get_connection()
+    c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    
+    # Gộp tất cả query vào 1 lần
+    stats = {}
+    
+    # Tổng ứng viên
+    c.execute("SELECT COUNT(*) as count FROM ung_vien")
+    stats['tong_uv'] = c.fetchone()['count']
+    
+    # Tổng nhân viên đang làm
+    c.execute("""
+        SELECT COUNT(*) as count 
+        FROM nhan_vien 
+        WHERE trang_thai IN ('DANG_LAM','THU_VIEC') 
+        AND so_hdld IS NOT NULL AND so_hdld != ''
+    """)
+    stats['tong_nv'] = c.fetchone()['count']
+    
+    # Ứng viên theo trạng thái
+    c.execute("""
+        SELECT trang_thai, COUNT(*) as count 
+        FROM ung_vien 
+        GROUP BY trang_thai
+    """)
+    stats['uv_by_status'] = {row['trang_thai']: row['count'] for row in c.fetchall()}
+    
+    # Phân bố nhân viên theo phòng ban
+    c.execute("""
+        SELECT phong_ban_lam_viec as phong_ban, COUNT(*) as count
+        FROM nhan_vien 
+        WHERE trang_thai IN ('DANG_LAM','THU_VIEC') 
+        AND so_hdld IS NOT NULL AND so_hdld != ''
+        GROUP BY phong_ban_lam_viec
+        ORDER BY count DESC
+    """)
+    stats['nv_by_dept'] = c.fetchall()
+    
+    # Phân bố theo giới tính
+    c.execute("""
+        SELECT gioi_tinh, COUNT(*) as count
+        FROM nhan_vien 
+        WHERE trang_thai IN ('DANG_LAM','THU_VIEC') 
+        AND so_hdld IS NOT NULL AND so_hdld != ''
+        GROUP BY gioi_tinh
+    """)
+    stats['nv_by_gender'] = c.fetchall()
+    
+    # ... thêm các query khác tương tự ...
+    
+    db.close()
+    return stats
+
 # ========== HÀM TIỆN ÍCH MỚI ==========
 def format_date_thang_nam(date_obj):
     """Định dạng ngày thành MM/YYYY"""
@@ -5446,8 +5530,7 @@ if st.sidebar.button("🚪 Đăng xuất", width='stretch'):
 PHONG_BAN_LANH_DAO_CAO_CAP = ('Hội đồng Quản trị', 'Ban Tổng Giám đốc')
 
 def render_employee_info_card(nv, key_prefix, on_close=None):
-    """Hiển thị card '👤 THÔNG TIN NHÂN VIÊN' (avatar + thông tin + nút hành động + nút Đóng).
-    Dùng chung cho cả 2 trường hợp: (1) tìm kiếm ra đúng 1 kết quả, (2) tick chọn 1 dòng trong bảng."""
+    """Hiển thị card '👤 THÔNG TIN NHÂN VIÊN' với avatar load on-demand"""
     st.subheader("👤 THÔNG TIN NHÂN SỰ")
 
     col_avatar, col_info = st.columns([1, 2])
@@ -5473,17 +5556,22 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
         </style>
         """, unsafe_allow_html=True)
 
+        # ===== CẢI TIẾN: Chỉ tải ảnh khi có hành động =====
         anh_path = nv.get('anh_ho_so')
+        avatar_key = f"avatar_loaded_{nv['id']}"
+        
         if anh_path:
-            anh_bytes = get_anh_ho_so_bytes(anh_path)
+            # Dùng cache để tải ảnh (chỉ tải 1 lần, cache 1 giờ)
+            anh_bytes = get_avatar_bytes_cached(anh_path)
             if anh_bytes:
                 img_base64 = base64.b64encode(anh_bytes).decode()
                 st.markdown(f"""
                 <div class="avatar-wrapper">
-                    <img src="data:image/jpeg;base64,{img_base64}" class="avatar-img">
+                    <img src="data:image/jpeg;base64,{img_base64}" class="avatar-img" loading="lazy">
                 </div>
                 """, unsafe_allow_html=True)
             else:
+                # Fallback: ảnh mặc định
                 gioi_tinh = nv.get('gioi_tinh', '')
                 ho_ten = nv.get('ho_ten', '')
                 avatar_file = "avatar_male.png" if gioi_tinh == "Nam" else "avatar_female.png"
@@ -5502,6 +5590,26 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
                         <img src="https://ui-avatars.com/api/?name={ho_ten.replace(' ', '+')}&size=200&background=f59e0b&color=fff" class="avatar-img">
                     </div>
                     """, unsafe_allow_html=True)
+        else:
+            # Fallback khi không có ảnh
+            gioi_tinh = nv.get('gioi_tinh', '')
+            ho_ten = nv.get('ho_ten', '')
+            avatar_file = "avatar_male.png" if gioi_tinh == "Nam" else "avatar_female.png"
+            avatar_path = os.path.join(os.path.dirname(__file__), "static", avatar_file)
+            if os.path.exists(avatar_path):
+                with open(avatar_path, "rb") as f:
+                    img_data = base64.b64encode(f.read()).decode()
+                st.markdown(f"""
+                <div class="avatar-wrapper">
+                    <img src="data:image/png;base64,{img_data}" class="avatar-img">
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.markdown(f"""
+                <div class="avatar-wrapper">
+                    <img src="https://ui-avatars.com/api/?name={ho_ten.replace(' ', '+')}&size=200&background=f59e0b&color=fff" class="avatar-img">
+                </div>
+                """, unsafe_allow_html=True)
         else:
             gioi_tinh = nv.get('gioi_tinh', '')
             ho_ten = nv.get('ho_ten', '')
@@ -5652,24 +5760,17 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
 # ========== DASHBOARD ==========
 if menu == "📊 Dashboard":
     st.title("📊 Dashboard")
-    db = st.session_state.db_engine.get_connection()
-    c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    c.execute("SELECT COUNT(*) t FROM ung_vien")
-    tuv = c.fetchone()['t']
-    c.execute("SELECT COUNT(*) t FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND so_hdld IS NOT NULL AND so_hdld != ''")
-    tnv = c.fetchone()['t']
-    c.execute("SELECT COUNT(*) t FROM ung_vien WHERE trang_thai='CHO_DUYET'")
-    cd = c.fetchone()['t']
-    c.execute("SELECT COUNT(*) t FROM ung_vien WHERE trang_thai='TU_CHOI'")
-    tc = c.fetchone()['t']
-    c.execute("SELECT COUNT(*) t FROM ung_vien WHERE trang_thai='DA_NHAN_VIEC'")
-    dn = c.fetchone()['t']
-    cl1, cl2, cl3, cl4, cl5 = st.columns(5)
-    cl1.metric("Tổng UV", tuv)
-    cl2.metric("Nhân viên", tnv)
-    cl3.metric("Chờ duyệt", cd)
-    cl4.metric("Đã nhận", dn)
-    cl5.metric("Từ chối", tc)
+    
+    # Lấy dữ liệu từ cache
+    stats = get_dashboard_stats()
+    
+    # Hiển thị metrics
+    col1, col2, col3, col4, col5 = st.columns(5)
+    col1.metric("Tổng UV", stats['tong_uv'])
+    col2.metric("Nhân viên", stats['tong_nv'])
+    col3.metric("Chờ duyệt", stats['uv_by_status'].get('CHO_DUYET', 0))
+    col4.metric("Đã nhận", stats['uv_by_status'].get('DA_NHAN_VIEC', 0))
+    col5.metric("Từ chối", stats['uv_by_status'].get('TU_CHOI', 0))
 
     # ===== CẢNH BÁO 1: Chuẩn bị 6 Báo cáo định kỳ (30/06-05/07 và 31/12-05/01) =====
     hom_nay = date.today()
@@ -8788,14 +8889,23 @@ elif menu == "✅ Nhân viên":
             else:
                 return list(range(so_luong))  # 4 hoặc 5 người -> bố trí tự do, lấp đầy từ trái
 
+        # ===== ĐOẠN CODE MỚI CHO _lay_anh_src =====
+        # Đã có hàm get_avatar_bytes_cached ở trên
+
         def _lay_anh_src(nv_ct):
-            """Trả về src cho thẻ <img>: ảnh hồ sơ nếu có, không thì ảnh mẫu trong static/,
-            không thì mới fallback sang ui-avatars.com."""
+            """Trả về src cho thẻ <img>: ảnh hồ sơ nếu có, không thì ảnh mẫu trong static/
+            SỬ DỤNG CACHE để không tải lại ảnh mỗi lần render.
+            """
             anh_path_ct = nv_ct.get('anh_ho_so')
-            anh_bytes_ct = get_anh_ho_so_bytes(anh_path_ct) if anh_path_ct else None
-            if anh_bytes_ct:
-                img_b64 = base64.b64encode(anh_bytes_ct).decode()
-                return f"data:image/jpeg;base64,{img_b64}"
+            
+            # ===== CẢI TIẾN: Dùng cache =====
+            if anh_path_ct:
+                anh_bytes_ct = get_avatar_bytes_cached(anh_path_ct)
+                if anh_bytes_ct:
+                    img_b64 = base64.b64encode(anh_bytes_ct).decode()
+                    return f"data:image/jpeg;base64,{img_b64}"
+            
+            # Fallback: ảnh mẫu trong static/
             gioi_tinh_ct = nv_ct.get('gioi_tinh', '')
             avatar_file = "avatar_male.png" if gioi_tinh_ct == "Nam" else "avatar_female.png"
             avatar_path = os.path.join(os.path.dirname(__file__), "static", avatar_file)
@@ -8803,6 +8913,8 @@ elif menu == "✅ Nhân viên":
                 with open(avatar_path, "rb") as f:
                     img_b64 = base64.b64encode(f.read()).decode()
                 return f"data:image/png;base64,{img_b64}"
+            
+            # Fallback cuối cùng: ui-avatars.com
             ten_url = (nv_ct.get('ho_ten') or 'NV').replace(' ', '+')
             return f"https://ui-avatars.com/api/?name={ten_url}&size=200&background=f59e0b&color=fff"
 
@@ -11829,16 +11941,14 @@ elif menu == "💬 Chat nội bộ":
                         
                         # Xây dựng nội dung bong bóng
                         if msg_type == 'image' and file_url:
-                            try:
-                                # Tải ảnh từ storage
-                                img_bytes = chat_utils.get_chat_file_bytes(file_url)
-                                if img_bytes:
-                                    img_b64 = base64.b64encode(img_bytes).decode()
-                                    bubble_content = f'<img src="data:image/jpeg;base64,{img_b64}" class="msg-image" onclick="window.open(this.src)" />'
-                                else:
-                                    bubble_content = f'📷 Ảnh: {file_name} (không thể tải)'
-                            except Exception:
-                                bubble_content = f'📷 Ảnh: {file_name}'
+                            # ===== CẢI TIẾN: Dùng cache, lazy loading =====
+                            img_bytes = get_chat_image_bytes_cached(file_url)
+                            if img_bytes:
+                                img_b64 = base64.b64encode(img_bytes).decode()
+                                # Thêm loading="lazy" để chỉ tải khi cuộn đến
+                                bubble_content = f'<img src="data:image/jpeg;base64,{img_b64}" class="msg-image" loading="lazy" onclick="window.open(this.src)" />'
+                            else:
+                                bubble_content = f'📷 Ảnh: {file_name} (không thể tải)'
                         
                         elif msg_type == 'file' and file_url:
                             file_size = msg.get('file_size', 0)

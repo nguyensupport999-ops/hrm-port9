@@ -12319,17 +12319,28 @@ elif menu == "🔍 Audit Dashboard":
             "chuc_danh_nghe": "Chức danh",
         }
         rows_null_a = []
+        chi_tiet_null_a = {}
         for cot, nhan in truong_can_kiem_tra_a.items():
             c_a.execute(f"""
-                SELECT COUNT(*) t FROM nhan_vien
+                SELECT ma_nv, ho_ten, trang_thai
+                FROM nhan_vien
                 WHERE {DK_CHUAN_NV_AUDIT} AND ({cot} IS NULL OR {cot}::text = '')
+                ORDER BY ho_ten
             """)
-            so_luong_null = c_a.fetchone()['t']
+            ds_nv_thieu = c_a.fetchall()
+            so_luong_null = len(ds_nv_thieu)
+            chi_tiet_null_a[nhan] = ds_nv_thieu
             rows_null_a.append({
                 "Trường": nhan, "Số nhân viên NULL/rỗng": so_luong_null,
                 "Trạng thái": "✅ Không có" if so_luong_null == 0 else f"⚠️ Có {so_luong_null} người thiếu dữ liệu"
             })
         st.dataframe(pd.DataFrame(rows_null_a), width='stretch', hide_index=True)
+
+        # Liệt kê CỤ THỂ tên/mã nhân viên cho từng trường bị thiếu, để không phải tự viết SQL
+        for nhan, ds_nv_thieu in chi_tiet_null_a.items():
+            if ds_nv_thieu:
+                with st.expander(f"👤 Danh sách nhân viên thiếu '{nhan}' ({len(ds_nv_thieu)} người)"):
+                    st.dataframe(pd.DataFrame(ds_nv_thieu), width='stretch', hide_index=True)
         db_a.close()
 
 elif menu == "📘 Hướng dẫn sử dụng":

@@ -5634,19 +5634,20 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
                 st.button("📱 GỬI ZALO", disabled=True, width='stretch', help="Chưa có SĐT!", key=f"no_zalo_{key_prefix}")
 
         with col_btn_action4:
-            ma_bhxh = nv.get('ma_so_bhxh', '')
-            chua_co_bhxh = not bool(ma_bhxh and str(ma_bhxh).strip())
-            if chua_co_bhxh:
-                if st.button("🏠 NHẬP T.Tin Hộ GĐ", width='stretch', type="primary", key=f"bhxh_family_{key_prefix}"):
-                    st.session_state['bhxh_family_nv_id'] = int(nv['id'])
-                    st.session_state['bhxh_family_nv_name'] = nv['ho_ten']
-                    st.rerun()
-
-        with col_btn_action5:
             if st.button("❌ Đóng", width='stretch', key=f"close_profile_{key_prefix}"):
                 if callable(on_close):
                     on_close()
                 st.rerun()
+        
+        with col_btn_action5:
+            ma_bhxh = nv.get('ma_so_bhxh', '')
+            chua_co_bhxh = not bool(ma_bhxh and str(ma_bhxh).strip())
+            if chua_co_bhxh:
+                if st.button("🏠 NHẬP T.TIN HỘ GĐ", width='stretch', type="primary", key=f"bhxh_family_{key_prefix}"):
+                    st.session_state['bhxh_family_nv_id'] = int(nv['id'])
+                    st.session_state['bhxh_family_nv_name'] = nv['ho_ten']
+                    st.rerun()
+
 
 # ========== DASHBOARD ==========
 if menu == "📊 Dashboard":
@@ -6740,6 +6741,7 @@ elif menu == "👤 Ứng viên":
                                 if loai_hd_chuyen == "Thử việc":
                                     trang_thai_nv = 'THU_VIEC'
                                     trang_thai_bhxh = 'CHUA_DONG'
+                                    pattern_tv = f'%/{current_year}/HĐTV-CHL'
                                     c.execute("""
                                         SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) 
                                         FROM nhan_vien 
@@ -6753,6 +6755,7 @@ elif menu == "👤 Ứng viên":
                                     trang_thai_bhxh = 'DANG_DONG'
                                     if not tbd_val:
                                         tbd_val = nhl
+                                    pattern_tv = f'%/{current_year}/HĐTV-CHL'
                                     c.execute("""
                                         SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) 
                                         FROM nhan_vien 
@@ -7261,6 +7264,7 @@ elif menu == "✅ Nhân viên":
                                             if lhd == "Thử việc":
                                                 ttnv = 'THU_VIEC'
                                                 ttbh = 'CHUA_DONG'
+                                                pattern_tv = f'%/{current_year}/HĐTV-CHL'
                                                 c.execute("""
                                                     SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0)
                                                     FROM nhan_vien
@@ -7274,6 +7278,7 @@ elif menu == "✅ Nhân viên":
                                                 ttbh = 'DANG_DONG'
                                                 if not tbd_val:
                                                     tbd_val = nhl
+                                                pattern_tv = f'%/{current_year}/HĐTV-CHL'
                                                 c.execute("""
                                                     SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0)
                                                     FROM nhan_vien
@@ -7533,6 +7538,7 @@ elif menu == "✅ Nhân viên":
                                             current_year = datetime.now().year
                                             db_temp2 = st.session_state.db_engine.get_connection()
                                             c_temp2 = db_temp2.cursor()
+                                            pattern = f'%/{current_year}/HĐLĐ-CHL'
                                             c_temp2.execute("""
                                                 SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) as max_stt
                                                 FROM nhan_vien 
@@ -7591,6 +7597,7 @@ elif menu == "✅ Nhân viên":
                                                             ngay_vao_lam_cu = date.today()
                                                         
                                                         current_year = datetime.now().year
+                                                        pattern_tv = f'%/{current_year}/HĐTV-CHL'
                                                         c.execute("""
                                                             SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) as max_stt
                                                             FROM nhan_vien 
@@ -7710,17 +7717,17 @@ elif menu == "✅ Nhân viên":
                                 sccv = st.text_input("CCCD", value=nd.get('so_cccd', ''))
                                 nccv = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", value=format_date(nd.get('ngay_cap_cccd')), placeholder="dd/mm/yyyy", max_chars=10)
                                 ncv = st.text_input("Nơi cấp CCCD", value=nd.get('noi_cap_cccd', ''))
-                            with col2:
                                 dtnv2 = st.text_input("SĐT", value=nd.get('dien_thoai', ''))
                                 emnv = st.text_input("Email", value=nd.get('email_lien_he', ''))
+                            with col2:
                                 nqnv = st.text_input("Nguyên quán", value=nd.get('nguyen_quan', ''))
                                 ttnv = st.text_input("Thường trú", value=nd.get('thuong_tru', ''))
                                 qtnv = st.text_input("Quốc tịch", value=nd.get('quoc_tich', 'Việt Nam'))
                                 dtnv = st.text_input("Dân tộc", value=nd.get('dan_toc', 'Kinh'))
-                            with col3:
                                 so_luong_npt_edit = st.number_input("Số người phụ thuộc", min_value=0, value=int(nd.get('so_luong_npt') or 0), step=1, key=f"so_luong_npt_edit_{nid}")
                                 trinh_do_v = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, index=([""] + TRINH_DO_LIST).index(nd.get('trinh_do', '')) if nd.get('trinh_do') in TRINH_DO_LIST else 0)
                                 cdnv = st.selectbox("Chức danh", [""] + dcv_edit, index=([""] + dcv_edit).index(nd.get('chuc_danh_nghe', '')) if nd.get('chuc_danh_nghe') in dcv_edit else 0)
+                            with col3:
                                 pb_hien_tai_chuan = chuan_hoa_ten_phong_ban(nd.get('phong_ban_lam_viec'))
                                 pbnv = st.selectbox("Phòng ban", [""] + dpb_edit, index=([""] + dpb_edit).index(pb_hien_tai_chuan) if pb_hien_tai_chuan in dpb_edit else 0)
                                 nlv2 = st.text_input("Nơi làm việc", value=nd.get('noi_lam_viec', 'Cảng THQT Hòn La'))
@@ -9533,6 +9540,37 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
     with tab_list:
         st.subheader("📋 Danh sách hồ sơ đã upload")
         
+        # --- HÀM CACHE CHO PRESIGNED URL ---
+        @st.cache_data(ttl=3600, show_spinner=False)
+        def get_presigned_url_cached(storage_path: str) -> str:
+            """Tạo presigned URL có cache 1 giờ"""
+            if not storage_path:
+                return ""
+            try:
+                sb = get_supabase_storage()
+                if not sb:
+                    return ""
+                # Tạo signed URL có hiệu lực 1 giờ
+                return sb.storage.from_(SUPABASE_BUCKET).create_signed_url(storage_path, expires_in=3600)
+            except Exception as e:
+                print(f"Lỗi tạo presigned URL: {e}")
+                return ""
+        
+        @st.cache_data(ttl=3600, show_spinner=False)
+        def get_file_bytes_cached(storage_path: str) -> bytes:
+            """Tải file bytes có cache 1 giờ"""
+            if not storage_path:
+                return None
+            try:
+                sb = get_supabase_storage()
+                if not sb:
+                    return None
+                return sb.storage.from_(SUPABASE_BUCKET).download(storage_path)
+            except Exception as e:
+                print(f"Lỗi tải file: {e}")
+                return None
+        
+        # --- Lấy danh sách nhân viên ---
         db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c.execute("SELECT id, ma_nv, ho_ten FROM nhan_vien ORDER BY id DESC")
@@ -9544,6 +9582,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
             selected_nv = st.selectbox("🔍 Chọn nhân viên để xem hồ sơ:", list(nd.keys()), key="view_hoso")
             nv_id = nd[selected_nv]
             
+            # --- Lấy danh sách hồ sơ ---
             db = st.session_state.db_engine.get_connection()
             c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             c.execute("""
@@ -9556,6 +9595,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
             db.close()
             
             if hs_list:
+                # --- Hiển thị danh sách (KHÔNG tải file) ---
                 hs_data = []
                 for i, hs in enumerate(hs_list, 1):
                     hs_data.append({
@@ -9567,185 +9607,145 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                         "Đường dẫn": hs['duong_dan_file']
                     })
                 df_hs = pd.DataFrame(hs_data)
-                st.dataframe(df_hs[['STT', 'Loại hồ sơ', 'Tên file gốc', 'Ngày upload']], width='stretch', hide_index=True)
+                st.dataframe(df_hs[['STT', 'Loại hồ sơ', 'Tên file gốc', 'Ngày upload']], 
+                            width='stretch', hide_index=True)
                 
                 st.divider()
                 if st.button("❌ THOÁT", width='stretch', key="exit_hoso_list"):
-                    # Xóa các session state liên quan
                     st.session_state.pop('selected_nv', None)
                     st.rerun()
                 
-                # Chọn hồ sơ để xem
+                # --- Chọn hồ sơ để xem (ON-DEMAND LOADING) ---
                 hs_options = {f"{hs['loai_ho_so']} - {hs['ten_file']}": hs for hs in hs_list}
                 selected_hs_name = st.selectbox("Chọn hồ sơ:", list(hs_options.keys()), key="select_hs_preview")
                 selected_hs = hs_options[selected_hs_name]
                 
-                # Hiển thị thông tin hồ sơ tối giản
+                # Hiển thị thông tin hồ sơ
                 st.markdown(f"""
                 **📄 {selected_hs['loai_ho_so']}** - {selected_hs['ten_file']}  
                 📅 {format_date(selected_hs['ngay_upload'])}
                 """)
                 
-                # Xử lý preview và tải xuống
-                sb = get_supabase_storage()
-                if not sb:
-                    st.error("❌ Chưa cấu hình Supabase Storage!")
-                else:
-                    # Xác định loại file
-                    file_ext = selected_hs['ten_file'].lower().split('.')[-1]
-                    is_image = file_ext in ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
-                    is_pdf = file_ext == 'pdf'
-                    
-                    # Tạo key riêng cho preview
-                    preview_key = f"preview_{selected_hs['id']}"
-                    if preview_key not in st.session_state:
-                        st.session_state[preview_key] = False
-                    
-                    # Tạo layout 2 cột cho nút Preview và Tải xuống
-                    col_preview_btn, col_download_btn = st.columns(2)
-                    
-                    with col_preview_btn:
-                        if is_image or is_pdf:
-                            if st.button("👁️ PREVIEW", width='stretch', type="secondary"):
-                                st.session_state[preview_key] = not st.session_state[preview_key]
+                # --- Xác định loại file ---
+                file_ext = selected_hs['ten_file'].lower().split('.')[-1]
+                is_image = file_ext in ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp']
+                is_pdf = file_ext == 'pdf'
+                
+                # --- State keys ---
+                preview_state_key = f"preview_active_{selected_hs['id']}"
+                download_url_key = f"download_url_{selected_hs['id']}"
+                preview_data_key = f"preview_data_{selected_hs['id']}"
+                
+                # Khởi tạo state nếu chưa có
+                if preview_state_key not in st.session_state:
+                    st.session_state[preview_state_key] = False
+                
+                # --- Nút PREVIEW (On-demand) ---
+                col_preview_btn, col_download_btn = st.columns(2)
+                
+                with col_preview_btn:
+                    if is_image or is_pdf:
+                        if st.button("👁️ PREVIEW", width='stretch', type="secondary", 
+                                    key=f"preview_btn_{selected_hs['id']}"):
+                            # CHỈ TẢI KHI BẤM NÚT
+                            with st.spinner("⏳ Đang tải file preview..."):
+                                file_bytes = get_file_bytes_cached(selected_hs['duong_dan_file'])
+                                if file_bytes:
+                                    st.session_state[preview_data_key] = file_bytes
+                                    st.session_state[preview_state_key] = True
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Không thể tải file để preview")
+                    else:
+                        st.button("👁️ PREVIEW", disabled=True, width='stretch', 
+                                 help="Không thể preview loại file này")
+                
+                with col_download_btn:
+                    if st.button("📥 TẢI HỒ SƠ", width='stretch', 
+                               key=f"download_btn_{selected_hs['id']}"):
+                        # CHỈ TẠO URL KHI BẤM NÚT
+                        with st.spinner("⏳ Đang tạo link tải..."):
+                            url = get_presigned_url_cached(selected_hs['duong_dan_file'])
+                            if url:
+                                st.session_state[download_url_key] = url
                                 st.rerun()
-                        else:
-                            st.button("👁️ PREVIEW", disabled=True, width='stretch', 
-                                     help="Không thể preview loại file này")
+                            else:
+                                st.error("❌ Không thể tạo link tải")
+                
+                # --- HIỂN THỊ PREVIEW (nếu có) ---
+                if st.session_state.get(preview_state_key, False):
+                    file_bytes = st.session_state.get(preview_data_key)
+                    if file_bytes:
+                        st.markdown("---")
+                        st.subheader("📄 Xem trước")
+                        
+                        if is_image:
+                            img_base64 = base64.b64encode(file_bytes).decode()
+                            st.image(f"data:image/jpeg;base64,{img_base64}", width=400)
+                        elif is_pdf:
+                            pdf_base64 = base64.b64encode(file_bytes).decode()
+                            st.markdown(f"""
+                            <iframe src="data:application/pdf;base64,{pdf_base64}" 
+                                    width="100%" height="600px" style="border:none;border-radius:8px;">
+                            </iframe>
+                            """, unsafe_allow_html=True)
+                        
+                        # Nút đóng preview
+                        if st.button("❌ Đóng preview", key=f"close_preview_{selected_hs['id']}"):
+                            st.session_state[preview_state_key] = False
+                            if preview_data_key in st.session_state:
+                                del st.session_state[preview_data_key]
+                            st.rerun()
+                    else:
+                        st.warning("⚠️ Không có dữ liệu preview")
+                
+                # --- HIỂN THỊ LINK TẢI (nếu có) ---
+                if st.session_state.get(download_url_key):
+                    st.markdown("---")
+                    st.success("✅ Link tải đã sẵn sàng (có hiệu lực 1 giờ)")
+                    url = st.session_state[download_url_key]
+                    st.markdown(f"""
+                    <div style="background:#f0fdf4;padding:12px 16px;border-radius:8px;border:1px solid #bbf7d0;">
+                        <a href="{url}" target="_blank" style="font-size:16px;font-weight:600;color:#166534;">
+                            📥 Tải xuống: {selected_hs['ten_file']}
+                        </a>
+                    </div>
+                    """, unsafe_allow_html=True)
                     
-                    with col_download_btn:
+                    if st.button("❌ Đóng link tải", key=f"close_download_{selected_hs['id']}"):
+                        if download_url_key in st.session_state:
+                            del st.session_state[download_url_key]
+                        st.rerun()
+                
+                # --- Nút xóa hồ sơ ---
+                st.divider()
+                col_del1, col_del2, col_del3 = st.columns([1, 2, 1])
+                with col_del2:
+                    if st.button("🗑️ XÓA HỒ SƠ NÀY", width='stretch', type="secondary"):
                         try:
-                            file_bytes = sb.storage.from_(SUPABASE_BUCKET).download(selected_hs['duong_dan_file'])
-                            st.download_button(
-                                label="📥 TẢI HỒ SƠ",
-                                data=file_bytes,
-                                file_name=selected_hs['ten_file'],
-                                mime="application/octet-stream",
-                                width='stretch',
-                                key=f"download_{selected_hs['id']}"
-                            )
+                            sb = get_supabase_storage()
+                            if sb:
+                                try:
+                                    sb.storage.from_(SUPABASE_BUCKET).remove([selected_hs['duong_dan_file']])
+                                except Exception as e_storage:
+                                    st.warning(f"⚠️ Không xóa được file trên Storage (vẫn xóa bản ghi): {e_storage}")
+                            db = st.session_state.db_engine.get_connection()
+                            c = db.cursor()
+                            c.execute("DELETE FROM ho_so_nhan_vien WHERE id = %s", (selected_hs['id'],))
+                            db.commit()
+                            db.close()
+                            # Xóa cache
+                            get_presigned_url_cached.clear()
+                            get_file_bytes_cached.clear()
+                            st.success(f"✅ Đã xóa hồ sơ: {selected_hs['ten_file']}")
+                            st.cache_data.clear()
+                            st.rerun()
                         except Exception as e:
-                            st.error(f"❌ Không thể tải file: {str(e)}")
-                    
-                    # Hiển thị preview nếu đang bật
-                    if st.session_state.get(preview_key, False):
-                        try:
-                            # Tải file từ Storage
-                            file_bytes = sb.storage.from_(SUPABASE_BUCKET).download(selected_hs['duong_dan_file'])
-                            
-                            if is_image:
-                                import base64
-                                img_base64 = base64.b64encode(file_bytes).decode()
-                                st.markdown(f"""
-                                <div style="text-align: center; margin: 10px 0; padding: 10px; 
-                                            background: #f8f9fa; border-radius: 8px;">
-                                    <img src="data:image/jpeg;base64,{img_base64}" 
-                                         style="max-width: 100%; max-height: 600px; border-radius: 8px; 
-                                                box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-                                </div>
-                                """, unsafe_allow_html=True)
-                            elif is_pdf:
-                                import base64
-                                pdf_base64 = base64.b64encode(file_bytes).decode()
-                                
-                                st.markdown("""
-                                <style>
-                                .pdf-container {
-                                    width: 100%;
-                                    height: 700px;
-                                    border: none;
-                                    border-radius: 8px;
-                                    background: #f5f5f5;
-                                }
-                                </style>
-                                """, unsafe_allow_html=True)
-                                
-                                # Sử dụng iframe với PDF.js từ CDN
-                                components.html(f"""
-                                <!DOCTYPE html>
-                                <html>
-                                <head>
-                                    <meta charset="UTF-8">
-                                    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-                                    <style>
-                                        body {{ margin: 0; padding: 0; background: #f5f5f5; }}
-                                        #pdf-container {{
-                                            width: 100%;
-                                            height: 700px;
-                                            overflow: auto;
-                                            display: flex;
-                                            flex-direction: column;
-                                            align-items: center;
-                                            background: #f5f5f5;
-                                            padding: 10px 0;
-                                        }}
-                                        canvas {{
-                                            max-width: 95%;
-                                            height: auto;
-                                            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                                            margin: 5px auto;
-                                            background: white;
-                                        }}
-                                        .loading {{
-                                            text-align: center;
-                                            padding: 50px;
-                                            font-size: 18px;
-                                            color: #666;
-                                        }}
-                                    </style>
-                                </head>
-                                <body>
-                                    <div id="pdf-container">
-                                        <div class="loading">⏳ Đang tải PDF...</div>
-                                    </div>
-                                    <script>
-                                        const pdfData = "{pdf_base64}";
-                                        const loadingTask = pdfjsLib.getDocument({{data: atob(pdfData)}});
-                                        
-                                        loadingTask.promise.then(function(pdf) {{
-                                            const container = document.getElementById('pdf-container');
-                                            container.innerHTML = '';
-                                            
-                                            let loadedPages = 0;
-                                            const totalPages = pdf.numPages;
-                                            
-                                            for (let pageNum = 1; pageNum <= totalPages; pageNum++) {{
-                                                pdf.getPage(pageNum).then(function(page) {{
-                                                    const scale = 1.5;
-                                                    const viewport = page.getViewport({{scale: scale}});
-                                                    const canvas = document.createElement('canvas');
-                                                    const context = canvas.getContext('2d');
-                                                    canvas.height = viewport.height;
-                                                    canvas.width = viewport.width;
-                                                    canvas.style.maxWidth = '95%';
-                                                    canvas.style.height = 'auto';
-                                                    
-                                                    const renderContext = {{
-                                                        canvasContext: context,
-                                                        viewport: viewport
-                                                    }};
-                                                    
-                                                    page.render(renderContext);
-                                                    container.appendChild(canvas);
-                                                    loadedPages++;
-                                                    
-                                                    if (loadedPages < totalPages) {{
-                                                        const hr = document.createElement('hr');
-                                                        hr.style.cssText = 'width: 90%; border: 1px solid #ddd; margin: 10px auto;';
-                                                        container.appendChild(hr);
-                                                    }}
-                                                }});
-                                            }}
-                                        }}).catch(function(error) {{
-                                            document.getElementById('pdf-container').innerHTML = 
-                                                '<div style="text-align:center;padding:50px;color:red;">❌ Không thể hiển thị PDF: ' + error + '</div>';
-                                        }});
-                                    </script>
-                                </body>
-                                </html>
-                                """, height=720, scrolling=False)
-                        except Exception as e:
-                            st.error(f"❌ Lỗi tải file để preview: {str(e)}")
+                            st.error(f"❌ Lỗi khi xóa: {e}")
+            else:
+                st.info(f"📭 Nhân viên này chưa có hồ sơ nào được upload.")
+        else:
+            st.info("⚠️ Chưa có nhân viên nào trong hệ thống!")
                 
                 st.divider()
                 col_del1, col_del2, col_del3 = st.columns([1, 2, 1])

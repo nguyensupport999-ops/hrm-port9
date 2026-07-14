@@ -5610,25 +5610,6 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
                     <img src="https://ui-avatars.com/api/?name={ho_ten.replace(' ', '+')}&size=200&background=f59e0b&color=fff" class="avatar-img">
                 </div>
                 """, unsafe_allow_html=True)
-        else:
-            gioi_tinh = nv.get('gioi_tinh', '')
-            ho_ten = nv.get('ho_ten', '')
-            avatar_file = "avatar_male.png" if gioi_tinh == "Nam" else "avatar_female.png"
-            avatar_path = os.path.join(os.path.dirname(__file__), "static", avatar_file)
-            if os.path.exists(avatar_path):
-                with open(avatar_path, "rb") as f:
-                    img_data = base64.b64encode(f.read()).decode()
-                st.markdown(f"""
-                <div class="avatar-wrapper">
-                    <img src="data:image/png;base64,{img_data}" class="avatar-img">
-                </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown(f"""
-                <div class="avatar-wrapper">
-                    <img src="https://ui-avatars.com/api/?name={ho_ten.replace(' ', '+')}&size=200&background=f59e0b&color=fff" class="avatar-img">
-                </div>
-                """, unsafe_allow_html=True)
 
     with col_info:
         # Xác định xem có phải lãnh đạo cấp cao không
@@ -6842,7 +6823,6 @@ elif menu == "👤 Ứng viên":
                                 if loai_hd_chuyen == "Thử việc":
                                     trang_thai_nv = 'THU_VIEC'
                                     trang_thai_bhxh = 'CHUA_DONG'
-                                    pattern_tv = f'%/{current_year}/HĐTV-CHL'
                                     c.execute("""
                                         SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) 
                                         FROM nhan_vien 
@@ -6856,7 +6836,6 @@ elif menu == "👤 Ứng viên":
                                     trang_thai_bhxh = 'DANG_DONG'
                                     if not tbd_val:
                                         tbd_val = nhl
-                                    pattern_tv = f'%/{current_year}/HĐTV-CHL'
                                     c.execute("""
                                         SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) 
                                         FROM nhan_vien 
@@ -7365,7 +7344,6 @@ elif menu == "✅ Nhân viên":
                                             if lhd == "Thử việc":
                                                 ttnv = 'THU_VIEC'
                                                 ttbh = 'CHUA_DONG'
-                                                pattern_tv = f'%/{current_year}/HĐTV-CHL'
                                                 c.execute("""
                                                     SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0)
                                                     FROM nhan_vien
@@ -7379,7 +7357,6 @@ elif menu == "✅ Nhân viên":
                                                 ttbh = 'DANG_DONG'
                                                 if not tbd_val:
                                                     tbd_val = nhl
-                                                pattern_tv = f'%/{current_year}/HĐTV-CHL'
                                                 c.execute("""
                                                     SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0)
                                                     FROM nhan_vien
@@ -7404,7 +7381,7 @@ elif menu == "✅ Nhân viên":
                                                 ten_don_vi_thu_huong, trinh_do, so_luong_npt)
                                                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                                %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                                                %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
                                                 (stt_moi, ma_nv, so_hd, htn, cdn, parse_date(nsn), gtn, scc, parse_date(ncc), ncc2, nqn, ttn,
                                                  dtn2, emn, emn, hso, lbh, mbh, parse_date(nvl), nlv, stk, cnh, parse_date(nvl), lhd,
                                                  nbh, tbd_val, None, ttnv, ttbh, pbn_chuan, parse_date(nkt), qtn, dtn, 
@@ -7698,7 +7675,6 @@ elif menu == "✅ Nhân viên":
                                                             ngay_vao_lam_cu = date.today()
                                                         
                                                         current_year = datetime.now().year
-                                                        pattern_tv = f'%/{current_year}/HĐTV-CHL'
                                                         c.execute("""
                                                             SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) as max_stt
                                                             FROM nhan_vien 
@@ -9849,32 +9825,6 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                             # Xóa cache
                             get_presigned_url_cached.clear()
                             get_file_bytes_cached.clear()
-                            st.success(f"✅ Đã xóa hồ sơ: {selected_hs['ten_file']}")
-                            st.cache_data.clear()
-                            st.rerun()
-                        except Exception as e:
-                            st.error(f"❌ Lỗi khi xóa: {e}")
-            else:
-                st.info(f"📭 Nhân viên này chưa có hồ sơ nào được upload.")
-        else:
-            st.info("⚠️ Chưa có nhân viên nào trong hệ thống!")
-                
-                st.divider()
-                col_del1, col_del2, col_del3 = st.columns([1, 2, 1])
-                with col_del2:
-                    if st.button("🗑️ XÓA HỒ SƠ NÀY", width='stretch', type="secondary"):
-                        try:
-                            sb = get_supabase_storage()
-                            if sb:
-                                try:
-                                    sb.storage.from_(SUPABASE_BUCKET).remove([selected_hs['duong_dan_file']])
-                                except Exception as e_storage:
-                                    st.warning(f"⚠️ Không xóa được file trên Storage (vẫn xóa bản ghi): {e_storage}")
-                            db = st.session_state.db_engine.get_connection()
-                            c = db.cursor()
-                            c.execute("DELETE FROM ho_so_nhan_vien WHERE id = %s", (selected_hs['id'],))
-                            db.commit()
-                            db.close()
                             st.success(f"✅ Đã xóa hồ sơ: {selected_hs['ten_file']}")
                             st.cache_data.clear()
                             st.rerun()

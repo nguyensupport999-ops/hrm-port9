@@ -5668,7 +5668,7 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
                 st.session_state['selected_nv_id'] = int(nv['id'])
                 st.rerun()
 
-        with col_btn_action2:
+        with col_btn_action3:
             if nv.get('trang_thai') == 'DANG_LAM':
                 if st.button("🖨️ IN HĐLĐ", width='stretch', key=f"print_hdld_card_{key_prefix}"):
                     db = st.session_state.db_engine.get_connection()
@@ -5706,29 +5706,13 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
             else:
                 st.button("📄 KHÔNG THỂ IN HĐ", disabled=True, width='stretch', key=f"no_hd_{key_prefix}")
 
-        with col_btn_action3:
-            ph = nv.get('dien_thoai', '')
-            if ph:
-                ph_clean = ph.replace('+84', '0').replace(' ', '').strip()
-                if st.button("📱 GỬI ZALO", width='stretch', key=f"zalo_card_{key_prefix}"):
-                    db = st.session_state.db_engine.get_connection()
-                    c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                    c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(nv['id']),))
-                    nv_full = c.fetchone()
-                    db.close()
-                    if nv_full:
-                        st.code(tao_noi_dung_zalo(nv_full))
-                        st.markdown(f"[👉 MỞ ZALO](https://zalo.me/{ph_clean})")
-            else:
-                st.button("📱 GỬI ZALO", disabled=True, width='stretch', help="Chưa có SĐT!", key=f"no_zalo_{key_prefix}")
-
-        with col_btn_action4:
+        with col_btn_action5:
             if st.button("❌ Đóng", width='stretch', key=f"close_profile_{key_prefix}"):
                 if callable(on_close):
                     on_close()
                 st.rerun()
         
-        with col_btn_action5:
+        with col_btn_action4:
             ma_bhxh = nv.get('ma_so_bhxh', '')
             chua_co_bhxh = not bool(ma_bhxh and str(ma_bhxh).strip())
             if chua_co_bhxh:
@@ -6207,10 +6191,6 @@ if menu == "📊 Dashboard":
     # Tạo tabs cho sinh nhật
     tab_trong_thang, tab_hom_nay, tab_lich_su = st.tabs(["📅 Sinh nhật trong tháng", "🎉 Hôm nay", "📜 Lịch sử đã gửi"])
 
-    # --- Kết nối DB riêng cho toàn bộ phần Sinh nhật (3 tab bên dưới dùng chung) ---
-    db_bd = st.session_state.db_engine.get_connection()
-    c = db_bd.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
     with tab_trong_thang:
         # Lấy danh sách sinh nhật trong tháng
         c.execute("""
@@ -6446,8 +6426,6 @@ if menu == "📊 Dashboard":
                 st.info("📭 Chưa có dữ liệu lịch sử. Bảng lịch sử có thể chưa được tạo.")
         else:
             st.info("🔒 Chỉ Admin mới xem được lịch sử gửi lời chúc.")
-
-    db_bd.close()
 
     st.divider()
 
@@ -7309,13 +7287,13 @@ elif menu == "✅ Nhân viên":
                         stk = st.text_input("STK", key="stk")
                         bank_index = 0
                         cnh = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_index, key="add_cnh")
-                        tkb = st.text_input("Tỉnh KCB", key="tkb")
+                        tkb = st.text_input("Tỉnh KCB", value="Tỉnh Quảng Trị", key="tkb")
                     with c8:
-                        nkb = st.text_input("Nơi KCB", key="nkb")
-                        ths = st.text_input("Tỉnh/TP nhận HS", key="ths")
-                        phs = st.text_input("Phường/Xã nhận HS", key="phs")
+                        nkb = st.text_input("Nơi KCB", value="Bệnh viện đa khoa khu vực Bắc Quảng Trị", key="nkb")
+                        ths = st.text_input("Tỉnh/TP nhận HS", value="Tỉnh Quảng Trị", key="ths")
+                        phs = st.text_input("Phường/Xã nhận HS", value="Xã Phú Trạch", key="phs")
                     with c9:
-                        dhs = st.text_input("Địa chỉ nhận HS", key="dhs")
+                        dhs = st.text_input("Địa chỉ nhận HS", value="Công ty cổ phần Cảng Hòn La", key="dhs")
                         dks = st.selectbox("ĐK nhận sổ", ["Có", "Không"], key="dks")
                         hso = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"], key="hso")
                     
@@ -7801,7 +7779,6 @@ elif menu == "✅ Nhân viên":
                                 nccv = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", value=format_date(nd.get('ngay_cap_cccd')), placeholder="dd/mm/yyyy", max_chars=10)
                                 ncv = st.text_input("Nơi cấp CCCD", value=nd.get('noi_cap_cccd', ''))
                                 dtnv2 = st.text_input("SĐT", value=nd.get('dien_thoai', ''))
-                                emnv = st.text_input("Email", value=nd.get('email_lien_he', ''))
                             with col2:
                                 nqnv = st.text_input("Nguyên quán", value=nd.get('nguyen_quan', ''))
                                 ttnv = st.text_input("Thường trú", value=nd.get('thuong_tru', ''))
@@ -7814,6 +7791,7 @@ elif menu == "✅ Nhân viên":
                                 pb_hien_tai_chuan = chuan_hoa_ten_phong_ban(nd.get('phong_ban_lam_viec'))
                                 pbnv = st.selectbox("Phòng ban", [""] + dpb_edit, index=([""] + dpb_edit).index(pb_hien_tai_chuan) if pb_hien_tai_chuan in dpb_edit else 0)
                                 nlv2 = st.text_input("Nơi làm việc", value=nd.get('noi_lam_viec', 'Cảng THQT Hòn La'))
+                                emnv = st.text_input("Email", value=nd.get('email_lien_he', ''))
                                 anh_hien_tai = nd.get('anh_ho_so')
                                 if anh_hien_tai:
                                     anh_bytes_ht = get_anh_ho_so_bytes(anh_hien_tai)

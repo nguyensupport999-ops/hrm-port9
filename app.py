@@ -5720,6 +5720,15 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
                     st.session_state['bhxh_family_nv_id'] = int(nv['id'])
                     st.session_state['bhxh_family_nv_name'] = nv['ho_ten']
                     st.rerun()
+    else:
+        # Role không phải admin (viewer, kt_luong, van_thu...): chỉ được XEM thông tin,
+        # không có nút Sửa nhân viên / In HĐLĐ / Gửi Zalo — chỉ có nút Đóng.
+        col_v1, col_v2, col_v3 = st.columns([2, 1, 2])
+        with col_v2:
+            if st.button("❌ ĐÓNG", width='stretch', key=f"close_profile_viewer_{key_prefix}"):
+                if callable(on_close):
+                    on_close()
+                st.rerun()
 
 
 # ========== DASHBOARD ==========
@@ -7544,10 +7553,38 @@ elif menu == "✅ Nhân viên":
                         key="nv_editor_danglam"
                     )
                 else:
-                    # Viewer: hiển thị bảng đơn thuần, không có checkbox
-                    st.dataframe(df_show.drop(columns=['Chọn'], errors='ignore'), width='stretch', hide_index=True, height=400)
-                    edited_df = None
+                    # Viewer (và các role không phải admin): vẫn được TICK CHỌN 1 dòng ở cột
+                    # "Profile" để xem card "Thông tin nhân sự" (chỉ xem — mọi cột khác đều
+                    # disabled nên không sửa được gì). Các nút Sửa/In HĐLĐ/Gửi Zalo sẽ được
+                    # ẩn đi bên trong render_employee_info_card() theo role.
+                    if st.session_state.pop('_reset_nv_editor_viewer_danglam', False):
+                        st.session_state.pop('nv_editor_viewer_danglam', None)
+                    edited_df = st.data_editor(
+                        df_show,
+                        column_config={
+                            "Chọn": st.column_config.CheckboxColumn("Profile", default=False)
+                        },
+                        disabled=[col for col in df_show.columns if col != 'Chọn'],
+                        hide_index=True,
+                        height=400,
+                        key="nv_editor_viewer_danglam"
+                    )
                 
+                # Viewer (và các role không phải admin): chọn 1 dòng -> chỉ xem card thông tin,
+                # không có bất kỳ nút hành động nào ngoài "Đóng" (xử lý theo role bên trong hàm).
+                if edited_df is not None and st.session_state.role != "admin" and 'Chọn' in edited_df.columns:
+                    selected_rows_v = edited_df[edited_df['Chọn'] == True]
+                    if len(selected_rows_v) > 1:
+                        st.error("⚠️ Chỉ được chọn 1 nhân viên!")
+                    elif len(selected_rows_v) == 1:
+                        selected_idx_v = selected_rows_v.index[0]
+                        selected_nv_v = df.iloc[selected_idx_v]
+                        render_employee_info_card(
+                            selected_nv_v,
+                            key_prefix=f"viewer_{selected_nv_v['id']}",
+                            on_close=lambda: st.session_state.update({'_reset_nv_editor_viewer_danglam': True})
+                        )
+
                 selected_nv = None
                 if edited_df is not None and st.session_state.role == "admin" and 'Chọn' in edited_df.columns:
                     selected_rows = edited_df[edited_df['Chọn'] == True]
@@ -8588,7 +8625,11 @@ elif menu == "✅ Nhân viên":
                 gia_tri_sau = 'NGHI_VIEC'
 
             st.divider()
-            if st.button("💾 TẠO QUYẾT ĐỊNH & LƯU", type="primary", width='stretch', key="qdns_submit", disabled=not ok_to_submit):
+            # Chỉ admin & hr được phép ra Quyết định nhân sự — các role khác (viewer...) bị làm mờ nút
+            chi_admin_hr_qdns = st.session_state.role in ("admin", "hr")
+            if not chi_admin_hr_qdns:
+                st.caption("🔒 Chỉ có admin & HR được phép sử dụng chức năng này!")
+            if st.button("💾 TẠO QUYẾT ĐỊNH & LƯU", type="primary", width='stretch', key="qdns_submit", disabled=not (ok_to_submit and chi_admin_hr_qdns)):
                 try:
                     so_qd = generate_so_cong_van('QUYET_DINH')
 
@@ -8907,9 +8948,9 @@ elif menu == "✅ Nhân viên":
                     st.markdown(f"<p style='text-align:center;'>🏷️ {nv_ct.get('chuc_vu') or 'Thành viên'}</p>", unsafe_allow_html=True)
                 else:
                     if nv_ct.get('loai_hop_dong') == 'Thử việc':
-                        st.markdown("<p style='text-align:center;color:red;'>Thử việc</p>", unsafe_allow_html=True)
+                        st.markdown("<p style='text-align:center;color:red;'>Hợp đồng Thử việc</p>", unsafe_allow_html=True)
                     elif nv_ct.get('loai_hop_dong'):
-                        st.markdown("<p style='text-align:center;color:green;'>Lao động chính thức</p>", unsafe_allow_html=True)
+                        st.markdown("<p style='text-align:center;color:green;'>Hợp đồng Chính thức</p>", unsafe_allow_html=True)
 
                 if st.button("Xem chi tiết>>", key=f"xem_ct_{nv_ct['id']}", width='stretch'):
                     st.session_state['_nv_xem_chi_tiet_dashboard'] = nv_ct['id']
@@ -9615,7 +9656,12 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
         # --- HÀM CACHE CHO PRESIGNED URL ---
         @st.cache_data(ttl=3600, show_spinner=False)
         def get_presigned_url_cached(storage_path: str) -> str:
-            """Tạo presigned URL có cache 1 giờ"""
+            """Tạo presigned URL có cache 1 giờ.
+            LƯU Ý: sb.storage...create_signed_url() trả về một DICT
+            (vd: {'signedURL': '...', 'signedUrl': '...'}), KHÔNG PHẢI chuỗi URL.
+            Trước đây hàm này trả thẳng cả dict ra ngoài khiến link hiển thị bị hỏng
+            (repr của dict bị browser encode lung tung) -> phải bóc tách chuỗi URL thật
+            ra khỏi dict trước khi trả về, và ghép domain nếu URL trả về là đường dẫn tương đối."""
             if not storage_path:
                 return ""
             try:
@@ -9623,7 +9669,32 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                 if not sb:
                     return ""
                 # Tạo signed URL có hiệu lực 1 giờ
-                return sb.storage.from_(SUPABASE_BUCKET).create_signed_url(storage_path, expires_in=3600)
+                res = sb.storage.from_(SUPABASE_BUCKET).create_signed_url(storage_path, expires_in=3600)
+
+                # Bóc tách chuỗi URL thật ra khỏi kết quả trả về (tùy version supabase-py
+                # có thể là dict với key 'signedURL'/'signedUrl', hoặc đôi khi đã là str sẵn)
+                if isinstance(res, dict):
+                    signed = res.get('signedURL') or res.get('signedUrl') or res.get('signed_url') or ""
+                elif isinstance(res, str):
+                    signed = res
+                else:
+                    signed = ""
+
+                if not signed:
+                    return ""
+
+                # Nếu chỉ là đường dẫn tương đối (không có http/https) -> ghép domain Supabase
+                if not signed.startswith("http"):
+                    supabase_url = ""
+                    try:
+                        if 'supabase' in st.secrets:
+                            supabase_url = st.secrets.supabase.get('url', "")
+                    except Exception:
+                        pass
+                    supabase_url = (supabase_url or "").rstrip("/")
+                    signed = f"{supabase_url}{signed}" if supabase_url else signed
+
+                return signed
             except Exception as e:
                 print(f"Lỗi tạo presigned URL: {e}")
                 return ""
@@ -9719,9 +9790,25 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                     if is_image or is_pdf:
                         if st.button("👁️ PREVIEW", width='stretch', type="secondary", 
                                     key=f"preview_btn_{selected_hs['id']}"):
-                            # CHỈ TẢI KHI BẤM NÚT
-                            with st.spinner("⏳ Đang tải file preview..."):
-                                file_bytes = get_file_bytes_cached(selected_hs['duong_dan_file'])
+                            # CHỈ TẢI KHI BẤM NÚT.
+                            # PDF: dùng signed URL (https thật) để nhúng vào iframe, thay vì
+                            # nhúng base64 vào <iframe src="data:...">. Cách cũ hay bị Chrome
+                            # chặn với thông báo "Trang này bị chrome chặn" vì trình duyệt/CSP
+                            # không cho iframe điều hướng tới data-URI lớn. Dùng URL https thật
+                            # thì Chrome hiển thị PDF bình thường.
+                            # Ảnh vẫn dùng base64 <img> như cũ vì không gặp lỗi này.
+                            if is_pdf:
+                                with st.spinner("⏳ Đang tạo link preview..."):
+                                    preview_url = get_presigned_url_cached(selected_hs['duong_dan_file'])
+                                if preview_url:
+                                    st.session_state[preview_data_key] = preview_url
+                                    st.session_state[preview_state_key] = True
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Không thể tải file để preview")
+                            else:
+                                with st.spinner("⏳ Đang tải file preview..."):
+                                    file_bytes = get_file_bytes_cached(selected_hs['duong_dan_file'])
                                 if file_bytes:
                                     st.session_state[preview_data_key] = file_bytes
                                     st.session_state[preview_state_key] = True
@@ -9746,21 +9833,24 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                 
                 # --- HIỂN THỊ PREVIEW (nếu có) ---
                 if st.session_state.get(preview_state_key, False):
-                    file_bytes = st.session_state.get(preview_data_key)
-                    if file_bytes:
+                    preview_payload = st.session_state.get(preview_data_key)
+                    if preview_payload:
                         st.markdown("---")
                         st.subheader("📄 Xem trước")
                         
                         if is_image:
-                            img_base64 = base64.b64encode(file_bytes).decode()
+                            # Ảnh: preview_payload là bytes -> nhúng base64 như cũ
+                            img_base64 = base64.b64encode(preview_payload).decode()
                             st.image(f"data:image/jpeg;base64,{img_base64}", width=400)
                         elif is_pdf:
-                            pdf_base64 = base64.b64encode(file_bytes).decode()
+                            # PDF: preview_payload là signed URL (https thật) -> nhúng thẳng
+                            # vào iframe, Chrome không chặn như khi dùng data-URI base64
                             st.markdown(f"""
-                            <iframe src="data:application/pdf;base64,{pdf_base64}" 
+                            <iframe src="{preview_payload}" 
                                     width="100%" height="600px" style="border:none;border-radius:8px;">
                             </iframe>
                             """, unsafe_allow_html=True)
+                            st.caption("⚠️ Nếu trình duyệt vẫn không hiển thị được PDF, hãy dùng nút '📥 TẢI HỒ SƠ' để mở/tải file trực tiếp.")
                         
                         # Nút đóng preview
                         if st.button("❌ Đóng preview", key=f"close_preview_{selected_hs['id']}"):

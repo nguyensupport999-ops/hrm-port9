@@ -708,22 +708,21 @@ def sap_xep_phong_ban_rows(rows, key_field="Phòng ban"):
     return sorted(rows, key=key_fn)
 
 def get_phong_ban_options():
-    try:
-        db = st.session_state.db_engine.get_connection()
-        c = db.cursor()
-        c.execute("SELECT ten_phong_ban FROM danh_muc_phong_ban WHERE trang_thai = TRUE")
-        # Chuẩn hoá viết hoa chữ cái đầu mỗi từ (Title Case) khi hiển thị, bất kể dữ liệu
-        # gốc trong danh mục viết hoa/thường không nhất quán. Dùng dict để loại trùng lặp
-        # phát sinh do khác biệt viết hoa (VD: "phòng kế toán" và "Phòng Kế Toán" từng là
-        # 2 dòng riêng biệt trong danh mục cũ).
-        ds_raw = [row[0] for row in c.fetchall() if row[0]]
-        db.close()
-        ds = list(dict.fromkeys(chuan_hoa_ten_phong_ban(t) for t in ds_raw))
-        if not ds:
-            ds = list(PHONG_BAN_THU_TU)  # fallback khi danh mục chưa cấu hình
-        return sap_xep_phong_ban(ds)
-    except Exception:
-        return list(PHONG_BAN_THU_TU)
+    """Trả về danh sách phòng ban CHUẨN, DUY NHẤT cho toàn bộ app.
+
+    QUAN TRỌNG: trước đây hàm này đọc từ bảng danh_muc_phong_ban (do admin tự
+    thêm/sửa qua màn "Danh mục"), nên vẫn có nguy cơ phát sinh biến thể mới
+    (VD: "Phòng Hành Chính Nhân Sự" viết hoa khác "Phòng Hành chính Nhân sự")
+    mỗi khi có người thêm nhầm 1 dòng mới trong danh mục. Để đảm bảo dữ liệu
+    luôn đúng chuẩn mà KHÔNG cần chuẩn hóa lại nữa, toàn bộ dropdown chọn
+    phòng ban trong app (Thêm NV, Sửa NV, Chuyển ứng viên, Điều chuyển...)
+    đều lấy trực tiếp từ hằng số PHONG_BAN_THU_TU — nguồn sự thật duy nhất.
+
+    Muốn thêm/bớt phòng ban: sửa list PHONG_BAN_THU_TU ở đầu file, không sửa
+    qua màn hình "Danh mục" nữa (màn đó chỉ còn phục vụ mục đích tra cứu/lịch
+    sử, không dùng để nạp option cho form nhân viên).
+    """
+    return list(PHONG_BAN_THU_TU)
 
 # ============================================================
 # 🤖 CHATBOT GIẢI ĐÁP — AI Tư vấn Hành chính Nhân sự
@@ -6197,6 +6196,12 @@ if menu == "📊 Dashboard":
     # ========== PHẦN SINH NHẬT HOÀN CHỈNH ==========
     st.subheader("🎂 SINH NHẬT")
 
+    # ⚠️ FIX BUG: không tái sử dụng cursor `c` của các nút "IN HĐLĐ/IN HĐTV" phía trên
+    # (cursor đó đã bị đóng bằng db.close() ngay sau khi dùng) — mở kết nối MỚI riêng
+    # cho toàn bộ phần Sinh nhật để tránh lỗi "cursor already closed" khi bấm các nút đó.
+    db_sn = st.session_state.db_engine.get_connection()
+    c = db_sn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
     # Tạo tabs cho sinh nhật
     tab_trong_thang, tab_hom_nay, tab_lich_su = st.tabs(["📅 Sinh nhật trong tháng", "🎉 Hôm nay", "📜 Lịch sử đã gửi"])
 
@@ -6435,6 +6440,8 @@ if menu == "📊 Dashboard":
                 st.info("📭 Chưa có dữ liệu lịch sử. Bảng lịch sử có thể chưa được tạo.")
         else:
             st.info("🔒 Chỉ Admin mới xem được lịch sử gửi lời chúc.")
+
+    db_sn.close()
 
     st.divider()
 
@@ -6709,6 +6716,7 @@ elif menu == "👤 Ứng viên":
         c_chuc.execute("SELECT DISTINCT ten_vi_tri FROM vi_tri_cong_tac ORDER BY ten_vi_tri")
         dschucdanh = [row[0] for row in c_chuc.fetchall()]
         db_chuc.close()
+        dpb_chuyen = get_phong_ban_options()
         
         with st.form("chuyen_uv_to_nv_form"):
             st.markdown(f"**Ứng viên:** {uv_data.get('ho_ten', '')}")
@@ -6730,7 +6738,7 @@ elif menu == "👤 Ứng viên":
                 dien_thoai_nv = st.text_input("SĐT", value=uv_data.get('dien_thoai', ''))
                 email_nv = st.text_input("Email")
                 chuc_danh_nv = st.selectbox("Chức danh", [""] + dschucdanh, index=([""] + dschucdanh).index(uv_data.get('vi_tri', '')) if uv_data.get('vi_tri', '') in dschucdanh else 0)
-                phong_ban_nv = st.text_input("Phòng ban")
+                phong_ban_nv = st.selectbox("Phòng ban", [""] + dpb_chuyen, key="pb_chuyen_uv")
                 noi_lam_viec_nv = st.text_input("Nơi làm việc", value="Cảng THQT Hòn La")
                 trinh_do_nv = st.selectbox("Trình độ", [""] + TRINH_DO_LIST)
                 anh_ho_so_nv = st.file_uploader("Ảnh hồ sơ", type=["png", "jpg", "jpeg"], key="anh_ho_so_chuyen")
@@ -8521,13 +8529,10 @@ elif menu == "✅ Nhân viên":
             FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY ho_ten
         """)
         nv_qd_list = c_qd.fetchall()
-        c_qd.execute("""
-            SELECT DISTINCT phong_ban_lam_viec FROM nhan_vien
-            WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND phong_ban_lam_viec IS NOT NULL AND phong_ban_lam_viec != ''
-            ORDER BY phong_ban_lam_viec
-        """)
-        ds_phong_ban = [r['phong_ban_lam_viec'] for r in c_qd.fetchall()]
         db_qd.close()
+        # Danh sách phòng ban CHUẨN — không lấy DISTINCT trực tiếp từ dữ liệu nhan_vien nữa
+        # (cách cũ sẽ tự nhân bản mọi biến thể sai chính tả/viết hoa đã lỡ lưu trong DB).
+        ds_phong_ban = get_phong_ban_options()
 
         if not nv_qd_list:
             st.info("Không có nhân viên đang làm việc.")
@@ -8591,12 +8596,9 @@ elif menu == "✅ Nhân viên":
             elif loai_qd == 'DIEU_CHUYEN':
                 phong_hien_tai = nv_qd.get('phong_ban_lam_viec') or ''
                 st.text_input("🏢 Từ phòng ban:", value=phong_hien_tai, disabled=True, key="qdns_pb_tu")
-                tuy_chon_pb = ds_phong_ban + ["➕ Nhập phòng ban khác..."]
-                chon_pb = st.selectbox("🏢 Đến phòng ban:", tuy_chon_pb, key="qdns_pb_den_select")
-                if chon_pb == "➕ Nhập phòng ban khác...":
-                    phong_moi = st.text_input("Nhập tên phòng ban mới:", key="qdns_pb_den_moi")
-                else:
-                    phong_moi = chon_pb
+                # Chỉ cho chọn trong danh sách phòng ban CHUẨN — bỏ ô nhập tay tự do để
+                # tránh phát sinh biến thể mới không chuẩn hóa.
+                phong_moi = st.selectbox("🏢 Đến phòng ban:", ds_phong_ban, key="qdns_pb_den_select")
                 tieu_de = f"Điều chuyển công tác - {nv_qd['ho_ten']}"
                 dieu1_lines = [f"Điều chuyển Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) từ {phong_hien_tai or '(chưa xác định)'} sang {phong_moi or '(chưa xác định)'} kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
                 gia_tri_truoc = phong_hien_tai
@@ -9965,6 +9967,34 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
     ])
 
     with tab_pb:
+        st.info("ℹ️ Danh sách phòng ban dùng cho các form Thêm/Sửa nhân viên hiện đã được "
+                "**khóa cứng theo danh mục chuẩn PHONG_BAN_THU_TU** trong code — không còn lấy "
+                "từ bảng danh mục bên dưới nữa, để tránh phát sinh biến thể sai chính tả/viết hoa. "
+                "Bảng bên dưới chỉ còn mang tính lưu trữ/tra cứu lịch sử.")
+
+        if st.session_state.role == "admin":
+            with st.expander("🧹 Dọn dữ liệu phòng ban cũ (chạy 1 lần)", expanded=False):
+                st.caption(
+                    "Quét toàn bộ bảng nhân viên, chuẩn hóa lại giá trị phòng ban theo đúng "
+                    "danh mục chuẩn (VD: 'phòng hành chính nhân sự' / 'Phòng Hành Chính Nhân Sự' "
+                    "→ 'Phòng Hành chính Nhân sự'). An toàn khi chạy nhiều lần."
+                )
+                if st.button("🧹 Chạy chuẩn hóa ngay", key="btn_chuan_hoa_pb"):
+                    db_ch = st.session_state.db_engine.get_connection()
+                    c_ch = db_ch.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                    c_ch.execute("SELECT id, phong_ban_lam_viec FROM nhan_vien WHERE phong_ban_lam_viec IS NOT NULL AND phong_ban_lam_viec != ''")
+                    rows_ch = c_ch.fetchall()
+                    so_da_sua = 0
+                    for r in rows_ch:
+                        chuan = chuan_hoa_ten_phong_ban(r['phong_ban_lam_viec'])
+                        if chuan != r['phong_ban_lam_viec']:
+                            c_ch.execute("UPDATE nhan_vien SET phong_ban_lam_viec=%s WHERE id=%s", (chuan, r['id']))
+                            so_da_sua += 1
+                    db_ch.commit()
+                    db_ch.close()
+                    st.success(f"✅ Đã kiểm tra {len(rows_ch)} nhân viên, chuẩn hóa lại {so_da_sua} bản ghi.")
+                    st.rerun()
+
         _quan_ly_danh_muc_don_gian("danh_muc_phong_ban", "ten_phong_ban", "Phòng ban", "VD: Kinh doanh")
 
     with tab_cd:

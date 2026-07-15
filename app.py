@@ -8886,7 +8886,7 @@ elif menu == "✅ Nhân viên":
             elif so_luong == 2:
                 return [1, 3]
             elif so_luong == 3:
-                return [1, 2, 3]
+                return [0, 2, 4]
             else:
                 return list(range(so_luong))  # 4 hoặc 5 người -> bố trí tự do, lấp đầy từ trái
 

@@ -169,25 +169,30 @@ def get_ma_tinh_from_name(tinh_name):
     return "44"  # Mặc định
 
 def chuan_hoa_ten_phong_ban(ten):
-    """Chuẩn hóa tên phòng ban.
-    QUAN TRỌNG: tiếng Việt không viết hoa chữ cái đầu của MỌI từ (kiểu .title()/
-    .capitalize() theo từng từ sẽ biến "Phòng KT-Cơ điện" thành "Phòng Kt-Cơ Điện",
-    sai chính tả và không khớp với PHONG_BAN_THU_TU/PHONG_BAN_LANH_DAO_CAO_CAP).
-    Thay vào đó:
-    1) Nếu tên (không phân biệt hoa/thường, khoảng trắng thừa) trùng với 1 tên
-       trong danh sách chuẩn PHONG_BAN_THU_TU -> trả về đúng tên chuẩn đó.
-    2) Nếu không khớp -> chỉ viết hoa chữ cái đầu tiên của cả chuỗi, giữ nguyên
-       phần còn lại như người dùng đã nhập (đúng kiểu viết hoa tên riêng tiếng Việt).
+    """Chuẩn hóa tên phòng ban theo danh mục chính thức PHONG_BAN_THU_TU (Title Case —
+    viết hoa chữ cái đầu của MỌI từ, theo quy ước riêng của công ty).
+    1) So khớp với PHONG_BAN_THU_TU, KHÔNG phân biệt hoa/thường, khoảng trắng thừa,
+       và khoảng trắng quanh dấu '-' (VD dữ liệu cũ "Phòng KT-Cơ điện" hay
+       "phòng kt -cơ điện" đều khớp với chuẩn "Phòng KT - Cơ Điện") -> trả về đúng
+       tên chuẩn trong danh mục.
+    2) Nếu không khớp (phòng ban lạ, chưa có trong danh mục) -> viết hoa chữ cái
+       đầu mỗi từ (Title Case) để nhất quán với phong cách chung của danh mục.
     """
     if not ten:
         return ""
     ten_sach = " ".join(ten.strip().split())
     if not ten_sach:
         return ""
+
+    def _so_sanh(s):
+        # Chuẩn hóa khoảng trắng quanh dấu '-' về đúng 1 dạng trước khi so sánh,
+        # để không bị lệch chuẩn chỉ vì cách gõ dấu gạch ngang khác nhau.
+        return re.sub(r'\s*-\s*', ' - ', s).lower()
+
     for chuan in PHONG_BAN_THU_TU:
-        if ten_sach.lower() == chuan.lower():
+        if _so_sanh(ten_sach) == _so_sanh(chuan):
             return chuan
-    return ten_sach[0].upper() + ten_sach[1:]
+    return " ".join(w[0].upper() + w[1:] if w else w for w in ten_sach.split(" "))
 
 
 def la_phong_ban_lanh_dao_cao_cap(ten):
@@ -647,17 +652,20 @@ BANK_LIST = load_bank_list()
 TRINH_DO_LIST = ["THPT", "Chứng chỉ nghề", "Cao đẳng", "Đại học", "Thạc sỹ", "Tiến sĩ"]
 
 # Thứ tự ưu tiên CHUẨN — dùng thống nhất cho mọi biểu đồ / bảng / dropdown / tìm kiếm
+# LƯU Ý: theo yêu cầu, toàn bộ tên phòng ban viết hoa CHỮ CÁI ĐẦU CỦA MỌI TỪ (Title Case),
+# khác với quy tắc chính tả tiếng Việt thông thường — đây là lựa chọn có chủ đích cho danh mục
+# chính thức của công ty, áp dụng thống nhất trong toàn bộ app.
 PHONG_BAN_THU_TU = [
-    "Hội đồng Quản trị",
-    "Ban Tổng Giám đốc",
-    "Phòng Hành chính Nhân sự",
-    "Phòng Tài chính",
-    "Phòng Kinh doanh",
-    "Phòng Điều độ",
-    "Phòng KT-Cơ điện",
-    "Tổ Cơ giới",
-    "Đội Bốc xếp",
-    "Đội Bảo vệ",
+    "Hội Đồng Quản Trị",
+    "Ban Tổng Giám Đốc",
+    "Phòng Hành Chính Nhân Sự",
+    "Phòng Kinh Doanh",
+    "Phòng Tài Chính",
+    "Phòng Điều Độ",
+    "Tổ Cơ Giới",
+    "Đội Bốc Xếp",
+    "Phòng KT - Cơ Điện",
+    "Đội Bảo Vệ",  # giữ lại từ danh mục cũ (không có trong yêu cầu mới) — xóa dòng này nếu không còn dùng
 ]
 
 CHUC_VU_THU_TU = [
@@ -5526,7 +5534,7 @@ if st.sidebar.button("🚪 Đăng xuất", width='stretch'):
     st.rerun()
 
 # ========== HÀM DÙNG CHUNG: CARD THÔNG TIN NHÂN VIÊN ==========
-PHONG_BAN_LANH_DAO_CAO_CAP = ('Hội đồng Quản trị', 'Ban Tổng Giám đốc')
+PHONG_BAN_LANH_DAO_CAO_CAP = ('Hội Đồng Quản Trị', 'Ban Tổng Giám Đốc')
 
 def render_employee_info_card(nv, key_prefix, on_close=None):
     """Hiển thị card '👤 THÔNG TIN NHÂN VIÊN' với avatar load on-demand"""

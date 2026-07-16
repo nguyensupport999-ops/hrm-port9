@@ -316,6 +316,20 @@ def search_employees(keyword, exclude_id=None):
         return []
 
 
+def get_all_rooms_admin():
+    """Lấy TẤT CẢ phòng chat trong hệ thống (không lọc theo participant) — chỉ dùng cho
+    chế độ giám sát của tài khoản hệ thống (admin/hr) không gắn với nhan_vien_id cụ thể."""
+    try:
+        db, c = _conn()
+        c.execute("SELECT * FROM chat_rooms WHERE deleted_at IS NULL ORDER BY updated_at DESC")
+        rows = c.fetchall()
+        db.close()
+        return rows
+    except Exception as e:
+        print(f"[chat_noi_bo] Lỗi lấy toàn bộ phòng (giám sát): {e}")
+        return []
+
+
 def get_user_chat_rooms(user_id):
     try:
         db, c = _conn()
@@ -960,10 +974,75 @@ def _render_chat_window(nv, room):
             st.rerun()
 
 
+def _ten_phong_giam_sat(room):
+    """Tên hiển thị phòng dùng riêng cho chế độ giám sát (không có 'user_id của tôi' để so sánh)."""
+    if room.get("room_type") != "private":
+        return get_room_display_name(room, None)
+    ps = get_room_participants(room["id"])
+    return " ↔ ".join(p["ho_ten"] for p in ps) if ps else "Chat 1:1"
+
+
+def _render_tai_khoan_he_thong():
+    """Hiển thị khi tài khoản đang đăng nhập là tài khoản HỆ THỐNG (khai báo trong
+    Secrets [users], VD admin vận hành) — không gắn với 1 bản ghi nhan_vien cụ thể nên
+    không có danh tính để gửi/nhận tin nhắn cá nhân. KHÔNG phải lỗi 'chưa đăng nhập'."""
+    st.title("💬 Chat nội bộ")
+    role = st.session_state.get("role")
+    uname = st.session_state.get("username")
+    st.info(
+        f"ℹ️ Tài khoản **{uname}** (vai trò hệ thống: `{role}`) không gắn với hồ sơ nhân viên cụ thể "
+        "trong bảng Nhân viên, nên chưa có danh tính cá nhân để **gửi/nhận** tin nhắn trong Chat nội bộ.\n\n"
+        "👉 Để chat như một nhân viên (nhắn 1:1, vào group phòng ban của mình...), vui lòng đăng xuất và "
+        "đăng nhập lại bằng **số điện thoại của 1 nhân viên thực tế** trong hệ thống."
+    )
+
+    if role not in ("admin", "hr"):
+        return
+
+    st.divider()
+    st.subheader("🕵️ Chế độ giám sát (chỉ xem)")
+    st.caption("Dành riêng cho admin/HR xem lại nội dung các phòng chat. Không thể gửi tin nhắn ở "
+               "chế độ này vì tài khoản hệ thống không đại diện cho 1 nhân viên cụ thể.")
+
+    if not st.session_state.get("_cnb_da_khoi_tao"):
+        init_chat_tables()
+        sync_department_rooms()
+        st.session_state["_cnb_da_khoi_tao"] = True
+
+    rooms = get_all_rooms_admin()
+    if not rooms:
+        st.caption("Chưa có phòng chat nào trong hệ thống.")
+        return
+
+    options = {f"{_ten_phong_giam_sat(r)}   ·   #{r['id']}": r["id"] for r in rooms}
+    chon = st.selectbox("Chọn phòng để xem", list(options.keys()), key="cnb_admin_view_room")
+    if not chon:
+        return
+
+    room_id = options[chon]
+    _css()
+    msgs = get_room_messages(room_id)
+    st.markdown('<div class="cnb-messages" style="max-height:520px;overflow-y:auto;'
+                'border:1px solid #e8ecf1;border-radius:12px;padding:16px;background:#f0f2f5;">',
+                unsafe_allow_html=True)
+    if not msgs:
+        st.caption("Chưa có tin nhắn nào trong phòng này.")
+    else:
+        for m in msgs:
+            _render_message(m, is_self=False)  # giám sát: không có "mình", căn tất cả sang trái
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
 def render():
     """Entry point — gọi từ app.py: `chat_noi_bo.render()`"""
-    if "nhan_vien_id" not in st.session_state or not st.session_state.nhan_vien_id:
+    if not st.session_state.get("logged_in"):
         st.warning("⚠️ Vui lòng đăng nhập để sử dụng Chat nội bộ.")
+        return
+
+    user_id = st.session_state.get("nhan_vien_id")
+    if not user_id:
+        # Đã đăng nhập, nhưng là tài khoản hệ thống không gắn với nhân viên cụ thể.
+        _render_tai_khoan_he_thong()
         return
 
     # Khởi tạo & đồng bộ 1 LẦN / phiên làm việc (tránh query lặp lại mỗi lần rerun)
@@ -972,7 +1051,6 @@ def render():
         sync_department_rooms()
         st.session_state["_cnb_da_khoi_tao"] = True
 
-    user_id = st.session_state.nhan_vien_id
     nv = get_current_nv(user_id)
     if not nv:
         st.error("Không tìm thấy thông tin nhân viên hiện tại.")

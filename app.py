@@ -8757,31 +8757,48 @@ elif menu == "✅ Nhân viên":
 
                     db_s = st.session_state.db_engine.get_connection()
                     c_s = db_s.cursor()
-                    # Một số DB có thêm các cột legacy (NOT NULL) song song với cột chuẩn:
-                    #   loai_quyet_dinh <-> loai_qd
-                    #   ngay_quyet_dinh <-> ngay_qd
-                    #   so_quyet_dinh   <-> so_qd
-                    # Điền luôn các cột legacy này (nếu tồn tại) để không bao giờ vướng lỗi NOT NULL
-                    # dù migration đã chạy hay chưa.
-                    c_s.execute("""
-                        SELECT column_name FROM information_schema.columns
-                        WHERE table_name = 'quyet_dinh_nhan_su'
-                          AND column_name IN ('loai_quyet_dinh', 'ngay_quyet_dinh', 'so_quyet_dinh')
-                    """)
-                    cot_legacy_co_san = {r[0] for r in c_s.fetchall()}
 
+                    # Bảng quyet_dinh_nhan_su ở một số môi trường có thêm nhiều cột legacy
+                    # (NOT NULL, không có default) song song với các cột chuẩn mà code dùng
+                    # (so_qd, loai_qd, ngay_qd, nhan_vien_id, noi_dung...). Thay vì liệt kê cứng
+                    # từng cột (dễ sót, như đã xảy ra với ngay_quyet_dinh rồi ngay_hieu_luc),
+                    # ta tự dò TẤT CẢ cột NOT NULL không có default, rồi suy luận giá trị theo
+                    # tên cột để điền cho đủ, tránh vướng lỗi NOT NULL dù DB có bao nhiêu cột
+                    # legacy đi nữa.
                     cols = ['so_qd', 'loai_qd', 'nhan_vien_id', 'ngay_qd', 'noi_dung', 'gia_tri_truoc', 'gia_tri_sau', 'file_url', 'nguoi_tao']
                     vals = [so_qd, loai_qd, nv_qd['id'], ngay_qd, " ".join(dieu1_lines), gia_tri_truoc, gia_tri_sau, file_url, st.session_state.username]
 
-                    if 'loai_quyet_dinh' in cot_legacy_co_san:
-                        cols.append('loai_quyet_dinh')
-                        vals.append(loai_qd)
-                    if 'ngay_quyet_dinh' in cot_legacy_co_san:
-                        cols.append('ngay_quyet_dinh')
-                        vals.append(ngay_qd)
-                    if 'so_quyet_dinh' in cot_legacy_co_san:
-                        cols.append('so_quyet_dinh')
-                        vals.append(so_qd)
+                    c_s.execute("""
+                        SELECT column_name FROM information_schema.columns
+                        WHERE table_name = 'quyet_dinh_nhan_su'
+                          AND is_nullable = 'NO'
+                          AND column_default IS NULL
+                          AND column_name NOT IN %s
+                    """, (tuple(cols),))
+                    cot_not_null_con_thieu = [r[0] for r in c_s.fetchall()]
+
+                    for ten_cot in cot_not_null_con_thieu:
+                        tc = ten_cot.lower()
+                        if 'ngay' in tc or 'ngay_hieu_luc' in tc:
+                            gia_tri = ngay_qd
+                        elif 'loai' in tc:
+                            gia_tri = loai_qd
+                        elif tc.startswith('so_') or tc == 'so' or 'so_quyet_dinh' in tc or 'so_hd' in tc:
+                            gia_tri = so_qd
+                        elif 'nhan_vien' in tc:
+                            gia_tri = nv_qd['id']
+                        elif 'noi_dung' in tc or 'dieu' in tc or 'trich_yeu' in tc:
+                            gia_tri = " ".join(dieu1_lines)
+                        elif 'nguoi' in tc:
+                            gia_tri = st.session_state.username
+                        elif 'trang_thai' in tc:
+                            gia_tri = 'CO_HIEU_LUC'
+                        else:
+                            # Không đoán được ý nghĩa cột -> bỏ qua, để lỗi NOT NULL (nếu có)
+                            # hiện rõ ràng thay vì điền giá trị sai lệch ngữ nghĩa.
+                            continue
+                        cols.append(ten_cot)
+                        vals.append(gia_tri)
 
                     placeholders = ", ".join(["%s"] * len(cols))
                     c_s.execute(f"""

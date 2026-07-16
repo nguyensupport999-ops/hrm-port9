@@ -4352,6 +4352,23 @@ def ensure_qdns_table():
         c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS file_url TEXT")
         c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS nguoi_tao VARCHAR(100)")
         c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
+        # Sửa lỗi: bảng quyet_dinh_nhan_su trên một số DB (đã tồn tại từ trước, tạo thủ công/khác
+        # phiên bản) có thêm cột "loai_quyet_dinh" (khác với cột "loai_qd" mà code hiện tại dùng)
+        # và cột đó bị đặt NOT NULL. Vì INSERT ở tab "QUYẾT ĐỊNH NHÂN SỰ" chỉ điền "loai_qd" chứ
+        # không điền "loai_quyet_dinh", nên gặp lỗi:
+        #   null value in column "loai_quyet_dinh" ... violates not-null constraint
+        # Gỡ ràng buộc NOT NULL này nếu cột tồn tại (an toàn, không ảnh hưởng dữ liệu cũ).
+        c.execute("""
+            DO $$
+            BEGIN
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'quyet_dinh_nhan_su' AND column_name = 'loai_quyet_dinh'
+                ) THEN
+                    ALTER TABLE quyet_dinh_nhan_su ALTER COLUMN loai_quyet_dinh DROP NOT NULL;
+                END IF;
+            END $$;
+        """)
         db.commit()
         c.close()
         db.close()
@@ -6796,7 +6813,7 @@ elif menu == "👤 Ứng viên":
                 gioi_tinh_nv = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"], index=["", "Nam", "Nữ", "Khác"].index(uv_data.get('gioi_tinh', '')) if uv_data.get('gioi_tinh') in ["Nam", "Nữ", "Khác"] else 0)
                 so_cccd_nv = st.text_input("CCCD")
                 ngay_cap_cccd_nv = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
-                noi_cap_cccd_nv = st.text_input("Nơi cấp CCCD")
+                noi_cap_cccd_nv = st.text_input("Nơi cấp CCCD", value="Cục QLHC về TTXH - Bộ Công An")
             with col2:
                 nguyen_quan_nv = st.text_input("Nguyên quán")
                 thuong_tru_nv = st.text_area("Thường trú", value=uv_data.get('ghi_chu', ''), height=68)
@@ -8705,10 +8722,24 @@ elif menu == "✅ Nhân viên":
 
                     db_s = st.session_state.db_engine.get_connection()
                     c_s = db_s.cursor()
+                    # Một số DB có thêm cột legacy "loai_quyet_dinh" (NOT NULL) song song với "loai_qd".
+                    # Điền luôn cả hai để không bao giờ vướng lỗi NOT NULL dù migration đã chạy hay chưa.
                     c_s.execute("""
-                        INSERT INTO quyet_dinh_nhan_su (so_qd, loai_qd, nhan_vien_id, ngay_qd, noi_dung, gia_tri_truoc, gia_tri_sau, file_url, nguoi_tao)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (so_qd, loai_qd, nv_qd['id'], ngay_qd, " ".join(dieu1_lines), gia_tri_truoc, gia_tri_sau, file_url, st.session_state.username))
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name = 'quyet_dinh_nhan_su' AND column_name = 'loai_quyet_dinh'
+                    """)
+                    co_cot_legacy_loai_qd = c_s.fetchone() is not None
+
+                    if co_cot_legacy_loai_qd:
+                        c_s.execute("""
+                            INSERT INTO quyet_dinh_nhan_su (so_qd, loai_qd, loai_quyet_dinh, nhan_vien_id, ngay_qd, noi_dung, gia_tri_truoc, gia_tri_sau, file_url, nguoi_tao)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (so_qd, loai_qd, loai_qd, nv_qd['id'], ngay_qd, " ".join(dieu1_lines), gia_tri_truoc, gia_tri_sau, file_url, st.session_state.username))
+                    else:
+                        c_s.execute("""
+                            INSERT INTO quyet_dinh_nhan_su (so_qd, loai_qd, nhan_vien_id, ngay_qd, noi_dung, gia_tri_truoc, gia_tri_sau, file_url, nguoi_tao)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (so_qd, loai_qd, nv_qd['id'], ngay_qd, " ".join(dieu1_lines), gia_tri_truoc, gia_tri_sau, file_url, st.session_state.username))
 
                     # Đăng ký vào hệ thống Quản lý công văn đi để cùng theo dõi số thứ tự
                     c_s.execute("""

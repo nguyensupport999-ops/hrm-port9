@@ -38,6 +38,7 @@ import control_plane
 from control_plane import DatabaseEngine, resolve_tenant
 import bcrypt
 import chat_noi_bo
+import i18n
 import photo_card_gender
 import base64
 import mimetypes
@@ -2444,6 +2445,10 @@ st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
 # Gọi định danh tenant
 resolve_tenant()
+
+# Nạp ngôn ngữ hiển thị của tenant (VI / VI_EN / VI_ZH / VI_KO) — chỉ ảnh hưởng NHÃN
+# hiển thị trên giao diện (menu, tiêu đề, một số form), KHÔNG đổi logic/dữ liệu.
+i18n.set_active_language((st.session_state.get('tenant') or {}).get('ngon_ngu'))
 
 # Nạp động cấu hình thương hiệu (Branding) từ tenant
 if st.session_state.get('tenant'):
@@ -5185,6 +5190,16 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
                 loi_nhan_zalo = st.text_input("Lời nhắn Zalo sinh nhật")
                 zalo_group_link = st.text_input("Link nhóm Zalo")
                 zalo_group_name = st.text_input("Tên nhóm Zalo")
+                st.markdown("###### 🌐 Ngôn ngữ giao diện")
+                ngon_ngu_moi = st.selectbox(
+                    "Ngôn ngữ",
+                    list(i18n.LANGUAGE_OPTIONS.keys()),
+                    format_func=lambda k: i18n.LANGUAGE_OPTIONS[k],
+                    index=0,
+                    help="Tiếng Việt luôn là ngôn ngữ chính. Nếu chọn gói song ngữ (Việt-Anh/"
+                         "Việt-Trung/Việt-Hàn), ngôn ngữ phụ sẽ hiện thêm trong ngoặc, cỡ chữ nhỏ hơn, "
+                         "ở menu và một số nhãn giao diện — phù hợp cho doanh nghiệp FDI."
+                )
 
             st.divider()
             st.markdown("##### 🔑 Tài khoản Admin đầu tiên (BẮT BUỘC)")
@@ -5220,7 +5235,7 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
                             dien_thoai_cty=dien_thoai_cty, ma_don_vi_BHXH=ma_don_vi_BHXH,
                             ma_vung_luong=ma_vung_luong, dia_chi=dia_chi, loi_nhan_zalo=loi_nhan_zalo,
                             zalo_group_link=zalo_group_link, zalo_group_name=zalo_group_name,
-                            migration_sql=migration_sql
+                            migration_sql=migration_sql, ngon_ngu=ngon_ngu_moi
                         )
 
                         # Tự động tạo hồ sơ nhân viên Admin đầu tiên trên DB của tenant VỪA tạo
@@ -5283,6 +5298,26 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
                 if ma_xoa:
                     control_plane.delete_tenant(ma_xoa)
                     st.success("✅ Đã xoá!"); st.rerun()
+
+        st.divider()
+        st.markdown("##### 🌐 Đổi ngôn ngữ giao diện của 1 khách hàng đã có")
+        col_lang1, col_lang2 = st.columns(2)
+        with col_lang1:
+            ma_doi_ngon_ngu = st.text_input("Mã công ty cần đổi ngôn ngữ", key="ma_doi_ngon_ngu")
+        with col_lang2:
+            ngon_ngu_doi_thanh = st.selectbox(
+                "Ngôn ngữ mới", list(i18n.LANGUAGE_OPTIONS.keys()),
+                format_func=lambda k: i18n.LANGUAGE_OPTIONS[k], key="ngon_ngu_doi_thanh"
+            )
+        if st.button("🌐 Cập nhật ngôn ngữ"):
+            if ma_doi_ngon_ngu:
+                try:
+                    control_plane.update_tenant_language(ma_doi_ngon_ngu, ngon_ngu_doi_thanh)
+                    st.success("✅ Đã cập nhật ngôn ngữ!"); st.rerun()
+                except AttributeError:
+                    st.error("❌ Chưa có hàm `update_tenant_language()` trong control_plane.py.")
+            else:
+                st.warning("⚠️ Vui lòng nhập mã công ty.")
 
         st.divider()
         st.markdown("##### 🖼️ Upload logo cho khách hàng")
@@ -5435,11 +5470,11 @@ if not st.session_state.logged_in:
         st.sidebar.image(tenant['logo_url'], width='stretch')
     st.sidebar.success(f"🏢 **{tenant['ten_cty']}**")
 
-    st.sidebar.subheader("🔐 Đăng nhập")
-    u = st.sidebar.text_input("Số điện thoại hoặc Tên đăng nhập")
-    p = st.sidebar.text_input("Mật khẩu", type="password")
+    st.sidebar.subheader(i18n.t("🔐 Đăng nhập"))
+    u = st.sidebar.text_input(i18n.t("Số điện thoại hoặc Tên đăng nhập"))
+    p = st.sidebar.text_input(i18n.t("Mật khẩu"), type="password")
     st.sidebar.caption("💡 Mật khẩu mặc định = số điện thoại của bạn. Đổi lại sau khi đăng nhập lần đầu.")
-    if st.sidebar.button("Đăng nhập", width='stretch'):
+    if st.sidebar.button(i18n.t("Đăng nhập"), width='stretch'):
         success, role, nv_row = check_login(u, p)
         if success:
             st.session_state.logged_in = True
@@ -5596,11 +5631,11 @@ elif st.session_state.role == "viewer":
     menu_options = ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo định kỳ","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
 else:  # 'nhan_vien' thường — chỉ xem hồ sơ bản thân + chat nội bộ
     menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"]
-menu = st.sidebar.radio("📋 Menu", menu_options)
+menu = st.sidebar.radio(i18n.t("📋 Menu"), menu_options, format_func=i18n.t)
 st.sidebar.divider()
 st.sidebar.caption(f"👤 {st.session_state.get('ho_ten_dang_nhap', st.session_state.username)} ({st.session_state.role})")
 # MỚI:
-if st.sidebar.button("🚪 Đăng xuất", width='stretch'):
+if st.sidebar.button(i18n.t("🚪 Đăng xuất"), width='stretch'):
     st.session_state.logged_in = False
     st.session_state.role = None
     st.session_state.username = None
@@ -5817,7 +5852,7 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
 
 # ========== DASHBOARD ==========
 if menu == "📊 Dashboard":
-    st.title("📊 Dashboard")
+    st.markdown(f"# {i18n.tm('📊 Dashboard')}", unsafe_allow_html=True)
     
     # Lấy dữ liệu từ cache
     stats = get_dashboard_stats()
@@ -6786,7 +6821,7 @@ if menu == "📊 Dashboard":
     
 # ========== ỨNG VIÊN ==========
 elif menu == "👤 Ứng viên":
-    st.title("👤 Ứng viên")
+    st.markdown(f"# {i18n.tm('👤 Ứng viên')}", unsafe_allow_html=True)
     ensure_chuc_danh_ung_vien_table()
     su = st.text_input("🔍 Tìm kiếm", key="suv")
     
@@ -7312,7 +7347,7 @@ elif menu == "👤 Ứng viên":
 
 # ========== NHÂN VIÊN ==========
 elif menu == "✅ Nhân viên":
-    st.title("✅ Quản lý nhân viên")
+    st.markdown(f"# {i18n.tm('✅ Quản lý nhân viên')}", unsafe_allow_html=True)
     ensure_qdns_columns()
     ensure_qdns_table()
     ensure_mau_dieu_hop_dong_table()
@@ -9099,7 +9134,7 @@ elif menu == "✅ Nhân viên":
 
 # ========== CHẤM CÔNG ==========
 elif menu == "🕒 Chấm công":
-    st.title("🕒 Chấm công")
+    st.markdown(f"# {i18n.tm('🕒 Chấm công')}", unsafe_allow_html=True)
     
     # 3 nút lựa chọn phương thức
     col_method1, col_method2, col_method3 = st.columns(3)
@@ -9577,7 +9612,7 @@ elif menu == "🕒 Chấm công":
 
 # ========== TÍNH THU NHẬP ==========
 elif menu == "💰 Tính thu nhập":
-    st.title("💰 Tính thu nhập (Lương & Phụ cấp)")
+    st.markdown(f"# {i18n.tm('💰 Tính thu nhập (Lương & Phụ cấp)')}", unsafe_allow_html=True)
     st.caption("Tính toán lương, thưởng và các khoản phụ cấp cho nhân viên")
     
     st.info("""
@@ -10015,7 +10050,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
 
 # ========== DANH MỤC CHỨC DANH ==========
 elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
-    st.title("⚙️ Danh mục cấu hình theo doanh nghiệp")
+    st.markdown(f"# {i18n.tm('⚙️ Danh mục cấu hình theo doanh nghiệp')}", unsafe_allow_html=True)
     st.caption("Mỗi khách hàng tự đặt tên Phòng ban, Chức danh, Loại hợp đồng, Trình độ học vấn phù hợp với cơ cấu công ty mình — không ảnh hưởng đến khách hàng khác.")
 
     def _quan_ly_danh_muc_don_gian(ten_bang, cot_ten, tieu_de, placeholder):
@@ -10360,7 +10395,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
 
 # ========== BHXH ==========
 elif menu == "📋 BHXH":
-    st.title("📋 Quản lý BHXH")
+    st.markdown(f"# {i18n.tm('📋 Quản lý BHXH')}", unsafe_allow_html=True)
     
     t1, t2, t3 = st.tabs(["📊 Tổng quan", "📝 Báo cáo tăng/giảm D02-LT", "💰 Dự toán đóng BHXH"])
     
@@ -10640,7 +10675,7 @@ elif menu == "📋 BHXH":
         
 # ========== BÁO CÁO TÌNH HÌNH SỬ DỤNG LAO ĐỘNG MẪU 01/PLI (EXCEL) ==========
 elif menu == "📋 Báo cáo định kỳ":
-    st.title("📋 Báo cáo định kỳ")
+    st.markdown(f"# {i18n.tm('📋 Báo cáo định kỳ')}", unsafe_allow_html=True)
 
     tab_bc_pli, tab_bc_tk, tab_bc_tanggiam, tab_bc_tinhhinh, tab_bc_yte, tab_bc_atvsld, \
     tab_bc_tnld, tab_bc_huanluyen, tab_bc_socapcuu, tab_bc_quantrac = st.tabs([

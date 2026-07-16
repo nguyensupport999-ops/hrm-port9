@@ -50,7 +50,12 @@ CREATE TABLE IF NOT EXISTS tenants (
     loi_nhan_zalo    TEXT,
     zalo_group_link  TEXT,
     zalo_group_name  TEXT,
-    
+
+    -- Ngôn ngữ giao diện của tenant: 'VI' (chỉ Việt, mặc định) / 'VI_EN' / 'VI_ZH' / 'VI_KO'.
+    -- Tiếng Việt luôn là ngôn ngữ chính; ngôn ngữ phụ (nếu có) chỉ hiển thị thêm trong
+    -- ngoặc, cỡ chữ nhỏ hơn, phục vụ khách FDI. Xem module i18n.py.
+    ngon_ngu        TEXT DEFAULT 'VI',
+
     created_at      TIMESTAMP DEFAULT NOW()
 );
 """
@@ -85,7 +90,8 @@ def ensure_control_plane_schema():
             ("dia_chi", "TEXT"),
             ("loi_nhan_zalo", "TEXT"),
             ("zalo_group_link", "TEXT"),
-            ("zalo_group_name", "TEXT")
+            ("zalo_group_name", "TEXT"),
+            ("ngon_ngu", "TEXT DEFAULT 'VI'"),
         ]
         for col_name, col_type in columns_to_add:
             c.execute(f"ALTER TABLE tenants ADD COLUMN IF NOT EXISTS {col_name} {col_type}")
@@ -148,7 +154,8 @@ def get_tenant_by_code(ma_cty: str):
         "supabase_url": row["supabase_url"],
         "supabase_key": decrypt_text(row["supabase_key_enc"]),
         "goi_dich_vu": row["goi_dich_vu"],
-        
+        "ngon_ngu": row.get("ngon_ngu") or "VI",
+
         # Metadata cấu hình động
         "dai_dien": row.get("dai_dien") or "",
         "chuc_vu": row.get("chuc_vu") or "",
@@ -173,7 +180,8 @@ def list_tenants():
                             goi_dich_vu, trang_thai, created_at,
                             dai_dien, chuc_vu, ma_so_thue, dien_thoai_cty,
                             ma_don_vi_bhxh as "ma_don_vi_BHXH", ma_vung_luong, dia_chi,
-                            loi_nhan_zalo, zalo_group_link, zalo_group_name
+                            loi_nhan_zalo, zalo_group_link, zalo_group_name,
+                            COALESCE(ngon_ngu, 'VI') as ngon_ngu
                      FROM tenants ORDER BY created_at DESC""")
         return c.fetchall()
     finally:
@@ -184,7 +192,8 @@ def add_tenant(ma_cty, ten_cty, db_host, db_port, db_user, db_password,
                db_name, supabase_url, supabase_key, logo_url=None, goi_dich_vu="standard",
                dai_dien=None, chuc_vu=None, ma_so_thue=None, dien_thoai_cty=None,
                ma_don_vi_BHXH=None, ma_vung_luong=None, dia_chi=None, loi_nhan_zalo=None,
-               zalo_group_link=None, zalo_group_name=None, migration_sql=None):
+               zalo_group_link=None, zalo_group_name=None, migration_sql=None,
+               ngon_ngu="VI"):
     """Thêm khách hàng mới. Mật khẩu/Key được mã hoá trước khi lưu.
     Nếu có migration_sql, tự động chạy script tạo bảng trên database của tenant mới."""
     ensure_control_plane_schema()
@@ -198,14 +207,16 @@ def add_tenant(ma_cty, ten_cty, db_host, db_port, db_user, db_password,
                 ma_cty, ten_cty, logo_url, db_host, db_port, db_user,
                 db_password_enc, db_name, supabase_url, supabase_key_enc, goi_dich_vu,
                 dai_dien, chuc_vu, ma_so_thue, dien_thoai_cty, ma_don_vi_bhxh,
-                ma_vung_luong, dia_chi, loi_nhan_zalo, zalo_group_link, zalo_group_name
+                ma_vung_luong, dia_chi, loi_nhan_zalo, zalo_group_link, zalo_group_name,
+                ngon_ngu
             )
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             ma_cty.strip().upper(), ten_cty, logo_url, db_host, str(db_port), db_user,
             encrypt_text(db_password), db_name, supabase_url, encrypt_text(supabase_key), goi_dich_vu,
             dai_dien, chuc_vu, ma_so_thue, dien_thoai_cty, ma_don_vi_BHXH,
-            ma_vung_luong, dia_chi, loi_nhan_zalo, zalo_group_link, zalo_group_name
+            ma_vung_luong, dia_chi, loi_nhan_zalo, zalo_group_link, zalo_group_name,
+            (ngon_ngu or "VI").strip().upper()
         ))
         conn.commit()
     finally:
@@ -233,6 +244,20 @@ def add_tenant(ma_cty, ten_cty, db_host, db_port, db_user, db_password,
             tenant_conn.close()
             
     get_tenant_by_code.clear()  # xoá cache để đọc lại ngay
+
+
+def update_tenant_language(ma_cty, ngon_ngu):
+    """Đổi ngôn ngữ giao diện của 1 tenant đã tồn tại (VI / VI_EN / VI_ZH / VI_KO)."""
+    ensure_control_plane_schema()
+    conn = get_control_plane_connection()
+    try:
+        c = conn.cursor()
+        c.execute("UPDATE tenants SET ngon_ngu=%s WHERE UPPER(ma_cty)=UPPER(%s)",
+                   ((ngon_ngu or "VI").strip().upper(), ma_cty))
+        conn.commit()
+    finally:
+        conn.close()
+    get_tenant_by_code.clear()
 
 
 def update_tenant_status(ma_cty, trang_thai):

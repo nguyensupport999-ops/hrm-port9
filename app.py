@@ -6844,7 +6844,7 @@ elif menu == "👤 Ứng viên":
                 chi_nhanh_nh_chuyen = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_chuyen_index, key="chuyen_cnh")
                 tinh_kcb_chuyen = st.text_input("Tỉnh KCB")
             with col8:
-                noi_kcb_chuyen = st.text_input("Nơi KCB", value='Bệnh viện đa khoa khu vực Bắc Quảng Trị")
+                noi_kcb_chuyen = st.text_input("Nơi KCB", value="Bệnh viện đa khoa khu vực Bắc Quảng Trị")
                 tinh_nhan_hs_chuyen = st.text_input("Tỉnh/TP nhận HS", value="Tỉnh Quảng Trị")
                 phuong_nhan_hs_chuyen = st.text_input("Phường/Xã nhận HS", value="Xã Phú Trạch")
             with col9:

@@ -8757,24 +8757,37 @@ elif menu == "✅ Nhân viên":
 
                     db_s = st.session_state.db_engine.get_connection()
                     c_s = db_s.cursor()
-                    # Một số DB có thêm cột legacy "loai_quyet_dinh" (NOT NULL) song song với "loai_qd".
-                    # Điền luôn cả hai để không bao giờ vướng lỗi NOT NULL dù migration đã chạy hay chưa.
+                    # Một số DB có thêm các cột legacy (NOT NULL) song song với cột chuẩn:
+                    #   loai_quyet_dinh <-> loai_qd
+                    #   ngay_quyet_dinh <-> ngay_qd
+                    #   so_quyet_dinh   <-> so_qd
+                    # Điền luôn các cột legacy này (nếu tồn tại) để không bao giờ vướng lỗi NOT NULL
+                    # dù migration đã chạy hay chưa.
                     c_s.execute("""
-                        SELECT 1 FROM information_schema.columns
-                        WHERE table_name = 'quyet_dinh_nhan_su' AND column_name = 'loai_quyet_dinh'
+                        SELECT column_name FROM information_schema.columns
+                        WHERE table_name = 'quyet_dinh_nhan_su'
+                          AND column_name IN ('loai_quyet_dinh', 'ngay_quyet_dinh', 'so_quyet_dinh')
                     """)
-                    co_cot_legacy_loai_qd = c_s.fetchone() is not None
+                    cot_legacy_co_san = {r[0] for r in c_s.fetchall()}
 
-                    if co_cot_legacy_loai_qd:
-                        c_s.execute("""
-                            INSERT INTO quyet_dinh_nhan_su (so_qd, loai_qd, loai_quyet_dinh, nhan_vien_id, ngay_qd, noi_dung, gia_tri_truoc, gia_tri_sau, file_url, nguoi_tao)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """, (so_qd, loai_qd, loai_qd, nv_qd['id'], ngay_qd, " ".join(dieu1_lines), gia_tri_truoc, gia_tri_sau, file_url, st.session_state.username))
-                    else:
-                        c_s.execute("""
-                            INSERT INTO quyet_dinh_nhan_su (so_qd, loai_qd, nhan_vien_id, ngay_qd, noi_dung, gia_tri_truoc, gia_tri_sau, file_url, nguoi_tao)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                        """, (so_qd, loai_qd, nv_qd['id'], ngay_qd, " ".join(dieu1_lines), gia_tri_truoc, gia_tri_sau, file_url, st.session_state.username))
+                    cols = ['so_qd', 'loai_qd', 'nhan_vien_id', 'ngay_qd', 'noi_dung', 'gia_tri_truoc', 'gia_tri_sau', 'file_url', 'nguoi_tao']
+                    vals = [so_qd, loai_qd, nv_qd['id'], ngay_qd, " ".join(dieu1_lines), gia_tri_truoc, gia_tri_sau, file_url, st.session_state.username]
+
+                    if 'loai_quyet_dinh' in cot_legacy_co_san:
+                        cols.append('loai_quyet_dinh')
+                        vals.append(loai_qd)
+                    if 'ngay_quyet_dinh' in cot_legacy_co_san:
+                        cols.append('ngay_quyet_dinh')
+                        vals.append(ngay_qd)
+                    if 'so_quyet_dinh' in cot_legacy_co_san:
+                        cols.append('so_quyet_dinh')
+                        vals.append(so_qd)
+
+                    placeholders = ", ".join(["%s"] * len(cols))
+                    c_s.execute(f"""
+                        INSERT INTO quyet_dinh_nhan_su ({", ".join(cols)})
+                        VALUES ({placeholders})
+                    """, vals)
 
                     # Đăng ký vào hệ thống Quản lý công văn đi để cùng theo dõi số thứ tự
                     c_s.execute("""

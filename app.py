@@ -6794,21 +6794,22 @@ elif menu == "👤 Ứng viên":
                 ho_ten_nv = st.text_input("Họ và tên *", value=uv_data.get('ho_ten', ''))
                 ngay_sinh_nv = st.text_input("Ngày sinh (dd/mm/yyyy)", value=format_date(uv_data.get('ngay_sinh')), placeholder="dd/mm/yyyy", max_chars=10)
                 gioi_tinh_nv = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"], index=["", "Nam", "Nữ", "Khác"].index(uv_data.get('gioi_tinh', '')) if uv_data.get('gioi_tinh') in ["Nam", "Nữ", "Khác"] else 0)
-                quoc_tich_nv = st.text_input("Quốc tịch", value="Việt Nam")
-                dan_toc_nv = st.text_input("Dân tộc", value="Kinh")
-            with col2:
                 so_cccd_nv = st.text_input("CCCD")
                 ngay_cap_cccd_nv = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
                 noi_cap_cccd_nv = st.text_input("Nơi cấp CCCD")
+            with col2:
                 nguyen_quan_nv = st.text_input("Nguyên quán")
                 thuong_tru_nv = st.text_area("Thường trú", value=uv_data.get('ghi_chu', ''), height=68)
+                quoc_tich_nv = st.text_input("Quốc tịch", value="Việt Nam")
+                dan_toc_nv = st.text_input("Dân tộc", value="Kinh")
+                so_luong_npt_nv = st.number_input("Số người phụ thuộc", min_value=0, value=0, step=1)
+                trinh_do_nv = st.selectbox("Trình độ", [""] + TRINH_DO_LIST)
             with col3:
                 dien_thoai_nv = st.text_input("SĐT", value=uv_data.get('dien_thoai', ''))
                 email_nv = st.text_input("Email")
                 chuc_danh_nv = st.selectbox("Chức danh", [""] + dschucdanh, index=([""] + dschucdanh).index(uv_data.get('vi_tri', '')) if uv_data.get('vi_tri', '') in dschucdanh else 0)
                 phong_ban_nv = st.selectbox("Phòng ban", [""] + dpb_chuyen, key="pb_chuyen_uv")
                 noi_lam_viec_nv = st.text_input("Nơi làm việc", value="Cảng THQT Hòn La")
-                trinh_do_nv = st.selectbox("Trình độ", [""] + TRINH_DO_LIST)
                 anh_ho_so_nv = st.file_uploader("Ảnh hồ sơ", type=["png", "jpg", "jpeg"], key="anh_ho_so_chuyen")
             
             st.divider()
@@ -6842,15 +6843,14 @@ elif menu == "👤 Ứng viên":
                 bank_chuyen_index = 0
                 chi_nhanh_nh_chuyen = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_chuyen_index, key="chuyen_cnh")
                 tinh_kcb_chuyen = st.text_input("Tỉnh KCB")
-                noi_kcb_chuyen = st.text_input("Nơi KCB")
             with col8:
-                tinh_nhan_hs_chuyen = st.text_input("Tỉnh/TP nhận HS")
-                phuong_nhan_hs_chuyen = st.text_input("Phường/Xã nhận HS")
-                dia_chi_nhan_hs_chuyen = st.text_area("Địa chỉ nhận HS", height=100)
+                noi_kcb_chuyen = st.text_input("Nơi KCB", value='Bệnh viện đa khoa khu vực Bắc Quảng Trị")
+                tinh_nhan_hs_chuyen = st.text_input("Tỉnh/TP nhận HS", value="Tỉnh Quảng Trị")
+                phuong_nhan_hs_chuyen = st.text_input("Phường/Xã nhận HS", value="Xã Phú Trạch")
             with col9:
+                dia_chi_nhan_hs_chuyen = st.text_area("Địa chỉ nhận HS", value="Công ty cổ phần Cảng Hòn La", height=100)
                 dk_nhan_so_chuyen = st.selectbox("ĐK nhận sổ", ["Có", "Không"])
                 ho_so_chuyen = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"])
-            
             col_confirm1, col_confirm2 = st.columns(2)
             with col_confirm1:
                 if st.form_submit_button("✅ XÁC NHẬN CHUYỂN", width='stretch', type="primary"):
@@ -6944,7 +6944,7 @@ elif menu == "👤 Ứng viên":
                                     to_float_or_none(pc_tnvk_chuyen), to_float_or_none(pc_tnn_chuyen),
                                     muc_huong_bhyt_chuyen, to_float_or_none(ty_le_dong_chuyen), to_float_or_none(muc_tien_dong_chuyen),
                                     phuong_thuc_dong_chuyen, tinh_nhan_hs_chuyen, phuong_nhan_hs_chuyen, dia_chi_nhan_hs_chuyen,
-                                    tinh_kcb_chuyen, noi_kcb_chuyen, dk_nhan_so_chuyen, ten_don_vi_thu_huong, trinh_do_nv
+                                    tinh_kcb_chuyen, noi_kcb_chuyen, dk_nhan_so_chuyen, ten_don_vi_thu_huong, so_luong_npt_nv, trinh_do_nv
                                 ))
                                 nhan_vien_id_moi = c.fetchone()[0]
 

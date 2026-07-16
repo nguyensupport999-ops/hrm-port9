@@ -5099,6 +5099,22 @@ def show_super_admin_page():
     if _vua_tao:
         st.success(f"✅ Đã thêm khách hàng **{_vua_tao['ten_cty']}** (mã: **{_vua_tao['ma_cty']}**) "
                    f"và tự động chạy migration `schema.sql` thành công.")
+
+        if _vua_tao.get('loi_tao_admin'):
+            st.error(
+                f"⚠️ Migration thành công, NHƯNG tự động tạo tài khoản Admin đầu tiên bị lỗi: "
+                f"`{_vua_tao['loi_tao_admin']}`.\n\n"
+                f"Cần tạo thủ công 1 dòng trong bảng `nhan_vien` của DB khách hàng này (SĐT = "
+                f"`{_vua_tao.get('admin_dien_thoai','')}`, `vai_tro='admin'`) trước khi khách hàng "
+                f"đăng nhập lần đầu."
+            )
+        else:
+            st.info(
+                f"✅ Đã tự động tạo tài khoản Admin đầu tiên: **{_vua_tao.get('admin_ho_ten','')}** "
+                f"— đăng nhập bằng SĐT **{_vua_tao.get('admin_dien_thoai','')}**, mật khẩu lần đầu = "
+                f"chính SĐT này (hệ thống sẽ buộc đổi mật khẩu ngay sau khi đăng nhập lần đầu)."
+            )
+
         with st.container(border=True):
             st.markdown("### 📌 Bước tiếp theo (BẮT BUỘC — thực hiện thủ công trên Streamlit Cloud)")
             st.markdown(f"""
@@ -5116,9 +5132,10 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
    ```
    (Dòng này giúp app tự nhận diện đúng công ty, khách vào thẳng màn hình đăng nhập,
    không cần gõ mã công ty.)
-5. Bấm **Deploy** và gửi link `https://hrm-{_vua_tao['ma_cty'].lower()}.streamlit.app` cho khách hàng
-6. Tạo sẵn 1 dòng nhân viên đầu tiên (admin) trong bảng `nhan_vien` của DB khách hàng này —
-   họ sẽ đăng nhập lần đầu bằng chính số điện thoại (xem hướng dẫn ở màn hình "Đổi mật khẩu lần đầu")
+5. Bấm **Deploy** và gửi link `https://hrm-{_vua_tao['ma_cty'].lower()}.streamlit.app` cho khách hàng,
+   kèm SĐT đăng nhập của Admin đầu tiên đã tạo sẵn ở trên.
+6. Sau khi Admin đầu tiên đăng nhập lần đầu, họ tự vào menu "🔑 Quản lý MK" → tab
+   "🛡️ Phân quyền hệ thống" để chỉ định thêm HR / Văn thư / Kế toán lương cho các nhân viên khác.
 """)
             if st.button("✅ Đã tạo app xong, đóng thông báo này"):
                 del st.session_state['_tenant_vua_tao']
@@ -5151,10 +5168,23 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
                 loi_nhan_zalo = st.text_input("Lời nhắn Zalo sinh nhật")
                 zalo_group_link = st.text_input("Link nhóm Zalo")
                 zalo_group_name = st.text_input("Tên nhóm Zalo")
-            
+
+            st.divider()
+            st.markdown("##### 🔑 Tài khoản Admin đầu tiên (BẮT BUỘC)")
+            st.caption("Toàn bộ đăng nhập giờ đây đều phải là 1 nhân viên thật trong bảng Nhân viên — "
+                       "không còn tài khoản hệ thống rời rạc nữa. Điền thông tin người sẽ là Admin đầu "
+                       "tiên của công ty này; hệ thống tự tạo hồ sơ nhân viên + cấp quyền Admin cho họ "
+                       "ngay sau khi migration xong. Mật khẩu đăng nhập lần đầu = chính SĐT bên dưới.")
+            c_admin1, c_admin2 = st.columns(2)
+            with c_admin1:
+                admin_ho_ten = st.text_input("Họ tên Admin đầu tiên *", placeholder="VD: Nguyễn Văn A")
+            with c_admin2:
+                admin_dien_thoai = st.text_input("Số điện thoại Admin đầu tiên *", placeholder="VD: 0912345678")
+
             if st.form_submit_button("💾 Lưu khách hàng & Tự động chạy Migration"):
-                if not all([ma_cty, ten_cty, db_host, db_password, supabase_url, supabase_key]):
-                    st.error("❌ Vui lòng điền đầy đủ các trường bắt buộc (*)")
+                if not all([ma_cty, ten_cty, db_host, db_password, supabase_url, supabase_key,
+                            admin_ho_ten, admin_dien_thoai]):
+                    st.error("❌ Vui lòng điền đầy đủ các trường bắt buộc (*), kể cả Admin đầu tiên.")
                 else:
                     try:
                         # Đọc file schema.sql từ thư mục hiện tại
@@ -5175,10 +5205,41 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
                             zalo_group_link=zalo_group_link, zalo_group_name=zalo_group_name,
                             migration_sql=migration_sql
                         )
-                        st.session_state['_tenant_vua_tao'] = {'ma_cty': ma_cty.strip().upper(), 'ten_cty': ten_cty}
+
+                        # Tự động tạo hồ sơ nhân viên Admin đầu tiên trên DB của tenant VỪA tạo
+                        # (thay cho bước thủ công "tự chạy SQL" trước đây) — kết nối trực tiếp bằng
+                        # thông tin DB vừa nhập ở trên, KHÔNG dùng st.session_state.db_engine vì đó
+                        # vẫn đang trỏ tới tenant hiện tại (chưa chuyển sang tenant mới này).
+                        loi_tao_admin = None
+                        try:
+                            conn_moi = psycopg2.connect(
+                                host=db_host, port=db_port, user=db_user,
+                                password=db_password, dbname=db_name, sslmode="require",
+                            )
+                            cur_moi = conn_moi.cursor()
+                            # Phòng khi schema.sql của tenant chưa có các cột này (bản cũ)
+                            cur_moi.execute("ALTER TABLE nhan_vien ADD COLUMN IF NOT EXISTS vai_tro VARCHAR(20) DEFAULT 'nhan_vien'")
+                            cur_moi.execute("ALTER TABLE nhan_vien ADD COLUMN IF NOT EXISTS phai_doi_mat_khau BOOLEAN DEFAULT FALSE")
+                            cur_moi.execute("""
+                                INSERT INTO nhan_vien (ma_nv, ho_ten, dien_thoai, vai_tro, chuc_vu,
+                                                        phong_ban_lam_viec, trang_thai, phai_doi_mat_khau)
+                                VALUES ('ADMIN01', %s, %s, 'admin', 'Tổng Giám Đốc',
+                                        'Ban Tổng Giám Đốc', 'DANG_LAM', TRUE)
+                            """, (admin_ho_ten.strip(), admin_dien_thoai.strip()))
+                            conn_moi.commit()
+                            conn_moi.close()
+                        except Exception as e_admin:
+                            loi_tao_admin = str(e_admin)
+
+                        st.session_state['_tenant_vua_tao'] = {
+                            'ma_cty': ma_cty.strip().upper(), 'ten_cty': ten_cty,
+                            'admin_ho_ten': admin_ho_ten.strip(), 'admin_dien_thoai': admin_dien_thoai.strip(),
+                            'loi_tao_admin': loi_tao_admin,
+                        }
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Lỗi khi thêm khách hàng hoặc chạy migration: {e}")
+
 
     st.subheader("📋 Danh sách khách hàng hiện có")
     try:
@@ -5256,7 +5317,14 @@ if not st.session_state.get('tenant'):
 def check_login(username, password):
     """Xác thực đăng nhập của NHÂN VIÊN thuộc tenant (công ty) đã chọn.
     Tài khoản = số điện thoại (dien_thoai), mật khẩu hash bằng bcrypt trong cột mat_khau_hash.
-    Trả về (success, role, nhan_vien_row) — nhan_vien_row là dict thông tin NV nếu thành công."""
+    Trả về (success, role, nhan_vien_row) — nhan_vien_row là dict thông tin NV nếu thành công.
+
+    QUAN TRỌNG (chuẩn hóa): TẤT CẢ tài khoản — kể cả admin/hr/văn thư/kt_luong — ĐỀU PHẢI là
+    1 dòng thật trong bảng nhan_vien, đăng nhập bằng SĐT của chính người đó. KHÔNG còn "tài
+    khoản hệ thống" khai báo riêng trong Secrets [users] nữa (đã bỏ), để mọi tính năng cần biết
+    "đây là nhân viên nào" (Chat nội bộ, ký duyệt, lịch sử thao tác...) luôn có đủ thông tin.
+    Vai trò (vai_tro) của từng nhân viên được chính admin công ty tự cấu hình tại
+    menu "🔑 Quản lý MK" → tab "🛡️ Phân quyền hệ thống"."""
     tenant = st.session_state.get('tenant')
 
     if tenant:
@@ -5274,15 +5342,6 @@ def check_login(username, password):
             db.close()
             row = rows[0] if rows else None
             if not row:
-                # Không khớp nhân viên nào trong DB — thử tài khoản khai báo sẵn trong
-                # Secrets [users] (dành cho đội vận hành/thử nghiệm theo vai trò,
-                # KHÔNG gắn với 1 nhân viên cụ thể nên không có nhan_vien_id).
-                try:
-                    if 'users' in st.secrets and username in st.secrets.users:
-                        if st.secrets.users[username]['password'] == password:
-                            return True, st.secrets.users[username]['role'], None
-                except Exception:
-                    pass
                 return False, None, None
             if not row.get('mat_khau_hash'):
                 khop = password.strip() == (row.get('dien_thoai') or '').strip()
@@ -5295,6 +5354,7 @@ def check_login(username, password):
         except Exception:
             pass
         return False, None, None
+
 
     # ---- Chế độ KHÔNG có tenant (chạy đơn lẻ / dev local) — giữ cách cũ để không phá vỡ ----
     try:
@@ -11389,7 +11449,8 @@ elif menu == "🔑 Quản lý MK":
     st.title("🔑 Quản lý mật khẩu")
 
     if st.session_state.role == "admin":
-        tab_doi_mk, tab_admin_reset = st.tabs(["🔒 Đổi mật khẩu của tôi", "🛠️ Reset mật khẩu nhân viên (Admin)"])
+        tab_doi_mk, tab_admin_reset, tab_phan_quyen = st.tabs(
+            ["🔒 Đổi mật khẩu của tôi", "🛠️ Reset mật khẩu nhân viên (Admin)", "🛡️ Phân quyền hệ thống"])
     else:
         tab_doi_mk = st.container()
 
@@ -11452,6 +11513,85 @@ elif menu == "🔑 Quản lý MK":
                                      (new_hash_rst, nv_rst['id']))
                         db_r2.commit(); db_r2.close()
                         st.success(f"✅ Đã reset mật khẩu về SĐT ({nv_rst['dien_thoai']}). Thông báo cho nhân viên đăng nhập lại và đổi mật khẩu mới.")
+
+        with tab_phan_quyen:
+            st.subheader("🛡️ Phân quyền hệ thống")
+            st.caption(
+                "Kể từ nay, TẤT CẢ mọi người (kể cả Admin/HR/Văn thư/Kế toán lương) đều đăng nhập bằng "
+                "**số điện thoại nhân viên thật** trong hồ sơ — không còn tài khoản hệ thống riêng nữa. "
+                "Tại đây, Admin chỉ định NHÂN VIÊN NÀO giữ vai trò gì; vai trò quyết định menu & quyền "
+                "họ thấy sau khi đăng nhập."
+            )
+
+            VAI_TRO_LUA_CHON = [
+                ("nhan_vien", "👤 Nhân viên (mặc định, không có quyền quản trị)"),
+                ("admin", "🛡️ Admin (toàn quyền hệ thống)"),
+                ("hr", "👥 HR (nhân sự)"),
+                ("van_thu", "📄 Văn thư (Công văn & HĐ kinh tế)"),
+                ("kt_luong", "💰 Kế toán lương (Chấm công & Tính thu nhập)"),
+            ]
+            NHAN_VAI_TRO = dict(VAI_TRO_LUA_CHON)
+
+            # Đảm bảo cột vai_tro tồn tại — phòng trường hợp tenant được tạo trước khi có tính năng này.
+            try:
+                db_pq0 = st.session_state.db_engine.get_connection()
+                c_pq0 = db_pq0.cursor()
+                c_pq0.execute("ALTER TABLE nhan_vien ADD COLUMN IF NOT EXISTS vai_tro VARCHAR(20) DEFAULT 'nhan_vien'")
+                db_pq0.commit()
+                db_pq0.close()
+            except Exception:
+                pass
+
+            db_pq = st.session_state.db_engine.get_connection()
+            c_pq = db_pq.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            c_pq.execute("""SELECT id, ho_ten, ma_nv, dien_thoai, phong_ban_lam_viec, chuc_vu, vai_tro
+                            FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY ho_ten""")
+            ds_nv_pq = c_pq.fetchall()
+            db_pq.close()
+
+            dang_giu_quyen = [r for r in ds_nv_pq if (r.get('vai_tro') or 'nhan_vien') != 'nhan_vien']
+            so_admin_hien_tai = sum(1 for r in ds_nv_pq if r.get('vai_tro') == 'admin')
+
+            st.markdown(f"**📋 Đang có {len(dang_giu_quyen)} người giữ vai trò đặc biệt** (Admin hiện tại: {so_admin_hien_tai} người)")
+            if dang_giu_quyen:
+                df_pq = pd.DataFrame([{
+                    "Họ tên": r['ho_ten'], "Mã NV": r['ma_nv'],
+                    "Phòng ban": r.get('phong_ban_lam_viec') or '',
+                    "Vai trò": NHAN_VAI_TRO.get(r.get('vai_tro'), r.get('vai_tro')),
+                } for r in dang_giu_quyen])
+                st.dataframe(df_pq, width='stretch', hide_index=True)
+            else:
+                st.warning("⚠️ Chưa có ai được cấp vai trò quản trị nào — hãy chỉ định ít nhất 1 Admin bên dưới.")
+
+            st.divider()
+            st.markdown("##### ✏️ Thay đổi vai trò cho 1 nhân viên")
+            tuy_chon_pq = {f"{r['ho_ten']} ({r['ma_nv']}) — hiện tại: {NHAN_VAI_TRO.get(r.get('vai_tro') or 'nhan_vien')}": r
+                            for r in ds_nv_pq}
+            chon_pq = st.selectbox("Chọn nhân viên:", ["-- Chọn --"] + list(tuy_chon_pq.keys()), key="chon_nv_phan_quyen")
+            if chon_pq != "-- Chọn --":
+                nv_pq = tuy_chon_pq[chon_pq]
+                vai_tro_hien_tai = nv_pq.get('vai_tro') or 'nhan_vien'
+                idx_mac_dinh = [k for k, _ in VAI_TRO_LUA_CHON].index(vai_tro_hien_tai) if vai_tro_hien_tai in NHAN_VAI_TRO else 0
+                vai_tro_moi_label = st.selectbox("Vai trò mới:", [v for _, v in VAI_TRO_LUA_CHON],
+                                                  index=idx_mac_dinh, key=f"vt_moi_{nv_pq['id']}")
+                vai_tro_moi = [k for k, v in VAI_TRO_LUA_CHON if v == vai_tro_moi_label][0]
+
+                if not nv_pq.get('dien_thoai') and vai_tro_moi != 'nhan_vien':
+                    st.error("❌ Nhân viên này chưa có số điện thoại trong hồ sơ — cần có SĐT để đăng nhập trước khi cấp quyền.")
+                elif st.button("💾 Lưu vai trò", key=f"btn_luu_vt_{nv_pq['id']}", type="primary"):
+                    # Chặn tự hạ quyền / hạ quyền người khác nếu đó là Admin CUỐI CÙNG còn lại
+                    if vai_tro_hien_tai == 'admin' and vai_tro_moi != 'admin' and so_admin_hien_tai <= 1:
+                        st.error("❌ Không thể thực hiện: đây là Admin CUỐI CÙNG của công ty. "
+                                 "Hãy chỉ định 1 Admin khác trước khi đổi vai trò người này.")
+                    else:
+                        db_pq2 = st.session_state.db_engine.get_connection()
+                        c_pq2 = db_pq2.cursor()
+                        c_pq2.execute("UPDATE nhan_vien SET vai_tro=%s WHERE id=%s", (vai_tro_moi, nv_pq['id']))
+                        db_pq2.commit()
+                        db_pq2.close()
+                        st.success(f"✅ Đã đặt vai trò của **{nv_pq['ho_ten']}** thành **{vai_tro_moi_label}**.")
+                        st.cache_data.clear()
+                        st.rerun()
 
 elif menu == "🖼️ Tạo ảnh thẻ NV":
     photo_card_gender.render()

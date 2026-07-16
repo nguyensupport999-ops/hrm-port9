@@ -6883,8 +6883,7 @@ elif menu == "👤 Ứng viên":
                                 so_moi = c.fetchone()[0]
                                 ma_nv = f"C{so_moi:03d}"
                                 c.execute("SELECT COALESCE(MAX(STT),0)+1 FROM nhan_vien")
-                                stt_moi = c.fetchone()[0]
-                                
+                                                                
                                 nhl = ngay_vao_lam_chuyen
                                 tbd_val = parse_date(bat_dau_bh_chuyen) if bat_dau_bh_chuyen and bat_dau_bh_chuyen.strip() else None
                                 
@@ -6930,7 +6929,7 @@ elif menu == "👤 Ứng viên":
                                         tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so, ten_don_vi_thu_huong, so_luong_npt, trinh_do)
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                                     RETURNING id
                                 """, (
                                     stt_moi, ma_nv, so_hd, ho_ten_nv, chuc_danh_nv,
@@ -7401,9 +7400,6 @@ elif menu == "✅ Nhân viên":
                                             db = st.session_state.db_engine.get_connection()
                                             c = db.cursor()
 
-                                            c.execute("SELECT COALESCE(MAX(CAST(SUBSTRING(ma_nv FROM 2) AS INTEGER)), 0)+1 FROM nhan_vien WHERE ma_nv LIKE 'C%'")
-                                            so_moi = c.fetchone()[0]
-                                            ma_nv = f"C{so_moi:03d}"
                                             c.execute("SELECT COALESCE(MAX(STT),0)+1 FROM nhan_vien")
                                             stt_moi = c.fetchone()[0]
 

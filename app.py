@@ -41,6 +41,7 @@ import chat_noi_bo
 import i18n
 import photo_card_gender
 import base64
+import tinh_thu_nhap
 import mimetypes
 from io import BytesIO
 
@@ -9642,59 +9643,7 @@ elif menu == "🕒 Chấm công":
 
 # ========== TÍNH THU NHẬP ==========
 elif menu == "💰 Tính thu nhập":
-    st.markdown(f"# {i18n.tm('💰 Tính thu nhập (Lương & Phụ cấp)')}", unsafe_allow_html=True)
-    st.caption("Tính toán lương, thưởng và các khoản phụ cấp cho nhân viên")
-    
-    st.info("""
-    ### 🚧 Tính năng đang hoàn thiện
-    
-    Nội dung đang được phát triển. Các tính năng sắp ra mắt:
-    - ✅ Tính lương cơ bản theo hệ số
-    - ✅ Tính các khoản phụ cấp (chức vụ, thâm niên, trách nhiệm...)
-    - ✅ Tính thuế TNCN
-    - ✅ Tính các khoản khấu trừ (BHXH, BHYT, BHTN, đoàn phí...)
-    - ✅ Tổng hợp bảng lương tháng
-    - ✅ Xuất bảng lương Excel/PDF
-    - ✅ Gửi bảng lương qua email/Zalo cho nhân viên
-    
-    ⏳ **Dự kiến hoàn thành: Quý 4/2026**
-    """)
-    
-    # Thêm form tính thử nghiệm demo
-    with st.expander("🧪 Thử nghiệm tính lương (Demo)"):
-        db_demo = st.session_state.db_engine.get_connection()
-        c_demo = db_demo.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        c_demo.execute("SELECT id, ma_nv, ho_ten FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY ho_ten LIMIT 10")
-        nv_list = c_demo.fetchall()
-        db_demo.close()
-        
-        if nv_list:
-            nv_options = {f"{nv['ma_nv']} - {nv['ho_ten']}": nv['id'] for nv in nv_list}
-            selected_nv = st.selectbox("Chọn nhân viên để tính thử:", list(nv_options.keys()), help="💡 Gõ mã NV hoặc tên để tìm nhanh trong danh sách")
-            
-            col_luong1, col_luong2 = st.columns(2)
-            with col_luong1:
-                luong_co_ban = st.number_input("Lương cơ bản (VNĐ)", min_value=0, value=5000000, step=500000)
-                phu_cap_chuc_vu = st.number_input("Phụ cấp chức vụ (VNĐ)", min_value=0, value=0, step=100000)
-            with col_luong2:
-                phu_cap_tnvk = st.number_input("Phụ cấp thâm niên VK (%)", min_value=0.0, value=0.0, step=0.5)
-                phu_cap_tnn = st.number_input("Phụ cấp thâm niên nghề (%)", min_value=0.0, value=0.0, step=0.5)
-            
-            tong_luong = luong_co_ban + phu_cap_chuc_vu
-            tong_luong += luong_co_ban * phu_cap_tnvk / 100
-            tong_luong += luong_co_ban * phu_cap_tnn / 100
-            
-            st.markdown("---")
-            st.subheader("📊 Kết quả tính thử:")
-            
-            col_kq1, col_kq2, col_kq3 = st.columns(3)
-            col_kq1.metric("Lương cơ bản", f"{luong_co_ban:,.0f} VNĐ")
-            col_kq2.metric("Phụ cấp", f"{(tong_luong - luong_co_ban):,.0f} VNĐ")
-            col_kq3.metric("Tổng thu nhập", f"{tong_luong:,.0f} VNĐ")
-            
-            st.caption("⚠️ Đây chỉ là tính toán tham khảo. Tính năng chính thức sẽ tích hợp với dữ liệu nhân viên và chấm công.")
-        else:
-            st.warning("Chưa có nhân viên nào trong hệ thống để thử nghiệm!")
+    tinh_thu_nhap.show_tinh_thu_nhap()
 
 # ========== UPLOAD ==========
 elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":

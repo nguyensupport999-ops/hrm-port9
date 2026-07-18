@@ -739,72 +739,126 @@ def get_phong_ban_options():
 # (chuyển thể từ bản HTML/JS gốc sang Python để chạy trong Streamlit,
 #  gọi Anthropic API từ phía server bằng API key lưu trong st.secrets)
 # ============================================================
-CHATBOT_LAW_DB = {
-    "bhxh": [
-        {"id": "L01", "ref": "Điều 54, Luật BHXH 2014", "text": "Người lao động được hưởng lương hưu khi đủ tuổi đời (nam đủ 60, nữ đủ 55 — đang lộ trình tăng lên 62/60 tuổi) và đóng BHXH từ đủ 20 năm trở lên."},
-        {"id": "L02", "ref": "Điều 39, Luật BHXH 2014", "text": "Thời gian hưởng chế độ ốm đau tối đa: 30 ngày/năm nếu đóng BHXH dưới 15 năm; 40 ngày nếu đóng 15–30 năm; 60 ngày nếu đóng từ 30 năm trở lên. Mắc bệnh dài ngày trong danh mục được hưởng tối đa 180 ngày."},
-        {"id": "L03", "ref": "NĐ 115/2015/NĐ-CP, Điều 6", "text": "Mức đóng BHXH bắt buộc: NLĐ đóng 8% tiền lương vào quỹ hưu trí, tử tuất. NSDLĐ đóng 17,5%: ốm đau 3%, thai sản 0,5%, TNLĐ-BNN 0,5%, hưu trí tử tuất 14%."},
-        {"id": "L04", "ref": "Khoản 1 Điều 40, Luật BHXH 2014", "text": "Mức hưởng chế độ ốm đau bằng 75% mức tiền lương đóng BHXH của tháng liền kề trước khi nghỉ việc."},
-        {"id": "L05", "ref": "Khoản 2 Điều 56, Luật BHXH 2014", "text": "Mức lương hưu tính bằng 45% bình quân tiền lương tháng đóng BHXH tương ứng với 20 năm đóng (nam), sau đó cứ thêm 1 năm đóng thêm 2%, tối đa 75%. Nữ tính từ 15 năm = 45%."},
-    ],
-    "thaisan": [
-        {"id": "T01", "ref": "Điều 34, Luật BHXH 2014", "text": "Lao động nữ sinh con được nghỉ thai sản 6 tháng (gồm trước và sau sinh). Sinh đôi trở lên cứ mỗi con từ con thứ hai được nghỉ thêm 01 tháng."},
-        {"id": "T02", "ref": "Khoản 1 Điều 39, Luật BHXH 2014", "text": "Mức hưởng thai sản bằng 100% mức bình quân tiền lương tháng đóng BHXH của 06 tháng trước khi nghỉ việc hưởng chế độ."},
-        {"id": "T03", "ref": "Điều 38, Luật BHXH 2014", "text": "Điều kiện hưởng thai sản: đóng BHXH từ đủ 06 tháng trở lên trong 12 tháng trước khi sinh con hoặc nhận nuôi con nuôi dưới 06 tháng tuổi."},
-        {"id": "T04", "ref": "Điều 36, Luật BHXH 2014", "text": "Lao động nữ được nghỉ hưởng thai sản khi khám thai: 05 lần, mỗi lần 01 ngày. Ở xa hoặc thai không bình thường được nghỉ 02 ngày mỗi lần khám."},
-        {"id": "T05", "ref": "Khoản 1 Điều 38, Luật BHXH 2014", "text": "Trợ cấp một lần khi sinh con: 02 lần mức lương cơ sở tại tháng sinh con (hiện lương cơ sở = 2.340.000 đồng/tháng từ 1/7/2024 → trợ cấp một lần = 4.680.000 đồng)."},
-    ],
-    "thatnghiep": [
-        {"id": "TN01", "ref": "Điều 49, Luật Việc làm 2013", "text": "Điều kiện hưởng BHTN: đã chấm dứt HĐLĐ; đã đóng BHTN từ đủ 12 tháng trở lên trong 24 tháng trước khi chấm dứt HĐLĐ (với hợp đồng không xác định thời hạn và xác định thời hạn từ 3 tháng–36 tháng)."},
-        {"id": "TN02", "ref": "Khoản 1 Điều 50, Luật Việc làm 2013", "text": "Mức hưởng TCTN hàng tháng = 60% × bình quân tiền lương tháng đóng BHTN của 06 tháng liền kề trước khi thất nghiệp, tối đa không quá 05 lần mức lương cơ sở."},
-        {"id": "TN03", "ref": "Khoản 2 Điều 50, Luật Việc làm 2013", "text": "Thời gian hưởng TCTN: đóng 12–35 tháng → 03 tháng; cứ đóng thêm đủ 12 tháng → hưởng thêm 01 tháng, tối đa không quá 12 tháng."},
-        {"id": "TN04", "ref": "NĐ 28/2015/NĐ-CP, Điều 17", "text": "Người lao động phải nộp hồ sơ hưởng TCTN trong thời hạn 03 tháng kể từ ngày chấm dứt HĐLĐ tại trung tâm dịch vụ việc làm nơi cư trú."},
-    ],
-    "thuetncn": [
-        {"id": "TAX01", "ref": "Nghị quyết 954/2020/UBTVQH14", "text": "Mức giảm trừ gia cảnh: bản thân người nộp thuế 11 triệu/tháng (132 triệu/năm); mỗi người phụ thuộc 4,4 triệu/tháng. Áp dụng từ kỳ tính thuế năm 2020."},
-        {"id": "TAX02", "ref": "Điều 22, Luật Thuế TNCN 2007 (sửa đổi 2012)", "text": "Biểu thuế lũy tiến từng phần: Bậc 1 ≤5tr: 5% | Bậc 2 (5–10tr): 10% | Bậc 3 (10–18tr): 15% | Bậc 4 (18–32tr): 20% | Bậc 5 (32–52tr): 25% | Bậc 6 (52–80tr): 30% | Bậc 7 >80tr: 35%."},
-        {"id": "TAX03", "ref": "Điều 9, Thông tư 111/2013/TT-BTC", "text": "Người phụ thuộc được đăng ký giảm trừ gồm: con dưới 18 tuổi; con từ 18 tuổi bị khuyết tật không có khả năng lao động; cha mẹ, vợ/chồng không có khả năng lao động hoặc không có thu nhập hoặc thu nhập ≤1 triệu/tháng."},
-        {"id": "TAX04", "ref": "Điều 25, Thông tư 111/2013/TT-BTC", "text": "Tổ chức trả thu nhập khấu trừ 10% đối với HĐLĐ dưới 3 tháng từ 2 triệu/lần. Với HĐLĐ từ 3 tháng trở lên, khấu trừ theo biểu lũy tiến từng phần hàng tháng."},
-    ],
-    "bhyt": [
-        {"id": "BHYT01", "ref": "Điều 13, Luật BHYT 2008 (sửa đổi 2014)", "text": "Mức đóng BHYT = 4,5% tiền lương: NLĐ đóng 1,5%, NSDLĐ đóng 3%."},
-        {"id": "BHYT02", "ref": "Điều 22, Luật BHYT 2008 (sửa đổi 2014)", "text": "Mức hưởng BHYT: đúng tuyến 80% chi phí; tuyến tỉnh không đúng tuyến 60%; tuyến TW không đúng tuyến 40%; cấp cứu 100% đến khi ổn định. Người có công, người nghèo: 100%."},
-        {"id": "BHYT03", "ref": "Khoản 1 Điều 23, Luật BHYT sửa đổi 2014", "text": "Người tham gia BHYT liên tục từ 05 năm trở lên, tổng tiền cùng chi trả trong năm vượt 6 tháng lương cơ sở thì chỉ cùng chi trả tối đa bằng 6 tháng lương cơ sở."},
-    ],
-    "hopdong": [
-        {"id": "HD01", "ref": "Điều 34, Bộ luật Lao động 2019", "text": "HĐLĐ xác định thời hạn không quá 36 tháng. Hết hạn 01 lần nếu tiếp tục sử dụng thì phải ký HĐLĐ không xác định thời hạn, trừ lao động cao tuổi và lao động nước ngoài."},
-        {"id": "HD02", "ref": "Điều 46, Bộ luật Lao động 2019", "text": "Trợ cấp thôi việc: NLĐ làm việc đủ 12 tháng, mỗi năm làm việc được trợ cấp ½ tháng lương. Tiền lương tính là bình quân 06 tháng liền kề. Thời gian tính trợ cấp là tổng thời gian làm việc trừ thời gian đã hưởng TCTN từ BHTN."},
-        {"id": "HD03", "ref": "Điều 36, Bộ luật Lao động 2019", "text": "NLĐ đơn phương chấm dứt HĐLĐ phải báo trước: không xác định thời hạn ≥45 ngày; xác định thời hạn 12–36 tháng ≥30 ngày; dưới 12 tháng ≥03 ngày làm việc."},
-        {"id": "HD04", "ref": "Điều 41, Bộ luật Lao động 2019", "text": "NSDLĐ đơn phương chấm dứt HĐLĐ trái pháp luật: phải nhận NLĐ trở lại, trả lương những ngày không được làm việc, và bồi thường thêm ít nhất 02 tháng tiền lương theo HĐLĐ."},
-    ],
-}
+# --- Thư mục chứa dữ liệu luật đã convert sẵn (*_full.json) ---
+# Copy toàn bộ file "..._full.json" (BHXH, BHYT, Nghị định, Thông tư, Luật Thuế TNCN,
+# Luật Việc làm...) vào thư mục này. Có luật mới -> chỉ cần thả file JSON vào đây,
+# không cần sửa code, chỉ cần bấm nút "🔄 Nạp lại dữ liệu luật" trong màn Chatbot.
+CHATBOT_LAW_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "luat_data")
 
-def _chatbot_detect_laws(q):
-    """Dò các điều luật liên quan tới câu hỏi (dựa vào từ khoá), tương đương hàm dLaws() bản JS."""
-    import re as _re
-    t = q.lower()
-    laws = []
-    patterns = [
-        (r"bhxh|bảo hiểm xã hội|hưu|ốm đau|đóng bảo hiểm|lương hưu", "bhxh"),
-        (r"thai sản|sinh con|nghỉ thai|mang thai|khám thai", "thaisan"),
-        (r"thất nghiệp|bhtn|mất việc", "thatnghiep"),
-        (r"thuế|tncn|thu nhập|giảm trừ|gia cảnh|phụ thuộc", "thuetncn"),
-        (r"bhyt|bảo hiểm y tế|khám bệnh|viện phí", "bhyt"),
-        (r"hợp đồng|hđlđ|thôi việc|sa thải|chấm dứt|báo trước|trợ cấp", "hopdong"),
-    ]
-    for pattern, key in patterns:
-        if _re.search(pattern, t):
-            laws.extend(CHATBOT_LAW_DB[key])
+_CHATBOT_TRONG_SO_MUC_DO = {"high": 1.3, "medium": 1.0, "low": 0.7}
+
+@st.cache_resource(show_spinner=False)
+def _chatbot_load_all_laws():
+    """Đọc toàn bộ file *_full.json trong CHATBOT_LAW_DIR và gộp thành 1 danh sách
+    các 'điều luật' dùng để tra cứu cho Chatbot. Mỗi phần tử JSON gốc kỳ vọng có dạng:
+    {"content": "...", "law_name": "...", "article": "...", "clause": None,
+     "metadata": {"category": "...", "importance": "high|medium|low", "keywords": [...]}}
+    Hàm được viết dạng "khoan dung" (dùng .get) để không vỡ nếu vài file có field hơi khác.
+    Cache bằng st.cache_resource -> chỉ đọc đĩa 1 lần, gọi _chatbot_load_all_laws.clear()
+    để nạp lại khi có file mới."""
+    ket_qua = []
+    if not os.path.isdir(CHATBOT_LAW_DIR):
+        return ket_qua
+
+    files = sorted(
+        f for f in os.listdir(CHATBOT_LAW_DIR)
+        if f.lower().endswith(".json")
+    )
+    counter = 0
+    for filename in files:
+        fp = os.path.join(CHATBOT_LAW_DIR, filename)
+        try:
+            with open(fp, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            print(f"⚠️ Chatbot: lỗi đọc {filename}: {e}")
+            continue
+
+        # Chấp nhận cả 2 dạng: list các điều luật, hoặc dict bọc ngoài {"items": [...]}
+        if isinstance(data, dict):
+            data = data.get("items") or data.get("data") or data.get("articles") or [data]
+        if not isinstance(data, list):
+            continue
+
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            content = (item.get("content") or item.get("text") or "").strip()
+            if not content:
+                continue
+
+            law_name = item.get("law_name") or item.get("ten_luat") or os.path.splitext(filename)[0]
+            dieu = item.get("article") or item.get("dieu") or ""
+            khoan = item.get("clause") or item.get("khoan")
+            meta = item.get("metadata") or {}
+
+            ref = f"{law_name}"
+            if dieu:
+                ref += f", Điều {dieu}"
+            if khoan:
+                ref += f", Khoản {khoan}"
+
+            counter += 1
+            ket_qua.append({
+                "id": f"R{counter:05d}",
+                "ref": ref,
+                "text": content,
+                "law_name": law_name,
+                "category": meta.get("category", ""),
+                "importance": meta.get("importance", "medium"),
+                "keywords": meta.get("keywords") or [],
+                "source_file": filename,
+            })
+    return ket_qua
+
+def _chatbot_search_laws(q, top_k=12):
+    """Tìm các điều luật liên quan nhất tới câu hỏi trong toàn bộ dữ liệu đã nạp từ
+    luat_data/ (thay cho việc match cứng theo 6 nhóm chủ đề như bản cũ). Chấm điểm theo
+    số từ khoá trùng khớp trong content/keywords/law_name, có nhân trọng số theo
+    'importance' để ưu tiên các điều luật quan trọng khi điểm số ngang nhau."""
+    laws = _chatbot_load_all_laws()
     if not laws:
-        for arr in CHATBOT_LAW_DB.values():
-            laws.extend(arr[:2])
-    return laws
+        return []
+
+    t = q.lower()
+    tu_khoa_cau_hoi = set(re.findall(
+        r"[a-zàáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]+", t
+    ))
+    tu_khoa_cau_hoi = {w for w in tu_khoa_cau_hoi if len(w) > 2}
+
+    cham_diem = []
+    for law in laws:
+        diem = 0.0
+        noi_dung_ts = law["text"].lower()
+        law_name_ts = law["law_name"].lower()
+
+        for kw in law.get("keywords", []):
+            if kw and kw.lower() in t:
+                diem += 5
+
+        for w in tu_khoa_cau_hoi:
+            if w in noi_dung_ts:
+                diem += 1
+            if w in law_name_ts:
+                diem += 1
+
+        if diem > 0:
+            diem *= _CHATBOT_TRONG_SO_MUC_DO.get(law.get("importance", "medium"), 1.0)
+            cham_diem.append((diem, law))
+
+    cham_diem.sort(key=lambda x: x[0], reverse=True)
+    ket_qua = [law for _, law in cham_diem[:top_k]]
+
+    if not ket_qua:
+        # Không khớp từ khoá nào -> vẫn đưa cho AI một ít ngữ cảnh (ưu tiên điều luật quan trọng)
+        uu_tien = [l for l in laws if l.get("importance") == "high"]
+        ket_qua = (uu_tien or laws)[:top_k]
+
+    return ket_qua
 
 def _chatbot_all_laws():
-    ket_qua = []
-    for arr in CHATBOT_LAW_DB.values():
-        ket_qua.extend(arr)
-    return ket_qua
+    """Toàn bộ điều luật đã nạp — dùng để đối chiếu khi hiển thị phần 'Căn cứ pháp lý'."""
+    return _chatbot_load_all_laws()
 
 def _chatbot_system_prompt(laws):
     laws_text = "\n".join(f'[{l["id"]}] {l["ref"]}: "{l["text"]}"' for l in laws)
@@ -11427,6 +11481,18 @@ elif menu == "🤖 Chatbot Giải đáp":
     st.title("🤖 AI Tư vấn Hành chính Nhân sự")
     st.caption("BHXH · BHYT · Thuế TNCN · Lao động · Thai sản · Thất nghiệp — AI phân tích và trích dẫn điều luật cụ thể.")
 
+    _so_dieu_luat_da_nap = len(_chatbot_all_laws())
+    col_info_luat, col_btn_luat = st.columns([5, 1])
+    with col_info_luat:
+        if _so_dieu_luat_da_nap:
+            st.caption(f"📚 Đã nạp {_so_dieu_luat_da_nap} điều luật từ thư mục `luat_data/`.")
+        else:
+            st.warning(f"⚠️ Chưa có dữ liệu luật nào trong `{CHATBOT_LAW_DIR}`. Hãy copy các file `*_full.json` vào thư mục này.")
+    with col_btn_luat:
+        if st.button("🔄 Nạp lại dữ liệu luật", key="chatbot_reload_laws"):
+            _chatbot_load_all_laws.clear()
+            st.rerun()
+
     if "chatbot_history" not in st.session_state:
         st.session_state.chatbot_history = []
     if "chatbot_display" not in st.session_state:
@@ -11471,7 +11537,7 @@ elif menu == "🤖 Chatbot Giải đáp":
         st.session_state.chatbot_display.append({"role": "user", "text": cau_hoi_cuoi})
         st.session_state.chatbot_history.append({"role": "user", "content": cau_hoi_cuoi})
         with st.spinner("⚖️ Đang phân tích điều luật liên quan..."):
-            laws = _chatbot_detect_laws(cau_hoi_cuoi)
+            laws = _chatbot_search_laws(cau_hoi_cuoi)
             system_prompt = _chatbot_system_prompt(laws)
             ket_qua = _chatbot_call_claude(system_prompt, st.session_state.chatbot_history)
         st.session_state.chatbot_history.append({"role": "assistant", "content": json.dumps(ket_qua, ensure_ascii=False)})

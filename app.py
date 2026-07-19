@@ -5604,8 +5604,11 @@ def check_login(username, password):
                 return False, None, None
             if bcrypt.checkpw(password.encode(), row['mat_khau_hash'].encode()):
                 return True, row.get('vai_tro') or 'nhan_vien', row
-        except Exception:
-            pass
+        except Exception as e:
+            # DEBUG TẠM THỜI: lưu lại lỗi thật để hiện ra màn hình, giúp xác định
+            # chính xác nguyên nhân thay vì chỉ thấy "Sai tài khoản hoặc mật khẩu".
+            # Sau khi xác định xong nguyên nhân, nên gỡ bỏ 2 dòng debug này.
+            st.session_state['_debug_login_error'] = f"{type(e).__name__}: {e}"
         return False, None, None
 
 
@@ -5691,6 +5694,8 @@ if not st.session_state.logged_in:
             st.rerun()
         else:
             st.sidebar.error("❌ Sai tài khoản hoặc mật khẩu!")
+            if st.session_state.get('_debug_login_error'):
+                st.sidebar.caption(f"🔧 Debug: {st.session_state['_debug_login_error']}")
 
     with st.sidebar.expander("🔑 Quên mật khẩu?"):
         try:

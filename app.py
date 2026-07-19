@@ -811,12 +811,11 @@ def _chatbot_load_all_laws():
             })
     return ket_qua
 
-def _chatbot_search_laws_keyword(q, top_k=8):
-    """[DỰ PHÒNG] Tìm điều luật liên quan bằng so khớp từ khoá thuần (không cần gọi API embedding).
-    Được dùng làm phương án dự phòng khi chưa cấu hình VOYAGE_API_KEY, hoặc khi gọi API
-    embedding bị lỗi (mất mạng, hết quota...) — để Chatbot không bao giờ "đứng hình" hoàn toàn.
-    Chấm điểm theo số từ khoá trùng khớp trong content/keywords/law_name, có nhân trọng số
-    theo 'importance' để ưu tiên các điều luật quan trọng khi điểm số ngang nhau."""
+def _chatbot_search_laws(q, top_k=12):
+    """Tìm các điều luật liên quan nhất tới câu hỏi trong toàn bộ dữ liệu đã nạp từ
+    luat_data/ (thay cho việc match cứng theo 6 nhóm chủ đề như bản cũ). Chấm điểm theo
+    số từ khoá trùng khớp trong content/keywords/law_name, có nhân trọng số theo
+    'importance' để ưu tiên các điều luật quan trọng khi điểm số ngang nhau."""
     laws = _chatbot_load_all_laws()
     if not laws:
         return []
@@ -861,158 +860,8 @@ def _chatbot_all_laws():
     """Toàn bộ điều luật đã nạp — dùng để đối chiếu khi hiển thị phần 'Căn cứ pháp lý'."""
     return _chatbot_load_all_laws()
 
-# ============================================================
-# 🔍 SEMANTIC SEARCH — nhúng (embedding) từng điều luật thành vector bằng Voyage AI
-# (Voyage AI là nhà cung cấp embedding được Anthropic khuyến nghị dùng cho các ứng dụng
-# RAG/semantic search). Việc này giúp tìm đúng điều luật liên quan kể cả khi người dùng
-# hỏi bằng từ đồng nghĩa (VD hỏi "nghỉ đẻ" vẫn tìm ra các điều nói về "thai sản"),
-# thay vì chỉ so khớp từ khoá chính xác như bản cũ.
-# ============================================================
-CHATBOT_EMBED_MODEL = "voyage-4-lite"   # rẻ, đa ngôn ngữ, 200 triệu token đầu tiên miễn phí/tài khoản
-CHATBOT_EMBED_CACHE_FILE = os.path.join(CHATBOT_LAW_DIR, ".embeddings_cache.json")
-CHATBOT_EMBED_BATCH_SIZE = 100  # số đoạn văn bản nhúng mỗi lần gọi API
-
-def _chatbot_get_voyage_api_key():
-    try:
-        return st.secrets.get("VOYAGE_API_KEY") or st.secrets.get("voyage", {}).get("api_key")
-    except Exception:
-        return None
-
-def _chatbot_hash_text(text):
-    import hashlib
-    return hashlib.md5(text.encode("utf-8")).hexdigest()
-
-def _chatbot_embed_texts(texts, input_type):
-    """Gọi Voyage API để nhúng 1 danh sách văn bản thành vector.
-    input_type: "document" khi nhúng các điều luật, "query" khi nhúng câu hỏi của người dùng
-    (Voyage khuyến nghị phân biệt 2 loại này để tăng chất lượng tìm kiếm).
-    Trả về list các vector (list[float]), hoặc None nếu lỗi (thiếu API key, mất mạng...)."""
-    api_key = _chatbot_get_voyage_api_key()
-    if not api_key or not texts:
-        return None
-    vectors = []
-    try:
-        for i in range(0, len(texts), CHATBOT_EMBED_BATCH_SIZE):
-            batch = texts[i:i + CHATBOT_EMBED_BATCH_SIZE]
-            resp = requests.post(
-                "https://api.voyageai.com/v1/embeddings",
-                headers={
-                    "Authorization": f"Bearer {api_key}",
-                    "content-type": "application/json",
-                },
-                json={"input": batch, "model": CHATBOT_EMBED_MODEL, "input_type": input_type},
-                timeout=30,
-            )
-            data = resp.json()
-            if "data" not in data:
-                print(f"⚠️ Chatbot: lỗi Voyage API: {data.get('error', data)}")
-                return None
-            vectors.extend([d["embedding"] for d in data["data"]])
-        return vectors
-    except Exception as e:
-        print(f"⚠️ Chatbot: lỗi kết nối Voyage API: {e}")
-        return None
-
-@st.cache_resource(show_spinner=False)
-def _chatbot_build_law_embeddings():
-    """Nhúng toàn bộ điều luật thành vector, có cache trên đĩa (CHATBOT_EMBED_CACHE_FILE)
-    theo hash nội dung -> chỉ nhúng MỚI những điều luật chưa có hoặc đã đổi nội dung,
-    không nhúng lại toàn bộ mỗi lần app khởi động (tiết kiệm chi phí + thời gian chờ).
-    Trả về dict {id: vector} hoặc {} nếu chưa cấu hình VOYAGE_API_KEY / có lỗi."""
-    laws = _chatbot_load_all_laws()
-    if not laws:
-        return {}
-
-    cache = {}
-    if os.path.isfile(CHATBOT_EMBED_CACHE_FILE):
-        try:
-            with open(CHATBOT_EMBED_CACHE_FILE, "r", encoding="utf-8") as f:
-                cache = json.load(f)
-        except Exception:
-            cache = {}
-
-    can_nhung = []      # danh sách law cần nhúng mới
-    vector_theo_id = {}
-    for law in laws:
-        h = _chatbot_hash_text(law["text"])
-        cached_entry = cache.get(law["id"])
-        if cached_entry and cached_entry.get("hash") == h:
-            vector_theo_id[law["id"]] = cached_entry["vector"]
-        else:
-            can_nhung.append(law)
-
-    if can_nhung:
-        vectors_moi = _chatbot_embed_texts([l["text"] for l in can_nhung], input_type="document")
-        if vectors_moi:
-            for law, vec in zip(can_nhung, vectors_moi):
-                h = _chatbot_hash_text(law["text"])
-                vector_theo_id[law["id"]] = vec
-                cache[law["id"]] = {"hash": h, "vector": vec}
-            # Lưu lại cache lên đĩa để lần sau (kể cả app restart) không phải nhúng lại
-            try:
-                with open(CHATBOT_EMBED_CACHE_FILE, "w", encoding="utf-8") as f:
-                    json.dump(cache, f)
-            except Exception as e:
-                print(f"⚠️ Chatbot: không lưu được cache embedding: {e}")
-
-    return vector_theo_id
-
-def _chatbot_cosine(a, b):
-    # Voyage embeddings đã được chuẩn hoá độ dài = 1 sẵn -> dot product = cosine similarity,
-    # không cần chia cho norm nữa (tính nhanh hơn).
-    return sum(x * y for x, y in zip(a, b))
-
-def _chatbot_search_laws_semantic(q, top_k=8):
-    """Tìm điều luật liên quan bằng semantic search (so khớp theo Ý NGHĨA câu hỏi qua vector,
-    thay vì chỉ so khớp từ khoá chính xác). Có kết hợp thêm điểm thưởng nhỏ nếu khớp từ khoá/
-    số điều luật chính xác (hybrid) để không bỏ sót khi người hỏi nêu đúng số Điều/thuật ngữ
-    pháp lý cụ thể — embedding thuần đôi khi không phân biệt tốt các con số."""
-    laws = _chatbot_load_all_laws()
-    vector_theo_id = _chatbot_build_law_embeddings()
-    if not laws or not vector_theo_id:
-        return None  # báo hiệu để hàm gọi rơi về fallback từ khoá
-
-    q_vec_list = _chatbot_embed_texts([q], input_type="query")
-    if not q_vec_list:
-        return None
-    q_vec = q_vec_list[0]
-
-    t = q.lower()
-    diem = []
-    for law in laws:
-        vec = vector_theo_id.get(law["id"])
-        if not vec:
-            continue
-        s = _chatbot_cosine(q_vec, vec)
-        # Thưởng nhẹ nếu khớp đúng từ khoá đã gắn sẵn cho điều luật (hybrid với keyword)
-        for kw in law.get("keywords", []):
-            if kw and kw.lower() in t:
-                s += 0.03
-        diem.append((s, law))
-
-    diem.sort(key=lambda x: x[0], reverse=True)
-    return [law for _, law in diem[:top_k]]
-
-def _chatbot_search_laws(q, top_k=8):
-    """Điểm vào chính để tìm điều luật liên quan tới câu hỏi. Ưu tiên semantic search
-    (Voyage embeddings); nếu chưa cấu hình VOYAGE_API_KEY hoặc gọi API lỗi thì tự động
-    rơi về so khớp từ khoá (_chatbot_search_laws_keyword) để Chatbot luôn hoạt động được."""
-    ket_qua = _chatbot_search_laws_semantic(q, top_k=top_k)
-    if ket_qua is None:
-        ket_qua = _chatbot_search_laws_keyword(q, top_k=top_k)
-    return ket_qua
-
 def _chatbot_system_prompt(laws):
-    # Cắt bớt mỗi điều luật tối đa ~700 ký tự khi đưa vào prompt (đa số điều luật vẫn trọn ý
-    # trong giới hạn này) để giảm số token input gửi lên API -> giảm chi phí mỗi lượt hỏi.
-    _GIOI_HAN_KY_TU = 700
-    def _cat_ngan(text):
-        text = text.strip()
-        if len(text) <= _GIOI_HAN_KY_TU:
-            return text
-        return text[:_GIOI_HAN_KY_TU].rsplit(" ", 1)[0] + "..."
-
-    laws_text = "\n".join(f'[{l["id"]}] {l["ref"]}: "{_cat_ngan(l["text"])}"' for l in laws)
+    laws_text = "\n".join(f'[{l["id"]}] {l["ref"]}: "{l["text"]}"' for l in laws)
     return f"""Bạn là chuyên gia tư vấn pháp luật hành chính nhân sự Việt Nam với 15+ năm kinh nghiệm. Tư vấn chuyên nghiệp, cụ thể, có căn cứ pháp lý.
 
 ĐIỀU LUẬT ĐÃ TRUY XUẤT:
@@ -1026,18 +875,6 @@ def _chatbot_get_api_key():
         return st.secrets.get("ANTHROPIC_API_KEY") or st.secrets.get("anthropic", {}).get("api_key")
     except Exception:
         return None
-
-# Model dùng cho Chatbot Giải đáp. Đổi sang "claude-haiku-4-5-20251001" nếu muốn tiết kiệm
-# chi phí hơn nữa (rẻ hơn ~3 lần) — vẫn đủ tốt cho việc trích dẫn điều luật + trả JSON có cấu trúc.
-CHATBOT_MODEL_ID = "claude-sonnet-4-5-20250929"
-
-def _chatbot_trim_history(history, so_luot_giu_lai=6):
-    """Chỉ giữ lại N tin nhắn gần nhất (mặc định 6 = 3 lượt hỏi-đáp) khi gửi lên API.
-    Toàn bộ lịch sử vẫn được lưu và hiển thị đầy đủ trên giao diện (chatbot_display),
-    hàm này chỉ cắt bớt phần gửi kèm API để chi phí không tăng dần vô hạn theo phiên chat dài."""
-    if len(history) <= so_luot_giu_lai:
-        return history
-    return history[-so_luot_giu_lai:]
 
 def _chatbot_call_claude(system_prompt, history):
     """Gọi Anthropic Messages API từ phía server (Streamlit backend), trả về dict đã parse JSON."""
@@ -1054,10 +891,10 @@ def _chatbot_call_claude(system_prompt, history):
                 "content-type": "application/json",
             },
             json={
-                "model": CHATBOT_MODEL_ID,
+                "model": "claude-sonnet-4-5-20250929",
                 "max_tokens": 1200,
                 "system": system_prompt,
-                "messages": _chatbot_trim_history(history),
+                "messages": history,
             },
             timeout=30,
         )
@@ -4041,15 +3878,19 @@ if query_params.get('goto') == 'hrm':
 
 
 # ========== HIỂN THỊ LANDING PAGE NẾU CHƯA VÀO HRM ==========
-logo_url = COMPANY_CONFIG.get("logo_url")
-if logo_url:
-    with st.sidebar:
-        st.image(logo_url, width='stretch')
-        st.divider()
-elif os.path.exists("logo_cty.png"):
-    with st.sidebar:
-        st.image("logo_cty.png", width='stretch')
-        st.divider()
+# Chỉ hiện logo mặc định (COMPANY_CONFIG/logo_cty.png) khi KHÔNG có tenant (chế độ standalone
+# cũ). Nếu đã xác định được tenant (đa khách hàng), logo của tenant sẽ tự hiện ở bước đăng nhập
+# phía dưới (st.sidebar.image(tenant['logo_url'])) — tránh hiện 2 logo chồng lên nhau.
+if not st.session_state.get('tenant'):
+    logo_url = COMPANY_CONFIG.get("logo_url")
+    if logo_url:
+        with st.sidebar:
+            st.image(logo_url, width='stretch')
+            st.divider()
+    elif os.path.exists("logo_cty.png"):
+        with st.sidebar:
+            st.image("logo_cty.png", width='stretch')
+            st.divider()
 
 # ========== ĐÃ BỎ LANDING PAGE (mỗi khách hàng có domain riêng, vào thẳng màn hình đăng nhập) ==========
 # show_hrm được ép luôn True để các đoạn code phía dưới (vốn kiểm tra show_hrm) không bị ảnh hưởng.
@@ -11645,18 +11486,15 @@ elif menu == "🤖 Chatbot Giải đáp":
     st.caption("BHXH · BHYT · Thuế TNCN · Lao động · Thai sản · Thất nghiệp — AI phân tích và trích dẫn điều luật cụ thể.")
 
     _so_dieu_luat_da_nap = len(_chatbot_all_laws())
-    _semantic_bat = bool(_chatbot_get_voyage_api_key())
     col_info_luat, col_btn_luat = st.columns([5, 1])
     with col_info_luat:
         if _so_dieu_luat_da_nap:
-            trang_thai = "🧠 Tìm kiếm ngữ nghĩa (semantic search)" if _semantic_bat else "🔤 Tìm kiếm theo từ khoá (chưa cấu hình VOYAGE_API_KEY)"
-            st.caption(f"📚 Đã nạp {_so_dieu_luat_da_nap} điều luật từ thư mục `luat_data/`. · {trang_thai}")
+            st.caption(f"📚 Đã nạp {_so_dieu_luat_da_nap} điều luật từ thư mục `luat_data/`.")
         else:
             st.warning(f"⚠️ Chưa có dữ liệu luật nào trong `{CHATBOT_LAW_DIR}`. Hãy copy các file `*_full.json` vào thư mục này.")
     with col_btn_luat:
         if st.button("🔄 Nạp lại dữ liệu luật", key="chatbot_reload_laws"):
             _chatbot_load_all_laws.clear()
-            _chatbot_build_law_embeddings.clear()
             st.rerun()
 
     if "chatbot_history" not in st.session_state:

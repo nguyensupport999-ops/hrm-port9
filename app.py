@@ -5668,7 +5668,11 @@ if not st.session_state.logged_in:
     # ---------- BƯỚC 2: Đăng nhập nhân viên của công ty đã chọn ----------
     tenant = st.session_state.tenant
     if tenant.get('logo_url'):
-        st.sidebar.image(tenant['logo_url'], width='stretch')
+        try:
+            st.sidebar.image(tenant['logo_url'], width='stretch')
+        except Exception:
+            # Link logo hỏng/không truy cập được — bỏ qua, không để sập cả trang đăng nhập.
+            pass
     st.sidebar.success(f"🏢 **{tenant['ten_cty']}**")
 
     st.sidebar.subheader(i18n.t("🔐 Đăng nhập"))

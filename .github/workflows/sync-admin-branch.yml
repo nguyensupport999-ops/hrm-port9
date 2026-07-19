@@ -1,15 +1,14 @@
 name: Sync admin branch with main
 
-# Mục đích: mỗi khi có commit mới trên nhánh `main`, tự động fast-forward
-# nhánh `admin` để nó luôn giống hệt `main`. Nhờ vậy, bạn CHỈ CẦN sửa code
-# (kể cả sửa bug) ở nhánh `main` — nhánh `admin` (dùng để chạy app quản trị/
-# demo trên Streamlit) sẽ tự nhận bản vá mà không cần thao tác gì thêm.
+# Mục đích: mỗi khi có commit mới trên nhánh `main`, tự động làm cho nhánh
+# `admin` GIỐNG HỆT `main` (ghi đè hoàn toàn nội dung admin bằng main). Nhờ
+# vậy, bạn CHỈ CẦN sửa code (kể cả sửa bug) ở nhánh `main` — nhánh `admin`
+# (dùng để chạy app quản trị/demo trên Streamlit) sẽ tự nhận bản vá mà
+# không cần thao tác gì thêm.
 #
-# LƯU Ý: Action này giả định nhánh `admin` KHÔNG có commit riêng nào khác
-# `main` (đúng như khuyến nghị — không sửa code trực tiếp trên `admin`).
-# Nếu `admin` từng có commit riêng, bước push sẽ bị từ chối (an toàn, không
-# ghi đè mất dữ liệu) — khi đó cần merge thủ công 1 lần rồi Action mới chạy
-# trơn tru trở lại.
+# LƯU Ý: Đây là đồng bộ MỘT CHIỀU (main -> admin). Tuyệt đối không sửa code
+# trực tiếp trên nhánh `admin` — mọi thay đổi riêng trên admin sẽ bị ghi đè
+# mất sau lần chạy tiếp theo.
 
 on:
   push:
@@ -23,21 +22,17 @@ jobs:
   sync-admin:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo (đầy đủ lịch sử + tất cả nhánh)
+      - name: Checkout repo
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Fast-forward admin theo main
+      - name: Ép admin giống hệt main
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git fetch origin main admin
-
-          # Thử fast-forward admin = main. Nếu admin có commit riêng
-          # (không fast-forward được), lệnh sẽ báo lỗi rõ ràng thay vì
-          # âm thầm ghi đè mất dữ liệu.
-          git checkout admin
-          git merge --ff-only origin/main
-          git push origin admin
+          # Đẩy thẳng nhánh main (đang được checkout sẵn) để ghi đè nhánh
+          # admin trên remote. Dùng --force vì mục tiêu là admin PHẢI giống
+          # hệt main, không quan tâm admin đang có gì khác biệt.
+          git push origin HEAD:admin --force

@@ -36,6 +36,7 @@ import json
 import unicodedata
 import control_plane
 from control_plane import DatabaseEngine, resolve_tenant
+from import_export_hr import render_import_export_ui
 import bcrypt
 import chat_noi_bo
 import i18n
@@ -5557,6 +5558,25 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
                                  "Cần thêm hàm này (UPDATE tenants SET logo_url=%s WHERE ma_cty=%s) để nút này hoạt động.")
                     except Exception as e:
                         st.error(f"❌ Lỗi upload logo: {e}")
+
+        st.divider()
+        st.markdown("##### 📥 Nhập/Xuất dữ liệu Excel cho 1 khách hàng")
+        ma_cty_excel = st.selectbox(
+            "Chọn công ty cần thao tác",
+            [t['ma_cty'] for t in tenants],
+            format_func=lambda mc: next((f"{t['ten_cty']} ({t['ma_cty']})" for t in tenants if t['ma_cty'] == mc), mc),
+            key="ma_cty_excel_tool",
+        )
+        if ma_cty_excel:
+            with st.expander(f"📥 Công cụ Nhập/Xuất Excel — {ma_cty_excel}", expanded=True):
+                try:
+                    tenant_full = control_plane.get_tenant_by_code(ma_cty_excel)
+                    render_import_export_ui(
+                        lambda t=tenant_full: control_plane.DatabaseEngine(t).get_connection(),
+                        extra_caption=f"⚠️ Đang thao tác hộ dữ liệu của: {tenant_full.get('ten_cty', ma_cty_excel)}"
+                    )
+                except Exception as e:
+                    st.error(f"❌ Không kết nối được tới DB của {ma_cty_excel}: {e}")          
     else:
         st.info("Chưa có khách hàng nào. Thêm khách hàng đầu tiên ở form phía trên.")
 
@@ -5827,7 +5847,7 @@ if st.session_state.get('phai_doi_mat_khau'):
 # Menu theo role — 4 vai trò cố định: admin / hr / kt_luong / viewer (+ 'nhan_vien' tự phục vụ)
 if st.session_state.role == "admin":
     # Toàn quyền
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","🔍 Audit Dashboard","📘 Hướng dẫn sử dụng",]
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📥 Nhập/Xuất Excel","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","🔍 Audit Dashboard","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role in ["văn thư", "hr"]:
     # HR: như admin trừ Upload hồ sơ, Danh mục — và KHÔNG được xem Tính thu nhập (dữ liệu lương)
     menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
@@ -11708,6 +11728,12 @@ elif menu == "🤖 Chatbot Giải đáp":
             st.session_state.chatbot_history = []
             st.session_state.chatbot_display = []
             st.rerun()
+
+elif menu == "📥 Nhập/Xuất Excel" and st.session_state.role == "admin":
+    render_import_export_ui(
+        lambda: st.session_state.db_engine.get_connection(),
+        extra_caption=f"Công ty: {st.session_state.tenant.get('ten_cty', '')}"
+    )
 
 # ========== HƯỚNG DẪN SỬ DỤNG ==========
 elif menu == "🔑 Quản lý MK":

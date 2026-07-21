@@ -7345,10 +7345,10 @@ elif menu == "👤 Ứng viên":
                                     c = db.cursor()
                                     c.execute("""INSERT INTO ung_vien (ho_ten, vi_tri_du_tuyen, dien_thoai, 
                                         ngay_sinh, gioi_tinh, ngay_vao_lam, luong_bao_hiem, trang_thai)
-                                        VALUES (%s, %s, %s, %s, %s, %s, %s, 'CHO_DUYET')""",
+                                        VALUES (%s, %s, %s, %s, %s, %s, %s, 'CHO_DUYET') RETURNING id""",
                                         (ho_ten_uv, vi_tri_uv, dien_thoai_uv, parse_date(ngay_sinh_uv),
-                                         gioi_tinh_uv, parse_date(ngay_vao_lam_uv), ghi_chu_uv))
-                                    new_id = c.lastrowid
+                                         gioi_tinh_uv, parse_date(ngay_vao_lam_uv), None))
+                                    new_id = c.fetchone()[0]
                                     ma_uv = f"UV{new_id:04d}"
                                     c.execute("UPDATE ung_vien SET ma_uv = %s WHERE id = %s", (ma_uv, new_id))
                                     db.commit()

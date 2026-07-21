@@ -719,20 +719,28 @@ def sap_xep_phong_ban_rows(rows, key_field="Phòng ban"):
     return sorted(rows, key=key_fn)
 
 def get_phong_ban_options():
-    """Trả về danh sách phòng ban CHUẨN, DUY NHẤT cho toàn bộ app.
+    """Trả về danh sách phòng ban cho dropdown, ƯU TIÊN theo danh mục riêng
+    của TỪNG TENANT (bảng danh_muc_phong_ban trong DB của chính tenant đó,
+    nhập qua màn "⚙️ Danh mục").
 
-    QUAN TRỌNG: trước đây hàm này đọc từ bảng danh_muc_phong_ban (do admin tự
-    thêm/sửa qua màn "Danh mục"), nên vẫn có nguy cơ phát sinh biến thể mới
-    (VD: "Phòng Hành Chính Nhân Sự" viết hoa khác "Phòng Hành chính Nhân sự")
-    mỗi khi có người thêm nhầm 1 dòng mới trong danh mục. Để đảm bảo dữ liệu
-    luôn đúng chuẩn mà KHÔNG cần chuẩn hóa lại nữa, toàn bộ dropdown chọn
-    phòng ban trong app (Thêm NV, Sửa NV, Chuyển ứng viên, Điều chuyển...)
-    đều lấy trực tiếp từ hằng số PHONG_BAN_THU_TU — nguồn sự thật duy nhất.
-
-    Muốn thêm/bớt phòng ban: sửa list PHONG_BAN_THU_TU ở đầu file, không sửa
-    qua màn hình "Danh mục" nữa (màn đó chỉ còn phục vụ mục đích tra cứu/lịch
-    sử, không dùng để nạp option cho form nhân viên).
+    LƯU Ý LỊCH SỬ: bản trước đây khóa cứng toàn bộ app (mọi tenant) theo
+    hằng số PHONG_BAN_THU_TU (danh mục riêng của Hòn La) — dẫn tới việc các
+    tenant khác (VD: DEMO-HRM) tự nhập danh mục phòng ban của mình nhưng
+    không được app sử dụng. Nay sửa lại: đọc từ DB của tenant đang đăng nhập
+    trước, nếu tenant đó CHƯA nhập danh mục riêng (bảng rỗng) thì mới dùng
+    PHONG_BAN_THU_TU làm mặc định (đảm bảo Hòn La không bị ảnh hưởng ngược).
     """
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("SELECT ten_phong_ban FROM danh_muc_phong_ban ORDER BY thu_tu, id")
+        rows = [r[0] for r in c.fetchall() if r[0]]
+        db.close()
+        if rows:
+            return rows
+    except Exception:
+        pass
+    # Fallback: tenant chưa tự nhập danh mục riêng -> dùng danh mục mặc định
     return list(PHONG_BAN_THU_TU)
 
 # ============================================================
@@ -5859,6 +5867,15 @@ elif st.session_state.role == "van_thu":
 elif st.session_state.role == "viewer":
     # Viewer: chỉ xem, thu hẹp — không có BHXH, không có Tính thu nhập
     menu_options = ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo định kỳ","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
+elif st.session_state.role == "demo_readonly":
+    # Vai trò DÀNH RIÊNG cho tài khoản demo công khai: thấy TOÀN BỘ menu như admin
+    # (trừ Danh mục/Nhập-Xuất Excel/Audit vốn là công cụ cấu hình hệ thống, không
+    # cần thiết cho việc "xem thử" tính năng), nhưng can_edit()/can_delete()/can_export()
+    # đều trả về False với role này nên các nút Lưu/Sửa/Xóa/Xuất sẽ bị chặn.
+    # LƯU Ý: các nút Lưu/Sửa/Xóa hiện KHÔNG kiểm tra can_edit()/can_delete() ở TẤT CẢ
+    # màn hình trong app (chỉ mới có ở một số form) — trước khi phát hành tài khoản demo
+    # công khai, cần rà soát thêm các nút còn thiếu để đảm bảo dữ liệu thật sự không đổi được.
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
 else:  # 'nhan_vien' thường — chỉ xem hồ sơ bản thân + chat nội bộ
     menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"]
 menu = st.sidebar.radio(i18n.t("📋 Menu"), menu_options, format_func=i18n.t)
@@ -7685,6 +7702,11 @@ elif menu == "✅ Nhân viên":
                                             c.execute("SELECT COALESCE(MAX(STT),0)+1 FROM nhan_vien")
                                             stt_moi = c.fetchone()[0]
 
+                                            # Tạo mã nhân viên mới (BỊ THIẾU - nguyên nhân lỗi "name 'ma_nv' is not defined")
+                                            c.execute("SELECT COALESCE(MAX(CAST(SUBSTRING(ma_nv FROM 2) AS INTEGER)), 0)+1 FROM nhan_vien WHERE ma_nv LIKE 'C%'")
+                                            so_moi_nv = c.fetchone()[0]
+                                            ma_nv = f"C{so_moi_nv:03d}"
+
                                             nhl = parse_date(nvl)
                                             tbd_val = parse_date(tbd) if tbd and tbd.strip() else None
 
@@ -9053,9 +9075,18 @@ elif menu == "✅ Nhân viên":
                     elif loai_qd == 'DIEU_CHUYEN':
                         c_s.execute("UPDATE nhan_vien SET phong_ban_lam_viec = %s, ngay_qd_ns = %s WHERE id = %s", (gia_tri_sau, ngay_qd, nv_qd['id']))
                     elif loai_qd == 'CHAM_DUT_HD':
+                        # QUAN TRỌNG: phải đồng thời cập nhật trang_thai_bhxh và thang_ket_thuc_bh,
+                        # nếu không báo cáo tăng/giảm BHXH (lọc theo 2 cột này) sẽ KHÔNG bao giờ
+                        # thấy nhân sự này ở danh sách "Giảm", dù trang_thai đã là NGHI_VIEC.
                         c_s.execute("""
-                            UPDATE nhan_vien SET trang_thai = 'NGHI_VIEC', ngay_ket_thuc = %s, ly_do_nghi = %s WHERE id = %s
-                        """, (ngay_qd, ly_do_cd if ly_do_cd.strip() else None, nv_qd['id']))
+                            UPDATE nhan_vien
+                            SET trang_thai = 'NGHI_VIEC',
+                                ngay_ket_thuc = %s,
+                                ly_do_nghi = %s,
+                                trang_thai_bhxh = 'DA_BAO_GIAM',
+                                thang_ket_thuc_bh = %s
+                            WHERE id = %s
+                        """, (ngay_qd, ly_do_cd if ly_do_cd.strip() else None, ngay_qd, nv_qd['id']))
 
                     db_s.commit()
                     db_s.close()
@@ -10312,10 +10343,9 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
     ])
 
     with tab_pb:
-        st.info("ℹ️ Danh sách phòng ban dùng cho các form Thêm/Sửa nhân viên hiện đã được "
-                "**khóa cứng theo danh mục chuẩn PHONG_BAN_THU_TU** trong code — không còn lấy "
-                "từ bảng danh mục bên dưới nữa, để tránh phát sinh biến thể sai chính tả/viết hoa. "
-                "Bảng bên dưới chỉ còn mang tính lưu trữ/tra cứu lịch sử.")
+        st.info("ℹ️ Danh sách phòng ban dùng cho các form Thêm/Sửa nhân viên lấy **trực tiếp từ "
+                "danh mục bên dưới** (riêng cho công ty bạn, không ảnh hưởng tenant khác). "
+                "Nếu bảng này đang trống, hệ thống sẽ tạm dùng danh mục mặc định của Hòn La.")
 
         if st.session_state.role == "admin":
             with st.expander("🧹 Dọn dữ liệu phòng ban cũ (chạy 1 lần)", expanded=False):

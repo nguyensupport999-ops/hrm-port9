@@ -5,6 +5,7 @@ import streamlit as st
 import psycopg2
 import psycopg2.extras
 from datetime import datetime, date, timedelta
+from dateutil.relativedelta import relativedelta
 import calendar
 import random
 import pandas as pd
@@ -450,21 +451,21 @@ def tao_bao_cao_bhxh_d02_lt(tang_list, giam_list, tu_ngay, den_ngay, ten_cong_ty
         row_data['Email liên hệ'] = nv.get('email_lien_he', '')
         
         # Thông tin địa chỉ
-        row_data['Tỉnh / Thành phố (Khai sinh)'] = "Tỉnh Quảng Trị"
-        row_data['Mã Tỉnh (Khai sinh)'] = "44"
+        row_data['Tỉnh / Thành phố (Khai sinh)'] = get_cau_hinh('tinh_khai_sinh', 'Tỉnh Quảng Trị')
+        row_data['Mã Tỉnh (Khai sinh)'] = get_ma_tinh_from_name(get_cau_hinh('tinh_khai_sinh', 'Quảng Trị'))
         row_data['Phường/ Xã (Khai sinh)'] = nv.get('phuong_xa_khai_sinh', '')
         row_data['Mã xã (Khai sinh)'] = nv.get('ma_xa_khai_sinh', '')
         row_data['Địa chỉ khai sinh'] = nv.get('noi_sinh', '')
         
-        row_data['Tỉnh / Thành phố (Nhận HS)'] = nv.get('tinh_nhan_hs', 'Tỉnh Quảng Trị')
-        row_data['Mã Tỉnh (Nhận HS)'] = get_ma_tinh_from_name(nv.get('tinh_nhan_hs', 'Quảng Trị'))
+        row_data['Tỉnh / Thành phố (Nhận HS)'] = nv.get('tinh_nhan_hs') or get_cau_hinh('tinh_nhan_hs', 'Tỉnh Quảng Trị')
+        row_data['Mã Tỉnh (Nhận HS)'] = get_ma_tinh_from_name(nv.get('tinh_nhan_hs') or get_cau_hinh('tinh_nhan_hs', 'Quảng Trị'))
         row_data['Phường/ Xã (Nhận HS)'] = nv.get('phuong_nhan_hs', '')
         row_data['Mã xã (Nhận HS)'] = nv.get('ma_xa_nhan_hs', '')
         row_data['Địa chỉ nhận hồ sơ'] = nv.get('dia_chi_nhan_hs', '')
         
-        row_data['Tỉnh nơi KCB'] = nv.get('tinh_kcb', 'Tỉnh Quảng Trị')
+        row_data['Tỉnh nơi KCB'] = nv.get('tinh_kcb') or get_cau_hinh('tinh_kcb', 'Tỉnh Quảng Trị')
         row_data['Mã tỉnh (KCB)'] = "44"
-        row_data['Nơi đăng ký KCB'] = nv.get('noi_dang_ky_kcb', 'Bệnh viện đa khoa khu vực Bắc Quảng Trị')
+        row_data['Nơi đăng ký KCB'] = nv.get('noi_dang_ky_kcb') or get_cau_hinh('noi_dang_ky_kcb', 'Bệnh viện đa khoa khu vực Bắc Quảng Trị')
         row_data['Mã BV'] = "44003"
         
         row_data['Đăng ký nhận sổ và thẻ'] = nv.get('dang_ky_nhan_so', 'Có')
@@ -2921,13 +2922,60 @@ def update_han_nop_bhxh(ngay):
         db = st.session_state.db_engine.get_connection()
         c = db.cursor()
         c.execute("""
-            INSERT INTO cau_hinh_he_thong (ten_cau_hinh, gia_tri, ghi_chu)
+            INSERT INTO cau_hinh_he_thong (ten_cau_hinh, gia_tri, mo_ta)
             VALUES ('han_nop_bhxh_ngay', %s, 'Ngày trong tháng phải nộp BC Tăng/Giảm BHXH')
             ON CONFLICT (ten_cau_hinh) DO UPDATE SET gia_tri = EXCLUDED.gia_tri, updated_at = NOW()
         """, (str(ngay),))
         db.commit(); db.close()
         return True
     except:
+        return False
+
+
+# === Cấu hình chung theo tenant (key-value) — dùng lại bảng cau_hinh_he_thong ===
+# Đây chính là cơ chế "tenant_settings": mỗi tenant có 1 DB riêng, bảng
+# cau_hinh_he_thong trong DB đó lưu các thiết lập riêng của công ty mình,
+# không ảnh hưởng tenant khác. get_cau_hinh()/set_cau_hinh() là hàm dùng
+# chung cho MỌI khoá cấu hình (thay vì phải viết riêng 1 cặp get/update
+# cho từng khoá như cv_danh_so_option, han_nop_bhxh_ngay ở trên).
+def get_cau_hinh(key, default=None):
+    """Đọc 1 giá trị cấu hình theo tenant đang đăng nhập. Trả về `default` nếu
+    chưa từng thiết lập (tenant mới) hoặc DB lỗi.
+    Có cache trong session (mỗi phiên chỉ query DB 1 lần/khoá) để tránh gọi DB
+    lặp lại hàng trăm lần khi hàm này được gọi trong vòng lặp xuất báo cáo
+    theo từng nhân viên."""
+    cache = st.session_state.setdefault('_cau_hinh_cache', {})
+    if key in cache:
+        return cache[key] if cache[key] is not None else default
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("SELECT gia_tri FROM cau_hinh_he_thong WHERE ten_cau_hinh = %s", (key,))
+        r = c.fetchone()
+        db.close()
+        val = r[0] if r and r[0] not in (None, '') else None
+        cache[key] = val
+        return val if val is not None else default
+    except Exception:
+        cache[key] = None
+        return default
+
+
+def set_cau_hinh(key, value, mo_ta=''):
+    """Ghi/cập nhật 1 giá trị cấu hình theo tenant đang đăng nhập."""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("""
+            INSERT INTO cau_hinh_he_thong (ten_cau_hinh, gia_tri, mo_ta)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (ten_cau_hinh) DO UPDATE SET gia_tri = EXCLUDED.gia_tri,
+                mo_ta = COALESCE(NULLIF(EXCLUDED.mo_ta, ''), cau_hinh_he_thong.mo_ta), updated_at = NOW()
+        """, (key, '' if value is None else str(value), mo_ta))
+        db.commit(); db.close()
+        st.session_state.setdefault('_cau_hinh_cache', {})[key] = value
+        return True
+    except Exception:
         return False
 
 # === Cấu hình Chấm công (khung sườn - sẽ tích hợp logic tính công dần theo nhu cầu) ===
@@ -4524,6 +4572,8 @@ def ensure_qdns_columns():
         c.execute("ALTER TABLE nhan_vien ADD COLUMN IF NOT EXISTS chuc_vu VARCHAR(100)")
         c.execute("ALTER TABLE nhan_vien ADD COLUMN IF NOT EXISTS ngay_qd_ns DATE")
         c.execute("ALTER TABLE nhan_vien ADD COLUMN IF NOT EXISTS so_luong_npt INTEGER DEFAULT 0")
+        c.execute("ALTER TABLE nhan_vien ADD COLUMN IF NOT EXISTS han_hop_dong_thang INTEGER")
+        c.execute("ALTER TABLE ung_vien ADD COLUMN IF NOT EXISTS ghi_chu TEXT")
         c.execute("UPDATE nhan_vien SET chuc_vu = 'Nhân viên' WHERE chuc_vu IS NULL OR chuc_vu = ''")
         c.execute("UPDATE nhan_vien SET ngay_qd_ns = ngay_vao_lam WHERE ngay_qd_ns IS NULL")
         c.execute("UPDATE nhan_vien SET so_luong_npt = 0 WHERE so_luong_npt IS NULL")
@@ -4628,7 +4678,7 @@ def tao_quyet_dinh_nhan_su(nv, so_qd, ngay_qd, tieu_de, dieu1_lines, hieu_luc_te
     c = ht.rows[1].cells[1]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r = p.add_run('Độc lập - Tự do - Hạnh phúc'); r.bold = True; r.italic = True; r.font.size = Pt(13)
     c = ht.rows[2].cells[1]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.RIGHT; p.paragraph_format.space_after = Pt(20)
-    dia_diem = CC.get('dia_diem', 'Quảng Trị')
+    dia_diem = CC.get('dia_diem') or get_cau_hinh('dia_diem', 'Quảng Trị')
     ns = f'{dia_diem}, ngày {ngay_qd.day} tháng {ngay_qd.month:02d} năm {ngay_qd.year}' if hasattr(ngay_qd, 'day') else f'{dia_diem}, ngày ... tháng ... năm ......'
     r = p.add_run(ns); r.italic = True; r.font.size = Pt(13)
 
@@ -5016,9 +5066,10 @@ def tao_hop_dong(nv):
     ngay_ky = nv.get("ngay_ky_hd")
     ngay_vao = nv.get("ngay_vao_lam")
     nk = ngay_ky if ngay_ky else ngay_vao
-    ns = 'Quảng Trị, ngày ... tháng ... năm ......'
+    dia_diem_ky = CC.get('dia_diem') or get_cau_hinh('dia_diem', 'Quảng Trị')
+    ns = f'{dia_diem_ky}, ngày ... tháng ... năm ......'
     if nk and hasattr(nk, 'day'):
-        ns = f'Quảng Trị, ngày {nk.day} tháng {nk.month:02d} năm {nk.year}'
+        ns = f'{dia_diem_ky}, ngày {nk.day} tháng {nk.month:02d} năm {nk.year}'
     run = p.add_run(ns)
     run.font.size = Pt(13)
     run.italic = True
@@ -5105,12 +5156,13 @@ def tao_hop_dong_thu_viec(nv):
         return p
     ht=doc.add_table(rows=4,cols=2); ht.alignment=WD_TABLE_ALIGNMENT.CENTER; ht.autofit=False; remove_table_border(ht)
     for row in ht.rows: row.cells[0].width=Cm(6); row.cells[1].width=Cm(11)
+    ten_cty_tv = (CC.get('ten_cong_ty') or 'CÔNG TY').upper()
     c=ht.rows[0].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=p.add_run('CÔNG TY CỔ PHẦN'); r.bold=True; r.font.size=Pt(13)
+    r=p.add_run(ten_cty_tv); r.bold=True; r.font.size=Pt(13)
     c=ht.rows[0].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=p.add_run('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'); r.bold=True; r.font.size=Pt(13)
     c=ht.rows[1].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=p.add_run('CẢNG HÒN LA'); r.bold=True; r.font.size=Pt(13)
+    r=p.add_run(''); r.bold=True; r.font.size=Pt(13)
     c=ht.rows[1].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=p.add_run('Độc lập - Tự do - Hạnh phúc'); r.bold=True; r.italic=True; r.font.size=Pt(13)
     c=ht.rows[2].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
@@ -5121,8 +5173,9 @@ def tao_hop_dong_thu_viec(nv):
     r=p.add_run(f'Số: {nv.get("so_hdld",".../.../HĐTV-CHL")}'); r.italic=True; r.font.size=Pt(12)
     c=ht.rows[3].cells[1]; p=c.paragraphs[0];p.alignment=WD_ALIGN_PARAGRAPH.RIGHT; p.paragraph_format.space_after=Pt(20)
     nk=nv.get("ngay_vao_lam") or nv.get("ngay_ky_hd")
-    ns='Quảng Trị, ngày ... tháng ... năm ......'
-    if nk and hasattr(nk,'day'): ns=f'Quảng Trị, ngày {nk.day} tháng {nk.month:02d} năm {nk.year}'
+    dia_diem_ky_tv = CC.get('dia_diem') or get_cau_hinh('dia_diem', 'Quảng Trị')
+    ns=f'{dia_diem_ky_tv}, ngày ... tháng ... năm ......'
+    if nk and hasattr(nk,'day'): ns=f'{dia_diem_ky_tv}, ngày {nk.day} tháng {nk.month:02d} năm {nk.year}'
     run = p.add_run(ns)
     run.font.size = Pt(13)
     run.italic = True
@@ -7108,7 +7161,7 @@ elif menu == "👤 Ứng viên":
                 email_nv = st.text_input("Email")
                 chuc_danh_nv = st.selectbox("Chức danh", [""] + dschucdanh, index=([""] + dschucdanh).index(uv_data.get('vi_tri', '')) if uv_data.get('vi_tri', '') in dschucdanh else 0)
                 phong_ban_nv = st.selectbox("Phòng ban", [""] + dpb_chuyen, key="pb_chuyen_uv")
-                noi_lam_viec_nv = st.text_input("Nơi làm việc", value="Cảng THQT Hòn La")
+                noi_lam_viec_nv = st.text_input("Nơi làm việc", value=get_cau_hinh('noi_lam_viec', 'Cảng THQT Hòn La'))
                 anh_ho_so_nv = st.file_uploader("Ảnh hồ sơ", type=["png", "jpg", "jpeg"], key="anh_ho_so_chuyen")
             
             st.divider()
@@ -7143,11 +7196,11 @@ elif menu == "👤 Ứng viên":
                 chi_nhanh_nh_chuyen = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_chuyen_index, key="chuyen_cnh")
                 tinh_kcb_chuyen = st.text_input("Tỉnh KCB")
             with col8:
-                noi_kcb_chuyen = st.text_input("Nơi KCB", value="Bệnh viện đa khoa khu vực Bắc Quảng Trị")
-                tinh_nhan_hs_chuyen = st.text_input("Tỉnh/TP nhận HS", value="Tỉnh Quảng Trị")
+                noi_kcb_chuyen = st.text_input("Nơi KCB", value=get_cau_hinh('noi_dang_ky_kcb', 'Bệnh viện đa khoa khu vực Bắc Quảng Trị'))
+                tinh_nhan_hs_chuyen = st.text_input("Tỉnh/TP nhận HS", value=get_cau_hinh('tinh_nhan_hs', 'Tỉnh Quảng Trị'))
                 phuong_nhan_hs_chuyen = st.text_input("Phường/Xã nhận HS", value="Xã Phú Trạch")
             with col9:
-                dia_chi_nhan_hs_chuyen = st.text_area("Địa chỉ nhận HS", value="Công ty cổ phần Cảng Hòn La", height=100)
+                dia_chi_nhan_hs_chuyen = st.text_area("Địa chỉ nhận HS", value=get_cau_hinh('dia_chi_nhan_hs', 'Công ty cổ phần Cảng Hòn La'), height=100)
                 dk_nhan_so_chuyen = st.selectbox("ĐK nhận sổ", ["Có", "Không"])
                 ho_so_chuyen = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"])
             col_confirm1, col_confirm2 = st.columns(2)
@@ -7185,7 +7238,10 @@ elif menu == "👤 Ứng viên":
                                                                 
                                 nhl = ngay_vao_lam_chuyen
                                 tbd_val = parse_date(bat_dau_bh_chuyen) if bat_dau_bh_chuyen and bat_dau_bh_chuyen.strip() else None
-                                
+
+                                # Mã công ty của TENANT ĐANG ĐĂNG NHẬP (không phải luôn là "CHL" của Hòn La)
+                                ma_cty_hd = st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL'
+
                                 # Tạo số hợp đồng theo loại
                                 if loai_hd_chuyen == "Thử việc":
                                     trang_thai_nv = 'THU_VIEC'
@@ -7193,11 +7249,11 @@ elif menu == "👤 Ứng viên":
                                     c.execute("""
                                         SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) 
                                         FROM nhan_vien 
-                                        WHERE so_hdld LIKE '%/HĐTV-CHL' 
+                                        WHERE so_hdld LIKE %s 
                                         AND trang_thai IN ('THU_VIEC', 'DANG_LAM')
-                                    """)
+                                    """, (f'%/HĐTV-{ma_cty_hd}',))
                                     tv_cnt = c.fetchone()[0] + 1
-                                    so_hd = f"{tv_cnt:02d}/{nhl.year}/HĐTV-CHL"
+                                    so_hd = f"{tv_cnt:02d}/{nhl.year}/HĐTV-{ma_cty_hd}"
                                 else:
                                     trang_thai_nv = 'DANG_LAM'
                                     trang_thai_bhxh = 'DANG_DONG'
@@ -7206,12 +7262,12 @@ elif menu == "👤 Ứng viên":
                                     c.execute("""
                                         SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) 
                                         FROM nhan_vien 
-                                        WHERE so_hdld LIKE '%/HĐLĐ-CHL' 
+                                        WHERE so_hdld LIKE %s 
                                         AND trang_thai = 'DANG_LAM'
                                         AND loai_hop_dong != 'Thử việc'
-                                    """)
+                                    """, (f'%/HĐLĐ-{ma_cty_hd}',))
                                     so_hd_cnt = c.fetchone()[0] or 0
-                                    so_hd = f"{so_hd_cnt + 1:02d}/{nhl.year}/HĐLĐ-CHL"
+                                    so_hd = f"{so_hd_cnt + 1:02d}/{nhl.year}/HĐLĐ-{ma_cty_hd}"
                                 
                                 # Thêm nhân viên mới (đã thêm trường ten_don_vi_thu_huong, trinh_do)
                                 c.execute("""
@@ -7344,10 +7400,10 @@ elif menu == "👤 Ứng viên":
                                     db = st.session_state.db_engine.get_connection()
                                     c = db.cursor()
                                     c.execute("""INSERT INTO ung_vien (ho_ten, vi_tri_du_tuyen, dien_thoai, 
-                                        ngay_sinh, gioi_tinh, ngay_vao_lam, luong_bao_hiem, trang_thai)
-                                        VALUES (%s, %s, %s, %s, %s, %s, %s, 'CHO_DUYET') RETURNING id""",
+                                        ngay_sinh, gioi_tinh, ngay_vao_lam, luong_bao_hiem, trang_thai, ghi_chu)
+                                        VALUES (%s, %s, %s, %s, %s, %s, %s, 'CHO_DUYET', %s) RETURNING id""",
                                         (ho_ten_uv, vi_tri_uv, dien_thoai_uv, parse_date(ngay_sinh_uv),
-                                         gioi_tinh_uv, parse_date(ngay_vao_lam_uv), None))
+                                         gioi_tinh_uv, parse_date(ngay_vao_lam_uv), None, ghi_chu_uv or None))
                                     new_id = c.fetchone()[0]
                                     ma_uv = f"UV{new_id:04d}"
                                     c.execute("UPDATE ung_vien SET ma_uv = %s WHERE id = %s", (ma_uv, new_id))
@@ -7496,7 +7552,7 @@ elif menu == "👤 Ứng viên":
                         index=["", "Nam", "Nữ", "Khác"].index(uv_data['gioi_tinh']) if uv_data['gioi_tinh'] in ["Nam", "Nữ", "Khác"] else 0)
                 with col3:
                     ngay_vao_lam_e = st.text_input("Ngày vào làm (dd/mm/yyyy)", value=format_date(uv_data['ngay_vao_lam']))
-                    ghi_chu_e = st.text_area("Ghi chú", value=uv_data['luong_bao_hiem'] or '')
+                    ghi_chu_e = st.text_area("Ghi chú", value=uv_data.get('ghi_chu') or '')
                     trang_thai_e = st.selectbox("Trạng thái", ["CHO_DUYET", "TU_CHOI", "DA_NHAN_VIEC"],
                         index=["CHO_DUYET", "TU_CHOI", "DA_NHAN_VIEC"].index(uv_data['trang_thai']) if uv_data['trang_thai'] in ["CHO_DUYET", "TU_CHOI", "DA_NHAN_VIEC"] else 0)
                 
@@ -7517,10 +7573,10 @@ elif menu == "👤 Ứng viên":
                                 db = st.session_state.db_engine.get_connection()
                                 c = db.cursor()
                                 c.execute("""UPDATE ung_vien SET ho_ten=%s, vi_tri_du_tuyen=%s, dien_thoai=%s,
-                                    ngay_sinh=%s, gioi_tinh=%s, ngay_vao_lam=%s, luong_bao_hiem=%s, trang_thai=%s
+                                    ngay_sinh=%s, gioi_tinh=%s, ngay_vao_lam=%s, trang_thai=%s, ghi_chu=%s
                                     WHERE id=%s""",
                                     (ho_ten_e, vi_tri_e, dien_thoai_e, parse_date(ngay_sinh_e), gioi_tinh_e,
-                                     parse_date(ngay_vao_lam_e), ghi_chu_e, trang_thai_e, uv_data['id']))
+                                     parse_date(ngay_vao_lam_e), trang_thai_e, ghi_chu_e or None, uv_data['id']))
                                 db.commit()
                                 db.close()
                                 st.success("✅ Đã cập nhật!")
@@ -7639,7 +7695,7 @@ elif menu == "✅ Nhân viên":
                         cdn = st.selectbox("Chức danh", [""] + dcv, key="cdn")
                         pbn = st.selectbox("Phòng ban", [""] + dpb, key="pbn")
                         pbn_chuan = chuan_hoa_ten_phong_ban(pbn)
-                        nlv = st.text_input("Nơi làm việc", value="Cảng THQT Hòn La", key="nlv")
+                        nlv = st.text_input("Nơi làm việc", value=get_cau_hinh('noi_lam_viec', 'Cảng THQT Hòn La'), key="nlv")
                         anh_ho_so_moi = st.file_uploader("Ảnh hồ sơ", type=["png", "jpg", "jpeg"], key="anh_ho_so_add")
                     st.divider()
                     st.caption("💼 Hợp đồng & BHXH")
@@ -7670,13 +7726,13 @@ elif menu == "✅ Nhân viên":
                         stk = st.text_input("STK", key="stk")
                         bank_index = 0
                         cnh = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_index, key="add_cnh")
-                        tkb = st.text_input("Tỉnh KCB", value="Tỉnh Quảng Trị", key="tkb")
+                        tkb = st.text_input("Tỉnh KCB", value=get_cau_hinh('tinh_kcb', 'Tỉnh Quảng Trị'), key="tkb")
                     with c8:
-                        nkb = st.text_input("Nơi KCB", value="Bệnh viện đa khoa khu vực Bắc Quảng Trị", key="nkb")
-                        ths = st.text_input("Tỉnh/TP nhận HS", value="Tỉnh Quảng Trị", key="ths")
+                        nkb = st.text_input("Nơi KCB", value=get_cau_hinh('noi_dang_ky_kcb', 'Bệnh viện đa khoa khu vực Bắc Quảng Trị'), key="nkb")
+                        ths = st.text_input("Tỉnh/TP nhận HS", value=get_cau_hinh('tinh_nhan_hs', 'Tỉnh Quảng Trị'), key="ths")
                         phs = st.text_input("Phường/Xã nhận HS", value="Xã Phú Trạch", key="phs")
                     with c9:
-                        dhs = st.text_input("Địa chỉ nhận HS", value="Công ty cổ phần Cảng Hòn La", key="dhs")
+                        dhs = st.text_input("Địa chỉ nhận HS", value=get_cau_hinh('dia_chi_nhan_hs', 'Công ty cổ phần Cảng Hòn La'), key="dhs")
                         dks = st.selectbox("ĐK nhận sổ", ["Có", "Không"], key="dks")
                         hso = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"], key="hso")
                     
@@ -7710,17 +7766,18 @@ elif menu == "✅ Nhân viên":
                                             nhl = parse_date(nvl)
                                             tbd_val = parse_date(tbd) if tbd and tbd.strip() else None
 
+                                            ma_cty_hd = st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL'
                                             if lhd == "Thử việc":
                                                 ttnv = 'THU_VIEC'
                                                 ttbh = 'CHUA_DONG'
                                                 c.execute("""
                                                     SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0)
                                                     FROM nhan_vien
-                                                    WHERE so_hdld LIKE '%/HĐTV-CHL'
+                                                    WHERE so_hdld LIKE %s
                                                     AND trang_thai IN ('THU_VIEC', 'DANG_LAM')
-                                                """)
+                                                """, (f'%/HĐTV-{ma_cty_hd}',))
                                                 tv_cnt = c.fetchone()[0] + 1
-                                                so_hd = f"{tv_cnt:02d}/{nhl.year}/HĐTV-CHL"
+                                                so_hd = f"{tv_cnt:02d}/{nhl.year}/HĐTV-{ma_cty_hd}"
                                             else:
                                                 ttnv = 'DANG_LAM'
                                                 ttbh = 'DANG_DONG'
@@ -7729,12 +7786,12 @@ elif menu == "✅ Nhân viên":
                                                 c.execute("""
                                                     SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0)
                                                     FROM nhan_vien
-                                                    WHERE so_hdld LIKE '%/HĐLĐ-CHL'
+                                                    WHERE so_hdld LIKE %s
                                                     AND trang_thai = 'DANG_LAM'
                                                     AND loai_hop_dong != 'Thử việc'
-                                                """)
+                                                """, (f'%/HĐLĐ-{ma_cty_hd}',))
                                                 so_hd_cnt = c.fetchone()[0] or 0
-                                                so_hd = f"{so_hd_cnt + 1:02d}/{nhl.year}/HĐLĐ-CHL"
+                                                so_hd = f"{so_hd_cnt + 1:02d}/{nhl.year}/HĐLĐ-{ma_cty_hd}"
                                             
                                             # Chuẩn hóa tên phòng ban
                                             pbn_chuan = chuan_hoa_ten_phong_ban(pbn)
@@ -8009,25 +8066,42 @@ elif menu == "✅ Nhân viên":
                                                 value=date.today(),
                                                 key=f"ngay_qd_{nv_id_key}"
                                             )
-                                            
+
+                                            # Mã công ty của TENANT ĐANG ĐĂNG NHẬP — trước đây bị khóa cứng "CHL"
+                                            # (mã của Hòn La) nên với tenant khác (VD DEMO-HRM), pattern LIKE
+                                            # '%/HĐLĐ-CHL' không bao giờ khớp -> max_stt luôn = 0 -> số luôn ra "01".
+                                            ma_cty_hd = st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL'
+
+                                            loai_hd_moi_lbl = st.selectbox(
+                                                "📑 Loại HĐLĐ mới:",
+                                                ["Không xác định thời hạn", "Xác định thời hạn 12 tháng",
+                                                 "Xác định thời hạn 24 tháng", "Xác định thời hạn 36 tháng"],
+                                                key=f"loai_hd_moi_{nv_id_key}"
+                                            )
+                                            if loai_hd_moi_lbl == "Không xác định thời hạn":
+                                                loai_hop_dong_luu = "Không xác định thời hạn"
+                                                han_hd_thang = None
+                                            else:
+                                                loai_hop_dong_luu = "Xác định thời hạn"
+                                                han_hd_thang = int(loai_hd_moi_lbl.split()[-2])
+
                                             current_year = datetime.now().year
                                             db_temp2 = st.session_state.db_engine.get_connection()
                                             c_temp2 = db_temp2.cursor()
-                                            pattern = f'%/{current_year}/HĐLĐ-CHL'
                                             c_temp2.execute("""
                                                 SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) as max_stt
                                                 FROM nhan_vien 
                                                 WHERE so_hdld LIKE %s 
                                                 AND trang_thai = 'DANG_LAM'
                                                 AND loai_hop_dong != 'Thử việc'
-                                            """, (f'%/{current_year}/HĐLĐ-CHL',))
+                                            """, (f'%/{current_year}/HĐLĐ-{ma_cty_hd}',))
                                             result = c_temp2.fetchone()
                                             max_stt = result[0] if result else 0
                                             db_temp2.close()
                                             
                                             next_stt = max_stt + 1
                                             stt_str = str(next_stt).zfill(2)
-                                            so_hd_moi = f"{stt_str}/{current_year}/HĐLĐ-CHL"
+                                            so_hd_moi = f"{stt_str}/{current_year}/HĐLĐ-{ma_cty_hd}"
                                             
                                             st.info(f"📄 **Số HĐLĐ mới:** {so_hd_moi} (tự động sinh)")
                                             
@@ -8036,6 +8110,12 @@ elif menu == "✅ Nhân viên":
                                                 value=ngay_quyet_dinh,
                                                 key=f"ngay_hl_{nv_id_key}"
                                             )
+
+                                            if han_hd_thang:
+                                                ngay_het_han_hd = ngay_hieu_luc + relativedelta(months=han_hd_thang) - timedelta(days=1)
+                                                st.caption(f"📆 Hợp đồng sẽ hết hạn: {ngay_het_han_hd.strftime('%d/%m/%Y')}")
+                                            else:
+                                                ngay_het_han_hd = None
                                             
                                             ngay_bat_dau_bh = st.date_input(
                                                 "📅 Ngày bắt đầu đóng BHXH:", 
@@ -8046,7 +8126,7 @@ elif menu == "✅ Nhân viên":
                                             
                                             ly_do_chuyen = st.text_area(
                                                 "📝 Lý do/ Nội dung quyết định:", 
-                                                value="Hoàn thành thời gian thử việc, chuyển sang hợp đồng lao động không xác định thời hạn",
+                                                value=f"Hoàn thành thời gian thử việc, chuyển sang hợp đồng lao động {loai_hd_moi_lbl.lower()}",
                                                 key=f"ly_do_{nv_id_key}",
                                                 height=80
                                             )
@@ -8078,17 +8158,18 @@ elif menu == "✅ Nhân viên":
                                                             WHERE so_hdld LIKE %s 
                                                             AND trang_thai = 'DANG_LAM'
                                                             AND loai_hop_dong != 'Thử việc'
-                                                        """, (f'%/{current_year}/HĐLĐ-CHL',))
+                                                        """, (f'%/{current_year}/HĐLĐ-{ma_cty_hd}',))
                                                         result = c.fetchone()
                                                         max_stt = result[0] if result else 0
                                                         next_stt = max_stt + 1
                                                         stt_str = str(next_stt).zfill(2)
-                                                        so_hd_moi = f"{stt_str}/{current_year}/HĐLĐ-CHL"
+                                                        so_hd_moi = f"{stt_str}/{current_year}/HĐLĐ-{ma_cty_hd}"
                                                         
                                                         c.execute("""
                                                             UPDATE nhan_vien SET 
                                                                 trang_thai = 'DANG_LAM',
-                                                                loai_hop_dong = 'Không xác định thời hạn',
+                                                                loai_hop_dong = %s,
+                                                                han_hop_dong_thang = %s,
                                                                 so_hdld = %s,
                                                                 ngay_ky_hd = %s,
                                                                 ngay_chinh_thuc = %s,
@@ -8096,7 +8177,7 @@ elif menu == "✅ Nhân viên":
                                                                 trang_thai_bhxh = 'DANG_DONG',
                                                                 ngay_ket_thuc = NULL
                                                             WHERE id = %s
-                                                        """, (so_hd_moi, ngay_quyet_dinh, ngay_hieu_luc, ngay_bat_dau_bh, int(selected_nv['id'])))
+                                                        """, (loai_hop_dong_luu, han_hd_thang, so_hd_moi, ngay_quyet_dinh, ngay_hieu_luc, ngay_bat_dau_bh, int(selected_nv['id'])))
                                                         
                                                         c.execute("""
                                                             INSERT INTO quyet_dinh_nhan_su (
@@ -8112,7 +8193,7 @@ elif menu == "✅ Nhân viên":
                                                             ly_do_chuyen,
                                                             f"QD{ngay_quyet_dinh.strftime('%Y%m%d')}_{selected_nv['ma_nv']}",
                                                             nv_data.get('loai_hop_dong', 'Thử việc'),
-                                                            'Không xác định thời hạn',
+                                                            loai_hop_dong_luu,
                                                             nv_data.get('he_so_luong', 0),
                                                             nv_data.get('he_so_luong', 0),
                                                             so_hd_tv_cu
@@ -8137,8 +8218,8 @@ elif menu == "✅ Nhân viên":
                                                             ngay_hieu_luc,
                                                             nv_data.get('chuc_danh_nghe', ''),
                                                             nv_data.get('phong_ban_lam_viec', ''),
-                                                            nv_data.get('noi_lam_viec', 'Cảng THQT Hòn La'),
-                                                            'Không xác định thời hạn',
+                                                            nv_data.get('noi_lam_viec') or get_cau_hinh('noi_lam_viec', 'Cảng THQT Hòn La'),
+                                                            loai_hop_dong_luu,
                                                             nv_data.get('he_so_luong', 0),
                                                             so_hd_moi
                                                         ))
@@ -8146,7 +8227,7 @@ elif menu == "✅ Nhân viên":
                                                         db.commit()
                                                         db.close()
                                                         
-                                                        st.success(f"✅ Đã chuyển {nv_data['ho_ten']} sang HĐLĐ không xác định thời hạn!")
+                                                        st.success(f"✅ Đã chuyển {nv_data['ho_ten']} sang HĐLĐ {loai_hd_moi_lbl.lower()}!")
                                                         st.info(f"📄 Số HĐTV cũ: {so_hd_tv_cu}")
                                                         st.info(f"📄 Số HĐLĐ mới: {so_hd_moi}")
                                                         st.cache_data.clear()
@@ -10556,7 +10637,56 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
         )
 
         st.divider()
-        st.markdown("**📄 Đánh số Công văn đi**")
+        st.markdown("**📍 Thông tin dùng trong Hợp đồng / Quyết định / Hồ sơ BHXH**")
+        st.caption("Các giá trị này chỉ áp dụng cho công ty bạn, không ảnh hưởng các khách hàng khác dùng chung app. "
+                   "Điền 1 lần, hệ thống sẽ tự điền vào Điều 2 quyết định, dòng ký hợp đồng, và các form liên quan.")
+        dia_diem_moi = st.text_input(
+            "Địa danh ký văn bản (VD: Quảng Trị, Hà Nội...):",
+            value=get_cau_hinh('dia_diem', 'Quảng Trị'), key="cty_dia_diem_input",
+            help="Dùng cho dòng '..., ngày ... tháng ... năm ...' ở Quyết định nhân sự và Hợp đồng lao động."
+        )
+        noi_lam_viec_moi = st.text_input(
+            "Nơi làm việc mặc định:", value=get_cau_hinh('noi_lam_viec', 'Cảng THQT Hòn La'),
+            key="cty_noi_lam_viec_input"
+        )
+        col_dc1, col_dc2 = st.columns(2)
+        with col_dc1:
+            tinh_nhan_hs_moi = st.text_input(
+                "Tỉnh/TP nhận hồ sơ BHXH:", value=get_cau_hinh('tinh_nhan_hs', 'Tỉnh Quảng Trị'),
+                key="cty_tinh_nhan_hs_input"
+            )
+            tinh_kcb_moi = st.text_input(
+                "Tỉnh nơi khám chữa bệnh:", value=get_cau_hinh('tinh_kcb', 'Tỉnh Quảng Trị'),
+                key="cty_tinh_kcb_input"
+            )
+            tinh_khai_sinh_moi = st.text_input(
+                "Tỉnh/TP khai sinh mặc định:", value=get_cau_hinh('tinh_khai_sinh', 'Tỉnh Quảng Trị'),
+                key="cty_tinh_khai_sinh_input"
+            )
+        with col_dc2:
+            dia_chi_nhan_hs_moi = st.text_area(
+                "Địa chỉ nhận hồ sơ:", value=get_cau_hinh('dia_chi_nhan_hs', 'Công ty cổ phần Cảng Hòn La'),
+                key="cty_dia_chi_nhan_hs_input", height=68
+            )
+            noi_dang_ky_kcb_moi = st.text_input(
+                "Nơi đăng ký KCB:", value=get_cau_hinh('noi_dang_ky_kcb', 'Bệnh viện đa khoa khu vực Bắc Quảng Trị'),
+                key="cty_noi_dang_ky_kcb_input"
+            )
+        if st.button("💾 Lưu thông tin công ty", key="btn_save_thong_tin_cty"):
+            if not can_edit():
+                st.error("❌ Bạn không có quyền chỉnh sửa!")
+            else:
+                set_cau_hinh('dia_diem', dia_diem_moi.strip(), 'Địa danh ký văn bản')
+                set_cau_hinh('noi_lam_viec', noi_lam_viec_moi.strip(), 'Nơi làm việc mặc định')
+                set_cau_hinh('tinh_nhan_hs', tinh_nhan_hs_moi.strip(), 'Tỉnh/TP nhận hồ sơ BHXH')
+                set_cau_hinh('tinh_kcb', tinh_kcb_moi.strip(), 'Tỉnh nơi KCB')
+                set_cau_hinh('tinh_khai_sinh', tinh_khai_sinh_moi.strip(), 'Tỉnh/TP khai sinh mặc định')
+                set_cau_hinh('dia_chi_nhan_hs', dia_chi_nhan_hs_moi.strip(), 'Địa chỉ nhận hồ sơ')
+                set_cau_hinh('noi_dang_ky_kcb', noi_dang_ky_kcb_moi.strip(), 'Nơi đăng ký KCB')
+                st.success("✅ Đã lưu thông tin công ty!")
+                st.rerun()
+
+
         cv_option_hien_tai = get_cv_danh_so_option()
         cv_option_moi = st.radio(
             "Phương án đánh số công văn đi:",
@@ -11095,8 +11225,10 @@ elif menu == "📋 Báo cáo định kỳ":
                         ws['T1'].font = Font(bold=True, size=13, name='Times New Roman')
                         ws['T1'].alignment = Alignment(horizontal='center')
                     
+                        ma_cty_bc = (st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL')
+                        dia_diem_bc = COMPANY_CONFIG.get('dia_diem') or get_cau_hinh('dia_diem', 'Quảng Trị')
                         ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=6)
-                        ws['A2'] = f"Số: 01/BC-01PLI-{datetime.now().year}/CHL"
+                        ws['A2'] = f"Số: 01/BC-01PLI-{datetime.now().year}/{ma_cty_bc}"
                         ws['A2'].font = Font(size=12, name='Times New Roman')
                         ws['A2'].alignment = Alignment(horizontal='center')
                     
@@ -11106,7 +11238,7 @@ elif menu == "📋 Báo cáo định kỳ":
                         ws['T2'].alignment = Alignment(horizontal='center')
                     
                         ws.merge_cells(start_row=3, start_column=20, end_row=3, end_column=26)
-                        ws['T3'] = f"Quảng Trị, ngày {date.today().day} tháng {date.today().month} năm {date.today().year}"
+                        ws['T3'] = f"{dia_diem_bc}, ngày {date.today().day} tháng {date.today().month} năm {date.today().year}"
                         ws['T3'].font = Font(italic=True, size=12, name='Times New Roman')
                         ws['T3'].alignment = Alignment(horizontal='right')
                     

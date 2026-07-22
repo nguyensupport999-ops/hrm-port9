@@ -207,13 +207,16 @@ def la_phong_ban_lanh_dao_cao_cap(ten):
 
 def can_edit():
     """Kiểm tra xem user hiện tại có quyền chỉnh sửa dữ liệu không"""
-    # Admin, HR, Văn thư, Kế toán lương có quyền chỉnh sửa
+    # Admin, HR, Văn thư, Kế toán lương có quyền chỉnh sửa.
+    # LƯU Ý: 'xem_toan_bo' (Xem toàn bộ - không chỉnh sửa) CỐ Ý không có trong danh sách này —
+    # vai trò này được thấy TOÀN BỘ menu/tab như Admin nhưng mọi nút Lưu/Sửa/Xóa/Cập nhật đều
+    # phải bị disabled (xem các nơi dùng disabled=not can_edit()).
     edit_roles = ['admin', 'hr', 'van_thu', 'kt_luong']
     return st.session_state.get('role') in edit_roles
 
 def can_delete():
     """Kiểm tra xem user hiện tại có quyền xóa dữ liệu không"""
-    # Chỉ Admin mới có quyền xóa
+    # Chỉ Admin mới có quyền xóa ('xem_toan_bo' không có quyền xóa)
     return st.session_state.get('role') == 'admin'
 
 def can_export():
@@ -224,7 +227,7 @@ def can_export():
 
 def can_manage_users():
     """Kiểm tra xem user hiện tại có quyền quản lý người dùng không"""
-    # Chỉ Admin mới có quyền quản lý người dùng
+    # Chỉ Admin mới có quyền quản lý người dùng ('xem_toan_bo' không có quyền này)
     return st.session_state.get('role') == 'admin'
 
 def get_chu_ho_info(nhan_vien_id):
@@ -743,6 +746,41 @@ def get_phong_ban_options():
         pass
     # Fallback: tenant chưa tự nhập danh mục riêng -> dùng danh mục mặc định
     return list(PHONG_BAN_THU_TU)
+
+def get_chuc_vu_options():
+    """Trả về danh sách Chức vụ (dùng cho dropdown 'Chức vụ được bổ nhiệm/miễn nhiệm'
+    trong tab Quyết định nhân sự), ƯU TIÊN theo danh mục riêng của TỪNG TENANT
+    (bảng chuc_vu_danh_muc, nhập qua màn ⚙️ Danh mục > Chức vụ).
+
+    LƯU Ý: trước đây khoá cứng theo hằng số DANH_SACH_CHUC_VU (danh mục riêng
+    của Hòn La), khiến các tenant khác đã tự nhập danh mục Chức vụ riêng nhưng
+    không được dropdown này sử dụng. Nay đọc từ DB tenant trước, chỉ fallback
+    về DANH_SACH_CHUC_VU khi tenant chưa nhập danh mục riêng (bảng rỗng)."""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS chuc_vu_danh_muc (
+                id SERIAL PRIMARY KEY,
+                ten_chuc_vu VARCHAR(150) UNIQUE NOT NULL,
+                thu_tu INT DEFAULT 0,
+                trang_thai VARCHAR(20) DEFAULT 'Hoạt động'
+            )
+        """)
+        db.commit()
+        c.execute("""
+            SELECT ten_chuc_vu FROM chuc_vu_danh_muc
+            WHERE trang_thai = 'Hoạt động'
+            ORDER BY thu_tu, id
+        """)
+        rows = [r[0] for r in c.fetchall() if r[0]]
+        db.close()
+        if rows:
+            return rows
+    except Exception:
+        pass
+    # Fallback: tenant chưa tự nhập danh mục riêng -> dùng danh mục mặc định
+    return list(DANH_SACH_CHUC_VU)
 
 # ============================================================
 # 🤖 CHATBOT GIẢI ĐÁP — AI Tư vấn Hành chính Nhân sự
@@ -3382,7 +3420,7 @@ def show_quan_ly_cong_van():
             )
             
             if new_option != current_option:
-                if st.button("✅ Cập nhật cấu hình", type="primary"):
+                if st.button("✅ Cập nhật cấu hình", type="primary", disabled=not can_edit()):
                     if update_cv_danh_so_option(new_option):
                         st.success(f"✅ Đã cập nhật cấu hình sang: {new_option}")
                         st.cache_data.clear()
@@ -3512,7 +3550,7 @@ def show_quan_ly_cong_van():
                     )
                     col_confirm, col_cancel = st.columns(2)
                     with col_confirm:
-                        if st.button("✅ Xác nhận đặt lại số", type="primary", key="confirm_dat_lai_so"):
+                        if st.button("✅ Xác nhận đặt lại số", type="primary", key="confirm_dat_lai_so", disabled=not can_edit()):
                             if update_so_max_cong_van(pending['loai'], pending['so_moi']):
                                 st.success(
                                     f"✅ Đã đặt lại số cho {selected_loai_display} "
@@ -3534,7 +3572,7 @@ def show_quan_ly_cong_van():
             prefix_hdkt_moi = st.text_input(
                 "Prefix đánh số HĐKT:", value=prefix_hdkt_hien_tai, key="hdkt_prefix_input"
             )
-            if st.button("✅ Cập nhật prefix HĐKT", key="btn_update_hdkt_prefix"):
+            if st.button("✅ Cập nhật prefix HĐKT", key="btn_update_hdkt_prefix", disabled=not can_edit()):
                 if prefix_hdkt_moi.strip() and update_hdkt_prefix(prefix_hdkt_moi.strip()):
                     st.success(f"✅ Đã cập nhật prefix HĐKT sang: {prefix_hdkt_moi.strip()}")
                     st.cache_data.clear()
@@ -3567,7 +3605,7 @@ def show_quan_ly_cong_van():
                 
                 col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
                 with col_btn2:
-                    if st.form_submit_button("💾 Lưu công văn đến", width='stretch', type="primary"):
+                    if st.form_submit_button("💾 Lưu công văn đến", width='stretch', type="primary", disabled=not can_edit()):
                         if not so_cv or not co_quan or not tieu_de:
                             st.error("⚠️ Vui lòng nhập đầy đủ các trường bắt buộc (*)")
                         else:
@@ -3715,7 +3753,7 @@ def show_quan_ly_cong_van():
                 
                 col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
                 with col_btn2:
-                    if st.form_submit_button("💾 Lưu công văn đi", width='stretch', type="primary"):
+                    if st.form_submit_button("💾 Lưu công văn đi", width='stretch', type="primary", disabled=not can_edit()):
                         if not phong_phat_hanh or not tieu_de:
                             st.error("⚠️ Vui lòng nhập đầy đủ các trường bắt buộc (*)")
                         else:
@@ -3824,7 +3862,7 @@ def show_quan_ly_cong_van():
                         trich_yeu_sua_cvd = st.text_area("Trích yếu:", value=bg_sua.get('trich_yeu') or '', key=f"sua_ty_cvd_{bg_sua['id']}", height=80)
                     col_luu_cvd, col_xoa_cvd = st.columns(2)
                     with col_luu_cvd:
-                        if st.button("💾 Lưu thay đổi", key=f"btn_luu_cvd_{bg_sua['id']}", type="primary", width='stretch'):
+                        if st.button("💾 Lưu thay đổi", key=f"btn_luu_cvd_{bg_sua['id']}", type="primary", width='stretch', disabled=not can_edit()):
                             try:
                                 db_s = st.session_state.db_engine.get_connection()
                                 c_s = db_s.cursor()
@@ -3839,7 +3877,7 @@ def show_quan_ly_cong_van():
                             except Exception as e:
                                 st.error(f"❌ Lỗi: {e}")
                     with col_xoa_cvd:
-                        if st.button("🗑️ Xóa công văn này", key=f"btn_xoa_cvd_{bg_sua['id']}", width='stretch'):
+                        if st.button("🗑️ Xóa công văn này", key=f"btn_xoa_cvd_{bg_sua['id']}", width='stretch', disabled=not can_edit()):
                             try:
                                 db_x = st.session_state.db_engine.get_connection()
                                 c_x = db_x.cursor()
@@ -3914,7 +3952,7 @@ def show_quan_ly_cong_van():
                 
                 col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
                 with col_btn2:
-                    if st.form_submit_button("💾 Lưu hợp đồng", width='stretch', type="primary"):
+                    if st.form_submit_button("💾 Lưu hợp đồng", width='stretch', type="primary", disabled=not can_edit()):
                         if not ten_doi_tac:
                             st.error("⚠️ Vui lòng nhập đầy đủ các trường bắt buộc (*)")
                         else:
@@ -3998,7 +4036,7 @@ def show_quan_ly_cong_van():
                         trich_yeu_sua_hd = st.text_area("Trích yếu:", value=hd_sua.get('trich_yeu') or '', key=f"sua_ty_hd_{hd_sua['id']}", height=80)
                     col_luu_hd, col_xoa_hd = st.columns(2)
                     with col_luu_hd:
-                        if st.button("💾 Lưu thay đổi", key=f"btn_luu_hd_{hd_sua['id']}", type="primary", width='stretch'):
+                        if st.button("💾 Lưu thay đổi", key=f"btn_luu_hd_{hd_sua['id']}", type="primary", width='stretch', disabled=not can_edit()):
                             try:
                                 db_s = st.session_state.db_engine.get_connection()
                                 c_s = db_s.cursor()
@@ -4013,7 +4051,7 @@ def show_quan_ly_cong_van():
                             except Exception as e:
                                 st.error(f"❌ Lỗi: {e}")
                     with col_xoa_hd:
-                        if st.button("🗑️ Xóa hợp đồng này", key=f"btn_xoa_hd_{hd_sua['id']}", width='stretch'):
+                        if st.button("🗑️ Xóa hợp đồng này", key=f"btn_xoa_hd_{hd_sua['id']}", width='stretch', disabled=not can_edit()):
                             try:
                                 db_x = st.session_state.db_engine.get_connection()
                                 c_x = db_x.cursor()
@@ -4617,6 +4655,24 @@ def ensure_qdns_table():
         c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS file_url TEXT")
         c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS nguoi_tao VARCHAR(100)")
         c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()")
+        # Các cột "hiển thị" mà tab Lịch sử công tác (mục 📋 Các quyết định nhân sự) đọc ra —
+        # trước đây chỉ tồn tại trên DB tạo theo schema cũ, khiến các quyết định tạo từ tab
+        # "QUYẾT ĐỊNH NHÂN SỰ" (vốn chỉ ghi so_qd/loai_qd/ngay_qd) hiển thị toàn "None" vì
+        # thiếu các cột này. Đảm bảo luôn có đủ trên mọi tenant.
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS so_quyet_dinh VARCHAR(50)")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS loai_quyet_dinh VARCHAR(30)")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS ngay_quyet_dinh DATE")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS ngay_hieu_luc DATE")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS nguoi_ky VARCHAR(150)")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS chuc_danh_cu VARCHAR(150)")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS chuc_danh_moi VARCHAR(150)")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS phong_ban_cu VARCHAR(150)")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS phong_ban_moi VARCHAR(150)")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS loai_hop_dong_cu VARCHAR(50)")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS loai_hop_dong_moi VARCHAR(50)")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS he_so_luong_cu VARCHAR(20)")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS he_so_luong_moi VARCHAR(20)")
+        c.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS so_hd_cu VARCHAR(50)")
         # Sửa lỗi: bảng quyet_dinh_nhan_su trên một số DB (đã tồn tại từ trước, tạo thủ công/khác
         # phiên bản) có thêm cột "loai_quyet_dinh" (khác với cột "loai_qd" mà code hiện tại dùng)
         # và cột đó bị đặt NOT NULL. Vì INSERT ở tab "QUYẾT ĐỊNH NHÂN SỰ" chỉ điền "loai_qd" chứ
@@ -5920,6 +5976,11 @@ elif st.session_state.role == "van_thu":
 elif st.session_state.role == "viewer":
     # Viewer: chỉ xem, thu hẹp — không có BHXH, không có Tính thu nhập
     menu_options = ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo định kỳ","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
+elif st.session_state.role == "xem_toan_bo":
+    # Vai trò "Xem toàn bộ (không chỉnh sửa)": thấy ĐẦY ĐỦ menu & tab giống hệt Admin,
+    # nhưng KHÔNG có quyền thay đổi dữ liệu — mọi nút Lưu/Sửa/Xóa/Cập nhật/Save trong các
+    # màn hình bên dưới đều bị làm mờ (disabled=not can_edit()/can_delete()).
+    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📥 Nhập/Xuất Excel","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","🔍 Audit Dashboard","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role == "demo_readonly":
     # Vai trò DÀNH RIÊNG cho tài khoản demo công khai: thấy TOÀN BỘ menu như admin
     # (trừ Danh mục/Nhập-Xuất Excel/Audit vốn là công cụ cấu hình hệ thống, không
@@ -6081,9 +6142,9 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
     # ===== Nút hành động (thêm nút "Đóng" ở cuối) =====
     st.divider()
     col_btn_action1, col_btn_action2, col_btn_action3, col_btn_action4, col_btn_action5 = st.columns(5)
-    if st.session_state.role == "admin":
+    if st.session_state.role in ("admin", "xem_toan_bo"):
         with col_btn_action1:
-            if st.button("✏️ SỬA NHÂN VIÊN", width='stretch', type="primary", key=f"edit_nv_btn_{key_prefix}"):
+            if st.button("✏️ SỬA NHÂN VIÊN", width='stretch', type="primary", key=f"edit_nv_btn_{key_prefix}", disabled=not can_edit()):
                 st.session_state['selected_nv_id'] = int(nv['id'])
                 st.rerun()
 
@@ -6135,7 +6196,7 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
             ma_bhxh = nv.get('ma_so_bhxh', '')
             chua_co_bhxh = not bool(ma_bhxh and str(ma_bhxh).strip())
             if chua_co_bhxh:
-                if st.button("🏠 NHẬP T.TIN HỘ GĐ", width='stretch', type="primary", key=f"bhxh_family_{key_prefix}"):
+                if st.button("🏠 NHẬP T.TIN HỘ GĐ", width='stretch', type="primary", key=f"bhxh_family_{key_prefix}", disabled=not can_edit()):
                     st.session_state['bhxh_family_nv_id'] = int(nv['id'])
                     st.session_state['bhxh_family_nv_name'] = nv['ho_ten']
                     st.rerun()
@@ -6156,14 +6217,6 @@ if menu == "📊 Dashboard":
     
     # Lấy dữ liệu từ cache
     stats = get_dashboard_stats()
-    
-    # Hiển thị metrics
-    col1, col2, col3, col4, col5 = st.columns(5)
-    col1.metric("Tổng UV", stats['tong_uv'])
-    col2.metric("Nhân viên", stats['tong_nv'])
-    col3.metric("Chờ duyệt", stats['uv_by_status'].get('CHO_DUYET', 0))
-    col4.metric("Đã nhận", stats['uv_by_status'].get('DA_NHAN_VIEC', 0))
-    col5.metric("Từ chối", stats['uv_by_status'].get('TU_CHOI', 0))
 
     # ===== CẢNH BÁO 1: Chuẩn bị 6 Báo cáo định kỳ (30/06-05/07 và 31/12-05/01) =====
     hom_nay = date.today()
@@ -6827,7 +6880,7 @@ if menu == "📊 Dashboard":
                     st.info(f"🎂 {xung_ho} **{sn['ho_ten']}** - {format_date(sn['ngay_sinh'])}")
 
     with tab_lich_su:
-        if st.session_state.role == "admin":
+        if st.session_state.role in ("admin", "xem_toan_bo"):
             st.subheader("📜 Lịch sử đã gửi lời chúc sinh nhật")
             
             # Kiểm tra bảng lịch sử tồn tại chưa
@@ -6866,7 +6919,7 @@ if menu == "📊 Dashboard":
     st.divider()
 
     # Nút gửi lời chúc sinh nhật (chỉ admin)
-    if st.session_state.role == "admin" and sinh_nhat_trong_thang:
+    if st.session_state.role in ("admin", "xem_toan_bo") and sinh_nhat_trong_thang:
         with st.expander("💌 GỬI LỜI CHÚC SINH NHẬT", expanded=False):
             st.subheader("Gửi lời chúc sinh nhật đến nhân viên")
             
@@ -7010,7 +7063,7 @@ if menu == "📊 Dashboard":
         st.success(f"🟢 Hôm nay có thêm: **{', '.join([x['ho_ten'] for x in hn])}**")
     if hq:
         st.info(f"🔵 Hôm qua có thêm: **{', '.join([x['ho_ten'] for x in hq])}**")
-    if st.session_state.role == "admin":
+    if st.session_state.role in ("admin", "xem_toan_bo"):
         c3.execute("""
             SELECT STT, ma_nv, ho_ten, ngay_vao_lam, 
                    (ngay_vao_lam + INTERVAL '30 days')::DATE as ngay_ket_thuc_tv,
@@ -7034,7 +7087,7 @@ if menu == "📊 Dashboard":
     db3.close()
     
     
-    if st.session_state.role == "admin":
+    if st.session_state.role in ("admin", "xem_toan_bo"):
         st.markdown("#### 💾 Sao lưu dữ liệu")
         col_bk1, col_bk2 = st.columns(2)
 
@@ -7205,7 +7258,7 @@ elif menu == "👤 Ứng viên":
                 ho_so_chuyen = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"])
             col_confirm1, col_confirm2 = st.columns(2)
             with col_confirm1:
-                if st.form_submit_button("✅ XÁC NHẬN CHUYỂN", width='stretch', type="primary"):
+                if st.form_submit_button("✅ XÁC NHẬN CHUYỂN", width='stretch', type="primary", disabled=not can_edit()):
                     if ho_ten_nv:
                         # Kiểm tra định dạng ngày
                         ngay_loi = []
@@ -7362,7 +7415,7 @@ elif menu == "👤 Ứng viên":
         filter_vi_tri = st.selectbox("🔍 Lọc Vị trí dự tuyển:", ["Tất cả"] + ds_vi_tri)
     
     # Chỉ admin mới thấy nút thêm ứng viên
-    if st.session_state.role == "admin":
+    if st.session_state.role in ("admin", "xem_toan_bo"):
         with st.expander("➕ THÊM ỨNG VIÊN MỚI", expanded=False):
             with st.form("add_uv_form"):
                 db_f = st.session_state.db_engine.get_connection()
@@ -7383,7 +7436,7 @@ elif menu == "👤 Ứng viên":
                     ngay_vao_lam_uv = st.text_input("Ngày vào làm (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
                     ghi_chu_uv = st.text_area("Ghi chú")
                 
-                if st.form_submit_button("💾 LƯU", width='stretch'):
+                if st.form_submit_button("💾 LƯU", width='stretch', disabled=not can_edit()):
                     if not can_edit():
                         st.error("❌ Bạn không có quyền thực hiện thao tác này!")
                     else:
@@ -7467,7 +7520,7 @@ elif menu == "👤 Ứng viên":
                 
                 st.caption(f"📌 {len(ds)} kết quả.")
                 
-                if st.session_state.role == "admin":
+                if st.session_state.role in ("admin", "xem_toan_bo"):
                     # Admin: hiển thị bảng có checkbox và nút chức năng
                     if 'selected' not in df.columns:
                         df.insert(0, 'selected', False)
@@ -7530,7 +7583,7 @@ elif menu == "👤 Ứng viên":
                 st.info("Không có dữ liệu")
     
     # Form sửa ứng viên (chỉ admin)
-    if st.session_state.get('edit_uv_id') and st.session_state.role == "admin":
+    if st.session_state.get('edit_uv_id') and st.session_state.role in ("admin", "xem_toan_bo"):
         st.divider()
         st.subheader(f"✏️ Sửa ứng viên")
         db = st.session_state.db_engine.get_connection()
@@ -7558,7 +7611,7 @@ elif menu == "👤 Ứng viên":
                 
                 col_save, col_del, col_cancel = st.columns(3)
                 with col_save:
-                    if st.form_submit_button("💾 CẬP NHẬT"):
+                    if st.form_submit_button("💾 CẬP NHẬT", disabled=not can_edit()):
                         if not can_edit():
                             st.error("❌ Bạn không có quyền thực hiện thao tác này!")
                         else:
@@ -7585,7 +7638,7 @@ elif menu == "👤 Ứng viên":
                                 st.rerun()
 
                 with col_del:
-                    if st.form_submit_button("🗑️ XÓA"):
+                    if st.form_submit_button("🗑️ XÓA", disabled=not can_edit()):
                         if not can_delete():
                             st.error("❌ Bạn không có quyền xóa dữ liệu!")
                         else:
@@ -7605,14 +7658,14 @@ elif menu == "👤 Ứng viên":
     
     # Quản lý danh mục vị trí dự tuyển (chỉ admin) - bảng RIÊNG chuc_danh_ung_vien,
     # độc lập với danh mục chức danh Nhân viên (vi_tri_cong_tac)
-    if st.session_state.role == "admin":
+    if st.session_state.role in ("admin", "xem_toan_bo"):
         st.divider()
         with st.expander("⚙️ Quản lý danh mục Vị trí dự tuyển (riêng cho Ứng viên)", expanded=False):
             st.caption("Danh mục này độc lập với danh mục Chức danh của Nhân viên — "
                        "đổi chức danh Nhân viên sẽ không ảnh hưởng đến danh mục và dữ liệu Ứng viên.")
             with st.form("add_vi_tri_uv"):
                 ten_vt_moi = st.text_input("Tên vị trí dự tuyển mới *")
-                if st.form_submit_button("➕ Thêm"):
+                if st.form_submit_button("➕ Thêm", disabled=not can_edit()):
                     if ten_vt_moi:
                         db = st.session_state.db_engine.get_connection()
                         c = db.cursor()
@@ -7663,7 +7716,7 @@ elif menu == "✅ Nhân viên":
         # Phải làm TRƯỚC khi widget text_input được khởi tạo, nếu không Streamlit sẽ báo lỗi
         if st.session_state.pop('_reset_snv_dang_lam', False):
             st.session_state['snv_dang_lam'] = ''
-        if st.session_state.role == "admin":
+        if st.session_state.role in ("admin", "xem_toan_bo"):
             st.session_state.setdefault('add_nv_reset_ctr', 0)
             with st.expander("➕ THÊM NHÂN VIÊN MỚI", expanded=False, key=f"add_nv_expander_{st.session_state.add_nv_reset_ctr}"):
                 with st.form(f"add_nv_{st.session_state.add_nv_reset_ctr}"):
@@ -7738,7 +7791,7 @@ elif menu == "✅ Nhân viên":
                     
                     col_save_exit1, col_save_exit2 = st.columns(2)
                     with col_save_exit1:
-                        if st.form_submit_button("💾 LƯU", width='stretch'):
+                        if st.form_submit_button("💾 LƯU", width='stretch', disabled=not can_edit()):
                             if not can_edit():
                                 st.error("❌ Bạn không có quyền thực hiện thao tác này!")
                             else:
@@ -7809,7 +7862,7 @@ elif menu == "✅ Nhân viên":
                                                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                                 %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
                                                 (stt_moi, ma_nv, so_hd, htn, cdn, parse_date(nsn), gtn, scc, parse_date(ncc), ncc2, nqn, ttn,
-                                                 dtn2, emn, emn, hso, lbh, mbh, parse_date(nvl), nlv, stk, cnh, parse_date(nvl), lhd,
+                                                 dtn2, emn, emn, hso, to_float_or_none(lbh), mbh, parse_date(nvl), nlv, stk, cnh, parse_date(nvl), lhd,
                                                  nbh, tbd_val, None, ttnv, ttbh, pbn_chuan, parse_date(nkt), qtn, dtn, 
                                                  to_float_or_none(hsl), to_float_or_none(pcv), to_float_or_none(ptv), to_float_or_none(ptn),
                                                  mhb, to_float_or_none(tld), to_float_or_none(mtd), ptd, ths, phs, dhs, tkb, nkb, dks,
@@ -7970,7 +8023,7 @@ elif menu == "✅ Nhân viên":
                     st.caption(f"📌 Danh sách đầy đủ ({len(ds)} kết quả). Tick chọn 1 nhân viên để thao tác.")
                 
                 # Nếu là viewer, hiển thị bảng không có checkbox chọn
-                if st.session_state.role == "admin":
+                if st.session_state.role in ("admin", "xem_toan_bo"):
                     # Xử lý yêu cầu reset lựa chọn (đến từ nút "Đóng" của card thông tin nhân viên)
                     # Phải làm TRƯỚC khi widget data_editor được khởi tạo
                     if st.session_state.pop('_reset_nv_editor_danglam', False):
@@ -8019,7 +8072,7 @@ elif menu == "✅ Nhân viên":
                         )
 
                 selected_nv = None
-                if edited_df is not None and st.session_state.role == "admin" and 'Chọn' in edited_df.columns:
+                if edited_df is not None and st.session_state.role in ("admin", "xem_toan_bo") and 'Chọn' in edited_df.columns:
                     selected_rows = edited_df[edited_df['Chọn'] == True]
                     if len(selected_rows) > 0:
                         if len(selected_rows) > 1:
@@ -8246,7 +8299,7 @@ elif menu == "✅ Nhân viên":
                             st.divider()
             
             # Form sửa nhân viên (chỉ admin)
-            if 'selected_nv_id' in st.session_state and st.session_state.selected_nv_id is not None and st.session_state.role == "admin":
+            if 'selected_nv_id' in st.session_state and st.session_state.selected_nv_id is not None and st.session_state.role in ("admin", "xem_toan_bo"):
                 try:
                     nid = int(st.session_state['selected_nv_id'])
                     db = st.session_state.db_engine.get_connection()
@@ -8337,7 +8390,7 @@ elif menu == "✅ Nhân viên":
                                 hsov = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"], index=["", "Đã có HS", "Chưa có"].index(nd.get('ho_so', '')) if nd.get('ho_so') in ["Đã có HS", "Chưa có"] else 0)
                             col_save, col_cancel = st.columns(2)
                             with col_save:
-                                if st.form_submit_button("💾 CẬP NHẬT", width='stretch'):
+                                if st.form_submit_button("💾 CẬP NHẬT", width='stretch', disabled=not can_edit()):
                                     if not can_edit():
                                         st.error("❌ Bạn không có quyền thực hiện thao tác này!")
                                     else:
@@ -8422,7 +8475,7 @@ elif menu == "✅ Nhân viên":
                     st.rerun()
             
             # Form nhập thông tin hộ gia đình (chỉ admin) - Đặt NGOÀI form sửa nhân viên
-            if 'bhxh_family_nv_id' in st.session_state and st.session_state.bhxh_family_nv_id is not None and st.session_state.role == "admin":
+            if 'bhxh_family_nv_id' in st.session_state and st.session_state.bhxh_family_nv_id is not None and st.session_state.role in ("admin", "xem_toan_bo"):
                 nv_id = st.session_state['bhxh_family_nv_id']
                 nv_name = st.session_state['bhxh_family_nv_name']
                 st.divider()
@@ -8468,7 +8521,7 @@ elif menu == "✅ Nhân viên":
                     col_del1, col_del2, col_del3 = st.columns([1,1,1])
                     with col_del2:
                         tv_to_delete = st.number_input("Nhập STT thành viên cần xóa:", min_value=1, max_value=len(st.session_state.bhxh_family_members), step=1, key="tv_delete_family")
-                        if st.button("🗑️ Xóa thành viên", key="btn_del_tv_family"):
+                        if st.button("🗑️ Xóa thành viên", key="btn_del_tv_family", disabled=not can_edit()):
                             st.session_state.bhxh_family_members.pop(tv_to_delete - 1)
                             st.rerun()
                 
@@ -8561,7 +8614,7 @@ elif menu == "✅ Nhân viên":
                     
                     col_btn_add1, col_btn_add2, col_btn_add3 = st.columns([1,1,1])
                     with col_btn_add2:
-                        if st.form_submit_button("➕ Thêm thành viên vào danh sách", width='stretch'):
+                        if st.form_submit_button("➕ Thêm thành viên vào danh sách", width='stretch', disabled=not can_edit()):
                             if ho_ten_tv:
                                 st.session_state.bhxh_family_members.append({
                                     'ho_ten': ho_ten_tv, 'ngay_sinh': parse_date(ngay_sinh_tv), 'gioi_tinh': gioi_tinh_tv,
@@ -8575,7 +8628,7 @@ elif menu == "✅ Nhân viên":
                     st.markdown("---")
                     col_save1, col_save2, col_save3 = st.columns([1,2,1])
                     with col_save2:
-                        if st.form_submit_button("💾 LƯU THÔNG TIN CHỦ HỘ", width='stretch', type="primary"):
+                        if st.form_submit_button("💾 LƯU THÔNG TIN CHỦ HỘ", width='stretch', type="primary", disabled=not can_edit()):
                             try:
                                 db_luu = st.session_state.db_engine.get_connection()
                                 c_luu = db_luu.cursor()
@@ -8709,7 +8762,7 @@ elif menu == "✅ Nhân viên":
                     st.write(f"- **Mã BHXH:** {nv_nghi_detail.get('ma_so_bhxh', '')}")
                     st.write(f"- **Lý do nghỉ:** {nv_nghi_detail.get('ly_do_nghi', 'Chưa có thông tin')}")
                 
-                if st.session_state.role == "admin":
+                if st.session_state.role in ("admin", "xem_toan_bo"):
                     st.divider()
                     col_restore1, col_restore2, col_restore3 = st.columns([1, 2, 1])
                     with col_restore2:
@@ -8778,44 +8831,68 @@ elif menu == "✅ Nhân viên":
             
             if quyet_dinh_list:
                 st.markdown("### 📋 Các quyết định nhân sự")
+                loai_qd_map = {
+                    'THU_VIEC': '📝 Quyết định thử việc',
+                    'CHINH_THUC': '✅ Quyết định chính thức',
+                    'DIEU_CHUYEN': '🔄 Quyết định điều chuyển',
+                    'BO_NHIEM': '⭐ Quyết định bổ nhiệm',
+                    'MIEN_NHIEM': '⛔ Quyết định miễn nhiệm',
+                    'DOI_CHUC_DANH': '🔁 Quyết định đổi chức danh',
+                    'CHAM_DUT_HD': '📄 Quyết định chấm dứt HĐ',
+                    'TANG_LUONG': '💰 Quyết định tăng lương',
+                    'NGHI_VIEC': '🚫 Quyết định nghỉ việc'
+                }
+
+                # Bảng ghi cũ được tạo qua 2 luồng khác nhau với 2 bộ tên cột khác nhau
+                # (loai_qd/so_qd/ngay_qd -- cột "gốc" của tab Quyết định nhân sự -- và
+                # loai_quyet_dinh/so_quyet_dinh/ngay_quyet_dinh -- cột "hiển thị" cũ hơn).
+                # COALESCE ở Python để mọi bản ghi (cũ lẫn mới) đều hiển thị đúng, không còn "None".
+                def _qd_get(qd, *keys):
+                    for k in keys:
+                        v = qd.get(k)
+                        if v not in (None, ""):
+                            return v
+                    return None
+
                 qd_data = []
                 for i, qd in enumerate(quyet_dinh_list, 1):
-                    loai_qd_map = {
-                        'THU_VIEC': '📝 Quyết định thử việc',
-                        'CHINH_THUC': '✅ Quyết định chính thức',
-                        'DIEU_CHUYEN': '🔄 Quyết định điều chuyển',
-                        'BO_NHIEM': '⭐ Quyết định bổ nhiệm',
-                        'TANG_LUONG': '💰 Quyết định tăng lương',
-                        'NGHI_VIEC': '🚫 Quyết định nghỉ việc'
-                    }
+                    loai = _qd_get(qd, 'loai_quyet_dinh', 'loai_qd')
+                    ngay_qd_disp = _qd_get(qd, 'ngay_quyet_dinh', 'ngay_qd')
+                    ngay_hl_disp = _qd_get(qd, 'ngay_hieu_luc', 'ngay_quyet_dinh', 'ngay_qd')
+                    so_qd_disp = _qd_get(qd, 'so_quyet_dinh', 'so_qd')
+                    noi_dung_disp = qd.get('noi_dung') or ''
                     qd_data.append({
                         "STT": i,
-                        "Loại quyết định": loai_qd_map.get(qd['loai_quyet_dinh'], qd['loai_quyet_dinh']),
-                        "Số quyết định": qd['so_quyet_dinh'] or '...',
-                        "Ngày quyết định": format_date(qd['ngay_quyet_dinh']),
-                        "Ngày hiệu lực": format_date(qd['ngay_hieu_luc']),
-                        "Nội dung": (qd['noi_dung'][:50] + "...") if qd['noi_dung'] and len(qd['noi_dung']) > 50 else qd['noi_dung']
+                        "Loại quyết định": loai_qd_map.get(loai, loai or '...'),
+                        "Số quyết định": so_qd_disp or '...',
+                        "Ngày quyết định": format_date(ngay_qd_disp),
+                        "Ngày hiệu lực": format_date(ngay_hl_disp),
+                        "Nội dung": (noi_dung_disp[:50] + "...") if len(noi_dung_disp) > 50 else (noi_dung_disp or '...')
                     })
                 df_qd = pd.DataFrame(qd_data)
                 st.dataframe(df_qd, width='stretch', hide_index=True)
-                
+
                 with st.expander("🔍 Xem chi tiết quyết định"):
-                    qd_options = {f"{format_date(qd['ngay_quyet_dinh'])} - {qd['loai_quyet_dinh']}": qd for qd in quyet_dinh_list}
+                    qd_options = {
+                        f"{format_date(_qd_get(qd, 'ngay_quyet_dinh', 'ngay_qd'))} - {loai_qd_map.get(_qd_get(qd, 'loai_quyet_dinh', 'loai_qd'), _qd_get(qd, 'loai_quyet_dinh', 'loai_qd'))}": qd
+                        for qd in quyet_dinh_list
+                    }
                     selected_qd_name = st.selectbox("Chọn quyết định:", list(qd_options.keys()), key="qd_detail")
                     selected_qd = qd_options[selected_qd_name]
+                    nguoi_ky_disp = _qd_get(selected_qd, 'nguoi_ky') or COMPANY_CONFIG.get('dai_dien') or 'GIÁM ĐỐC'
                     st.markdown(f"""
                     **📄 Chi tiết quyết định:**
-                    - **Số quyết định:** {selected_qd.get('so_quyet_dinh', '...')}
-                    - **Ngày quyết định:** {format_date(selected_qd.get('ngay_quyet_dinh'))}
-                    - **Ngày hiệu lực:** {format_date(selected_qd.get('ngay_hieu_luc'))}
-                    - **Loại quyết định:** {selected_qd.get('loai_quyet_dinh')}
-                    - **Nội dung:** {selected_qd.get('noi_dung', '...')}
-                    - **Người ký:** {selected_qd.get('nguoi_ky', COMPANY_CONFIG.get('dai_dien', 'GIÁM ĐỐC'))}
+                    - **Số quyết định:** {_qd_get(selected_qd, 'so_quyet_dinh', 'so_qd') or '...'}
+                    - **Ngày quyết định:** {format_date(_qd_get(selected_qd, 'ngay_quyet_dinh', 'ngay_qd'))}
+                    - **Ngày hiệu lực:** {format_date(_qd_get(selected_qd, 'ngay_hieu_luc', 'ngay_quyet_dinh', 'ngay_qd'))}
+                    - **Loại quyết định:** {loai_qd_map.get(_qd_get(selected_qd, 'loai_quyet_dinh', 'loai_qd'), _qd_get(selected_qd, 'loai_quyet_dinh', 'loai_qd') or '...')}
+                    - **Nội dung:** {selected_qd.get('noi_dung') or '...'}
+                    - **Người ký:** {nguoi_ky_disp}
                     
                     **📊 Thay đổi:**
-                    - Chức danh: {selected_qd.get('chuc_danh_cu', '...')} → {selected_qd.get('chuc_danh_moi', '...')}
-                    - Phòng ban: {selected_qd.get('phong_ban_cu', '...')} → {selected_qd.get('phong_ban_moi', '...')}
-                    - Loại HĐ: {selected_qd.get('loai_hop_dong_cu', '...')} → {selected_qd.get('loai_hop_dong_moi', '...')}
+                    - Chức danh: {selected_qd.get('chuc_danh_cu') or '...'} → {selected_qd.get('chuc_danh_moi') or '...'}
+                    - Phòng ban: {selected_qd.get('phong_ban_cu') or '...'} → {selected_qd.get('phong_ban_moi') or '...'}
+                    - Loại HĐ: {selected_qd.get('loai_hop_dong_cu') or '...'} → {selected_qd.get('loai_hop_dong_moi') or '...'}
                     """)
             else:
                 st.info("📭 Nhân viên này chưa có quyết định nào.")
@@ -8862,7 +8939,7 @@ elif menu == "✅ Nhân viên":
     # ========== PHẦN XÓA NHÂN VIÊN THEO SỐ HĐ ==========
     st.divider()
     
-    if st.session_state.role == "admin":
+    if st.session_state.role in ("admin", "xem_toan_bo"):
         with st.expander("🗑️ CÔNG CỤ XÓA NHÂN VIÊN (CHỈ DÀNH CHO ADMIN)", expanded=False):
             st.warning("⚠️ **CẢNH BÁO:** Thao tác này sẽ XÓA VĨNH VIỄN nhân viên và tất cả dữ liệu liên quan!")
         
@@ -8907,7 +8984,7 @@ elif menu == "✅ Nhân viên":
                         if xac_nhan_cuoi:
                             col_confirm1, col_confirm2, col_confirm3 = st.columns([1, 2, 1])
                             with col_confirm2:
-                                if st.button("🗑️ XÁC NHẬN XÓA VĨNH VIỄN", type="primary", key="btn_confirm_xoa"):
+                                if st.button("🗑️ XÁC NHẬN XÓA VĨNH VIỄN", type="primary", key="btn_confirm_xoa", disabled=not can_edit()):
                                     if not can_delete():
                                         st.error("❌ Bạn không có quyền xóa dữ liệu!")
                                     else:
@@ -9014,8 +9091,10 @@ elif menu == "✅ Nhân viên":
             gia_tri_sau = None
             ok_to_submit = True
 
+            ds_chuc_vu_tenant = get_chuc_vu_options()
+
             if loai_qd == 'BO_NHIEM':
-                chuc_vu_moi = st.selectbox("🏷️ Chức vụ được bổ nhiệm:", DANH_SACH_CHUC_VU, key="qdns_cv_bonhiem")
+                chuc_vu_moi = st.selectbox("🏷️ Chức vụ được bổ nhiệm:", ds_chuc_vu_tenant, key="qdns_cv_bonhiem")
                 tieu_de = f"Bổ nhiệm chức vụ {chuc_vu_moi}"
                 dieu1_lines = [f"Bổ nhiệm Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) giữ chức vụ {chuc_vu_moi} kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
                 gia_tri_truoc = nv_qd.get('chuc_vu') or 'Nhân viên'
@@ -9023,8 +9102,8 @@ elif menu == "✅ Nhân viên":
 
             elif loai_qd == 'MIEN_NHIEM':
                 cv_hien_tai = nv_qd.get('chuc_vu') or 'Nhân viên'
-                idx_mn = DANH_SACH_CHUC_VU.index(cv_hien_tai) if cv_hien_tai in DANH_SACH_CHUC_VU else 0
-                chuc_vu_mien = st.selectbox("🏷️ Chức vụ bị miễn nhiệm:", DANH_SACH_CHUC_VU, index=idx_mn, key="qdns_cv_miennhiem")
+                idx_mn = ds_chuc_vu_tenant.index(cv_hien_tai) if cv_hien_tai in ds_chuc_vu_tenant else 0
+                chuc_vu_mien = st.selectbox("🏷️ Chức vụ bị miễn nhiệm:", ds_chuc_vu_tenant, index=idx_mn, key="qdns_cv_miennhiem")
                 tieu_de = f"Miễn nhiệm chức vụ {chuc_vu_mien}"
                 dieu1_lines = [f"Miễn nhiệm chức vụ {chuc_vu_mien} đối với Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
                 gia_tri_truoc = cv_hien_tai
@@ -9098,8 +9177,25 @@ elif menu == "✅ Nhân viên":
                     # ta tự dò TẤT CẢ cột NOT NULL không có default, rồi suy luận giá trị theo
                     # tên cột để điền cho đủ, tránh vướng lỗi NOT NULL dù DB có bao nhiêu cột
                     # legacy đi nữa.
-                    cols = ['so_qd', 'loai_qd', 'nhan_vien_id', 'ngay_qd', 'noi_dung', 'gia_tri_truoc', 'gia_tri_sau', 'file_url', 'nguoi_tao']
-                    vals = [so_qd, loai_qd, nv_qd['id'], ngay_qd, " ".join(dieu1_lines), gia_tri_truoc, gia_tri_sau, file_url, st.session_state.username]
+                    # Ánh xạ gia_tri_truoc/gia_tri_sau sang đúng cặp cột "cũ/mới" mà tab
+                    # "Lịch sử công tác" hiển thị (Chức danh / Phòng ban / Loại HĐ), tuỳ loại QĐ.
+                    chuc_danh_cu_v = chuc_danh_moi_v = None
+                    phong_ban_cu_v = phong_ban_moi_v = None
+                    loai_hd_cu_v = loai_hd_moi_v = None
+                    if loai_qd == 'DOI_CHUC_DANH':
+                        chuc_danh_cu_v, chuc_danh_moi_v = gia_tri_truoc, gia_tri_sau
+                    elif loai_qd == 'DIEU_CHUYEN':
+                        phong_ban_cu_v, phong_ban_moi_v = gia_tri_truoc, gia_tri_sau
+                    elif loai_qd == 'CHAM_DUT_HD':
+                        loai_hd_cu_v, loai_hd_moi_v = gia_tri_truoc, 'Đã chấm dứt'
+                    nguoi_ky_v = COMPANY_CONFIG.get('dai_dien') or ''
+
+                    cols = ['so_qd', 'loai_qd', 'nhan_vien_id', 'ngay_qd', 'noi_dung', 'gia_tri_truoc', 'gia_tri_sau', 'file_url', 'nguoi_tao',
+                            'so_quyet_dinh', 'loai_quyet_dinh', 'ngay_quyet_dinh', 'ngay_hieu_luc', 'nguoi_ky',
+                            'chuc_danh_cu', 'chuc_danh_moi', 'phong_ban_cu', 'phong_ban_moi', 'loai_hop_dong_cu', 'loai_hop_dong_moi']
+                    vals = [so_qd, loai_qd, nv_qd['id'], ngay_qd, " ".join(dieu1_lines), gia_tri_truoc, gia_tri_sau, file_url, st.session_state.username,
+                            so_qd, loai_qd, ngay_qd, ngay_qd, nguoi_ky_v,
+                            chuc_danh_cu_v, chuc_danh_moi_v, phong_ban_cu_v, phong_ban_moi_v, loai_hd_cu_v, loai_hd_moi_v]
 
                     c_s.execute("""
                         SELECT column_name FROM information_schema.columns
@@ -9255,7 +9351,7 @@ elif menu == "✅ Nhân viên":
                         noi_dung_moi = st.text_area("Nội dung:", value=qd_sua['noi_dung'] or '', key=f"edit_nd_{qd_id_sua}", height=100)
                         col_luu_qd, col_huy_qd = st.columns(2)
                         with col_luu_qd:
-                            if st.button("💾 Lưu thay đổi", key=f"btn_luu_sua_qd_{qd_id_sua}", type="primary", width='stretch'):
+                            if st.button("💾 Lưu thay đổi", key=f"btn_luu_sua_qd_{qd_id_sua}", type="primary", width='stretch', disabled=not can_edit()):
                                 try:
                                     db_u = st.session_state.db_engine.get_connection()
                                     c_u = db_u.cursor()
@@ -9284,7 +9380,7 @@ elif menu == "✅ Nhân viên":
                                f"Việc xóa KHÔNG tự động hoàn tác thay đổi đã áp dụng trên hồ sơ nhân viên.")
                     col_xn_xoa, col_huy_xoa = st.columns(2)
                     with col_xn_xoa:
-                        if st.button("🗑️ Xác nhận xóa", key=f"btn_xn_xoa_qd_{qd_id_xoa}", type="primary", width='stretch'):
+                        if st.button("🗑️ Xác nhận xóa", key=f"btn_xn_xoa_qd_{qd_id_xoa}", type="primary", width='stretch', disabled=not can_edit()):
                             try:
                                 db_d = st.session_state.db_engine.get_connection()
                                 c_d = db_d.cursor()
@@ -9881,7 +9977,7 @@ elif menu == "🕒 Chấm công":
                                     st.caption(f"... và {len(missing) - 100} lượt khác")
                             col_cf1, col_cf2 = st.columns(2)
                             with col_cf1:
-                                if st.button("✅ Vẫn lưu", key="cc_force_save_btn", type="primary", use_container_width=True):
+                                if st.button("✅ Vẫn lưu", key="cc_force_save_btn", type="primary", use_container_width=True, disabled=not can_edit()):
                                     st.session_state.cc_force_save_approved = True
                                     st.rerun()
                             with col_cf2:
@@ -10342,7 +10438,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
                 st.divider()
                 col_del1, col_del2, col_del3 = st.columns([1, 2, 1])
                 with col_del2:
-                    if st.button("🗑️ XÓA HỒ SƠ NÀY", width='stretch', type="secondary"):
+                    if st.button("🗑️ XÓA HỒ SƠ NÀY", width='stretch', type="secondary", disabled=not can_edit()):
                         try:
                             sb = get_supabase_storage()
                             if sb:
@@ -10369,7 +10465,7 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
             st.info("⚠️ Chưa có nhân viên nào trong hệ thống!")
 
 # ========== DANH MỤC CHỨC DANH ==========
-elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
+elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toan_bo"):
     st.markdown(f"# {i18n.tm('⚙️ Danh mục cấu hình theo doanh nghiệp')}", unsafe_allow_html=True)
     st.caption("Mỗi khách hàng tự đặt tên Phòng ban, Chức danh, Loại hợp đồng, Trình độ học vấn phù hợp với cơ cấu công ty mình — không ảnh hưởng đến khách hàng khác.")
 
@@ -10378,7 +10474,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
         (id, cột tên, thu_tu, trang_thai) — tránh lặp code cho từng loại danh mục."""
         with st.expander(f"➕ Thêm {tieu_de.lower()} mới", expanded=False):
             ten_moi = st.text_input("Tên", key=f"add_{ten_bang}", placeholder=placeholder)
-            if st.button("💾 Lưu", key=f"btn_add_{ten_bang}"):
+            if st.button("💾 Lưu", key=f"btn_add_{ten_bang}", disabled=not can_edit()):
                 if ten_moi.strip():
                     try:
                         if ten_bang == "danh_muc_phong_ban":
@@ -10428,7 +10524,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
                 "danh mục bên dưới** (riêng cho công ty bạn, không ảnh hưởng tenant khác). "
                 "Nếu bảng này đang trống, hệ thống sẽ tạm dùng danh mục mặc định của Hòn La.")
 
-        if st.session_state.role == "admin":
+        if st.session_state.role in ("admin", "xem_toan_bo"):
             with st.expander("🧹 Dọn dữ liệu phòng ban cũ (chạy 1 lần)", expanded=False):
                 st.caption(
                     "Quét toàn bộ bảng nhân viên, chuẩn hóa lại giá trị phòng ban theo đúng "
@@ -10458,7 +10554,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
         with st.expander("➕ Thêm chức danh mới", expanded=False):
             with st.form("add_chuc_danh"):
                 ten_moi = st.text_input("Tên chức danh *"); mo_ta = st.text_area("Mô tả")
-                if st.form_submit_button("💾 LƯU"):
+                if st.form_submit_button("💾 LƯU", disabled=not can_edit()):
                     if ten_moi:
                         db = st.session_state.db_engine.get_connection(); c = db.cursor()
                         c.execute("SELECT COALESCE(MIN(t1.id + 1), 1) FROM vi_tri_cong_tac t1 LEFT JOIN vi_tri_cong_tac t2 ON t1.id + 1 = t2.id WHERE t2.id IS NULL AND t1.id >= 1")
@@ -10476,7 +10572,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
         if ds:
             df = pd.DataFrame(ds); df.columns = ['ID', 'Tên chức danh', 'Ghi chú']; st.dataframe(df, width='stretch', hide_index=True)
             st.divider(); cdx = st.number_input("Nhập ID cần xóa:", min_value=1, step=1)
-            if st.button("🗑️ XÓA", key="del_cd"):
+            if st.button("🗑️ XÓA", key="del_cd", disabled=not can_edit()):
                 db = st.session_state.db_engine.get_connection(); c = db.cursor()
                 c.execute("DELETE FROM vi_tri_cong_tac WHERE id=%s", (cdx,)); db.commit(); db.close(); st.success("🗑️ Đã xóa!"); st.cache_data.clear(); st.rerun()
         else: st.info("Chưa có chức danh nào")
@@ -10530,7 +10626,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
                     thu_tu_moi = 0
                 col_luu, col_reset, col_xoa = st.columns(3)
                 with col_luu:
-                    if st.button("💾 Lưu", key=f"mau_hd_save_{loai_hd_ma}_{ma_dieu}", width='stretch', type="primary"):
+                    if st.button("💾 Lưu", key=f"mau_hd_save_{loai_hd_ma}_{ma_dieu}", width='stretch', type="primary", disabled=not can_edit()):
                         if not da_tuy_chinh and not tieu_de_moi.strip() and not noi_dung_moi.strip():
                             st.warning("⚠️ Bạn chưa nhập nội dung tuỳ chỉnh nào (nội dung mờ chỉ là gợi ý). "
                                        "Vẫn tiếp tục dùng nội dung mặc định, không có gì để lưu.")
@@ -10553,7 +10649,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
                             st.error(f"❌ Lỗi: {e}")
                 with col_reset:
                     if la_mac_dinh:
-                        if st.button("↩️ Khôi phục mặc định", key=f"mau_hd_reset_{loai_hd_ma}_{ma_dieu}", width='stretch'):
+                        if st.button("↩️ Khôi phục mặc định", key=f"mau_hd_reset_{loai_hd_ma}_{ma_dieu}", width='stretch', disabled=not can_edit()):
                             try:
                                 db = st.session_state.db_engine.get_connection()
                                 c = db.cursor()
@@ -10589,7 +10685,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
                                           placeholder="-    Nội dung dòng 1;\n-    Nội dung dòng 2;\n## Tiêu đề phụ in đậm\n-    Nội dung...")
             thu_tu_them = st.number_input("Vị trí hiển thị (số nhỏ hơn đứng trước, VD: 6 = ngay sau Điều 5):",
                                            min_value=1, max_value=999, value=6, key=f"mau_hd_them_tt_{loai_hd_ma}")
-            if st.button("➕ Thêm Điều này", key=f"mau_hd_them_btn_{loai_hd_ma}", type="primary"):
+            if st.button("➕ Thêm Điều này", key=f"mau_hd_them_btn_{loai_hd_ma}", type="primary", disabled=not can_edit()):
                 if not tieu_de_them.strip():
                     st.error("⚠️ Vui lòng nhập tiêu đề Điều!")
                 else:
@@ -10741,7 +10837,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role == "admin":
         )
 
         st.divider()
-        if st.button("💾 SAVE CẤU HÌNH", type="primary", width='stretch', key="btn_save_cau_hinh_cty"):
+        if st.button("💾 SAVE CẤU HÌNH", type="primary", width='stretch', key="btn_save_cau_hinh_cty", disabled=not can_edit()):
             loi_luu = []
             if not update_cv_danh_so_option(cv_option_moi):
                 loi_luu.append("Đánh số công văn")
@@ -10830,7 +10926,7 @@ elif menu == "📋 BHXH":
                     df_chua_dong[col] = df_chua_dong[col].apply(format_date)
             st.dataframe(df_chua_dong, width='stretch', hide_index=True)
             
-            if st.session_state.role == "admin":
+            if st.session_state.role in ("admin", "xem_toan_bo"):
                 st.warning("💡 Hướng dẫn: Vào menu '✅ Nhân viên' -> chọn nhân viên -> sửa thông tin -> cập nhật 'Bắt đầu BH' và chuyển trạng thái BHXH thành 'ĐANG ĐÓNG'")
         else:
             st.success("✅ Tất cả lao động đã được đăng ký đóng BHXH!")
@@ -11200,7 +11296,7 @@ elif menu == "📋 Báo cáo định kỳ":
             st.divider()
         
             # Chỉ admin mới được xuất Excel
-            if st.session_state.role == "admin":
+            if st.session_state.role in ("admin", "xem_toan_bo"):
                 if st.button("📥 XUẤT EXCEL MẪU 01/PLI", type="primary", width='stretch'):
                     if not can_export():
                         st.error("❌ Bạn không có quyền xuất báo cáo!")
@@ -11891,7 +11987,7 @@ elif menu == "🤖 Chatbot Giải đáp":
             st.session_state.chatbot_display = []
             st.rerun()
 
-elif menu == "📥 Nhập/Xuất Excel" and st.session_state.role == "admin":
+elif menu == "📥 Nhập/Xuất Excel" and st.session_state.role in ("admin", "xem_toan_bo"):
     render_import_export_ui(
         lambda: st.session_state.db_engine.get_connection(),
         extra_caption=f"Công ty: {st.session_state.tenant.get('ten_cty', '')}"
@@ -11901,7 +11997,7 @@ elif menu == "📥 Nhập/Xuất Excel" and st.session_state.role == "admin":
 elif menu == "🔑 Quản lý MK":
     st.title("🔑 Quản lý mật khẩu")
 
-    if st.session_state.role == "admin":
+    if st.session_state.role in ("admin", "xem_toan_bo"):
         tab_doi_mk, tab_admin_reset, tab_phan_quyen = st.tabs(
             ["🔒 Đổi mật khẩu của tôi", "🛠️ Reset mật khẩu nhân viên (Admin)", "🛡️ Phân quyền hệ thống"])
     else:
@@ -11938,7 +12034,7 @@ elif menu == "🔑 Quản lý MK":
                     db_dmk.commit(); db_dmk.close()
                     st.success("✅ Đổi mật khẩu thành công!")
 
-    if st.session_state.role == "admin":
+    if st.session_state.role in ("admin", "xem_toan_bo"):
         with tab_admin_reset:
             st.subheader("🛠️ Reset mật khẩu nhân viên (dành cho trường hợp quên mật khẩu & không có Email liên hệ)")
             st.caption("Mật khẩu sẽ được đặt lại về mặc định = **số điện thoại** của nhân viên, "
@@ -11958,7 +12054,7 @@ elif menu == "🔑 Quản lý MK":
                     st.error("❌ Nhân viên chưa có số điện thoại trong hồ sơ nên không thể đặt mật khẩu mặc định. Vui lòng cập nhật SĐT trước.")
                 else:
                     st.warning(f"Sẽ đặt lại mật khẩu của **{nv_rst['ho_ten']}** về **{nv_rst['dien_thoai']}** và buộc đổi mật khẩu ở lần đăng nhập tới.")
-                    if st.button("🔄 Xác nhận Reset mật khẩu", key=f"btn_reset_mk_{nv_rst['id']}", type="primary"):
+                    if st.button("🔄 Xác nhận Reset mật khẩu", key=f"btn_reset_mk_{nv_rst['id']}", type="primary", disabled=not can_edit()):
                         db_r2 = st.session_state.db_engine.get_connection()
                         c_r2 = db_r2.cursor()
                         new_hash_rst = bcrypt.hashpw(nv_rst['dien_thoai'].encode(), bcrypt.gensalt()).decode()
@@ -11982,6 +12078,7 @@ elif menu == "🔑 Quản lý MK":
                 ("hr", "👥 HR (nhân sự)"),
                 ("van_thu", "📄 Văn thư (Công văn & HĐ kinh tế)"),
                 ("kt_luong", "💰 Kế toán lương (Chấm công & Tính thu nhập)"),
+                ("xem_toan_bo", "👁️ Xem toàn bộ - không chỉnh sửa (thấy hết menu/tab, nút Lưu/Sửa/Xóa bị khóa)"),
             ]
             NHAN_VAI_TRO = dict(VAI_TRO_LUA_CHON)
 
@@ -12031,7 +12128,7 @@ elif menu == "🔑 Quản lý MK":
 
                 if not nv_pq.get('dien_thoai') and vai_tro_moi != 'nhan_vien':
                     st.error("❌ Nhân viên này chưa có số điện thoại trong hồ sơ — cần có SĐT để đăng nhập trước khi cấp quyền.")
-                elif st.button("💾 Lưu vai trò", key=f"btn_luu_vt_{nv_pq['id']}", type="primary"):
+                elif st.button("💾 Lưu vai trò", key=f"btn_luu_vt_{nv_pq['id']}", type="primary", disabled=not can_edit()):
                     # Chặn tự hạ quyền / hạ quyền người khác nếu đó là Admin CUỐI CÙNG còn lại
                     if vai_tro_hien_tai == 'admin' and vai_tro_moi != 'admin' and so_admin_hien_tai <= 1:
                         st.error("❌ Không thể thực hiện: đây là Admin CUỐI CÙNG của công ty. "
@@ -12193,8 +12290,8 @@ elif menu == "🔍 Audit Dashboard":
         db_a.close()
 
 elif menu == "📘 Hướng dẫn sử dụng":
-    st.title("📘 Hướng dẫn sử dụng HRM-Port")
-    st.caption("Tổng quan các chức năng chính của hệ thống — dành cho người dùng mới.")
+    st.title("📘 Hướng dẫn sử dụng HRM Master")
+    st.caption("Tổng quan các chức năng chính của hệ thống - dành cho người dùng mới.")
 
     st.markdown("""
 ### 📊 Dashboard
@@ -12202,23 +12299,23 @@ Bức tranh tổng quan về nhân sự: tổng số nhân viên, cơ cấu theo
 giúp Ban điều hành nắm tình hình chỉ trong vài giây, không cần chờ báo cáo tổng hợp thủ công.
 
 ### ✅ Nhân viên
-Quản lý toàn bộ hồ sơ nhân viên: thêm mới, cập nhật thông tin, tra cứu nhanh, in Hợp đồng lao động/Hợp đồng thử việc,
-ra các Quyết định nhân sự (bổ nhiệm, điều chuyển, chấm dứt HĐLĐ...).
+Quản lý toàn bộ hồ sơ nhân viên: Thêm nhân viên mới, cập nhật thông tin, tra cứu nhanh, in Hợp đồng lao động/Hợp đồng thử việc,
+ra các Quyết định nhân sự (bổ nhiệm, điều chuyển, chấm dứt HĐLĐ...), xem cơ cấu nhân sự theo Phòng.
 
-🎉 **Đặc biệt: Gửi lời chúc sinh nhật tự động** — hệ thống tự nhắc và hỗ trợ gửi lời chúc mừng sinh nhật đến từng
+🎉 **Đặc biệt: Gửi lời chúc sinh nhật tự động** - hệ thống tự nhắc và hỗ trợ gửi lời chúc mừng sinh nhật đến từng
 CBCNV. Đây là một chi tiết nhỏ nhưng có sức nặng lớn: nó giúp gắn kết giữa Ban điều hành với người lao động,
-khiến nhân viên cảm thấy được quan tâm như một cá nhân chứ không chỉ là một con số trên bảng lương — góp phần
+khiến nhân viên cảm thấy được quan tâm như một cá nhân chứ không chỉ là một con số trên bảng lương - góp phần
 xây dựng văn hoá doanh nghiệp gắn bó, nhân văn.
 
 ### 📋 BHXH / 📋 Báo cáo định kỳ
 Theo dõi tình hình đóng BHXH, tự tạo báo cáo tăng/giảm D02-LT, dự toán số tiền phải đóng theo kỳ — giảm tối đa
-thao tác thủ công so với việc tự tổng hợp trên Excel.
+thao tác thủ công so với việc tự tổng hợp trên Excel. HRM Master sẽ luôn update các mẫu báo cáo theo kịp các văn bản quy định mới nhất về nghiệp vụ hành chính nhân sự.
 
 ### 🕒 Chấm công / 💰 Tính thu nhập
-Quản lý chấm công theo ca, tự động tính lương, phụ cấp, các khoản khấu trừ theo đúng quy định hiện hành.
+Quản lý chấm công theo ca, tự động tính lương, phụ cấp, các khoản khấu trừ theo đúng quy định hiện hành và sẽ tùy chỉnh đúng với chính sách mà Quý doanh nghiệp đang áp dụng.
 
 ### 📄 Quản lý Công văn & HĐ kinh tế
-Lưu trữ, tra cứu công văn đến/đi và hợp đồng kinh tế tập trung — tránh thất lạc, dễ dàng tìm lại khi cần đối chiếu.
+Lưu trữ, tra cứu công văn đến/đi và hợp đồng kinh tế tập trung, khoa hoạc - tránh thất lạc, dễ dàng tìm lại khi cần đối chiếu.
 
 ### ⏰ Báo cáo tự động & Nhắc hạn — không lo bị "miss" deadline
 Hệ thống có các loại **báo cáo tự động** (tăng/giảm nhân sự, BHXH, hợp đồng...) giúp tiết kiệm thời gian tổng hợp

@@ -6027,7 +6027,7 @@ def render_landing_page():
   <section class="hl-features">
     <div class="hl-wrap">
       <div class="hl-kicker">HRM Master làm được gì</div>
-      <h2>Đủ dùng cho công việc nhân sự thật, không thừa thãi</h2>
+      <h2>Đủ dùng cho việc quản trị nhân sự, 'đo ni đóng giày' cho từng yêu cầu quản lý của doanh nghiệp!</h2>
       <p class="hl-sub">Từ những nghiệp vụ nền tảng, đến điểm khác biệt không nhiều phần mềm nhân sự trên thị trường hiện có.</p>
 
       <div class="hl-highlight">
@@ -6035,7 +6035,7 @@ def render_landing_page():
         <span class="hl-ic">🤖</span>
         <div class="hl-highlight-text">
           <h4>AI Tư vấn Hành chính Nhân sự</h4>
-          <p>Trợ lý AI hiểu đúng dữ liệu và chính sách nhân sự của riêng công ty bạn — tư vấn tức thì cho cả người quản lý lẫn nhân viên.</p>
+          <p>Trợ lý AI hiểu đúng dữ liệu và chính sách nhân sự của riêng công ty bạn - tư vấn tức thì cho cả người quản lý lẫn nhân viên.</p>
         </div>
       </div>
 
@@ -6043,36 +6043,36 @@ def render_landing_page():
         <div class="hl-feat">
           <span class="hl-fic">🗂️</span>
           <h4>Hồ sơ nhân viên</h4>
-          <p>Quản lý tập trung thông tin, hợp đồng, quyết định nhân sự — thay thế hoàn toàn các file Excel rời rạc.</p>
+          <p>Quản lý tập trung thông tin, hợp đồng lao động, quyết định nhân sự - số hóa để thay thế hoàn toàn các file Excel rời rạc.</p>
         </div>
         <div class="hl-feat">
           <span class="hl-fic">🕒</span>
           <h4>Chấm công</h4>
-          <p>Theo dõi công, phép, tăng ca theo thời gian thực, đồng bộ trực tiếp vào bảng lương.</p>
+          <p>Không cần trang bị thêm máy chấm công - HRM Master ứng dụng Face ID vào nghiệp vụ chấm công. Theo dõi công, phép, tăng ca theo thời gian thực, đồng bộ trực tiếp vào bảng lương.</p>
         </div>
         <div class="hl-feat">
           <span class="hl-fic">📋</span>
           <h4>BHXH</h4>
-          <p>Quản lý mã số, mức đóng, hồ sơ khám chữa bệnh cho từng nhân viên và người thân.</p>
+          <p>Quản lý mã số, mức đóng, theo dõi Tăng/Giảm và xuất file báo cáo chuẩn form của BHXH để import trực tiếp vào phần mềm BHXH 'tokhaibaohiem.vn'</p>
         </div>
         <div class="hl-feat">
           <span class="hl-fic">💰</span>
           <h4>Lương 3P</h4>
-          <p>Xây dựng chính sách lương theo Vị trí – Năng lực – Kết quả, có gợi ý mẫu theo cơ cấu tổ chức riêng.</p>
+          <p>Tư vấn Xây dựng chính sách lương theo Vị trí - Năng lực - Kết quả, có gợi ý mẫu theo cơ cấu tổ chức riêng. Hoặc tùy chỉnh theo đúng chính sách tiền lương mà DN đang áp dụng</p>
         </div>
         <div class="hl-feat">
           <span class="hl-fic">📄</span>
           <h4>Công văn &amp; HĐ kinh tế</h4>
-          <p>Soạn thảo, lưu trữ, tra cứu công văn đến/đi và hợp đồng kinh tế theo đúng quy trình văn thư.</p>
+          <p>Soạn thảo, lưu trữ, tra cứu công văn đến/đi và hợp đồng kinh tế theo đúng quy trình, nghiệp vụ Văn thư lưu trữ.</p>
         </div>
         <div class="hl-feat">
           <span class="hl-fic">💬</span>
           <h4>Chat nội bộ</h4>
-          <p>Trao đổi công việc trực tiếp trong hệ thống, gắn liền với đúng hồ sơ nhân sự liên quan.</p>
+          <p>Trao đổi công việc trực tiếp trong hệ thống, gắn liền với đúng hồ sơ nhân sự liên quan. Dễ dàng giao việc và quản lý tiến độ công việc đã giao</p>
         </div>
       </div>
     </div>
-  </section>
+  </section>s
 
   <section class="hl-inspire">
     <div class="hl-wrap">
@@ -7616,9 +7616,11 @@ elif menu == "👤 Ứng viên":
                                 stt_moi = c.fetchone()[0]
 
                                 # Tạo STT và mã nhân viên mới
-                                c.execute("SELECT COALESCE(MAX(CAST(SUBSTRING(ma_nv FROM 2) AS INTEGER)), 0)+1 FROM nhan_vien WHERE ma_nv LIKE 'C%'")
+                                ma_cty = st.session_state.tenant.get('ma_cty', 'CHL')
+                                prefix = ma_cty[0].upper()  # DEMO → D
+                                c.execute(f"SELECT COALESCE(MAX(CAST(SUBSTRING(ma_nv FROM 2) AS INTEGER)), 0)+1 FROM nhan_vien WHERE ma_nv LIKE '{prefix}%'")
                                 so_moi = c.fetchone()[0]
-                                ma_nv = f"C{so_moi:03d}"
+                                ma_nv = f"{prefix}{so_moi:03d}"
                                 c.execute("SELECT COALESCE(MAX(STT),0)+1 FROM nhan_vien")
                                                                 
                                 nhl = ngay_vao_lam_chuyen

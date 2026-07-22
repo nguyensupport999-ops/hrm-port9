@@ -7736,7 +7736,7 @@ elif menu == "✅ Nhân viên":
                         ncc = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key="ncc")
                         ncc2 = st.text_input("Nơi cấp CCCD", key="ncc2")
                     with c2:
-                        nqn = st.text_input("Nguyên quán", key="nqn")
+                        nqn = ""  # Nguyên quán: đã bỏ khỏi UI theo yêu cầu, lưu rỗng (có thể bổ sung sau qua Sửa nhân viên nếu cần)
                         ttn = st.text_input("Thường trú", key="ttn")
                         qtn = st.text_input("Quốc tịch", value="Việt Nam", key="qtn")
                         dtn = st.text_input("Dân tộc", value="Kinh", key="dtn")
@@ -7748,7 +7748,7 @@ elif menu == "✅ Nhân viên":
                         cdn = st.selectbox("Chức danh", [""] + dcv, key="cdn")
                         pbn = st.selectbox("Phòng ban", [""] + dpb, key="pbn")
                         pbn_chuan = chuan_hoa_ten_phong_ban(pbn)
-                        nlv = st.text_input("Nơi làm việc", value=get_cau_hinh('noi_lam_viec', 'Cảng THQT Hòn La'), key="nlv")
+                        nlv = get_cau_hinh('noi_lam_viec', 'Cảng THQT Hòn La')  # Nơi làm việc: đã bỏ khỏi UI, dùng cấu hình chung của công ty
                         anh_ho_so_moi = st.file_uploader("Ảnh hồ sơ", type=["png", "jpg", "jpeg"], key="anh_ho_so_add")
                     st.divider()
                     st.caption("💼 Hợp đồng & BHXH")
@@ -7773,21 +7773,24 @@ elif menu == "✅ Nhân viên":
                         ptd = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"], key="ptd")
                         nbh = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"], key="nbh")
                     st.divider()
-                    st.caption("🏦 Ngân hàng & KCB")
-                    c7, c8, c9 = st.columns(3)
+                    st.caption("🏦 Ngân hàng & Hồ sơ")
+                    c7, c8 = st.columns(2)
                     with c7:
                         stk = st.text_input("STK", key="stk")
                         bank_index = 0
                         cnh = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_index, key="add_cnh")
-                        tkb = st.text_input("Tỉnh KCB", value=get_cau_hinh('tinh_kcb', 'Tỉnh Quảng Trị'), key="tkb")
                     with c8:
-                        nkb = st.text_input("Nơi KCB", value=get_cau_hinh('noi_dang_ky_kcb', 'Bệnh viện đa khoa khu vực Bắc Quảng Trị'), key="nkb")
-                        ths = st.text_input("Tỉnh/TP nhận HS", value=get_cau_hinh('tinh_nhan_hs', 'Tỉnh Quảng Trị'), key="ths")
-                        phs = st.text_input("Phường/Xã nhận HS", value="Xã Phú Trạch", key="phs")
-                    with c9:
-                        dhs = st.text_input("Địa chỉ nhận HS", value=get_cau_hinh('dia_chi_nhan_hs', 'Công ty cổ phần Cảng Hòn La'), key="dhs")
-                        dks = st.selectbox("ĐK nhận sổ", ["Có", "Không"], key="dks")
                         hso = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"], key="hso")
+                    # Các trường ít dùng (Tỉnh KCB, Nơi KCB, Tỉnh/TP nhận HS, Phường/Xã nhận HS,
+                    # Địa chỉ nhận HS, ĐK nhận sổ) đã bỏ khỏi UI theo yêu cầu — tự động lấy theo
+                    # cấu hình chung của công ty (⚙️ Cấu hình công ty); có thể chỉnh riêng cho
+                    # từng người qua màn "Sửa nhân viên" nếu cần khác với mặc định.
+                    tkb = get_cau_hinh('tinh_kcb', 'Tỉnh Quảng Trị')
+                    nkb = get_cau_hinh('noi_dang_ky_kcb', 'Bệnh viện đa khoa khu vực Bắc Quảng Trị')
+                    ths = get_cau_hinh('tinh_nhan_hs', 'Tỉnh Quảng Trị')
+                    phs = "Xã Phú Trạch"
+                    dhs = get_cau_hinh('dia_chi_nhan_hs', 'Công ty cổ phần Cảng Hòn La')
+                    dks = "Có"
                     
                     col_save_exit1, col_save_exit2 = st.columns(2)
                     with col_save_exit1:
@@ -8327,7 +8330,7 @@ elif menu == "✅ Nhân viên":
                                 ncv = st.text_input("Nơi cấp CCCD", value=nd.get('noi_cap_cccd', ''))
                                 dtnv2 = st.text_input("SĐT", value=nd.get('dien_thoai', ''))
                             with col2:
-                                nqnv = st.text_input("Nguyên quán", value=nd.get('nguyen_quan', ''))
+                                nqnv = nd.get('nguyen_quan', '')  # Nguyên quán: đã bỏ khỏi UI, giữ nguyên giá trị đã lưu
                                 ttnv = st.text_input("Thường trú", value=nd.get('thuong_tru', ''))
                                 qtnv = st.text_input("Quốc tịch", value=nd.get('quoc_tich', 'Việt Nam'))
                                 dtnv = st.text_input("Dân tộc", value=nd.get('dan_toc', 'Kinh'))
@@ -8337,7 +8340,7 @@ elif menu == "✅ Nhân viên":
                             with col3:
                                 pb_hien_tai_chuan = chuan_hoa_ten_phong_ban(nd.get('phong_ban_lam_viec'))
                                 pbnv = st.selectbox("Phòng ban", [""] + dpb_edit, index=([""] + dpb_edit).index(pb_hien_tai_chuan) if pb_hien_tai_chuan in dpb_edit else 0)
-                                nlv2 = st.text_input("Nơi làm việc", value=nd.get('noi_lam_viec', 'Cảng THQT Hòn La'))
+                                nlv2 = nd.get('noi_lam_viec', 'Cảng THQT Hòn La')  # Nơi làm việc: đã bỏ khỏi UI, giữ nguyên giá trị đã lưu
                                 emnv = st.text_input("Email", value=nd.get('email_lien_he', ''))
                                 anh_hien_tai = nd.get('anh_ho_so')
                                 if anh_hien_tai:
@@ -8369,8 +8372,8 @@ elif menu == "✅ Nhân viên":
                                 nbhv = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"], index=["", "Văn phòng", "Lao động trực tiếp"].index(nd.get('nhom_bhxh', '')) if nd.get('nhom_bhxh') in ["Văn phòng", "Lao động trực tiếp"] else 0)
                             
                             st.divider()
-                            st.caption("🏦 Ngân hàng & KCB")
-                            col7, col8, col9 = st.columns(3)
+                            st.caption("🏦 Ngân hàng & Hồ sơ")
+                            col7, col8 = st.columns(2)
                             with col7:
                                 stkv = st.text_input("STK", value=nd.get('so_tai_khoan_nh', ''))
                                 # Tạo dropdown cho chi nhánh ngân hàng
@@ -8379,15 +8382,17 @@ elif menu == "✅ Nhân viên":
                                 if old_bank in BANK_LIST:
                                     bank_edit_index = BANK_LIST.index(old_bank) + 1
                                 cnhv = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_edit_index, key="edit_cnh")
-                                tkbv = st.text_input("Tỉnh KCB", value=nd.get('tinh_kcb', ''))
                             with col8:
-                                nkbv = st.text_input("Nơi KCB", value=nd.get('noi_dang_ky_kcb', ''))
-                                thsv = st.text_input("Tỉnh/TP nhận HS", value=nd.get('tinh_nhan_hs', ''))
-                                phsv = st.text_input("Phường/Xã nhận HS", value=nd.get('phuong_nhan_hs', ''))
-                            with col9:
-                                dhsv = st.text_input("Địa chỉ nhận HS", value=nd.get('dia_chi_nhan_hs', ''))
-                                dksv = st.selectbox("ĐK nhận sổ", ["Có", "Không"], index=["Có", "Không"].index(nd.get('dang_ky_nhan_so', 'Có')) if nd.get('dang_ky_nhan_so') in ["Có", "Không"] else 0)
                                 hsov = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"], index=["", "Đã có HS", "Chưa có"].index(nd.get('ho_so', '')) if nd.get('ho_so') in ["Đã có HS", "Chưa có"] else 0)
+                            # Các trường ít dùng (Tỉnh KCB, Nơi KCB, Tỉnh/TP nhận HS, Phường/Xã nhận HS,
+                            # Địa chỉ nhận HS, ĐK nhận sổ) đã bỏ khỏi UI theo yêu cầu — giữ nguyên
+                            # giá trị đã lưu trong hồ sơ thay vì hiện ô nhập.
+                            tkbv = nd.get('tinh_kcb', '')
+                            nkbv = nd.get('noi_dang_ky_kcb', '')
+                            thsv = nd.get('tinh_nhan_hs', '')
+                            phsv = nd.get('phuong_nhan_hs', '')
+                            dhsv = nd.get('dia_chi_nhan_hs', '')
+                            dksv = nd.get('dang_ky_nhan_so', 'Có')
                             col_save, col_cancel = st.columns(2)
                             with col_save:
                                 if st.form_submit_button("💾 CẬP NHẬT", width='stretch', disabled=not can_edit()):
@@ -8439,7 +8444,7 @@ elif menu == "✅ Nhân viên":
                                                         tinh_kcb=%s,noi_dang_ky_kcb=%s,dang_ky_nhan_so=%s, ten_don_vi_thu_huong=%s, trinh_do=%s,
                                                         so_luong_npt=%s WHERE id=%s""",
                                                         (hnv, cdnv, parse_date(nsnv), gtnv, sccv, parse_date(nccv), ncv, nqnv, ttnv, dtnv2,
-                                                         emnv, emnv, hsov, lbhv, mbhv, parse_date(nvlv), nlv2, stkv, cnhv, parse_date(nvlv), lhdv,
+                                                         emnv, emnv, hsov, to_float_or_none(lbhv), mbhv, parse_date(nvlv), nlv2, stkv, cnhv, parse_date(nvlv), lhdv,
                                                          nbhv, tbd_val, tt_nv, tt_bh, pbnv_chuan, parse_date(nktv), qtnv, dtnv,
                                                          to_float_or_none(hslv), to_float_or_none(pcvv), to_float_or_none(ptvv), to_float_or_none(ptnv),
                                                          mhbv, to_float_or_none(tldv), to_float_or_none(mtdv), ptdv, thsv, phsv, dhsv,

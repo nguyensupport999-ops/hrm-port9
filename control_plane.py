@@ -260,6 +260,20 @@ def update_tenant_language(ma_cty, ngon_ngu):
     get_tenant_by_code.clear()
 
 
+def update_tenant_logo(ma_cty, logo_url):
+    """Cập nhật link logo (Storage public URL) cho 1 tenant đã tồn tại."""
+    ensure_control_plane_schema()
+    conn = get_control_plane_connection()
+    try:
+        c = conn.cursor()
+        c.execute("UPDATE tenants SET logo_url=%s WHERE UPPER(ma_cty)=UPPER(%s)",
+                   (logo_url, ma_cty))
+        conn.commit()
+    finally:
+        conn.close()
+    get_tenant_by_code.clear()
+
+
 def update_tenant_status(ma_cty, trang_thai):
     """Bật/tắt (active / suspended) 1 khách hàng — dùng khi khách ngừng hợp đồng."""
     ensure_control_plane_schema()

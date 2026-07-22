@@ -1329,8 +1329,8 @@ def _ui_publish():
 
 def _ui_setup_3p():
     st.markdown("### 🧭 Quy trình thiết lập chính sách lương 3P")
-    st.caption("Thực hiện tuần tự 8 bước — mỗi bước có gợi ý dữ liệu mẫu riêng cho cơ cấu tổ chức CHL, "
-               "admin có thể chỉnh sửa tự do trước khi Xuất bản.")
+    st.caption("Giúp Quý doanh nghiệp xây dựng Chính sách lương 3P từ con số 0: Thực hiện tuần tự 8 bước - mỗi bước có gợi ý dữ liệu mẫu riêng theo cơ cấu tổ chức của doanh nghiệp, admin có thể chỉnh sửa tự do trước khi Xuất bản."
+               "Nếu Quý doanh nghiệp áp dụng chính sách tiền lương khác - vui lòng liên hệ và cung cấp nội dung chi tiết để được tùy chỉnh chức năng đúng với thực tế.")
     buoc = st.radio(
         "Chọn bước thiết lập:",
         ["1️⃣ Bản đồ chiến lược (BSC)", "2️⃣ Ma trận chức năng", "3️⃣ Bản mô tả công việc (JD)",

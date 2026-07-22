@@ -3016,6 +3016,63 @@ def set_cau_hinh(key, value, mo_ta=''):
     except Exception:
         return False
 
+
+# === Sinh Mã NV / Số HĐLĐ-HĐTV tự động — CHUNG cho mọi nơi cần (trước đây mỗi form
+# "Thêm nhân viên" tự viết lại logic riêng, hardcode ký hiệu 'C' giống nhau cho MỌI
+# tenant, và số hợp đồng bị "reset về 01" nếu dữ liệu cũ (import/seed) từng dùng hậu tố
+# mã công ty khác với ký hiệu hiện tại của tenant). ===
+def get_ky_hieu_ma_nv():
+    """Ký hiệu (tiền tố) Mã nhân viên riêng theo từng tenant, VD 'NV', 'HL'...
+    Cấu hình tại ⚙️ Danh mục > 'Ký hiệu mã nhân viên'. Mặc định 'NV' nếu tenant chưa đặt
+    (trước đây hardcode 'C' cho MỌI tenant, không phản ánh đúng ký hiệu riêng công ty)."""
+    ky_hieu = get_cau_hinh('ky_hieu_ma_nv', 'NV') or 'NV'
+    ky_hieu = re.sub(r'[^A-Za-z0-9]', '', ky_hieu).upper() or 'NV'
+    return ky_hieu
+
+
+def sinh_ma_nv_moi(cursor):
+    """Sinh Mã nhân viên mới kế tiếp theo đúng ký hiệu riêng của tenant đang đăng nhập,
+    dựa trên giá trị số lớn nhất đã có trong DB có cùng tiền tố này."""
+    prefix = get_ky_hieu_ma_nv()
+    len_prefix = len(prefix) + 1
+    cursor.execute(f"""
+        SELECT COALESCE(MAX(CAST(SUBSTRING(ma_nv FROM {len_prefix}) AS INTEGER)), 0) + 1
+        FROM nhan_vien
+        WHERE ma_nv LIKE %s AND SUBSTRING(ma_nv FROM {len_prefix}) ~ '^[0-9]+$'
+    """, (f'{prefix}%',))
+    so_moi = cursor.fetchone()[0]
+    return f"{prefix}{so_moi:03d}"
+
+
+def sinh_so_hdld_moi(cursor, ma_cty_hd, nam, la_thu_viec):
+    """Sinh Số HĐTV/HĐLĐ mới kế tiếp (định dạng 'STT/năm/HĐTV-MACTY' hoặc
+    'STT/năm/HĐLĐ-MACTY'), dựa trên MAX đã có TRONG DB.
+    QUAN TRỌNG: chỉ lọc theo loại văn bản (HĐTV/HĐLĐ) — KHÔNG bắt buộc đúng hậu tố mã
+    công ty hiện tại — để STT không bị "reset về 01" khi dữ liệu cũ (import Excel/seed
+    demo) từng được đánh số với ký hiệu công ty khác (VD dữ liệu cũ hậu tố '-DEMO' còn
+    tenant hiện tại là '-DEMO-HRM'). Mỗi tenant có DB riêng nên không lo lẫn dữ liệu
+    giữa các công ty khác nhau."""
+    nhan = 'HĐTV' if la_thu_viec else 'HĐLĐ'
+    if la_thu_viec:
+        cursor.execute("""
+            SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0)
+            FROM nhan_vien
+            WHERE so_hdld LIKE %s
+              AND SPLIT_PART(so_hdld, '/', 1) ~ '^[0-9]+$'
+              AND trang_thai IN ('THU_VIEC', 'DANG_LAM')
+        """, (f'%/{nhan}-%',))
+    else:
+        cursor.execute("""
+            SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0)
+            FROM nhan_vien
+            WHERE so_hdld LIKE %s
+              AND SPLIT_PART(so_hdld, '/', 1) ~ '^[0-9]+$'
+              AND trang_thai = 'DANG_LAM'
+              AND loai_hop_dong != 'Thử việc'
+        """, (f'%/{nhan}-%',))
+    stt = (cursor.fetchone()[0] or 0) + 1
+    return f"{stt:02d}/{nam}/{nhan}-{ma_cty_hd}"
+
 # === Cấu hình Chấm công (khung sườn - sẽ tích hợp logic tính công dần theo nhu cầu) ===
 def get_cau_hinh_cham_cong():
     from datetime import time as _time
@@ -5770,7 +5827,14 @@ def render_landing_page():
     """Landing page giới thiệu HRM Master + câu chuyện hành trình, hiển thị trong
     vùng nội dung chính (bên phải sidebar) khi CHƯA đăng nhập. Toàn bộ ảnh (dashboard
     demo + ảnh người sáng lập) được nhúng sẵn dạng base64 để không phụ thuộc file ngoài."""
-    st.markdown("""
+    # LƯU Ý: cố tình KHÔNG dùng st.markdown(..., unsafe_allow_html=True) ở đây.
+    # Khối HTML/CSS này rất dài và có nhiều dòng thụt lề (indent) sau dòng trống —
+    # trình phân tích Markdown của Streamlit hiểu nhầm các đoạn đó là "code block"
+    # (chuẩn Markdown: 4+ dấu cách sau dòng trống = code) nên hiển thị ra y nguyên
+    # dạng text/code thay vì render thành trang landing page.
+    # st.components.v1.html() không đi qua bước parse Markdown nên tránh được lỗi
+    # này hoàn toàn, dù nội dung có bao nhiêu dòng thụt lề đi nữa.
+    _landing_html = """
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Be+Vietnam+Pro:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
@@ -6090,7 +6154,28 @@ def render_landing_page():
 
 </div>
 
-""", unsafe_allow_html=True)
+<script>
+  // Iframe của components.html có chiều cao cố định theo tham số height=... truyền
+  // từ Python, không tự co giãn theo nội dung — nên phải tự đo và set lại chiều cao
+  // bằng JS. window.frameElement trỏ đúng tới thẻ <iframe> đang chứa nội dung này
+  // (vẫn cùng-origin với trang Streamlit nên truy cập được, không cần postMessage).
+  function _hrmResizeIframe() {
+    try {
+      var h = document.documentElement.scrollHeight;
+      if (window.frameElement && h > 0) {
+        window.frameElement.style.height = (h + 20) + "px";
+      }
+    } catch (e) {}
+  }
+  window.addEventListener("load", _hrmResizeIframe);
+  document.fonts && document.fonts.ready && document.fonts.ready.then(_hrmResizeIframe);
+  new ResizeObserver(_hrmResizeIframe).observe(document.body);
+  setTimeout(_hrmResizeIframe, 200);
+  setTimeout(_hrmResizeIframe, 800);
+  setTimeout(_hrmResizeIframe, 2000);
+</script>
+"""
+    components.html(_landing_html, height=50, scrolling=False)
 
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
@@ -6144,9 +6229,22 @@ if not st.session_state.logged_in:
     st.sidebar.success(f"🏢 **{tenant['ten_cty']}**")
 
     st.sidebar.subheader(i18n.t("🔐 Đăng nhập"))
-    u = st.sidebar.text_input(i18n.t("Số điện thoại hoặc Tên đăng nhập"))
-    p = st.sidebar.text_input(i18n.t("Mật khẩu"), type="password")
-    st.sidebar.caption("💡 Mật khẩu mặc định = số điện thoại của bạn. Đổi lại sau khi đăng nhập lần đầu.")
+
+    # Tenant DEMO-HRM: điền sẵn tài khoản trải nghiệm (cấu hình tại ⚙️ Danh mục >
+    # "Tài khoản đăng nhập DEMO") để khách vào thử không cần hỏi tài khoản/mật khẩu.
+    _is_demo_tenant = str(tenant.get('ma_cty', '')).upper() == 'DEMO-HRM'
+    _demo_user_default = ''
+    _demo_pass_default = ''
+    if _is_demo_tenant:
+        _demo_user_default = get_cau_hinh('demo_ten_dang_nhap', '') or ''
+        _demo_pass_default = get_cau_hinh('demo_mat_khau', '') or ''
+
+    u = st.sidebar.text_input(i18n.t("Số điện thoại hoặc Tên đăng nhập"), value=_demo_user_default)
+    p = st.sidebar.text_input(i18n.t("Mật khẩu"), type="password", value=_demo_pass_default)
+    if _is_demo_tenant and _demo_user_default:
+        st.sidebar.info(f"🧪 Tài khoản dùng thử đã điền sẵn: **{_demo_user_default}** / **{_demo_pass_default}** — bấm Đăng nhập luôn.")
+    else:
+        st.sidebar.caption("💡 Mật khẩu mặc định = số điện thoại của bạn. Đổi lại sau khi đăng nhập lần đầu.")
     if st.sidebar.button(i18n.t("Đăng nhập"), width='stretch'):
         success, role, nv_row = check_login(u, p)
         if success:
@@ -7615,12 +7713,8 @@ elif menu == "👤 Ứng viên":
                                 c.execute("SELECT COALESCE(MAX(STT), 0) + 1 FROM nhan_vien")
                                 stt_moi = c.fetchone()[0]
 
-                                # Tạo STT và mã nhân viên mới
-                                ma_cty = st.session_state.tenant.get('ma_cty', 'CHL')
-                                prefix = ma_cty[0].upper()  # DEMO → D
-                                c.execute(f"SELECT COALESCE(MAX(CAST(SUBSTRING(ma_nv FROM 2) AS INTEGER)), 0)+1 FROM nhan_vien WHERE ma_nv LIKE '{prefix}%'")
-                                so_moi = c.fetchone()[0]
-                                ma_nv = f"{prefix}{so_moi:03d}"
+                                # Tạo STT và mã nhân viên mới (theo đúng ký hiệu riêng của tenant)
+                                ma_nv = sinh_ma_nv_moi(c)
                                 c.execute("SELECT COALESCE(MAX(STT),0)+1 FROM nhan_vien")
                                                                 
                                 nhl = ngay_vao_lam_chuyen
@@ -7633,28 +7727,13 @@ elif menu == "👤 Ứng viên":
                                 if loai_hd_chuyen == "Thử việc":
                                     trang_thai_nv = 'THU_VIEC'
                                     trang_thai_bhxh = 'CHUA_DONG'
-                                    c.execute("""
-                                        SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) 
-                                        FROM nhan_vien 
-                                        WHERE so_hdld LIKE %s 
-                                        AND trang_thai IN ('THU_VIEC', 'DANG_LAM')
-                                    """, (f'%/HĐTV-{ma_cty_hd}',))
-                                    tv_cnt = c.fetchone()[0] + 1
-                                    so_hd = f"{tv_cnt:02d}/{nhl.year}/HĐTV-{ma_cty_hd}"
+                                    so_hd = sinh_so_hdld_moi(c, ma_cty_hd, nhl.year, la_thu_viec=True)
                                 else:
                                     trang_thai_nv = 'DANG_LAM'
                                     trang_thai_bhxh = 'DANG_DONG'
                                     if not tbd_val:
                                         tbd_val = nhl
-                                    c.execute("""
-                                        SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) 
-                                        FROM nhan_vien 
-                                        WHERE so_hdld LIKE %s 
-                                        AND trang_thai = 'DANG_LAM'
-                                        AND loai_hop_dong != 'Thử việc'
-                                    """, (f'%/HĐLĐ-{ma_cty_hd}',))
-                                    so_hd_cnt = c.fetchone()[0] or 0
-                                    so_hd = f"{so_hd_cnt + 1:02d}/{nhl.year}/HĐLĐ-{ma_cty_hd}"
+                                    so_hd = sinh_so_hdld_moi(c, ma_cty_hd, nhl.year, la_thu_viec=False)
                                 
                                 # Thêm nhân viên mới (đã thêm trường ten_don_vi_thu_huong, trinh_do)
                                 c.execute("""
@@ -8148,10 +8227,8 @@ elif menu == "✅ Nhân viên":
                                             c.execute("SELECT COALESCE(MAX(STT),0)+1 FROM nhan_vien")
                                             stt_moi = c.fetchone()[0]
 
-                                            # Tạo mã nhân viên mới (BỊ THIẾU - nguyên nhân lỗi "name 'ma_nv' is not defined")
-                                            c.execute("SELECT COALESCE(MAX(CAST(SUBSTRING(ma_nv FROM 2) AS INTEGER)), 0)+1 FROM nhan_vien WHERE ma_nv LIKE 'C%'")
-                                            so_moi_nv = c.fetchone()[0]
-                                            ma_nv = f"C{so_moi_nv:03d}"
+                                            # Tạo mã nhân viên mới (theo đúng ký hiệu riêng của tenant)
+                                            ma_nv = sinh_ma_nv_moi(c)
 
                                             nhl = parse_date(nvl)
                                             tbd_val = parse_date(tbd) if tbd and tbd.strip() else None
@@ -8160,28 +8237,13 @@ elif menu == "✅ Nhân viên":
                                             if lhd == "Thử việc":
                                                 ttnv = 'THU_VIEC'
                                                 ttbh = 'CHUA_DONG'
-                                                c.execute("""
-                                                    SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0)
-                                                    FROM nhan_vien
-                                                    WHERE so_hdld LIKE %s
-                                                    AND trang_thai IN ('THU_VIEC', 'DANG_LAM')
-                                                """, (f'%/HĐTV-{ma_cty_hd}',))
-                                                tv_cnt = c.fetchone()[0] + 1
-                                                so_hd = f"{tv_cnt:02d}/{nhl.year}/HĐTV-{ma_cty_hd}"
+                                                so_hd = sinh_so_hdld_moi(c, ma_cty_hd, nhl.year, la_thu_viec=True)
                                             else:
                                                 ttnv = 'DANG_LAM'
                                                 ttbh = 'DANG_DONG'
                                                 if not tbd_val:
                                                     tbd_val = nhl
-                                                c.execute("""
-                                                    SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0)
-                                                    FROM nhan_vien
-                                                    WHERE so_hdld LIKE %s
-                                                    AND trang_thai = 'DANG_LAM'
-                                                    AND loai_hop_dong != 'Thử việc'
-                                                """, (f'%/HĐLĐ-{ma_cty_hd}',))
-                                                so_hd_cnt = c.fetchone()[0] or 0
-                                                so_hd = f"{so_hd_cnt + 1:02d}/{nhl.year}/HĐLĐ-{ma_cty_hd}"
+                                                so_hd = sinh_so_hdld_moi(c, ma_cty_hd, nhl.year, la_thu_viec=False)
                                             
                                             # Chuẩn hóa tên phòng ban
                                             pbn_chuan = chuan_hoa_ten_phong_ban(pbn)
@@ -8482,9 +8544,10 @@ elif menu == "✅ Nhân viên":
                                                 SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) as max_stt
                                                 FROM nhan_vien 
                                                 WHERE so_hdld LIKE %s 
+                                                AND SPLIT_PART(so_hdld, '/', 1) ~ '^[0-9]+$'
                                                 AND trang_thai = 'DANG_LAM'
                                                 AND loai_hop_dong != 'Thử việc'
-                                            """, (f'%/{current_year}/HĐLĐ-{ma_cty_hd}',))
+                                            """, (f'%/{current_year}/HĐLĐ-%',))
                                             result = c_temp2.fetchone()
                                             max_stt = result[0] if result else 0
                                             db_temp2.close()
@@ -8546,9 +8609,10 @@ elif menu == "✅ Nhân viên":
                                                             SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) as max_stt
                                                             FROM nhan_vien 
                                                             WHERE so_hdld LIKE %s 
+                                                            AND SPLIT_PART(so_hdld, '/', 1) ~ '^[0-9]+$'
                                                             AND trang_thai = 'DANG_LAM'
                                                             AND loai_hop_dong != 'Thử việc'
-                                                        """, (f'%/{current_year}/HĐLĐ-{ma_cty_hd}',))
+                                                        """, (f'%/{current_year}/HĐLĐ-%',))
                                                         result = c.fetchone()
                                                         max_stt = result[0] if result else 0
                                                         next_stt = max_stt + 1
@@ -9390,7 +9454,8 @@ elif menu == "✅ Nhân viên":
         db_qd = st.session_state.db_engine.get_connection()
         c_qd = db_qd.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         c_qd.execute("""
-            SELECT id, ma_nv, ho_ten, chuc_vu, chuc_danh_nghe, phong_ban_lam_viec, loai_hop_dong, trang_thai
+            SELECT id, ma_nv, ho_ten, chuc_vu, chuc_danh_nghe, phong_ban_lam_viec, loai_hop_dong, trang_thai,
+                   he_so_luong, noi_lam_viec
             FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY ho_ten
         """)
         nv_qd_list = c_qd.fetchall()
@@ -9434,8 +9499,24 @@ elif menu == "✅ Nhân viên":
 
             if loai_qd == 'BO_NHIEM':
                 chuc_vu_moi = st.selectbox("🏷️ Chức vụ được bổ nhiệm:", ds_chuc_vu_tenant, key="qdns_cv_bonhiem")
+                # Bổ nhiệm trong thực tế thường đi kèm luôn Chức danh & Phòng ban mới (VD:
+                # bổ nhiệm Trưởng phòng Kinh doanh = đổi cả chức vụ, chức danh lẫn phòng ban).
+                # Cho phép chỉnh, mặc định giữ nguyên giá trị hiện tại nếu không đổi.
+                cd_hien_tai_bn = nv_qd.get('chuc_danh_nghe') or ''
+                pb_hien_tai_bn = nv_qd.get('phong_ban_lam_viec') or ''
+                with st.expander("⚙️ Chức danh & Phòng ban kèm theo (tuỳ chọn — bỏ trống nếu không đổi)", expanded=False):
+                    chuc_danh_moi_bn = st.text_input("💼 Chức danh mới:", value=cd_hien_tai_bn, key="qdns_cd_bonhiem")
+                    idx_pb_bn = ds_phong_ban.index(pb_hien_tai_bn) if pb_hien_tai_bn in ds_phong_ban else 0
+                    phong_ban_moi_bn = st.selectbox("🏢 Phòng ban mới:", ds_phong_ban, index=idx_pb_bn, key="qdns_pb_bonhiem") if ds_phong_ban else pb_hien_tai_bn
                 tieu_de = f"Bổ nhiệm chức vụ {chuc_vu_moi}"
                 dieu1_lines = [f"Bổ nhiệm Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) giữ chức vụ {chuc_vu_moi} kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
+                chi_tiet_bn = []
+                if chuc_danh_moi_bn.strip() and chuc_danh_moi_bn.strip() != cd_hien_tai_bn:
+                    chi_tiet_bn.append(f"chức danh {chuc_danh_moi_bn.strip()}")
+                if phong_ban_moi_bn and phong_ban_moi_bn != pb_hien_tai_bn:
+                    chi_tiet_bn.append(f"công tác tại {phong_ban_moi_bn}")
+                if chi_tiet_bn:
+                    dieu1_lines.append(f"Đồng thời giữ {', '.join(chi_tiet_bn)} kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}.")
                 gia_tri_truoc = nv_qd.get('chuc_vu') or 'Nhân viên'
                 gia_tri_sau = chuc_vu_moi
 
@@ -9518,14 +9599,36 @@ elif menu == "✅ Nhân viên":
                     # legacy đi nữa.
                     # Ánh xạ gia_tri_truoc/gia_tri_sau sang đúng cặp cột "cũ/mới" mà tab
                     # "Lịch sử công tác" hiển thị (Chức danh / Phòng ban / Loại HĐ), tuỳ loại QĐ.
+                    # Giá trị MỚI cuối cùng cho từng trường hồ sơ (chức danh / phòng ban / loại HĐ)
+                    # sau quyết định này — tính chung cho MỌI loại QĐ (không chỉ DOI_CHUC_DANH/
+                    # DIEU_CHUYEN/CHAM_DUT_HD như trước) để không sót trường nào cần cập nhật,
+                    # kể cả trường hợp BO_NHIEM có kèm chức danh/phòng ban mới ở trên.
+                    chuc_danh_nghe_cu = nv_qd.get('chuc_danh_nghe') or ''
+                    phong_ban_cu = nv_qd.get('phong_ban_lam_viec') or ''
+                    chuc_danh_nghe_moi_final = chuc_danh_nghe_cu
+                    phong_ban_moi_final = phong_ban_cu
+                    loai_hd_moi_final = nv_qd.get('loai_hop_dong') or ''
+
+                    if loai_qd == 'BO_NHIEM':
+                        if chuc_danh_moi_bn.strip():
+                            chuc_danh_nghe_moi_final = chuc_danh_moi_bn.strip()
+                        if phong_ban_moi_bn:
+                            phong_ban_moi_final = phong_ban_moi_bn
+                    elif loai_qd == 'DOI_CHUC_DANH':
+                        chuc_danh_nghe_moi_final = gia_tri_sau
+                    elif loai_qd == 'DIEU_CHUYEN':
+                        phong_ban_moi_final = gia_tri_sau
+                    elif loai_qd == 'CHAM_DUT_HD':
+                        loai_hd_moi_final = 'Đã chấm dứt'
+
                     chuc_danh_cu_v = chuc_danh_moi_v = None
                     phong_ban_cu_v = phong_ban_moi_v = None
                     loai_hd_cu_v = loai_hd_moi_v = None
-                    if loai_qd == 'DOI_CHUC_DANH':
-                        chuc_danh_cu_v, chuc_danh_moi_v = gia_tri_truoc, gia_tri_sau
-                    elif loai_qd == 'DIEU_CHUYEN':
-                        phong_ban_cu_v, phong_ban_moi_v = gia_tri_truoc, gia_tri_sau
-                    elif loai_qd == 'CHAM_DUT_HD':
+                    if chuc_danh_nghe_moi_final != chuc_danh_nghe_cu:
+                        chuc_danh_cu_v, chuc_danh_moi_v = chuc_danh_nghe_cu, chuc_danh_nghe_moi_final
+                    if phong_ban_moi_final != phong_ban_cu:
+                        phong_ban_cu_v, phong_ban_moi_v = phong_ban_cu, phong_ban_moi_final
+                    if loai_qd == 'CHAM_DUT_HD':
                         loai_hd_cu_v, loai_hd_moi_v = gia_tri_truoc, 'Đã chấm dứt'
                     nguoi_ky_v = COMPANY_CONFIG.get('dai_dien') or ''
 
@@ -9603,6 +9706,48 @@ elif menu == "✅ Nhân viên":
                                 thang_ket_thuc_bh = %s
                             WHERE id = %s
                         """, (ngay_qd, ly_do_cd if ly_do_cd.strip() else None, ngay_qd, nv_qd['id']))
+
+                    # Cập nhật thêm Chức danh/Phòng ban vào hồ sơ nếu QĐ này làm thay đổi các
+                    # trường đó (áp dụng chung mọi loại QĐ — trước đây chỉ DOI_CHUC_DANH/
+                    # DIEU_CHUYEN mới cập nhật, nên BO_NHIEM có kèm chức danh/phòng ban mới
+                    # bị bỏ sót không ghi vào hồ sơ).
+                    if chuc_danh_cu_v is not None or phong_ban_cu_v is not None:
+                        set_parts_ho_so = []
+                        set_vals_ho_so = []
+                        if chuc_danh_cu_v is not None:
+                            set_parts_ho_so.append("chuc_danh_nghe = %s")
+                            set_vals_ho_so.append(chuc_danh_nghe_moi_final)
+                        if phong_ban_cu_v is not None:
+                            set_parts_ho_so.append("phong_ban_lam_viec = %s")
+                            set_vals_ho_so.append(phong_ban_moi_final)
+                        set_vals_ho_so.append(nv_qd['id'])
+                        c_s.execute(
+                            f"UPDATE nhan_vien SET {', '.join(set_parts_ho_so)} WHERE id = %s",
+                            set_vals_ho_so
+                        )
+
+                    # Cập nhật tab "Lịch sử công tác": đóng dòng đang mở (den_ngay) và, trừ khi
+                    # là QĐ chấm dứt HĐ, mở thêm 1 dòng mới kể từ ngày QĐ có hiệu lực — để lịch sử
+                    # công tác phản ánh đúng mốc thay đổi thay vì chỉ thấy giá trị mới nhất.
+                    if loai_qd == 'CHAM_DUT_HD':
+                        c_s.execute("""
+                            UPDATE lich_su_cong_tac SET den_ngay = %s
+                            WHERE nhan_vien_id = %s AND den_ngay IS NULL
+                        """, (ngay_qd, nv_qd['id']))
+                    elif chuc_danh_cu_v is not None or phong_ban_cu_v is not None or loai_hd_cu_v is not None:
+                        c_s.execute("""
+                            UPDATE lich_su_cong_tac SET den_ngay = %s
+                            WHERE nhan_vien_id = %s AND den_ngay IS NULL
+                        """, (ngay_qd - timedelta(days=1), nv_qd['id']))
+                        c_s.execute("""
+                            INSERT INTO lich_su_cong_tac
+                                (nhan_vien_id, tu_ngay, chuc_danh, phong_ban, noi_lam_viec, loai_hop_dong, he_so_luong)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            nv_qd['id'], ngay_qd, chuc_danh_nghe_moi_final, phong_ban_moi_final,
+                            nv_qd.get('noi_lam_viec') or get_cau_hinh('noi_lam_viec', 'Cảng THQT Hòn La'),
+                            loai_hd_moi_final, nv_qd.get('he_so_luong', 0)
+                        ))
 
                     db_s.commit()
                     db_s.close()
@@ -11195,6 +11340,49 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                 st.success("✅ Đã lưu toàn bộ cấu hình doanh nghiệp!")
                 st.cache_data.clear()
                 st.rerun()
+
+    st.divider()
+    with st.expander("🏷️ Ký hiệu Mã nhân viên riêng của công ty"):
+        st.caption(
+            "Ký hiệu (tiền tố) dùng khi hệ thống TỰ SINH Mã nhân viên cho người mới thêm — "
+            "VD đặt 'HL' sẽ sinh HL001, HL002... Mặc định là **NV** nếu chưa đặt riêng."
+        )
+        ky_hieu_cur = get_cau_hinh('ky_hieu_ma_nv', 'NV') or 'NV'
+        ky_hieu_moi = st.text_input("Ký hiệu Mã nhân viên:", value=ky_hieu_cur, max_chars=6, key="ky_hieu_ma_nv_cfg")
+        if st.button("💾 Lưu ký hiệu Mã nhân viên", key="btn_save_ky_hieu_ma_nv", disabled=not can_edit()):
+            ky_hieu_sach = re.sub(r'[^A-Za-z0-9]', '', ky_hieu_moi).upper()
+            if not ky_hieu_sach:
+                st.error("❌ Ký hiệu không hợp lệ (chỉ gồm chữ/số).")
+            elif set_cau_hinh('ky_hieu_ma_nv', ky_hieu_sach, 'Tiền tố dùng khi tự sinh Mã nhân viên mới'):
+                st.success(f"✅ Đã lưu ký hiệu Mã nhân viên: {ky_hieu_sach}")
+                st.cache_data.clear()
+                st.rerun()
+            else:
+                st.error("❌ Lưu thất bại.")
+
+    with st.expander("🧪 Tài khoản đăng nhập DEMO (tự điền sẵn ở màn hình đăng nhập)"):
+        st.caption(
+            "Chỉ áp dụng cho tenant có Mã công ty = **DEMO-HRM**: điền sẵn Tên đăng nhập/Mật khẩu "
+            "ở màn hình đăng nhập để khách trải nghiệm không cần hỏi tài khoản. "
+            "⚠️ Giá trị nhập ở đây PHẢI khớp đúng với Tên đăng nhập/Mật khẩu thật của 1 nhân viên "
+            "có sẵn trong hệ thống (mục ✅ Quản lý nhân viên), nếu không đăng nhập sẽ vẫn báo sai."
+        )
+        demo_user_cur = get_cau_hinh('demo_ten_dang_nhap', '') or ''
+        demo_pass_cur = get_cau_hinh('demo_mat_khau', '') or ''
+        col_demo1, col_demo2 = st.columns(2)
+        with col_demo1:
+            demo_user_moi = st.text_input("Tên đăng nhập demo:", value=demo_user_cur, key="demo_user_cfg")
+        with col_demo2:
+            demo_pass_moi = st.text_input("Mật khẩu demo:", value=demo_pass_cur, key="demo_pass_cfg")
+        if st.button("💾 Lưu tài khoản demo", key="btn_save_demo_login", disabled=not can_edit()):
+            ok1 = set_cau_hinh('demo_ten_dang_nhap', demo_user_moi.strip(), 'Tên đăng nhập tự điền sẵn ở trang đăng nhập cho tenant DEMO-HRM')
+            ok2 = set_cau_hinh('demo_mat_khau', demo_pass_moi.strip(), 'Mật khẩu tự điền sẵn ở trang đăng nhập cho tenant DEMO-HRM')
+            if ok1 and ok2:
+                st.success("✅ Đã lưu tài khoản demo!")
+                st.cache_data.clear()
+                st.rerun()
+            else:
+                st.error("❌ Lưu thất bại.")
 
 # ========== BHXH ==========
 elif menu == "📋 BHXH":

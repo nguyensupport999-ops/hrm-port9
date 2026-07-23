@@ -547,9 +547,48 @@ def so_nam_cong_tac(ngay_vao_lam):
     return max(0, nam)
 
 
+def _load_salary_module():
+    """Nạp module công thức lương ĐANG ÁP DỤNG cho tenant hiện tại: ưu tiên file riêng
+    'salary/salary_{ma_so_thue}.py' (đặt cùng cấp với app.py); nếu tenant chưa có file
+    riêng, rơi về mặc định 'salary/salary_demo.py'.
+
+    Đây là bản sao ĐỘC LẬP của _load_tenant_module_or_demo() trong app.py — không
+    import trực tiếp từ app.py để tránh import vòng (app.py `import tinh_thu_nhap` ở
+    mức module ngay khi khởi động; nếu tinh_thu_nhap.py quay lại `import app` sẽ chạy
+    lại toàn bộ app.py giữa chừng và crash)."""
+    import importlib
+    tenant = st.session_state.get('tenant') or {}
+    ma_so_thue = (tenant.get('ma_so_thue') or '').strip()
+
+    module = None
+    if ma_so_thue:
+        try:
+            module = importlib.import_module(f"salary.salary_{ma_so_thue}")
+        except ModuleNotFoundError:
+            module = None
+        except Exception as e:
+            print(f"Lỗi import salary.salary_{ma_so_thue}: {e}")
+            module = None
+
+    if module is None:
+        try:
+            module = importlib.import_module("salary.salary_demo")
+        except Exception as e:
+            print(f"Lỗi import salary.salary_demo (mặc định): {e}")
+            module = None
+
+    return module
+
+
 def tinh_luong_nhan_vien(nv: dict, thang: int, nam: int, cfg: dict = None,
                           phu_cap_trach_nhiem=0, phu_cap_khac=0, ghi_chu=""):
-    """Hàm lõi tính lương 3P đầy đủ cho 1 nhân viên trong 1 kỳ. Trả về dict chi tiết."""
+    """Hàm lõi tính lương 3P đầy đủ cho 1 nhân viên trong 1 kỳ. Trả về dict chi tiết.
+
+    LƯU Ý: đây là công thức 3P MẶC ĐỊNH thật sự đang chạy (được salary/salary_demo.py
+    gọi lại qua tinh_luong()). Màn '💰 Tính thu nhập' (_ui_tinh_luong_thang() bên dưới)
+    KHÔNG gọi thẳng hàm này nữa — nó gọi qua _load_salary_module() để tự động dùng
+    đúng công thức riêng của tenant (nếu có), hoặc rơi về công thức 3P này làm mặc
+    định. Hàm này vẫn giữ nguyên logic gốc, không đổi."""
     cfg = cfg or lay_cau_hinh_luong()
     nv_id = nv["id"]
 
@@ -1608,13 +1647,27 @@ def _ui_tinh_luong_thang():
         st.warning("Không có nhân viên phù hợp trong phạm vi đã chọn.")
         return
 
+    salary_module = _load_salary_module()
+    if salary_module and hasattr(salary_module, 'tinh_luong'):
+        _mst_hien_tai_luong = ((st.session_state.get('tenant') or {}).get('ma_so_thue') or '').strip()
+        if _mst_hien_tai_luong and salary_module.__name__ == f"salary.salary_{_mst_hien_tai_luong}":
+            st.caption(f"💡 Đang dùng công thức lương RIÊNG của công ty bạn: `salary/salary_{_mst_hien_tai_luong}.py`")
+        else:
+            st.caption("💡 Đang dùng công thức lương mặc định: `salary/salary_demo.py`")
+
     if st.button(f"🧮 Tính lương 3P — Tháng {thang}/{nam} ({len(nv_list)} nhân viên)", type="primary"):
         ket_qua = []
         chua_gan_p1 = []
         for nv in nv_list:
             if not lay_gan_p1(nv["id"]):
                 chua_gan_p1.append(nv["ho_ten"])
-            bd = tinh_luong_nhan_vien(dict(nv), thang, nam, cfg)
+            if salary_module and hasattr(salary_module, 'tinh_luong'):
+                bd = salary_module.tinh_luong(dict(nv), thang, nam, cfg)
+            else:
+                # An toàn dự phòng: nếu vì lý do gì đó không nạp được cả file riêng lẫn
+                # salary_demo.py (VD thiếu thư mục salary/ trên môi trường triển khai),
+                # vẫn tính lương được bằng công thức 3P gốc thay vì crash cả màn hình.
+                bd = tinh_luong_nhan_vien(dict(nv), thang, nam, cfg)
             ket_qua.append(bd)
         st.session_state["_ketqua_luong_3p"] = ket_qua
         st.session_state["_ketqua_luong_ky"] = (thang, nam)

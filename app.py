@@ -1202,7 +1202,22 @@ def upload_anh_ho_so(ma_nv_or_id, ho_ten, uploaded_file):
             uploaded_file.getvalue(), uploaded_file.type
         )
     except Exception as e:
-        st.warning(f"⚠️ Lỗi upload ảnh hồ sơ (các thông tin khác vẫn được lưu): {e}")
+        loi_bucket = st.session_state.get(f"_sb_bucket_error_{SUPABASE_BUCKET}")
+        if loi_bucket and 'bucket' in str(e).lower():
+            st.warning(
+                f"⚠️ Lỗi upload ảnh hồ sơ (các thông tin khác vẫn được lưu): {e}\n\n"
+                f"**Nguyên nhân:** App không tự tạo được bucket Storage `{SUPABASE_BUCKET}` trên project "
+                f"Supabase của công ty bạn (chi tiết lỗi tạo bucket: {loi_bucket}). Thường do khoá "
+                f"Supabase (Supabase Key) đang cấu hình cho công ty bạn là **anon/public key** — loại "
+                f"key này không có quyền tạo bucket.\n\n"
+                f"**Cách khắc phục** (chọn 1 trong 2):\n"
+                f"1. Vào Supabase Dashboard của công ty bạn > Storage > New bucket, tạo bucket tên chính "
+                f"xác `{SUPABASE_BUCKET}` (để **Private**); hoặc\n"
+                f"2. Đổi Supabase Key đang cấu hình cho tenant sang **service_role key** tại "
+                f"'Quản trị hệ thống > Danh sách khách hàng (Tenants)'."
+            )
+        else:
+            st.warning(f"⚠️ Lỗi upload ảnh hồ sơ (các thông tin khác vẫn được lưu): {e}")
         return None
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -4554,15 +4569,26 @@ def _ensure_bucket_exists(sb, bucket):
         return
     try:
         sb.storage.get_bucket(bucket)
+        st.session_state[cache_key] = True
+        st.session_state.pop(f"_sb_bucket_error_{bucket}", None)
+        return
     except Exception:
-        try:
-            sb.storage.create_bucket(bucket, options={"public": False})
-        except Exception as e:
-            # Có thể bucket đã được tạo bởi 1 phiên khác cùng lúc (race), hoặc API key
-            # hiện tại không đủ quyền tạo bucket -> bỏ qua, để lỗi thực sự (nếu còn)
-            # hiện ra rõ ràng cho người dùng khi thao tác upload.
-            print(f"Không thể tự tạo bucket Storage '{bucket}': {e}")
-    st.session_state[cache_key] = True
+        pass
+    try:
+        sb.storage.create_bucket(bucket, options={"public": False})
+        st.session_state[cache_key] = True
+        st.session_state.pop(f"_sb_bucket_error_{bucket}", None)
+    except Exception as e:
+        # Có thể bucket đã được tạo bởi 1 phiên khác cùng lúc (race), hoặc API key
+        # hiện tại không đủ quyền tạo bucket (thường gặp nhất: key lưu cho tenant là
+        # "anon/public key", loại key này KHÔNG có quyền tạo bucket trên Supabase —
+        # chỉ "service_role key" mới tạo được). KHÔNG cache lại là "đã kiểm tra xong"
+        # trong trường hợp lỗi, để lần upload kế tiếp còn tự thử lại (phòng khi bucket
+        # được tạo thủ công/đã hết lỗi tạm thời). Lưu lại lý do lỗi để nơi gọi upload
+        # (upload_anh_ho_so...) có thể hiển thị hướng dẫn rõ ràng cho người dùng thay vì
+        # chỉ có dòng lỗi kỹ thuật "Bucket not found" khó hiểu.
+        st.session_state[f"_sb_bucket_error_{bucket}"] = str(e)
+        print(f"Không thể tự tạo bucket Storage '{bucket}': {e}")
 
 
 def get_supabase_storage():
@@ -5800,7 +5826,16 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
                         st.error("❌ Chưa có hàm `update_tenant_logo()` trong control_plane.py. "
                                  "Cần thêm hàm này (UPDATE tenants SET logo_url=%s WHERE ma_so_thue=%s) để nút này hoạt động.")
                     except Exception as e:
-                        st.error(f"❌ Lỗi upload logo: {e}")
+                        loi_bucket_logo = st.session_state.get(f"_sb_bucket_error_{SUPABASE_BUCKET}")
+                        if loi_bucket_logo and 'bucket' in str(e).lower():
+                            st.error(
+                                f"❌ Lỗi upload logo: {e}\n\n"
+                                f"Nguyên nhân: không tự tạo được bucket `{SUPABASE_BUCKET}` trên project Supabase "
+                                f"của công ty này ({loi_bucket_logo}). Tạo bucket thủ công trên Supabase Dashboard "
+                                f"hoặc đổi sang service_role key cho tenant này."
+                            )
+                        else:
+                            st.error(f"❌ Lỗi upload logo: {e}")
 
         st.divider()
         st.markdown("##### 📥 Nhập/Xuất dữ liệu Excel cho 1 khách hàng")
@@ -7528,7 +7563,7 @@ elif menu == "👤 Ứng viên":
                                 """, (
                                     stt_moi, ma_nv, so_hd, ho_ten_nv, chuc_danh_nv,
                                     parse_date(ngay_sinh_nv), gioi_tinh_nv, so_cccd_nv, parse_date(ngay_cap_cccd_nv), noi_cap_cccd_nv,
-                                    nguyen_quan_nv, thuong_tru_nv, dien_thoai_nv, email_nv, email_nv, ho_so_chuyen,
+                                    nguyen_quan_nv, thuong_tru_nv, (dien_thoai_nv.strip() or None) if dien_thoai_nv else None, email_nv, email_nv, ho_so_chuyen,
                                     luong_bh_chuyen, ma_bhxh_chuyen, ngay_vao_lam_chuyen, noi_lam_viec_nv,
                                     stk_chuyen, chi_nhanh_nh_chuyen, ngay_vao_lam_chuyen, loai_hd_chuyen,
                                     nhom_bhxh_chuyen, tbd_val, parse_date(ngay_ket_thuc_chuyen), trang_thai_nv, trang_thai_bhxh,
@@ -8034,7 +8069,7 @@ elif menu == "✅ Nhân viên":
                                                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                                 %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
                                                 (stt_moi, ma_nv, so_hd, htn, cdn, parse_date(nsn), gtn, scc, parse_date(ncc), ncc2, nqn, ttn,
-                                                 dtn2, emn, emn, hso, to_float_or_none(lbh), mbh, parse_date(nvl), nlv, stk, cnh, parse_date(nvl), lhd,
+                                                 (dtn2.strip() or None) if dtn2 else None, emn, emn, hso, to_float_or_none(lbh), mbh, parse_date(nvl), nlv, stk, cnh, parse_date(nvl), lhd,
                                                  nbh, tbd_val, None, ttnv, ttbh, pbn_chuan, parse_date(nkt), qtn, dtn, 
                                                  to_float_or_none(hsl), to_float_or_none(pcv), to_float_or_none(ptv), to_float_or_none(ptn),
                                                  mhb, to_float_or_none(tld), to_float_or_none(mtd), ptd, ths, phs, dhs, tkb, nkb, dks,
@@ -8614,7 +8649,7 @@ elif menu == "✅ Nhân viên":
                                                         phuong_thuc_dong=%s,tinh_nhan_hs=%s,phuong_nhan_hs=%s,dia_chi_nhan_hs=%s,
                                                         tinh_kcb=%s,noi_dang_ky_kcb=%s,dang_ky_nhan_so=%s, ten_don_vi_thu_huong=%s, trinh_do=%s,
                                                         so_luong_npt=%s WHERE id=%s""",
-                                                        (hnv, cdnv, parse_date(nsnv), gtnv, sccv, parse_date(nccv), ncv, nqnv, ttnv, dtnv2,
+                                                        (hnv, cdnv, parse_date(nsnv), gtnv, sccv, parse_date(nccv), ncv, nqnv, ttnv, (dtnv2.strip() or None) if dtnv2 else None,
                                                          emnv, emnv, hsov, to_float_or_none(lbhv), mbhv, parse_date(nvlv), nlv2, stkv, cnhv, parse_date(nvlv), lhdv,
                                                          nbhv, tbd_val, tt_nv, tt_bh, pbnv_chuan, parse_date(nktv), qtnv, dtnv,
                                                          to_float_or_none(hslv), to_float_or_none(pcvv), to_float_or_none(ptvv), to_float_or_none(ptnv),

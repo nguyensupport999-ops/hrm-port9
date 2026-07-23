@@ -95,6 +95,24 @@ def ensure_control_plane_schema():
         ]
         for col_name, col_type in columns_to_add:
             c.execute(f"ALTER TABLE tenants ADD COLUMN IF NOT EXISTS {col_name} {col_type}")
+        # QUYẾT ĐỊNH: chuyển khoá quản lý tenant (tra cứu/khoá-mở/đổi ngôn ngữ/logo/xoá...)
+        # từ 'ma_cty' (mã ngắn, dễ trùng giữa các khách hàng khác nhau) sang 'ma_so_thue'
+        # (mã số thuế — duy nhất theo pháp luật cho mỗi pháp nhân, không thể trùng).
+        # 'ma_cty' vẫn được GIỮ LẠI trong bảng vì vẫn dùng làm mã ngắn hiển thị/đánh số
+        # văn bản (VD: 04/2026/HĐKT-CHL) — đây là mục đích khác với việc định danh quản lý.
+        # Dùng UNIQUE INDEX có điều kiện (bỏ qua NULL/rỗng) thay vì ràng buộc UNIQUE cứng
+        # trên cột, để không phá vỡ các dòng tenant cũ lỡ chưa có mã số thuế.
+        c.execute("""
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_indexes WHERE indexname = 'idx_tenants_ma_so_thue_unique'
+                ) THEN
+                    CREATE UNIQUE INDEX idx_tenants_ma_so_thue_unique
+                        ON tenants (ma_so_thue) WHERE ma_so_thue IS NOT NULL AND ma_so_thue <> '';
+                END IF;
+            END $$;
+        """)
         conn.commit()
     except Exception as e:
         print(f"Error ensuring control plane schema: {e}")
@@ -170,6 +188,57 @@ def get_tenant_by_code(ma_cty: str):
     }
 
 
+@st.cache_data(ttl=60, show_spinner=False)
+def get_tenant_by_ma_so_thue(ma_so_thue: str):
+    """Trả về dict thông tin kết nối (đã giải mã) của 1 khách hàng theo MÃ SỐ THUẾ.
+    Đây là hàm tra cứu CHÍNH cho việc quản lý tenant kể từ khi quyết định đổi khoá quản lý
+    từ 'ma_cty' sang 'ma_so_thue' (mã số thuế duy nhất theo pháp luật, không thể trùng giữa
+    2 khách hàng như 'ma_cty' — mã ngắn tự đặt — có thể bị trùng khi SaaS có nhiều khách).
+    Cấu trúc và ý nghĩa trả về giống hệt get_tenant_by_code(), chỉ khác cột tra cứu."""
+    if not ma_so_thue:
+        return None
+    ensure_control_plane_schema()
+    conn = get_control_plane_connection()
+    try:
+        c = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        c.execute("SELECT * FROM tenants WHERE ma_so_thue = %s", (ma_so_thue.strip(),))
+        row = c.fetchone()
+    finally:
+        conn.close()
+
+    if not row:
+        return None
+    if row["trang_thai"] != "active":
+        return {"error": "SUSPENDED", "ten_cty": row["ten_cty"]}
+
+    return {
+        "ma_cty": row["ma_cty"],
+        "ten_cty": row["ten_cty"],
+        "logo_url": row["logo_url"],
+        "db_host": row["db_host"],
+        "db_port": row["db_port"],
+        "db_user": row["db_user"],
+        "db_password": decrypt_text(row["db_password_enc"]),
+        "db_name": row["db_name"],
+        "supabase_url": row["supabase_url"],
+        "supabase_key": decrypt_text(row["supabase_key_enc"]),
+        "goi_dich_vu": row["goi_dich_vu"],
+        "ngon_ngu": row.get("ngon_ngu") or "VI",
+
+        # Metadata cấu hình động
+        "dai_dien": row.get("dai_dien") or "",
+        "chuc_vu": row.get("chuc_vu") or "",
+        "ma_so_thue": row.get("ma_so_thue") or "",
+        "dien_thoai_cty": row.get("dien_thoai_cty") or "",
+        "ma_don_vi_BHXH": row.get("ma_don_vi_bhxh") or "",
+        "ma_vung_luong": row.get("ma_vung_luong") or "",
+        "dia_chi": row.get("dia_chi") or "",
+        "loi_nhan_zalo": row.get("loi_nhan_zalo") or "",
+        "zalo_group_link": row.get("zalo_group_link") or "",
+        "zalo_group_name": row.get("zalo_group_name") or "",
+    }
+
+
 def list_tenants():
     """Danh sách tenant cho trang Quản trị hệ thống (KHÔNG trả về mật khẩu/khoá đã giải mã)."""
     ensure_control_plane_schema()
@@ -196,6 +265,10 @@ def add_tenant(ma_cty, ten_cty, db_host, db_port, db_user, db_password,
                ngon_ngu="VI"):
     """Thêm khách hàng mới. Mật khẩu/Key được mã hoá trước khi lưu.
     Nếu có migration_sql, tự động chạy script tạo bảng trên database của tenant mới."""
+    if not (ma_so_thue or "").strip():
+        # ma_so_thue là khoá quản lý tenant hiện tại (duy nhất theo pháp luật) — bắt buộc
+        # phải có để tra cứu/khoá-mở/đổi ngôn ngữ/xoá... tenant sau này hoạt động đúng.
+        raise ValueError("Thiếu Mã số thuế — đây là khoá định danh bắt buộc để quản lý tenant.")
     ensure_control_plane_schema()
     
     # 1. Thêm tenant vào control plane
@@ -246,57 +319,67 @@ def add_tenant(ma_cty, ten_cty, db_host, db_port, db_user, db_password,
     get_tenant_by_code.clear()  # xoá cache để đọc lại ngay
 
 
-def update_tenant_language(ma_cty, ngon_ngu):
-    """Đổi ngôn ngữ giao diện của 1 tenant đã tồn tại (VI / VI_EN / VI_ZH / VI_KO)."""
+def update_tenant_language(ma_so_thue, ngon_ngu):
+    """Đổi ngôn ngữ giao diện của 1 tenant đã tồn tại (VI / VI_EN / VI_ZH / VI_KO).
+    Tra cứu theo MÃ SỐ THUẾ (khoá quản lý tenant hiện tại) thay vì mã công ty."""
     ensure_control_plane_schema()
     conn = get_control_plane_connection()
     try:
         c = conn.cursor()
-        c.execute("UPDATE tenants SET ngon_ngu=%s WHERE UPPER(ma_cty)=UPPER(%s)",
-                   ((ngon_ngu or "VI").strip().upper(), ma_cty))
+        c.execute("UPDATE tenants SET ngon_ngu=%s WHERE ma_so_thue=%s",
+                   ((ngon_ngu or "VI").strip().upper(), (ma_so_thue or "").strip()))
         conn.commit()
     finally:
         conn.close()
     get_tenant_by_code.clear()
+    get_tenant_by_ma_so_thue.clear()
 
 
-def update_tenant_logo(ma_cty, logo_url):
-    """Cập nhật link logo (Storage public URL) cho 1 tenant đã tồn tại."""
+def update_tenant_logo(ma_so_thue, logo_url):
+    """Cập nhật link logo (Storage public URL) cho 1 tenant đã tồn tại.
+    Tra cứu theo MÃ SỐ THUẾ (khoá quản lý tenant hiện tại) thay vì mã công ty."""
     ensure_control_plane_schema()
     conn = get_control_plane_connection()
     try:
         c = conn.cursor()
-        c.execute("UPDATE tenants SET logo_url=%s WHERE UPPER(ma_cty)=UPPER(%s)",
-                   (logo_url, ma_cty))
+        c.execute("UPDATE tenants SET logo_url=%s WHERE ma_so_thue=%s",
+                   (logo_url, (ma_so_thue or "").strip()))
         conn.commit()
     finally:
         conn.close()
     get_tenant_by_code.clear()
+    get_tenant_by_ma_so_thue.clear()
 
 
-def update_tenant_status(ma_cty, trang_thai):
-    """Bật/tắt (active / suspended) 1 khách hàng — dùng khi khách ngừng hợp đồng."""
+def update_tenant_status(ma_so_thue, trang_thai):
+    """Bật/tắt (active / suspended) 1 khách hàng — dùng khi khách ngừng hợp đồng.
+    Tra cứu theo MÃ SỐ THUẾ (khoá quản lý tenant hiện tại) thay vì mã công ty."""
     ensure_control_plane_schema()
     conn = get_control_plane_connection()
     try:
         c = conn.cursor()
-        c.execute("UPDATE tenants SET trang_thai=%s WHERE UPPER(ma_cty)=UPPER(%s)", (trang_thai, ma_cty))
+        c.execute("UPDATE tenants SET trang_thai=%s WHERE ma_so_thue=%s",
+                   (trang_thai, (ma_so_thue or "").strip()))
         conn.commit()
     finally:
         conn.close()
     get_tenant_by_code.clear()
+    get_tenant_by_ma_so_thue.clear()
 
 
-def delete_tenant(ma_cty):
+def delete_tenant(ma_so_thue):
+    """Xoá vĩnh viễn 1 tenant khỏi Control Plane.
+    Tra cứu theo MÃ SỐ THUẾ (khoá quản lý tenant hiện tại) thay vì mã công ty."""
     ensure_control_plane_schema()
     conn = get_control_plane_connection()
     try:
         c = conn.cursor()
-        c.execute("DELETE FROM tenants WHERE UPPER(ma_cty)=UPPER(%s)", (ma_cty,))
+        c.execute("DELETE FROM tenants WHERE ma_so_thue=%s", ((ma_so_thue or "").strip(),))
         conn.commit()
     finally:
         conn.close()
     get_tenant_by_code.clear()
+    get_tenant_by_ma_so_thue.clear()
 
 
 def check_super_admin(username, password):
@@ -463,10 +546,23 @@ def resolve_tenant():
     2) Subdomain (honla.kendu-ai.com) hoặc query param ?tenant=HONLA — dùng cho app
        dùng chung nhiều tenant (như app "honla" hiện tại) hoặc phương án Iframe.
 
+    QUYẾT ĐỊNH: khoá quản lý tenant đã chuyển từ 'ma_cty' sang 'ma_so_thue' (mã số thuế —
+    duy nhất theo pháp luật, không thể trùng như mã công ty tự đặt). Vì vậy giá trị trong
+    tenant_code / subdomain / ?tenant= giờ được thử tra theo ma_so_thue TRƯỚC; nếu không
+    khớp tenant nào mới thử lại theo ma_cty (giữ tương thích ngược cho các app đã deploy
+    từ trước khi đổi khoá này, vẫn đang dùng mã công ty trong Secrets/subdomain).
+
     Nếu KHÔNG xác định được tenant, hàm không làm gì cả — luồng chọn công ty thủ công
     đã có sẵn trong app.py (nhập Mã công ty ở sidebar) sẽ tự xử lý tiếp."""
     if st.session_state.get("tenant"):
         return
+
+    def _tim_tenant(ma_dinh_danh):
+        """Thử tra theo ma_so_thue trước (khoá hiện tại), fallback ma_cty (khoá cũ)."""
+        found = get_tenant_by_ma_so_thue(ma_dinh_danh.strip())
+        if found:
+            return found
+        return get_tenant_by_code(ma_dinh_danh.strip())
 
     # ---- Ưu tiên 1: Secret tenant_code (app riêng cho 1 khách) ----
     try:
@@ -474,7 +570,7 @@ def resolve_tenant():
     except Exception:
         secret_tenant_code = None
     if secret_tenant_code:
-        tenant = get_tenant_by_code(secret_tenant_code.strip())
+        tenant = _tim_tenant(secret_tenant_code)
         if tenant and tenant.get("error") != "SUSPENDED":
             st.session_state.tenant = tenant
             st.session_state.db_engine = DatabaseEngine(tenant)
@@ -488,20 +584,20 @@ def resolve_tenant():
         return
 
     # ---- Ưu tiên 2: Subdomain / query param (app dùng chung nhiều tenant) ----
-    ma_cty = None
+    ma_dinh_danh = None
     try:
         qp_tenant = st.query_params.get("tenant")
     except Exception:
         qp_tenant = None
     if qp_tenant:
-        ma_cty = qp_tenant.strip().upper()
+        ma_dinh_danh = qp_tenant.strip()
     else:
-        ma_cty = _extract_subdomain_code(_get_request_hostname())
+        ma_dinh_danh = _extract_subdomain_code(_get_request_hostname())
 
-    if not ma_cty:
+    if not ma_dinh_danh:
         return
 
-    tenant = get_tenant_by_code(ma_cty)
+    tenant = _tim_tenant(ma_dinh_danh)
     if not tenant or tenant.get("error") == "SUSPENDED":
         return
 

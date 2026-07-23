@@ -4271,15 +4271,22 @@ st.markdown("""
             padding-bottom: 5px !important;
         }
 
-        /* ===== LOGO SIDEBAR: hình tròn đổ bóng, sát top, căn giữa ===== */
+        /* ===== LOGO SIDEBAR: hình tròn đổ bóng, sát top, căn giữa cả 2 chiều ===== */
         [data-testid="stSidebar"] > div:first-child {
             padding-top: 0 !important;
         }
         [data-testid="stSidebar"] [data-testid="stImage"] {
             display: flex !important;
             justify-content: center !important;
+            align-items: center !important;
             margin-top: 0 !important;
             padding-top: 0 !important;
+        }
+        [data-testid="stSidebar"] [data-testid="stImage"] > div {
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+            width: 100% !important;
         }
         [data-testid="stSidebar"] [data-testid="stImage"] img {
             width: 150px !important;
@@ -4513,6 +4520,12 @@ def get_connection():
 # Cần tạo trước trên Supabase Dashboard > Storage (khuyến nghị để Private).
 SUPABASE_BUCKET = "ho-so-nhan-vien"
 
+# Bucket RIÊNG dùng cho logo công ty — PHẢI để Public vì logo hiển thị ngay ở màn
+# hình đăng nhập, TRƯỚC KHI xác thực người dùng (không thể dùng link ký riêng tư
+# như ảnh hồ sơ nhân viên). Tách bucket riêng thay vì dùng chung SUPABASE_BUCKET để
+# không phải hạ mức bảo mật của bucket hồ sơ nhân viên (ảnh CCCD, hồ sơ cá nhân...).
+SUPABASE_BUCKET_LOGO = "logo-cong-ty"
+
 def sanitize_storage_filename(filename):
     """Chuẩn hóa tên file để làm 'key' hợp lệ trên Supabase Storage:
     - Bỏ dấu tiếng Việt (Lộ_trình_học -> Lo_trinh_hoc)
@@ -4554,28 +4567,44 @@ def upload_to_storage_unique(sb, bucket, base_path, file_bytes, content_type, ma
                 continue
             raise
 
-def _ensure_bucket_exists(sb, bucket):
+def _ensure_bucket_exists(sb, bucket, public=False):
     """Tự động tạo bucket Storage nếu chưa tồn tại trên project Supabase của TENANT
     đang đăng nhập. Mỗi tenant có 1 project Supabase riêng (mô hình SaaS đa khách
     hàng) nên bucket phải được tạo riêng cho từng project — nếu tenant mới chưa
     từng tạo bucket này thủ công trên Dashboard, MỌI upload ảnh hồ sơ/file công văn
-    sẽ lỗi "Bucket not found". Hàm này tự tạo bucket (Private) nếu chưa có, giống
-    cách các bảng DB trong app được tự tạo bằng CREATE TABLE IF NOT EXISTS.
-    Im lặng bỏ qua nếu tạo thất bại (VD key không đủ quyền) — lỗi gốc sẽ hiện ra
-    rõ ràng khi thực sự upload, không che giấu vấn đề.
+    sẽ lỗi "Bucket not found". Hàm này tự tạo bucket nếu chưa có, giống cách các
+    bảng DB trong app được tự tạo bằng CREATE TABLE IF NOT EXISTS.
+
+    public=True: dùng cho các bucket cần truy cập công khai KHÔNG cần đăng nhập
+    (VD logo công ty — hiển thị ngay ở màn hình đăng nhập, trước khi xác thực).
+    public=False (mặc định): dùng cho dữ liệu riêng tư (ảnh hồ sơ nhân viên...).
+    Nếu bucket ĐÃ tồn tại nhưng đang ở chế độ khác với `public` yêu cầu, tự động
+    cập nhật lại (update_bucket) — xử lý trường hợp bucket logo từng bị tạo nhầm
+    ở chế độ Private trước khi có tham số này.
+
+    Im lặng bỏ qua nếu tạo/cập nhật thất bại (VD key không đủ quyền) — lỗi gốc sẽ
+    hiện ra rõ ràng khi thực sự upload, không che giấu vấn đề.
     Cache trong session để chỉ kiểm tra 1 lần/phiên/bucket, tránh gọi API thừa."""
-    cache_key = f"_sb_bucket_checked_{bucket}"
+    cache_key = f"_sb_bucket_checked_{bucket}_{public}"
     if st.session_state.get(cache_key):
         return
     try:
-        sb.storage.get_bucket(bucket)
+        info = sb.storage.get_bucket(bucket)
+        is_public_now = bool(getattr(info, "public", None) if not isinstance(info, dict) else info.get("public"))
+        if public and not is_public_now:
+            try:
+                sb.storage.update_bucket(bucket, options={"public": True})
+            except Exception as e:
+                st.session_state[f"_sb_bucket_error_{bucket}"] = str(e)
+                print(f"Không thể chuyển bucket '{bucket}' sang Public: {e}")
+                return
         st.session_state[cache_key] = True
         st.session_state.pop(f"_sb_bucket_error_{bucket}", None)
         return
     except Exception:
         pass
     try:
-        sb.storage.create_bucket(bucket, options={"public": False})
+        sb.storage.create_bucket(bucket, options={"public": public})
         st.session_state[cache_key] = True
         st.session_state.pop(f"_sb_bucket_error_{bucket}", None)
     except Exception as e:
@@ -4629,7 +4658,8 @@ def get_supabase_storage():
 
     try:
         client = create_client(url, key)
-        _ensure_bucket_exists(client, SUPABASE_BUCKET)
+        _ensure_bucket_exists(client, SUPABASE_BUCKET, public=False)
+        _ensure_bucket_exists(client, SUPABASE_BUCKET_LOGO, public=True)
         st.session_state[cache_key] = client
         return client
     except Exception as e:
@@ -5807,32 +5837,30 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
                         tenant_logo = control_plane.get_tenant_by_ma_so_thue(mst_logo.strip())
                         ten_folder_logo = (tenant_logo or {}).get('ma_cty') or mst_logo
                         safe_name = sanitize_storage_filename(logo_file.name)
-                        storage_path = f"logos/{sanitize_storage_filename(ten_folder_logo)}/{safe_name}"
+                        storage_path = f"{sanitize_storage_filename(ten_folder_logo)}/{safe_name}"
                         upload_to_storage_unique(
-                            sb, SUPABASE_BUCKET, storage_path,
+                            sb, SUPABASE_BUCKET_LOGO, storage_path,
                             logo_file.getvalue(), logo_file.type
                         )
-                        # Lấy public URL để lưu vào tenant.logo_url (bucket/đường dẫn logo cần để PUBLIC
-                        # vì logo hiển thị cả ở màn hình đăng nhập, trước khi xác thực người dùng)
-                        public_url = sb.storage.from_(SUPABASE_BUCKET).get_public_url(storage_path)
+                        # Lấy public URL để lưu vào tenant.logo_url. Dùng bucket RIÊNG
+                        # (SUPABASE_BUCKET_LOGO), luôn ở chế độ Public, vì logo hiển thị cả ở
+                        # màn hình đăng nhập — trước khi xác thực người dùng.
+                        public_url = sb.storage.from_(SUPABASE_BUCKET_LOGO).get_public_url(storage_path)
                         control_plane.update_tenant_logo(mst_logo.strip(), public_url)
                         st.success(f"✅ Đã upload logo và cập nhật cho khách hàng MST {mst_logo.strip()}. Link: {public_url}")
                         st.image(public_url, width=160)
-                        st.caption("ℹ️ Lưu ý: cần bật chế độ **Public** cho bucket/đường dẫn "
-                                   f"`{SUPABASE_BUCKET}` (hoặc riêng thư mục `logos/`) trên Supabase Dashboard, "
-                                   "nếu không link này sẽ không tải được vì bucket hồ sơ nhân viên mặc định là riêng tư.")
                         st.rerun()
                     except AttributeError:
                         st.error("❌ Chưa có hàm `update_tenant_logo()` trong control_plane.py. "
                                  "Cần thêm hàm này (UPDATE tenants SET logo_url=%s WHERE ma_so_thue=%s) để nút này hoạt động.")
                     except Exception as e:
-                        loi_bucket_logo = st.session_state.get(f"_sb_bucket_error_{SUPABASE_BUCKET}")
+                        loi_bucket_logo = st.session_state.get(f"_sb_bucket_error_{SUPABASE_BUCKET_LOGO}")
                         if loi_bucket_logo and 'bucket' in str(e).lower():
                             st.error(
                                 f"❌ Lỗi upload logo: {e}\n\n"
-                                f"Nguyên nhân: không tự tạo được bucket `{SUPABASE_BUCKET}` trên project Supabase "
-                                f"của công ty này ({loi_bucket_logo}). Tạo bucket thủ công trên Supabase Dashboard "
-                                f"hoặc đổi sang service_role key cho tenant này."
+                                f"Nguyên nhân: không tự tạo được bucket `{SUPABASE_BUCKET_LOGO}` trên project Supabase "
+                                f"đang cấu hình ({loi_bucket_logo}). Tạo bucket thủ công trên Supabase Dashboard (nhớ để "
+                                f"chế độ **Public**) hoặc đổi sang service_role key."
                             )
                         else:
                             st.error(f"❌ Lỗi upload logo: {e}")
@@ -7441,7 +7469,9 @@ elif menu == "👤 Ứng viên":
                 ngay_cap_cccd_nv = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
                 noi_cap_cccd_nv = st.text_input("Nơi cấp CCCD", value=get_cau_hinh('noi_cap_cccd', 'Cục QLHC về TTXH - Bộ Công An'))
             with col2:
-                nguyen_quan_nv = st.text_input("Nguyên quán")
+                # Nguyên quán: đã bỏ khỏi UI theo yêu cầu (đồng bộ với 2 form Thêm/Sửa nhân viên),
+                # lưu rỗng — có thể bổ sung sau qua màn "Sửa nhân viên" nếu cần.
+                nguyen_quan_nv = ""
                 thuong_tru_nv = st.text_area("Thường trú", value=uv_data.get('ghi_chu', ''), height=68)
                 quoc_tich_nv = st.text_input("Quốc tịch", value="Việt Nam")
                 dan_toc_nv = st.text_input("Dân tộc", value="Kinh")
@@ -7485,15 +7515,18 @@ elif menu == "👤 Ứng viên":
                 # Tạo dropdown cho chi nhánh ngân hàng
                 bank_chuyen_index = 0
                 chi_nhanh_nh_chuyen = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_chuyen_index, key="chuyen_cnh")
-                tinh_kcb_chuyen = st.text_input("Tỉnh KCB")
             with col8:
-                noi_kcb_chuyen = st.text_input("Nơi KCB", value=get_cau_hinh('noi_dang_ky_kcb', 'Bệnh viện đa khoa khu vực Bắc Quảng Trị'))
-                tinh_nhan_hs_chuyen = st.text_input("Tỉnh/TP nhận HS", value=get_cau_hinh('tinh_nhan_hs', 'Tỉnh Quảng Trị'))
-                phuong_nhan_hs_chuyen = st.text_input("Phường/Xã nhận HS", value="Xã Phú Trạch")
-            with col9:
-                dia_chi_nhan_hs_chuyen = st.text_area("Địa chỉ nhận HS", value=get_cau_hinh('dia_chi_nhan_hs', 'Công ty cổ phần Cảng Hòn La'), height=100)
-                dk_nhan_so_chuyen = st.selectbox("ĐK nhận sổ", ["Có", "Không"])
                 ho_so_chuyen = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"])
+            # Các trường ít dùng (Tỉnh KCB, Nơi KCB, Tỉnh/TP nhận HS, Phường/Xã nhận HS,
+            # Địa chỉ nhận HS, ĐK nhận sổ) đã bỏ khỏi UI theo yêu cầu — đồng bộ với 2 form
+            # Thêm/Sửa nhân viên: tự động lấy theo cấu hình chung của công ty (⚙️ Cấu hình
+            # công ty); có thể chỉnh riêng cho từng người qua màn "Sửa nhân viên" nếu cần.
+            tinh_kcb_chuyen = get_cau_hinh('tinh_kcb', 'Tỉnh Quảng Trị')
+            noi_kcb_chuyen = get_cau_hinh('noi_dang_ky_kcb', 'Bệnh viện đa khoa khu vực Bắc Quảng Trị')
+            tinh_nhan_hs_chuyen = get_cau_hinh('tinh_nhan_hs', 'Tỉnh Quảng Trị')
+            phuong_nhan_hs_chuyen = "Xã Phú Trạch"
+            dia_chi_nhan_hs_chuyen = get_cau_hinh('dia_chi_nhan_hs', 'Công ty cổ phần Cảng Hòn La')
+            dk_nhan_so_chuyen = "Có"
             col_confirm1, col_confirm2 = st.columns(2)
             with col_confirm1:
                 if st.form_submit_button("✅ XÁC NHẬN CHUYỂN", width='stretch', type="primary", disabled=not can_edit()):
@@ -12374,13 +12407,16 @@ elif menu == "🔑 Quản lý MK":
                 else:
                     st.warning(f"Sẽ đặt lại mật khẩu của **{nv_rst['ho_ten']}** về **{nv_rst['dien_thoai']}** và buộc đổi mật khẩu ở lần đăng nhập tới.")
                     if st.button("🔄 Xác nhận Reset mật khẩu", key=f"btn_reset_mk_{nv_rst['id']}", type="primary", disabled=not can_edit()):
-                        db_r2 = st.session_state.db_engine.get_connection()
-                        c_r2 = db_r2.cursor()
-                        new_hash_rst = bcrypt.hashpw(nv_rst['dien_thoai'].encode(), bcrypt.gensalt()).decode()
-                        c_r2.execute("UPDATE nhan_vien SET mat_khau_hash=%s, phai_doi_mat_khau=TRUE WHERE id=%s",
-                                     (new_hash_rst, nv_rst['id']))
-                        db_r2.commit(); db_r2.close()
-                        st.success(f"✅ Đã reset mật khẩu về SĐT ({nv_rst['dien_thoai']}). Thông báo cho nhân viên đăng nhập lại và đổi mật khẩu mới.")
+                        try:
+                            db_r2 = st.session_state.db_engine.get_connection()
+                            c_r2 = db_r2.cursor()
+                            new_hash_rst = bcrypt.hashpw(nv_rst['dien_thoai'].encode(), bcrypt.gensalt()).decode()
+                            c_r2.execute("UPDATE nhan_vien SET mat_khau_hash=%s, phai_doi_mat_khau=TRUE WHERE id=%s",
+                                         (new_hash_rst, nv_rst['id']))
+                            db_r2.commit(); db_r2.close()
+                            st.success(f"✅ Đã reset mật khẩu về SĐT ({nv_rst['dien_thoai']}). Thông báo cho nhân viên đăng nhập lại và đổi mật khẩu mới.")
+                        except Exception as e:
+                            st.error(f"❌ Không thể reset mật khẩu: {e}")
 
         with tab_phan_quyen:
             st.subheader("🛡️ Phân quyền hệ thống")
@@ -12453,14 +12489,17 @@ elif menu == "🔑 Quản lý MK":
                         st.error("❌ Không thể thực hiện: đây là Admin CUỐI CÙNG của công ty. "
                                  "Hãy chỉ định 1 Admin khác trước khi đổi vai trò người này.")
                     else:
-                        db_pq2 = st.session_state.db_engine.get_connection()
-                        c_pq2 = db_pq2.cursor()
-                        c_pq2.execute("UPDATE nhan_vien SET vai_tro=%s WHERE id=%s", (vai_tro_moi, nv_pq['id']))
-                        db_pq2.commit()
-                        db_pq2.close()
-                        st.success(f"✅ Đã đặt vai trò của **{nv_pq['ho_ten']}** thành **{vai_tro_moi_label}**.")
-                        st.cache_data.clear()
-                        st.rerun()
+                        try:
+                            db_pq2 = st.session_state.db_engine.get_connection()
+                            c_pq2 = db_pq2.cursor()
+                            c_pq2.execute("UPDATE nhan_vien SET vai_tro=%s WHERE id=%s", (vai_tro_moi, nv_pq['id']))
+                            db_pq2.commit()
+                            db_pq2.close()
+                            st.success(f"✅ Đã đặt vai trò của **{nv_pq['ho_ten']}** thành **{vai_tro_moi_label}**.")
+                            st.cache_data.clear()
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"❌ Không thể lưu vai trò: {e}")
 
 elif menu == "🖼️ Tạo ảnh thẻ NV":
     photo_card_gender.render()

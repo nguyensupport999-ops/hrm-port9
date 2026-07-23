@@ -416,7 +416,8 @@ def check_super_admin(username, password):
 
 
 class _ReadOnlyGuardCursor:
-    """Bọc 1 cursor psycopg2 thật, chặn các câu lệnh GHI để bảo vệ DB Demo dùng chung.
+    """Bọc 1 cursor psycopg2 thật, chặn các câu lệnh GHI để bảo vệ DB Demo dùng chung
+    khi vai trò đang đăng nhập là 'xem_toan_bo' (xem DatabaseEngine._should_guard_writes).
     Mọi câu SELECT vẫn chạy bình thường trên dữ liệu mẫu thật."""
 
     _BLOCKED_KEYWORDS = ("insert", "update", "delete", "drop", "truncate", "alter", "grant", "revoke")
@@ -475,9 +476,19 @@ class DatabaseEngine:
     - tenant=None: chưa xác định công ty, get_connection() sẽ báo lỗi rõ ràng
       thay vì crash mơ hồ (buộc code gọi phải xử lý bước chọn công ty trước).
     - tenant thường: mở kết nối thật tới đúng Postgres của khách hàng đó.
-    - tenant với ma_cty == 'DEMO': mở kết nối thật tới DB demo dùng chung,
-      nhưng bọc cursor để chặn mọi lệnh ghi (xem _ReadOnlyGuardCursor).
+    - tenant với ma_cty == 'DEMO': mở kết nối thật tới DB demo dùng chung, nhưng
+      CHỈ bọc cursor để chặn lệnh ghi khi vai trò đang đăng nhập là 'xem_toan_bo'
+      (Xem toàn bộ - không chỉnh sửa). Các vai trò khác (admin, hr, van_thu,
+      kt_luong, nhan_vien...) vẫn thao tác BÌNH THƯỜNG trên DB demo — việc chặn
+      ghi cho các vai trò này đã được xử lý ở tầng UI (xem can_edit() trong
+      app.py: nút Lưu/Sửa/Xóa disabled đúng theo từng vai trò), không cần chặn
+      lại 1 lần nữa ở tầng kết nối DB, tránh vừa sai vừa gây lỗi khó hiểu (VD
+      exception bị Streamlit Cloud tự động ẩn nội dung vì là psycopg2.Error).
     """
+
+    # Vai trò DUY NHẤT bị khoá ghi dữ liệu trên tenant DEMO — khớp với vai trò
+    # "👁️ Xem toàn bộ - không chỉnh sửa" trong VAI_TRO_LUA_CHON (app.py).
+    _DEMO_LOCKED_ROLE = "xem_toan_bo"
 
     def __init__(self, tenant: dict | None):
         self.tenant = tenant
@@ -485,6 +496,20 @@ class DatabaseEngine:
     @property
     def is_demo(self) -> bool:
         return bool(self.tenant) and str(self.tenant.get("ma_cty", "")).upper() == "DEMO"
+
+    @property
+    def _should_guard_writes(self) -> bool:
+        """Chỉ bọc cursor chặn ghi khi: tenant là DEMO VÀ vai trò đang đăng nhập
+        đúng là vai trò bị khoá. Đọc vai trò trực tiếp từ st.session_state — an
+        toàn vì DatabaseEngine chỉ được tạo/dùng trong ngữ cảnh 1 phiên Streamlit
+        đã đăng nhập."""
+        if not self.is_demo:
+            return False
+        try:
+            role = st.session_state.get("role")
+        except Exception:
+            role = None
+        return role == self._DEMO_LOCKED_ROLE
 
     def get_connection(self):
         if not self.tenant:
@@ -499,7 +524,7 @@ class DatabaseEngine:
             password=self.tenant["db_password"],
             database=self.tenant.get("db_name", "postgres"),
         )
-        if self.is_demo:
+        if self._should_guard_writes:
             return _ReadOnlyGuardConnection(conn)
         return conn
 

@@ -303,7 +303,7 @@ def render():
         <span class="hl-ic">🤖</span>
         <div class="hl-highlight-text">
           <h4>AI Tư vấn Hành chính Nhân sự</h4>
-          <p>Trợ lý AI hiểu đúng dữ liệu và chính sách nhân sự của riêng công ty bạn - tư vấn tức thì cho cả người quản lý lẫn nhân viên.</p>
+          <p>Trợ lý AI được huấn luyện và sở hữu Big Data về luật liên quan,sẽ phân tích ngữ cảnh và thông tin đầu vào để truy vấn các Điều luật liên quan và đưa ra ý kiến tư vấn tức thì cho bạn - Một công cụ hữu ích cho cả nhà quản lý và Hr.</p>
         </div>
       </div>
 

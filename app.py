@@ -1682,7 +1682,7 @@ def show_landing_page():
                 line-height: 1.5;
                 overflow-x: hidden;
                 width: 100%;
-                padding-top: 0px;
+                padding-top: 100px;
             }}
             ::-webkit-scrollbar {{
                 width: 8px;

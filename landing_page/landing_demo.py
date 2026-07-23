@@ -340,7 +340,7 @@ def render():
         </div>
       </div>
     </div>
-  </section>s
+  </section>
 
   <section class="hl-inspire">
     <div class="hl-wrap">
@@ -353,7 +353,7 @@ def render():
   </section>
 
   <footer>
-    © 2026 HRM Master · một sản phẩm được xây từ một câu hỏi nhân sự rất đời thường
+    © 2026 HRM Master · một sản phẩm được build từ một ý chí muốn thay đổi tư duy làm việc!
   </footer>
 
 </div>

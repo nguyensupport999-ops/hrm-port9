@@ -2,91 +2,101 @@
 """
 salary/salary_demo.py
 ======================
-Công thức tính lương MẶC ĐỊNH (dùng chung cho mọi tenant CHƯA có công thức riêng).
+Công thức tính lương MẶC ĐỊNH (dùng cho MỌI tenant chưa có công thức lương riêng).
 
-CƠ CHẾ "MỖI TENANT 1 CÔNG THỨC LƯƠNG RIÊNG":
-- app.py (hàm _load_tenant_module_or_demo) sẽ tìm file `salary/salary_{ma_so_thue}.py`
-  của tenant đang đăng nhập (ma_so_thue lấy từ Control Plane — khoá quản lý tenant
-  hiện tại, xem control_plane.py). Nếu tìm thấy, dùng công thức riêng của tenant đó.
-- Nếu tenant CHƯA có file riêng (chưa tuỳ biến công thức lương), tự động dùng file
-  này (salary_demo.py) làm mặc định.
+CƠ CHẾ ĐA-TENANT:
+- Màn "💰 Tính thu nhập" (tinh_thu_nhap.py) tự động nạp module này qua
+  _load_salary_module() (bản sao độc lập của _load_tenant_module_or_demo() trong
+  app.py, đặt ngay trong tinh_thu_nhap.py để tránh import vòng) mỗi khi cần tính
+  lương cho 1 nhân viên.
+- Nếu tenant đang đăng nhập có file riêng 'salary/salary_{ma_so_thue}.py' (đặt cùng
+  cấp với app.py, dùng đúng Mã số thuế của khách hàng đó) và file đó có hàm
+  tinh_luong() hợp lệ -> dùng công thức RIÊNG của khách hàng.
+- Nếu KHÔNG có (hoặc chưa tạo) -> tự động rơi về file NÀY (salary_demo.py) làm mặc
+  định.
 
-MUỐN TẠO CÔNG THỨC LƯƠNG RIÊNG CHO 1 TENANT?
-1. Copy file này thành `salary/salary_{ma_so_thue}.py` (đúng mã số thuế của tenant đó,
-   VD: `salary/salary_0304577099.py`).
-2. Viết lại nội dung hàm `tinh_luong()` bên dưới theo đúng công thức lương riêng của
-   doanh nghiệp đó (bậc thang thuế TNCN riêng, phụ cấp riêng, cách tính OT riêng...).
-   Giữ nguyên chữ ký hàm (tên hàm + tham số) để phần gọi trong app không cần sửa gì.
-3. Không cần sửa gì ở app.py — lần tính lương tiếp theo của tenant đó sẽ tự dùng
-   đúng công thức mới.
+HỢP ĐỒNG CHỮ KÝ (BẮT BUỘC mọi file salary_{ma_so_thue}.py phải tuân theo):
 
-LƯU Ý: đây là bộ khung (interface) cho cơ chế "mỗi tenant 1 công thức lương riêng".
-Module `tinh_thu_nhap.py` (màn "💰 Tính thu nhập") hiện có tự triển khai logic tính
-lương riêng của mình, CHƯA gọi qua plugin này. Muốn tinh_thu_nhap.py áp dụng cơ chế
-đa-tenant, hãy gọi `_load_tenant_module_or_demo('salary', 'salary', ma_so_thue)` từ
-trong file đó rồi dùng module trả về (xem ví dụ cuối file này) thay vì hard-code công
-thức tính lương ngay trong tinh_thu_nhap.py.
+    def tinh_luong(nv: dict, thang: int, nam: int, cfg: dict = None, **kwargs) -> dict:
+
+    Tham số:
+    - nv    : dict thông tin 1 nhân viên (1 dòng bảng `nhan_vien`, các cột như
+              'id', 'ma_nv', 'ho_ten', 'phong_ban_lam_viec', 'chuc_vu',
+              'luong_bao_hiem', 'phu_cap_chuc_vu', 'ngay_vao_lam'...).
+    - thang, nam : kỳ lương cần tính (tháng 1-12, năm).
+    - cfg   : dict cấu hình lương/thuế hiện tại (lấy từ lay_cau_hinh_luong() trong
+              tinh_thu_nhap.py) — chứa các hệ số như luong_co_so, bhxh_nld,
+              giam_tru_ban_than... File riêng có thể bỏ qua cfg và tự định nghĩa
+              công thức hoàn toàn khác nếu muốn.
+    - **kwargs : các tham số phụ tuỳ chọn (VD phu_cap_trach_nhiem, phu_cap_khac,
+              ghi_chu) — file riêng có thể nhận hoặc bỏ qua tuỳ nhu cầu.
+
+    Trả về: dict chi tiết bảng lương của 1 nhân viên, TỐI THIỂU phải có các khoá
+    sau (những màn hình xuất Excel/PDF/gửi chat trong tinh_thu_nhap.py đọc đúng các
+    khoá này — thiếu khoá nào sẽ lỗi/hiện trống ở màn hình tương ứng):
+
+        nhan_vien_id, ma_nv, ho_ten, phong_ban, chuc_vu, thang, nam,
+        p1_luong_vi_tri, p2_luong_nang_luc, p3_luong_hieu_qua,
+        phu_cap_chuc_vu, phu_cap_tham_nien, phu_cap_trach_nhiem, phu_cap_khac,
+        tong_thu_nhap, luong_dong_bh,
+        bhxh_nld, bhyt_nld, bhtn_nld, doan_phi, tong_khau_tru_bh,
+        so_nguoi_phu_thuoc, giam_tru_gia_canh, thu_nhap_tinh_thue, thue_tncn,
+        chi_tiet_thue, tong_khau_tru, thuc_nhan, ghi_chu
+
+QUYẾT ĐỊNH: file mặc định NÀY không viết lại công thức 3P (P1/P2/P3 + BHXH + thuế
+TNCN luỹ tiến) — công thức đó đã có sẵn, đầy đủ và đang chạy thật trong
+tinh_thu_nhap.py (hàm tinh_luong_nhan_vien()). Vì vậy tinh_luong() ở đây CHỈ NỐI
+(delegate) thẳng sang engine thật đó, để:
+    1) Mọi tenant hiện tại (chưa có file riêng) vẫn tính lương ĐÚNG Y HỆT như trước
+       khi có cơ chế đa-tenant này — không phá vỡ dữ liệu/luồng đang chạy.
+    2) Chỉ những tenant THỰC SỰ cần công thức khác biệt mới phải viết
+       salary_{ma_so_thue}.py riêng (xem khung sườn ví dụ ở cuối file này).
+
+Import tinh_thu_nhap ở TRONG hàm (không phải ở đầu file) để tránh lỗi import vòng:
+tinh_thu_nhap.py là nơi GỌI module này (qua _load_salary_module()), nên tới lúc
+tinh_luong() thực sự chạy thì tinh_thu_nhap đã nạp xong hoàn toàn — import lúc đó
+là an toàn.
 """
 
 
-def tinh_luong(nhan_vien: dict, thang: int, nam: int, du_lieu_cham_cong: dict, cau_hinh: dict = None) -> dict:
-    """Tính lương 1 nhân viên trong 1 tháng. Đây là CHỮ KÝ HÀM CHUẨN mà mọi file
-    salary_{ma_so_thue}.py cần tuân theo để app có thể gọi thay thế cho nhau.
-
-    Tham số:
-        nhan_vien: dict thông tin nhân viên (ma_nv, ho_ten, luong_co_ban, chuc_vu,
-                   phong_ban_lam_viec, he_so_luong, ...).
-        thang, nam: tháng/năm cần tính lương.
-        du_lieu_cham_cong: dict dữ liệu chấm công trong tháng (số công chuẩn, số công
-                   thực tế, số giờ OT, số ngày nghỉ phép/không lương...).
-        cau_hinh: dict cấu hình lương của tenant (lấy từ get_cau_hinh(...) trong app.py,
-                   VD mức đóng BHXH, mức giảm trừ gia cảnh...). Có thể để trống (None)
-                   nếu công thức không cần thêm cấu hình ngoài các tham số trên.
-
-    Trả về: dict breakdown lương, tối thiểu gồm các khoá:
-        {
-            'luong_co_ban': ...,      # Lương cơ bản theo hợp đồng
-            'phu_cap': ...,           # Tổng phụ cấp (nếu có)
-            'luong_ot': ...,          # Lương tăng ca (nếu có)
-            'khau_tru_bhxh': ...,     # Khấu trừ BHXH/BHYT/BHTN (phần NLĐ đóng)
-            'thue_tncn': ...,         # Thuế TNCN tạm khấu trừ (nếu có)
-            'thuc_linh': ...,         # Số tiền thực lĩnh cuối cùng
-        }
-
-    ĐÂY LÀ CÔNG THỨC KHUNG/MẶC ĐỊNH — chỉ tính đơn giản theo tỷ lệ ngày công thực tế
-    trên ngày công chuẩn, CHƯA có logic thuế TNCN/BHXH chi tiết. Áp dụng cho tenant nào
-    chưa có công thức riêng; khi cần chính xác theo luật hiện hành, hãy tạo file
-    salary_{ma_so_thue}.py riêng theo hướng dẫn ở đầu file này.
-    """
-    luong_co_ban = float(nhan_vien.get('luong_co_ban') or 0)
-    cong_chuan = float((du_lieu_cham_cong or {}).get('cong_chuan') or 26)
-    cong_thuc_te = float((du_lieu_cham_cong or {}).get('cong_thuc_te') or cong_chuan)
-
-    ty_le_cong = (cong_thuc_te / cong_chuan) if cong_chuan else 0
-    luong_theo_cong = round(luong_co_ban * ty_le_cong)
-
-    phu_cap = float(nhan_vien.get('phu_cap') or 0)
-    luong_ot = 0  # Chưa có logic OT trong bản khung mặc định
-
-    khau_tru_bhxh = 0
-    thue_tncn = 0
-    thuc_linh = luong_theo_cong + phu_cap + luong_ot - khau_tru_bhxh - thue_tncn
-
-    return {
-        'luong_co_ban': luong_theo_cong,
-        'phu_cap': phu_cap,
-        'luong_ot': luong_ot,
-        'khau_tru_bhxh': khau_tru_bhxh,
-        'thue_tncn': thue_tncn,
-        'thuc_linh': thuc_linh,
-    }
+def tinh_luong(nv: dict, thang: int, nam: int, cfg: dict = None, **kwargs) -> dict:
+    """Công thức lương mặc định = dùng thẳng engine 3P thật đang chạy trong
+    tinh_thu_nhap.py (tinh_luong_nhan_vien). Xem docstring đầu file để biết hợp đồng
+    chữ ký đầy đủ mà 1 file salary_{ma_so_thue}.py riêng cần tuân theo nếu muốn thay
+    thế công thức này."""
+    from tinh_thu_nhap import tinh_luong_nhan_vien
+    return tinh_luong_nhan_vien(nv, thang, nam, cfg, **kwargs)
 
 
-# ----------------------------------------------------------------------------------
-# Ví dụ cách gọi plugin này (hoặc plugin riêng của tenant) từ trong tinh_thu_nhap.py:
+# ============================================================================
+# KHUNG SƯỜN VÍ DỤ — cách viết 1 công thức lương HOÀN TOÀN RIÊNG cho 1 khách hàng
+# ============================================================================
+# Muốn có công thức lương RIÊNG (khác hẳn 3P mặc định) cho 1 khách hàng: tạo file
+# 'salary/salary_{ma_so_thue}.py' (đặt cùng cấp với app.py, đúng Mã số thuế của
+# khách hàng đó) rồi viết hàm tinh_luong() theo đúng hợp đồng chữ ký ở trên. Ví dụ
+# công thức "lương khoán đơn giản" (không dùng 3P, không dùng cfg):
 #
-#   from app import _load_tenant_module_or_demo
-#   ma_so_thue = (st.session_state.get('tenant') or {}).get('ma_so_thue', '')
-#   module_luong = _load_tenant_module_or_demo('salary', 'salary', ma_so_thue)
-#   ket_qua = module_luong.tinh_luong(nhan_vien, thang, nam, du_lieu_cham_cong)
-# ----------------------------------------------------------------------------------
+#   def tinh_luong(nv, thang, nam, cfg=None, **kwargs):
+#       luong_co_ban = float(nv.get("luong_bao_hiem") or 0)
+#       phu_cap = float(nv.get("phu_cap_chuc_vu") or 0)
+#       tong_thu_nhap = luong_co_ban + phu_cap
+#       bhxh_nld = round(luong_co_ban * 0.08)
+#       thuc_nhan = tong_thu_nhap - bhxh_nld
+#       return {
+#           "nhan_vien_id": nv["id"], "ma_nv": nv.get("ma_nv"), "ho_ten": nv.get("ho_ten"),
+#           "phong_ban": nv.get("phong_ban_lam_viec"), "chuc_vu": nv.get("chuc_vu"),
+#           "thang": thang, "nam": nam,
+#           "p1_luong_vi_tri": round(luong_co_ban), "p2_luong_nang_luc": 0, "p3_luong_hieu_qua": 0,
+#           "phu_cap_chuc_vu": round(phu_cap), "phu_cap_tham_nien": 0,
+#           "phu_cap_trach_nhiem": 0, "phu_cap_khac": 0,
+#           "tong_thu_nhap": round(tong_thu_nhap), "luong_dong_bh": round(luong_co_ban),
+#           "bhxh_nld": bhxh_nld, "bhyt_nld": 0, "bhtn_nld": 0, "doan_phi": 0,
+#           "tong_khau_tru_bh": bhxh_nld,
+#           "so_nguoi_phu_thuoc": 0, "giam_tru_gia_canh": 0,
+#           "thu_nhap_tinh_thue": 0, "thue_tncn": 0, "chi_tiet_thue": [],
+#           "tong_khau_tru": bhxh_nld, "thuc_nhan": round(thuc_nhan), "ghi_chu": "",
+#       }
+#
+# Sau khi tạo file, KHÔNG cần đăng ký/khai báo gì thêm — màn "💰 Cấu hình công ty >
+# Phần mềm tính lương" sẽ tự nhận diện và báo cho admin biết đang dùng đúng file
+# riêng này (thay vì salary_demo.py).

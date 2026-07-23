@@ -224,7 +224,7 @@ def render():
 
   <section class="hl-hero">
     <div class="hl-wrap">
-      <div class="hl-eyebrow">Câu chuyện có thật · bắt đầu 02/05/2026</div>
+      <div class="hl-eyebrow">Về câu chuyện của Tôi đến với Viber Codding · bắt đầu 02/05/2026</div>
       <h1>Từ những file Excel rối ren,<br>đến phần mềm nhân sự <em>của chính mình</em></h1>
       <p class="hl-lead">HRM Master ra đời từ tay một chuyên viên HR chưa từng viết một dòng code — chỉ vì không muốn tiếp tục quản lý hồ sơ nhân sự bằng thói quen cũ. Đây là hành trình, và cũng là lời mời bạn dùng thử.</p>
       <div class="hl-cta-row">

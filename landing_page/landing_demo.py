@@ -85,12 +85,12 @@ def render():
   #hrm-landing .hl-hero h1{
     font-size:clamp(22px, 3vw, 30px);
     line-height:1.22;
-    max-width:15ch;
+    max-width:60ch;
     font-weight:500;
   }
   #hrm-landing .hl-hero h1 em{ font-style:italic; color:var(--amber); }
   #hrm-landing .hl-hero p.hl-lead{
-    margin-top:12px; max-width:56ch; font-size:13.5px; font-weight:300;
+    margin-top:12px; max-width:100ch; font-size:13.5px; font-weight:300;
     color:var(--ink-soft);
   }
   #hrm-landing .hl-cta-row{ margin-top:18px; display:flex; gap:12px; flex-wrap:wrap; }

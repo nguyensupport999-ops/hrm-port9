@@ -2764,8 +2764,11 @@ if st.session_state.get('tenant'):
         if tenant_key in tenant_data and tenant_data[tenant_key]:
             COMPANY_CONFIG[config_key] = tenant_data[tenant_key]
 
-    # Banner chế độ Demo: dữ liệu dùng chung, chỉ xem thử — không lưu/sửa/xoá được
-    if str(tenant_data.get('ma_cty', '')).upper() == 'DEMO':
+    # Banner chế độ Demo: dữ liệu dùng chung, chỉ xem thử — không lưu/sửa/xoá được.
+    # CHỈ hiện khi đã ĐĂNG NHẬP — khối này chạy ở mức module (mọi lần rerun, kể cả
+    # trước khi đăng nhập), nên nếu không kiểm tra logged_in, banner sẽ nổi lên đầu
+    # trang landing/login (phía trên cả sidebar đăng nhập và nội dung landing page).
+    if str(tenant_data.get('ma_cty', '')).upper() == 'DEMO' and st.session_state.get('logged_in'):
         st.info(
             "🧪 **Chế độ Demo** — Bạn đang xem dữ liệu mẫu dùng chung. "
             "Mọi thao tác Lưu/Sửa/Xoá sẽ bị chặn để bảo vệ dữ liệu chung. "

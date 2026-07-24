@@ -4955,7 +4955,7 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
     st.divider()
     col_btn_action1, col_btn_action2, col_btn_action3, col_btn_action4, col_btn_action5 = st.columns(5)
     #if st.session_state.role in ("admin", "xem_toan_bo"):
-    if st.session_state.role = "xem_toan_bo":
+    if st.session_state.role == "xem_toan_bo":
         with col_btn_action1:
             if st.button("✏️ SỬA NHÂN VIÊN", width='stretch', type="primary", key=f"edit_nv_btn_{key_prefix}", disabled=not can_edit()):
                 st.session_state['selected_nv_id'] = int(nv['id'])

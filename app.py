@@ -2804,11 +2804,12 @@ if not st.session_state.get('tenant'):
     if logo_url:
         with st.sidebar:
             st.markdown(f"""
-            <div style="display: flex; justify-content: center; width: 100%;">
+            <div style="display: flex; justify-content: center; align-items: center; 
+                        width: 100%; min-height: 200px; padding: 10px 0;">
                 <img src="{logo_url}" 
                      style="width: 150px; height: 150px; border-radius: 50%; 
                             object-fit: cover; box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-                            display: block; margin: 4px auto;">
+                            display: block;">
             </div>
             """, unsafe_allow_html=True)
             st.divider()
@@ -4710,13 +4711,13 @@ if not st.session_state.logged_in:
     tenant = st.session_state.tenant
     if tenant.get('logo_url'):
         try:
-            #st.sidebar.image(tenant['logo_url'], width='stretch')
             st.sidebar.markdown(f"""
-            <div style="display: flex; justify-content: center; width: 100%;">
+            <div style="display: flex; justify-content: center; align-items: center; 
+                        width: 100%; min-height: 200px; padding: 10px 0;">
                 <img src="{tenant['logo_url']}" 
                      style="width: 150px; height: 150px; border-radius: 50%; 
                             object-fit: cover; box-shadow: 0 4px 20px rgba(0,0,0,0.25);
-                            display: block; margin: 4px auto;">
+                            display: block;">
             </div>
             """, unsafe_allow_html=True)
         except Exception:

@@ -2847,29 +2847,34 @@ st.markdown("""
             padding-bottom: 5px !important;
         }
 
-        /* ===== LOGO SIDEBAR: hình tròn đổ bóng, sát top, căn giữa cả 2 chiều ===== */
+        /* ===== LOGO SIDEBAR: hình tròn đổ bóng, căn giữa HOÀN TOÀN ===== */
         [data-testid="stSidebar"] > div:first-child {
             padding-top: 0 !important;
         }
-        [data-testid="stSidebar"] [data-testid="element-container"]:has([data-testid="stImage"]) {
+        
+        /* TẤT CẢ các container chứa ảnh trong sidebar đều phải có width:100% và flex center */
+        [data-testid="stSidebar"] [data-testid="element-container"] {
             width: 100% !important;
             display: flex !important;
             justify-content: center !important;
         }
-        [data-testid="stSidebar"] [data-testid="stImage"] {
+        
+        [data-testid="stSidebar"] [data-testid="element-container"] [data-testid="stImage"] {
+            width: 100% !important;
             display: flex !important;
             justify-content: center !important;
             align-items: center !important;
-            width: 100% !important;
-            margin-top: 0 !important;
-            padding-top: 0 !important;
         }
+        
+        /* Bản thân thẻ <img> nằm bên trong div con của stImage */
         [data-testid="stSidebar"] [data-testid="stImage"] > div {
             display: flex !important;
             justify-content: center !important;
             align-items: center !important;
             width: 100% !important;
         }
+        
+        /* QUAN TRỌNG: style cho chính thẻ img */
         [data-testid="stSidebar"] [data-testid="stImage"] img {
             width: 150px !important;
             height: 150px !important;

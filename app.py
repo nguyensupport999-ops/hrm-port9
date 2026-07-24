@@ -13,6 +13,7 @@ from docx import Document
 from docx.shared import Pt, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
+from docx.enum.table import WD_ALIGN_VERTICAL
 import tempfile
 import smtplib
 from email.mime.text import MIMEText
@@ -1276,7 +1277,37 @@ CHAM_CONG_DEPT_LABEL = {
     "LDPT": "LDPT - Lao động phổ thông",
 }
 
-st.set_page_config(page_title="HRM-Master", page_icon="🏗️", layout="wide")
+# Xử lý đổi ngôn ngữ từ request
+def handle_language_change():
+    """Xử lý thay đổi ngôn ngữ từ query params"""
+    query_params = st.query_params
+    if 'lang' in query_params:
+        new_lang = query_params['lang']
+        if new_lang in ['vi', 'en']:
+            st.session_state.language = new_lang
+            st.query_params.clear()
+            st.rerun()
+    
+    # Cũng kiểm tra POST request (cho fetch từ client)
+    try:
+        # Lấy dữ liệu từ request (nếu có)
+        import sys
+        if hasattr(st, 'context') and hasattr(st.context, 'headers'):
+            content_length = int(st.context.headers.get('content-length', 0))
+            if content_length > 0:
+                body = sys.stdin.read(content_length) if content_length else ''
+                if 'set_language=' in body:
+                    new_lang = body.replace('set_language=', '').strip()
+                    if new_lang in ['vi', 'en']:
+                        st.session_state.language = new_lang
+                        st.rerun()
+    except:
+        pass
+
+# Gọi hàm xử lý ngôn ngữ trước khi hiển thị landing page
+handle_language_change()
+
+st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
 
 # Gọi định danh tenant
 resolve_tenant()
@@ -2820,10 +2851,16 @@ st.markdown("""
         [data-testid="stSidebar"] > div:first-child {
             padding-top: 0 !important;
         }
+        [data-testid="stSidebar"] [data-testid="element-container"]:has([data-testid="stImage"]) {
+            width: 100% !important;
+            display: flex !important;
+            justify-content: center !important;
+        }
         [data-testid="stSidebar"] [data-testid="stImage"] {
             display: flex !important;
             justify-content: center !important;
             align-items: center !important;
+            width: 100% !important;
             margin-top: 0 !important;
             padding-top: 0 !important;
         }
@@ -2941,13 +2978,14 @@ def get_loi_chuc_sinh_nhat(ho_ten, gioi_tinh, tuoi=None):
     Tạo lời chúc sinh nhật có xưng hô phù hợp
     """
     xung_ho = get_xung_ho(gioi_tinh, ho_ten)
-    
+    ten_cty_sn = COMPANY_CONFIG.get("ten_cong_ty", "Công ty")
+
     loi_chuc = f"""
 🎉🎂 CHÚC MỪNG SINH NHẬT {xung_ho.upper()} {ho_ten.upper()} 🎂🎉
 
 Thân gửi {xung_ho}: {ho_ten},
 
-Nhân dịp sinh nhật của {xung_ho}, thay mặt Ban Lãnh đạo {COMPANY_CONFIG.get('ten_cong_ty', '')}, 
+Nhân dịp sinh nhật của {xung_ho}, thay mặt Ban Lãnh đạo {ten_cty_sn}, 
 xin gửi đến {xung_ho} những lời chúc tốt đẹp nhất.
 
 Chúc {xung_ho} luôn mạnh khỏe, hạnh phúc và thành công trong công việc 
@@ -2963,7 +3001,7 @@ Cảm ơn {xung_ho} đã luôn đồng hành và đóng góp cho sự phát tri�
 
 Trân trọng!
 
-🏗️ {COMPANY_CONFIG.get('ten_cong_ty', '')}
+🏗️ {ten_cty_sn.upper()}
     """
     
     return loi_chuc
@@ -3656,12 +3694,12 @@ def ensure_chuc_danh_ung_vien_table():
 
 # Nội dung MẶC ĐỊNH của từng Điều — dùng khi admin CHƯA tuỳ chỉnh gì.
 # Dòng bắt đầu bằng "## " sẽ được in đậm (tiêu đề phụ, VD "1. Nghĩa vụ:").
-# Có thể dùng {vi_tri}, {ngay_hieu_luc} trong nội dung Điều 1 — sẽ tự thay bằng thông tin nhân viên.
+# Có thể dùng {vi_tri}, {ngay_hieu_luc}, {ten_cong_ty} trong nội dung các Điều 1, 5 — sẽ tự thay bằng thông tin nhân viên.
 DEFAULT_DIEU_HDLD = {
     "dieu1": ("Điều 1. Thời hạn và công việc hợp đồng:",
         "-    Bên B làm việc theo chế độ hợp đồng lao động không xác định thời hạn;\n"
         "-    Thời gian: Từ ngày {ngay_hieu_luc};\n"
-        "-    Địa điểm làm việc: Tại Cảng tổng hợp quốc tế Hòn La và các địa điểm khác theo sự sắp xếp của Công ty;\n"
+        "-    Địa điểm làm việc: Tại {ten_cong_ty} và các địa điểm khác theo sự sắp xếp của Công ty;\n"
         "-    Vị trí: {vi_tri};\n"
         "-    Công việc phải làm: Thực hiện công việc theo đúng chuyên môn dưới sự quản lý, điều hành của cấp trên;\n"
         "-    Mức lương và phụ cấp: Theo thỏa thuận;\n"
@@ -3692,7 +3730,8 @@ DEFAULT_DIEU_HDLD = {
     "dieu5": ("Điều 5. Điều khoản chung:",
         "-    Những nội dung về quan hệ lao động không ghi trong hợp đồng này thì được áp dụng theo pháp luật lao động;\n"
         "-    Những thoả thuận khác (nếu có): không;\n"
-        "-    Hợp đồng này có hiệu lực từ ngày ký và được làm thành 02 bản, Bên A giữ 01 bản, Bên B giữ 01 có giá trị pháp lý như nhau, để làm căn cứ thực hiện."),
+        "-    Hợp đồng này có hiệu lực từ ngày ký và được làm thành 02 bản, Bên A giữ 01 bản, Bên B giữ 01 có giá trị pháp lý như nhau, để làm căn cứ thực hiện;\n"
+        "-    Bản Hợp đồng này được lập tại văn phòng {ten_cong_ty}."),
 }
 
 DEFAULT_DIEU_HDTV = {
@@ -3700,7 +3739,7 @@ DEFAULT_DIEU_HDTV = {
         "-    Bên B làm việc theo chế độ hợp đồng thử việc, có thời hạn 01 tháng;\n"
         "-    Bắt đầu: {ngay_bat_dau};\n"
         "-    Kết thúc: {ngay_ket_thuc};\n"
-        "-    Địa điểm làm việc: Tại Cảng tổng hợp quốc tế Hòn La và các địa điểm khác theo sự sắp xếp của Công ty;\n"
+        "-    Địa điểm làm việc: Tại {ten_cong_ty} và các địa điểm khác theo sự sắp xếp của Công ty;\n"
         "-    Vị trí: {vi_tri};\n"
         "-    Công việc phải làm: Thực hiện công việc theo đúng chuyên môn dưới sự quản lý, điều hành của cấp trên;\n"
         "-    Mức lương và phụ cấp: Theo thỏa thuận;\n"
@@ -3729,7 +3768,8 @@ DEFAULT_DIEU_HDTV = {
     "dieu5": ("Điều 5. Điều khoản chung:",
         "-    Những nội dung về quan hệ lao động không ghi trong hợp đồng này thì được áp dụng theo pháp luật lao động;\n"
         "-    Những thoả thuận khác (nếu có): không;\n"
-        "-    Hợp đồng này có hiệu lực từ ngày ký và được làm thành 02 bản, Bên A giữ 01 bản, Bên B giữ 01 có giá trị pháp lý như nhau, để làm căn cứ thực hiện."),
+        "-    Hợp đồng này có hiệu lực từ ngày ký và được làm thành 02 bản, Bên A giữ 01 bản, Bên B giữ 01 có giá trị pháp lý như nhau, để làm căn cứ thực hiện;\n"
+        "-    Bản Hợp đồng này được lập tại văn phòng {ten_cong_ty}."),
 }
 
 class _SafeDict(dict):
@@ -3797,6 +3837,26 @@ def render_dieu(doc, add_p, tieu_de, noi_dung, context=None):
             add_p(line)
 
 
+def _set_ho_ten_row_header(ht, ten_cong_ty):
+    """Điền tên công ty (row 0, col 0) + 'CỘNG HÒA XÃ HỘI...' (row 0, col 1) vào bảng header
+    của hợp đồng, xử lý trường hợp tên công ty dài bị tràn xuống 2 dòng:
+    - Tự giảm cỡ chữ khi tên công ty dài để hạn chế bị xuống dòng.
+    - Căn giữa theo chiều dọc (vertical center) cho TẤT CẢ 4 ô ở row 0 & row 1, để nếu
+      tên công ty vẫn phải xuống 2 dòng thì khoảng trắng thừa được chia đều lên trên & xuống
+      dưới thay vì dồn hết xuống dưới cột bên cạnh (nhìn lệch)."""
+    ten = str(ten_cong_ty or '').strip()
+    size = Pt(13)
+    if len(ten) > 34:
+        size = Pt(11)
+    elif len(ten) > 24:
+        size = Pt(12)
+    c = ht.rows[0].cells[0]
+    p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p.add_run(ten); r.bold = True; r.font.size = size
+    for row_idx in (0, 1):
+        for col_idx in (0, 1):
+            ht.rows[row_idx].cells[col_idx].vertical_alignment = WD_ALIGN_VERTICAL.CENTER
+
 def tao_hop_dong(nv):
     """In Hợp đồng lao động (không xác định thời hạn). Nội dung 5 Điều lấy từ bảng
     mau_dieu_hop_dong nếu admin đã tuỳ chỉnh (Danh mục → Mẫu Điều khoản Hợp đồng),
@@ -3824,14 +3884,11 @@ def tao_hop_dong(nv):
         r=p.add_run('\t: '); r.font.size=Pt(13)
         r=p.add_run(f'{value}'); r.font.size=Pt(13)
     ht=doc.add_table(rows=4,cols=2); ht.alignment=WD_TABLE_ALIGNMENT.CENTER; ht.autofit=False; remove_table_border(ht)
-    for row in ht.rows: row.cells[0].width=Cm(6); row.cells[1].width=Cm(11)
-    c=ht.rows[0].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    #r=p.add_run('CÔNG TY CỔ PHẦN'); r.bold=True; r.font.size=Pt(13)
-    r=p.add_run({CC["ten_cong_ty"]}); r.bold=True; r.font.size=Pt(13)
+    for row in ht.rows: row.cells[0].width=Cm(7); row.cells[1].width=Cm(10)
+    _set_ho_ten_row_header(ht, CC["ten_cong_ty"])
     c=ht.rows[0].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=p.add_run('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'); r.bold=True; r.font.size=Pt(13)
     c=ht.rows[1].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    #r=p.add_run('CẢNG HÒN LA'); r.bold=True; r.font.size=Pt(13)
     c=ht.rows[1].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=p.add_run('Độc lập - Tự do - Hạnh phúc'); r.bold=True; r.italic=True; r.font.size=Pt(13)
     c=ht.rows[2].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
@@ -3883,13 +3940,13 @@ def tao_hop_dong(nv):
         ns2 = str(ngay_hieu_luc)
     # ===== NỘI DUNG CÁC ĐIỀU: lấy bản admin đã tuỳ chỉnh (nếu có), fallback về mặc định =====
     tuy_chinh_hdld = get_all_dieu_hop_dong('HDLD')
-    ctx_hdld = {"vi_tri": nv.get("chuc_danh_nghe", ""), "ngay_hieu_luc": ns2}
+    ctx_hdld = {"vi_tri": nv.get("chuc_danh_nghe", ""), "ngay_hieu_luc": ns2, "ten_cong_ty": CC.get("ten_cong_ty", "")}
     for ma_dieu in get_ds_ma_dieu(tuy_chinh_hdld):
         tieu_de, noi_dung = get_dieu_content("HDLD", ma_dieu, tuy_chinh_hdld, DEFAULT_DIEU_HDLD)
         if not tieu_de and not noi_dung:
             continue
         render_dieu(doc, add_p, tieu_de, noi_dung, context=ctx_hdld)
-    add_p('Bản HĐ này lập tại văn phòng Công ty CP Cảng Hòn La.'); doc.add_paragraph()
+    doc.add_paragraph()
     ts=doc.add_table(rows=3,cols=2); ts.alignment=WD_TABLE_ALIGNMENT.CENTER; remove_table_border(ts)
     c=ts.rows[0].cells[0]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=c.paragraphs[0].add_run('NGƯỜI LAO ĐỘNG'); r.bold=True; r.font.size=Pt(13)
@@ -3931,14 +3988,12 @@ def tao_hop_dong_thu_viec(nv):
             p.runs[0].font.size = size
         return p
     ht=doc.add_table(rows=4,cols=2); ht.alignment=WD_TABLE_ALIGNMENT.CENTER; ht.autofit=False; remove_table_border(ht)
-    for row in ht.rows: row.cells[0].width=Cm(6); row.cells[1].width=Cm(11)
+    for row in ht.rows: row.cells[0].width=Cm(7); row.cells[1].width=Cm(10)
     ten_cty_tv = (CC.get('ten_cong_ty') or 'CÔNG TY').upper()
-    c=ht.rows[0].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=p.add_run(ten_cty_tv); r.bold=True; r.font.size=Pt(13)
+    _set_ho_ten_row_header(ht, ten_cty_tv)
     c=ht.rows[0].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=p.add_run('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'); r.bold=True; r.font.size=Pt(13)
     c=ht.rows[1].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=p.add_run(''); r.bold=True; r.font.size=Pt(13)
     c=ht.rows[1].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=p.add_run('Độc lập - Tự do - Hạnh phúc'); r.bold=True; r.italic=True; r.font.size=Pt(13)
     c=ht.rows[2].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
@@ -3984,13 +4039,13 @@ def tao_hop_dong_thu_viec(nv):
     ns_kt = f'{nkt.day:02d}/{nkt.month:02d}/{nkt.year}' if nkt else '.../.../......'
     # ===== NỘI DUNG CÁC ĐIỀU: lấy bản admin đã tuỳ chỉnh (nếu có), fallback về mặc định =====
     tuy_chinh_hdtv = get_all_dieu_hop_dong('HDTV')
-    ctx_hdtv = {"vi_tri": nv.get("chuc_danh_nghe", ""), "ngay_bat_dau": ns_bd, "ngay_ket_thuc": ns_kt}
+    ctx_hdtv = {"vi_tri": nv.get("chuc_danh_nghe", ""), "ngay_bat_dau": ns_bd, "ngay_ket_thuc": ns_kt, "ten_cong_ty": CC.get("ten_cong_ty", "")}
     for ma_dieu in get_ds_ma_dieu(tuy_chinh_hdtv):
         tieu_de, noi_dung = get_dieu_content("HDTV", ma_dieu, tuy_chinh_hdtv, DEFAULT_DIEU_HDTV)
         if not tieu_de and not noi_dung:
             continue
         render_dieu(doc, add_p, tieu_de, noi_dung, context=ctx_hdtv)
-    add_p('Bản HĐ này lập tại văn phòng Công ty CP Cảng Hòn La.'); doc.add_paragraph()
+    doc.add_paragraph()
     ts=doc.add_table(rows=3,cols=2); ts.alignment=WD_TABLE_ALIGNMENT.CENTER; remove_table_border(ts)
     c=ts.rows[0].cells[0]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=c.paragraphs[0].add_run('NGƯỜI LAO ĐỘNG'); r.bold=True; r.font.size=Pt(13)
@@ -4818,6 +4873,13 @@ if st.sidebar.button(i18n.t("🚪 Đăng xuất"), width='stretch'):
     st.cache_data.clear()
     st.rerun()
 
+# Đặt caption bản quyền NGAY ĐÂY (thay vì cuối file) để nó luôn hiển thị ngay từ đầu,
+# không phụ thuộc vào việc các màn hình (menu) phía sau có chạy trọn vẹn hay không —
+# nếu 1 nhánh menu phía dưới lỗi/raise exception, dòng caption ở cuối file sẽ không
+# bao giờ được thực thi.
+st.sidebar.divider()
+st.sidebar.caption("© 2026 HRM Master | © copyright: Mr.Tuyen - 0961778150")
+
 # ========== HÀM DÙNG CHUNG: CARD THÔNG TIN NHÂN VIÊN ==========
 PHONG_BAN_LANH_DAO_CAO_CAP = ('Hội Đồng Quản Trị', 'Ban Tổng Giám Đốc')
 
@@ -4954,8 +5016,7 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
     # ===== Nút hành động (thêm nút "Đóng" ở cuối) =====
     st.divider()
     col_btn_action1, col_btn_action2, col_btn_action3, col_btn_action4, col_btn_action5 = st.columns(5)
-    #if st.session_state.role in ("admin", "xem_toan_bo"):
-    if st.session_state.role == "xem_toan_bo":
+    if st.session_state.role in ("admin", "xem_toan_bo"):
         with col_btn_action1:
             if st.button("✏️ SỬA NHÂN VIÊN", width='stretch', type="primary", key=f"edit_nv_btn_{key_prefix}", disabled=not can_edit()):
                 st.session_state['selected_nv_id'] = int(nv['id'])
@@ -5828,7 +5889,7 @@ if menu == "📊 Dashboard":
                                 </div>
                                 <hr>
                                 <p style='color: #999; font-size: 11px; text-align: center;'>
-                                    Email được gửi tự động từ hệ thống HRM-Master {COMPANY_CONFIG.get('ten_cong_ty', '')}<br>
+                                    Email được gửi tự động từ hệ thống HRM-Port {COMPANY_CONFIG.get('ten_cong_ty', '')}<br>
                                     Địa chỉ: {COMPANY_CONFIG.get('dia_chi', '')} | Điện thoại: {COMPANY_CONFIG.get('dien_thoai_cty', '')}
                                 </p>
                             </body>
@@ -6018,17 +6079,18 @@ elif menu == "👤 Ứng viên":
             with col2:
                 # Nguyên quán: đã bỏ khỏi UI theo yêu cầu (đồng bộ với 2 form Thêm/Sửa nhân viên),
                 # lưu rỗng — có thể bổ sung sau qua màn "Sửa nhân viên" nếu cần.
-                #nguyen_quan_nv = ""
-                dien_thoai_nv = st.text_input("SĐT", value=uv_data.get('dien_thoai', ''))
-                email_nv = st.text_input("Email")
-                thuong_tru_nv = st.text_area("Thường trú")
+                nguyen_quan_nv = ""
+                thuong_tru_nv = st.text_area("Thường trú", value=uv_data.get('ghi_chu', ''), height=68)
                 quoc_tich_nv = st.text_input("Quốc tịch", value="Việt Nam")
                 dan_toc_nv = st.text_input("Dân tộc", value="Kinh")
+                so_luong_npt_nv = st.number_input("Số người phụ thuộc", min_value=0, value=0, step=1)
                 trinh_do_nv = st.selectbox("Trình độ", [""] + TRINH_DO_LIST)
             with col3:
+                dien_thoai_nv = st.text_input("SĐT", value=uv_data.get('dien_thoai', ''))
+                email_nv = st.text_input("Email")
                 chuc_danh_nv = st.selectbox("Chức danh", [""] + dschucdanh, index=([""] + dschucdanh).index(uv_data.get('vi_tri', '')) if uv_data.get('vi_tri', '') in dschucdanh else 0)
                 phong_ban_nv = st.selectbox("Phòng ban", [""] + dpb_chuyen, key="pb_chuyen_uv")
-                noi_lam_viec_nv = st.text_input("Nơi làm việc")
+                noi_lam_viec_nv = st.text_input("Nơi làm việc", value=get_cau_hinh('noi_lam_viec', 'Cảng THQT Hòn La'))
                 anh_ho_so_nv = st.file_uploader("Ảnh hồ sơ", type=["png", "jpg", "jpeg"], key="anh_ho_so_chuyen")
             
             st.divider()
@@ -6063,17 +6125,16 @@ elif menu == "👤 Ứng viên":
                 chi_nhanh_nh_chuyen = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_chuyen_index, key="chuyen_cnh")
             with col8:
                 ho_so_chuyen = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"])
-                so_luong_npt_nv = st.number_input("Số người phụ thuộc", min_value=0, value=0, step=1)
             # Các trường ít dùng (Tỉnh KCB, Nơi KCB, Tỉnh/TP nhận HS, Phường/Xã nhận HS,
             # Địa chỉ nhận HS, ĐK nhận sổ) đã bỏ khỏi UI theo yêu cầu — đồng bộ với 2 form
             # Thêm/Sửa nhân viên: tự động lấy theo cấu hình chung của công ty (⚙️ Cấu hình
             # công ty); có thể chỉnh riêng cho từng người qua màn "Sửa nhân viên" nếu cần.
-            #tinh_kcb_chuyen = get_cau_hinh('tinh_kcb', 'Tỉnh Quảng Trị')
-            #noi_kcb_chuyen = get_cau_hinh('noi_dang_ky_kcb', 'Bệnh viện đa khoa khu vực Bắc Quảng Trị')
-            #tinh_nhan_hs_chuyen = get_cau_hinh('tinh_nhan_hs', 'Tỉnh Quảng Trị')
-            #phuong_nhan_hs_chuyen = "Xã Phú Trạch"
-            #dia_chi_nhan_hs_chuyen = get_cau_hinh('dia_chi_nhan_hs', 'Công ty cổ phần Cảng Hòn La')
-            #dk_nhan_so_chuyen = "Có"
+            tinh_kcb_chuyen = get_cau_hinh('tinh_kcb', 'Tỉnh Quảng Trị')
+            noi_kcb_chuyen = get_cau_hinh('noi_dang_ky_kcb', 'Bệnh viện đa khoa khu vực Bắc Quảng Trị')
+            tinh_nhan_hs_chuyen = get_cau_hinh('tinh_nhan_hs', 'Tỉnh Quảng Trị')
+            phuong_nhan_hs_chuyen = "Xã Phú Trạch"
+            dia_chi_nhan_hs_chuyen = get_cau_hinh('dia_chi_nhan_hs', 'Công ty cổ phần Cảng Hòn La')
+            dk_nhan_so_chuyen = "Có"
             col_confirm1, col_confirm2 = st.columns(2)
             with col_confirm1:
                 if st.form_submit_button("✅ XÁC NHẬN CHUYỂN", width='stretch', type="primary", disabled=not can_edit()):
@@ -6538,17 +6599,18 @@ elif menu == "✅ Nhân viên":
                         ncc2 = st.text_input("Nơi cấp CCCD", value=get_cau_hinh('noi_cap_cccd', 'Cục QLHC về TTXH - Bộ Công An'), key="ncc2")
                     with c2:
                         nqn = ""  # Nguyên quán: đã bỏ khỏi UI theo yêu cầu, lưu rỗng (có thể bổ sung sau qua Sửa nhân viên nếu cần)
-                        dtn2 = st.text_input("SĐT", key="dtn2")
                         ttn = st.text_input("Thường trú", key="ttn")
                         qtn = st.text_input("Quốc tịch", value="Việt Nam", key="qtn")
                         dtn = st.text_input("Dân tộc", value="Kinh", key="dtn")
+                        so_luong_npt = st.number_input("Số người phụ thuộc", min_value=0, value=0, step=1, key="so_luong_npt_add")
                         trinh_do_moi = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, key="trinh_do_add")
-                        emn = st.text_input("Email", key="emn")
                     with c3:
+                        dtn2 = st.text_input("SĐT", key="dtn2")
+                        emn = st.text_input("Email", key="emn")
                         cdn = st.selectbox("Chức danh", [""] + dcv, key="cdn")
                         pbn = st.selectbox("Phòng ban", [""] + dpb, key="pbn")
                         pbn_chuan = chuan_hoa_ten_phong_ban(pbn)
-                        nlv = get_cau_hinh('noi_lam_viec')  # Nơi làm việc: đã bỏ khỏi UI, dùng cấu hình chung của công ty
+                        nlv = get_cau_hinh('noi_lam_viec', 'Cảng THQT Hòn La')  # Nơi làm việc: đã bỏ khỏi UI, dùng cấu hình chung của công ty
                         anh_ho_so_moi = st.file_uploader("Ảnh hồ sơ", type=["png", "jpg", "jpeg"], key="anh_ho_so_add")
                     st.divider()
                     st.caption("💼 Hợp đồng & BHXH")
@@ -6581,17 +6643,16 @@ elif menu == "✅ Nhân viên":
                         cnh = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_index, key="add_cnh")
                     with c8:
                         hso = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"], key="hso")
-                        so_luong_npt = st.number_input("Số người phụ thuộc", min_value=0, value=0, step=1, key="so_luong_npt_add")
                     # Các trường ít dùng (Tỉnh KCB, Nơi KCB, Tỉnh/TP nhận HS, Phường/Xã nhận HS,
                     # Địa chỉ nhận HS, ĐK nhận sổ) đã bỏ khỏi UI theo yêu cầu — tự động lấy theo
                     # cấu hình chung của công ty (⚙️ Cấu hình công ty); có thể chỉnh riêng cho
                     # từng người qua màn "Sửa nhân viên" nếu cần khác với mặc định.
-                    #tkb = get_cau_hinh('tinh_kcb', 'Tỉnh Quảng Trị')
-                    #nkb = get_cau_hinh('noi_dang_ky_kcb', 'Bệnh viện đa khoa khu vực Bắc Quảng Trị')
-                    #ths = get_cau_hinh('tinh_nhan_hs', 'Tỉnh Quảng Trị')
-                    #phs = "Xã Phú Trạch"
-                    #dhs = get_cau_hinh('dia_chi_nhan_hs')
-                    #dks = "Có"
+                    tkb = get_cau_hinh('tinh_kcb', 'Tỉnh Quảng Trị')
+                    nkb = get_cau_hinh('noi_dang_ky_kcb', 'Bệnh viện đa khoa khu vực Bắc Quảng Trị')
+                    ths = get_cau_hinh('tinh_nhan_hs', 'Tỉnh Quảng Trị')
+                    phs = "Xã Phú Trạch"
+                    dhs = get_cau_hinh('dia_chi_nhan_hs', 'Công ty cổ phần Cảng Hòn La')
+                    dks = "Có"
                     
                     col_save_exit1, col_save_exit2 = st.columns(2)
                     with col_save_exit1:
@@ -6845,7 +6906,7 @@ elif menu == "✅ Nhân viên":
                 
                 # Viewer (và các role không phải admin): chọn 1 dòng -> chỉ xem card thông tin,
                 # không có bất kỳ nút hành động nào ngoài "Đóng" (xử lý theo role bên trong hàm).
-                if edited_df is not None and st.session_state.role != "admin" and 'Chọn' in edited_df.columns:
+                if edited_df is not None and st.session_state.role not in ("admin", "xem_toan_bo") and 'Chọn' in edited_df.columns:
                     selected_rows_v = edited_df[edited_df['Chọn'] == True]
                     if len(selected_rows_v) > 1:
                         st.error("⚠️ Chỉ được chọn 1 nhân viên!")
@@ -6908,7 +6969,7 @@ elif menu == "✅ Nhân viên":
                                             )
 
                                             # Mã công ty của TENANT ĐANG ĐĂNG NHẬP — trước đây bị khóa cứng "CHL"
-                                            # (mã của Hòn La) nên với tenant khác (VD DEMO), pattern LIKE
+                                            # (mã của Hòn La) nên với tenant khác (VD DEMO-HRM), pattern LIKE
                                             # '%/HĐLĐ-CHL' không bao giờ khớp -> max_stt luôn = 0 -> số luôn ra "01".
                                             ma_cty_hd = st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL'
 
@@ -7060,7 +7121,7 @@ elif menu == "✅ Nhân viên":
                                                             ngay_hieu_luc,
                                                             nv_data.get('chuc_danh_nghe', ''),
                                                             nv_data.get('phong_ban_lam_viec', ''),
-                                                            nv_data.get('noi_lam_viec') or get_cau_hinh('noi_lam_viec'),
+                                                            nv_data.get('noi_lam_viec') or get_cau_hinh('noi_lam_viec', 'Cảng THQT Hòn La'),
                                                             loai_hop_dong_luu,
                                                             nv_data.get('he_so_luong', 0),
                                                             so_hd_moi
@@ -7114,21 +7175,20 @@ elif menu == "✅ Nhân viên":
                                 sccv = st.text_input("CCCD", value=nd.get('so_cccd', ''))
                                 nccv = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", value=format_date(nd.get('ngay_cap_cccd')), placeholder="dd/mm/yyyy", max_chars=10)
                                 ncv = st.text_input("Nơi cấp CCCD", value=nd.get('noi_cap_cccd', ''))
-                                
+                                dtnv2 = st.text_input("SĐT", value=nd.get('dien_thoai', ''))
                             with col2:
                                 nqnv = nd.get('nguyen_quan', '')  # Nguyên quán: đã bỏ khỏi UI, giữ nguyên giá trị đã lưu
-                                dtnv2 = st.text_input("SĐT", value=nd.get('dien_thoai', ''))
                                 ttnv = st.text_input("Thường trú", value=nd.get('thuong_tru', ''))
                                 qtnv = st.text_input("Quốc tịch", value=nd.get('quoc_tich', 'Việt Nam'))
                                 dtnv = st.text_input("Dân tộc", value=nd.get('dan_toc', 'Kinh'))
+                                so_luong_npt_edit = st.number_input("Số người phụ thuộc", min_value=0, value=int(nd.get('so_luong_npt') or 0), step=1, key=f"so_luong_npt_edit_{nid}")
                                 trinh_do_v = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, index=([""] + TRINH_DO_LIST).index(nd.get('trinh_do', '')) if nd.get('trinh_do') in TRINH_DO_LIST else 0)
-                                emnv = st.text_input("Email", value=nd.get('email_lien_he', ''))
-                                
-                            with col3:
                                 cdnv = st.selectbox("Chức danh", [""] + dcv_edit, index=([""] + dcv_edit).index(nd.get('chuc_danh_nghe', '')) if nd.get('chuc_danh_nghe') in dcv_edit else 0)
+                            with col3:
                                 pb_hien_tai_chuan = chuan_hoa_ten_phong_ban(nd.get('phong_ban_lam_viec'))
                                 pbnv = st.selectbox("Phòng ban", [""] + dpb_edit, index=([""] + dpb_edit).index(pb_hien_tai_chuan) if pb_hien_tai_chuan in dpb_edit else 0)
-                                nlv2 = nd.get('noi_lam_viec')  # Nơi làm việc: đã bỏ khỏi UI, giữ nguyên giá trị đã lưu
+                                nlv2 = nd.get('noi_lam_viec', 'Cảng THQT Hòn La')  # Nơi làm việc: đã bỏ khỏi UI, giữ nguyên giá trị đã lưu
+                                emnv = st.text_input("Email", value=nd.get('email_lien_he', ''))
                                 anh_hien_tai = nd.get('anh_ho_so')
                                 if anh_hien_tai:
                                     anh_bytes_ht = get_anh_ho_so_bytes(anh_hien_tai)
@@ -7171,7 +7231,6 @@ elif menu == "✅ Nhân viên":
                                 cnhv = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_edit_index, key="edit_cnh")
                             with col8:
                                 hsov = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"], index=["", "Đã có HS", "Chưa có"].index(nd.get('ho_so', '')) if nd.get('ho_so') in ["Đã có HS", "Chưa có"] else 0)
-                                so_luong_npt_edit = st.number_input("Số người phụ thuộc", min_value=0, value=int(nd.get('so_luong_npt') or 0), step=1, key=f"so_luong_npt_edit_{nid}")
                             # Các trường ít dùng (Tỉnh KCB, Nơi KCB, Tỉnh/TP nhận HS, Phường/Xã nhận HS,
                             # Địa chỉ nhận HS, ĐK nhận sổ) đã bỏ khỏi UI theo yêu cầu — giữ nguyên
                             # giá trị đã lưu trong hồ sơ thay vì hiện ô nhập.
@@ -8135,7 +8194,7 @@ elif menu == "✅ Nhân viên":
                             VALUES (%s, %s, %s, %s, %s, %s, %s)
                         """, (
                             nv_qd['id'], ngay_qd, chuc_danh_nghe_moi_final, phong_ban_moi_final,
-                            nv_qd.get('noi_lam_viec') or get_cau_hinh('noi_lam_viec'),
+                            nv_qd.get('noi_lam_viec') or get_cau_hinh('noi_lam_viec', 'Cảng THQT Hòn La'),
                             loai_hd_moi_final, nv_qd.get('he_so_luong', 0)
                         ))
 
@@ -9460,8 +9519,8 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
     with tab_mau_hd:
         st.caption("Tuỳ chỉnh nội dung từng Điều trong Hợp đồng lao động (HĐLĐ) và Hợp đồng thử việc (HĐTV). "
                    "Điều nào chưa tuỳ chỉnh sẽ tự dùng nội dung mặc định. "
-                   "Có thể dùng {vi_tri}, {ngay_hieu_luc} (HĐLĐ - Điều 1) hoặc {vi_tri}, {ngay_bat_dau}, {ngay_ket_thuc} (HĐTV - Điều 1) "
-                   "— hệ thống sẽ tự thay bằng thông tin thực tế của từng nhân viên khi in. "
+                   "Có thể dùng {vi_tri}, {ngay_hieu_luc}, {ten_cong_ty} (HĐLĐ - Điều 1, Điều 5) hoặc {vi_tri}, {ngay_bat_dau}, {ngay_ket_thuc}, {ten_cong_ty} (HĐTV - Điều 1, Điều 5) "
+                   "— hệ thống sẽ tự thay bằng thông tin thực tế của từng nhân viên/công ty khi in. "
                    "Dòng bắt đầu bằng '## ' sẽ in đậm làm tiêu đề phụ (VD: '## 1. Nghĩa vụ:').")
 
         loai_hd_chon = st.radio("Chọn loại hợp đồng:", ["HĐLĐ (không xác định thời hạn)", "HĐTV (thử việc)"],
@@ -9619,7 +9678,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
             )
         with col_dc2:
             noi_lam_viec_moi = st.text_input(
-                "Nơi làm việc mặc định:", value=get_cau_hinh('noi_lam_viec'),
+                "Nơi làm việc mặc định:", value=get_cau_hinh('noi_lam_viec', 'Cảng THQT Hòn La'),
                 key="cty_noi_lam_viec_input"
             )
         with col_dc3:
@@ -11243,9 +11302,6 @@ Kênh trao đổi nội bộ ngay trong app — không cần chuyển qua ứng 
 """)
 
     st.info("💡 Có thắc mắc trong quá trình sử dụng, hãy dùng ngay mục **🤖 Chatbot Giải đáp** hoặc liên hệ bộ phận Nhân sự / IT để được hỗ trợ.")
-
-st.sidebar.divider()
-st.sidebar.caption("© 2026 HRM Master | © copyright: Mr.Tuyen - 0961778150")
 
 
 #===== Hàm xử lý chính ===== 

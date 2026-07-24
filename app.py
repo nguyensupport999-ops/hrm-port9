@@ -3892,7 +3892,7 @@ def tao_hop_dong(nv):
     c=ht.rows[1].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=p.add_run('Độc lập - Tự do - Hạnh phúc'); r.bold=True; r.italic=True; r.font.size=Pt(13)
     c=ht.rows[2].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=p.add_run('─'*12); r.font.size=Pt(9)
+    r=p.add_run('─'*9); r.font.size=Pt(9)
     c=ht.rows[2].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=p.add_run('─'*20); r.font.size=Pt(9)
     c=ht.rows[3].cells[1]; p=c.paragraphs[0];p.alignment=WD_ALIGN_PARAGRAPH.RIGHT; p.paragraph_format.space_after=Pt(20)
@@ -3967,16 +3967,8 @@ def tao_hop_dong_thu_viec(nv):
     CC = COMPANY_CONFIG; doc = Document()
     s = doc.styles['Normal']; s.font.name='Times New Roman'; s.font.size=Pt(13)
     s.paragraph_format.space_after=Pt(0); s.paragraph_format.space_before=Pt(0)
-    s.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     sec = doc.sections[0]; sec.top_margin=Cm(2); sec.bottom_margin=Cm(2)
     sec.left_margin=Cm(3.5); sec.right_margin=Cm(2)
-    def al(label,value):
-        p=doc.add_paragraph(); p.paragraph_format.space_after=Pt(1); p.paragraph_format.space_before=Pt(1)
-        p.paragraph_format.tab_stops.add_tab_stop(Cm(5))
-        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        r=p.add_run(f'{label}'); r.font.size=Pt(13)
-        r=p.add_run('\t: '); r.font.size=Pt(13)
-        r=p.add_run(f'{value}'); r.font.size=Pt(13)
     def add_p(text='', bold=False, size=Pt(13)):
         p = doc.add_paragraph(text)
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
@@ -3987,17 +3979,23 @@ def tao_hop_dong_thu_viec(nv):
         if p.runs:
             p.runs[0].font.size = size
         return p
+    def al(label,value):
+        p=doc.add_paragraph(); p.paragraph_format.space_after=Pt(1); p.paragraph_format.space_before=Pt(1)
+        p.paragraph_format.tab_stops.add_tab_stop(Cm(5))
+        p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+        r=p.add_run(f'{label}'); r.font.size=Pt(13)
+        r=p.add_run('\t: '); r.font.size=Pt(13)
+        r=p.add_run(f'{value}'); r.font.size=Pt(13)
     ht=doc.add_table(rows=4,cols=2); ht.alignment=WD_TABLE_ALIGNMENT.CENTER; ht.autofit=False; remove_table_border(ht)
     for row in ht.rows: row.cells[0].width=Cm(7); row.cells[1].width=Cm(10)
-    ten_cty_tv = (CC.get('ten_cong_ty') or 'CÔNG TY').upper()
-    _set_ho_ten_row_header(ht, ten_cty_tv)
+    _set_ho_ten_row_header(ht, CC["ten_cong_ty"])
     c=ht.rows[0].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=p.add_run('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'); r.bold=True; r.font.size=Pt(13)
     c=ht.rows[1].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
     c=ht.rows[1].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=p.add_run('Độc lập - Tự do - Hạnh phúc'); r.bold=True; r.italic=True; r.font.size=Pt(13)
     c=ht.rows[2].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=p.add_run('─'*12); r.font.size=Pt(9)
+    r=p.add_run('─'*9); r.font.size=Pt(9)
     c=ht.rows[2].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=p.add_run('─'*20); r.font.size=Pt(9)
     c=ht.rows[3].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
@@ -6083,11 +6081,10 @@ elif menu == "👤 Ứng viên":
                 thuong_tru_nv = st.text_area("Thường trú", value=uv_data.get('ghi_chu', ''), height=68)
                 quoc_tich_nv = st.text_input("Quốc tịch", value="Việt Nam")
                 dan_toc_nv = st.text_input("Dân tộc", value="Kinh")
-                so_luong_npt_nv = st.number_input("Số người phụ thuộc", min_value=0, value=0, step=1)
-                trinh_do_nv = st.selectbox("Trình độ", [""] + TRINH_DO_LIST)
-            with col3:
                 dien_thoai_nv = st.text_input("SĐT", value=uv_data.get('dien_thoai', ''))
                 email_nv = st.text_input("Email")
+                trinh_do_nv = st.selectbox("Trình độ", [""] + TRINH_DO_LIST)
+            with col3:
                 chuc_danh_nv = st.selectbox("Chức danh", [""] + dschucdanh, index=([""] + dschucdanh).index(uv_data.get('vi_tri', '')) if uv_data.get('vi_tri', '') in dschucdanh else 0)
                 phong_ban_nv = st.selectbox("Phòng ban", [""] + dpb_chuyen, key="pb_chuyen_uv")
                 noi_lam_viec_nv = st.text_input("Nơi làm việc", value=get_cau_hinh('noi_lam_viec', 'Cảng THQT Hòn La'))
@@ -6117,7 +6114,7 @@ elif menu == "👤 Ứng viên":
             
             st.divider()
             st.caption("🏦 Ngân hàng & KCB")
-            col7, col8, col9 = st.columns(3)
+            col7, col8 = st.columns(2)
             with col7:
                 stk_chuyen = st.text_input("STK")
                 # Tạo dropdown cho chi nhánh ngân hàng
@@ -6125,6 +6122,7 @@ elif menu == "👤 Ứng viên":
                 chi_nhanh_nh_chuyen = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_chuyen_index, key="chuyen_cnh")
             with col8:
                 ho_so_chuyen = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"])
+                so_luong_npt_nv = st.number_input("Số người phụ thuộc", min_value=0, value=0, step=1)
             # Các trường ít dùng (Tỉnh KCB, Nơi KCB, Tỉnh/TP nhận HS, Phường/Xã nhận HS,
             # Địa chỉ nhận HS, ĐK nhận sổ) đã bỏ khỏi UI theo yêu cầu — đồng bộ với 2 form
             # Thêm/Sửa nhân viên: tự động lấy theo cấu hình chung của công ty (⚙️ Cấu hình
@@ -6602,11 +6600,10 @@ elif menu == "✅ Nhân viên":
                         ttn = st.text_input("Thường trú", key="ttn")
                         qtn = st.text_input("Quốc tịch", value="Việt Nam", key="qtn")
                         dtn = st.text_input("Dân tộc", value="Kinh", key="dtn")
-                        so_luong_npt = st.number_input("Số người phụ thuộc", min_value=0, value=0, step=1, key="so_luong_npt_add")
-                        trinh_do_moi = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, key="trinh_do_add")
-                    with c3:
                         dtn2 = st.text_input("SĐT", key="dtn2")
                         emn = st.text_input("Email", key="emn")
+                        trinh_do_moi = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, key="trinh_do_add")
+                    with c3:
                         cdn = st.selectbox("Chức danh", [""] + dcv, key="cdn")
                         pbn = st.selectbox("Phòng ban", [""] + dpb, key="pbn")
                         pbn_chuan = chuan_hoa_ten_phong_ban(pbn)
@@ -6643,6 +6640,7 @@ elif menu == "✅ Nhân viên":
                         cnh = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_index, key="add_cnh")
                     with c8:
                         hso = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"], key="hso")
+                        so_luong_npt = st.number_input("Số người phụ thuộc", min_value=0, value=0, step=1, key="so_luong_npt_add")
                     # Các trường ít dùng (Tỉnh KCB, Nơi KCB, Tỉnh/TP nhận HS, Phường/Xã nhận HS,
                     # Địa chỉ nhận HS, ĐK nhận sổ) đã bỏ khỏi UI theo yêu cầu — tự động lấy theo
                     # cấu hình chung của công ty (⚙️ Cấu hình công ty); có thể chỉnh riêng cho
@@ -7175,13 +7173,12 @@ elif menu == "✅ Nhân viên":
                                 sccv = st.text_input("CCCD", value=nd.get('so_cccd', ''))
                                 nccv = st.text_input("Ngày cấp CCCD (dd/mm/yyyy)", value=format_date(nd.get('ngay_cap_cccd')), placeholder="dd/mm/yyyy", max_chars=10)
                                 ncv = st.text_input("Nơi cấp CCCD", value=nd.get('noi_cap_cccd', ''))
-                                dtnv2 = st.text_input("SĐT", value=nd.get('dien_thoai', ''))
                             with col2:
                                 nqnv = nd.get('nguyen_quan', '')  # Nguyên quán: đã bỏ khỏi UI, giữ nguyên giá trị đã lưu
                                 ttnv = st.text_input("Thường trú", value=nd.get('thuong_tru', ''))
                                 qtnv = st.text_input("Quốc tịch", value=nd.get('quoc_tich', 'Việt Nam'))
                                 dtnv = st.text_input("Dân tộc", value=nd.get('dan_toc', 'Kinh'))
-                                so_luong_npt_edit = st.number_input("Số người phụ thuộc", min_value=0, value=int(nd.get('so_luong_npt') or 0), step=1, key=f"so_luong_npt_edit_{nid}")
+                                dtnv2 = st.text_input("SĐT", value=nd.get('dien_thoai', ''))
                                 trinh_do_v = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, index=([""] + TRINH_DO_LIST).index(nd.get('trinh_do', '')) if nd.get('trinh_do') in TRINH_DO_LIST else 0)
                                 cdnv = st.selectbox("Chức danh", [""] + dcv_edit, index=([""] + dcv_edit).index(nd.get('chuc_danh_nghe', '')) if nd.get('chuc_danh_nghe') in dcv_edit else 0)
                             with col3:
@@ -7231,6 +7228,7 @@ elif menu == "✅ Nhân viên":
                                 cnhv = st.selectbox("Chi nhánh NH", options=[""] + BANK_LIST, index=bank_edit_index, key="edit_cnh")
                             with col8:
                                 hsov = st.selectbox("Hồ sơ", ["", "Đã có HS", "Chưa có"], index=["", "Đã có HS", "Chưa có"].index(nd.get('ho_so', '')) if nd.get('ho_so') in ["Đã có HS", "Chưa có"] else 0)
+                                so_luong_npt_edit = st.number_input("Số người phụ thuộc", min_value=0, value=int(nd.get('so_luong_npt') or 0), step=1, key=f"so_luong_npt_edit_{nid}")
                             # Các trường ít dùng (Tỉnh KCB, Nơi KCB, Tỉnh/TP nhận HS, Phường/Xã nhận HS,
                             # Địa chỉ nhận HS, ĐK nhận sổ) đã bỏ khỏi UI theo yêu cầu — giữ nguyên
                             # giá trị đã lưu trong hồ sơ thay vì hiện ô nhập.

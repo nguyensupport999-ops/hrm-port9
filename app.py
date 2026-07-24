@@ -3989,8 +3989,11 @@ def tao_hop_dong_thu_viec(nv):
         r=p.add_run('\t: '); r.font.size=Pt(13)
         r=p.add_run(f'{value}'); r.font.size=Pt(13)
     ht=doc.add_table(rows=4,cols=2); ht.alignment=WD_TABLE_ALIGNMENT.CENTER; ht.autofit=False; remove_table_border(ht)
-    for row in ht.rows: row.cells[0].width=Cm(7); row.cells[1].width=Cm(10)
-    _set_ho_ten_row_header(ht, CC["ten_cong_ty"].upper())
+    #for row in ht.rows: row.cells[0].width=Cm(7); row.cells[1].width=Cm(10)
+    #_set_ho_ten_row_header(ht, CC["ten_cong_ty"].upper())
+
+    c=ht.rows[1].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
+    r=p.add_run(CC["ten_cong_ty"].upper()); r.bold=True; r.font.size=Pt(13)
     c=ht.rows[0].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=p.add_run('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'); r.bold=True; r.font.size=Pt(13)
     c=ht.rows[1].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER

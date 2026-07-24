@@ -257,7 +257,7 @@ def render():
             <p>Tôi nhận việc chuyên viên HR ngày 02/05/2026. Việc đầu tiên tôi học được không phải là quy trình, mà là một thói quen: quản lý hồ sơ nhân sự bằng Excel — thói quen được truyền lại từ các đồng nghiệp, và từ chính người làm HR trước tôi.</p>
             <p>Tôi không trách thói quen đó. Nhưng tôi thấy công việc quản trị nhân sự của công ty mình xứng đáng được chuẩn hóa tốt hơn. Vậy là, ở tuổi mà nhiều người nghĩ "học code không còn dành cho mình", tôi bắt đầu học Vibe Coding — không phải để trở thành lập trình viên, mà để tự tay giải quyết một vấn đề tôi hiểu rõ hơn ai hết.</p>
           </blockquote>
-          <div class="hl-sign"><b>Mr.Tuyến</b> - người sáng lập HRM Master</div>
+          <div class="hl-sign"><b>Mr.Tuyến</b> - người kiến tạo HRM Master</div>
         </div>
       </div>
     </div>

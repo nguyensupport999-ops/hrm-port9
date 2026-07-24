@@ -6071,7 +6071,7 @@ if not st.session_state.logged_in:
 
     # Tenant DEMO-HRM: điền sẵn tài khoản trải nghiệm (cấu hình tại ⚙️ Danh mục >
     # "Tài khoản đăng nhập DEMO") để khách vào thử không cần hỏi tài khoản/mật khẩu.
-    _is_demo_tenant = str(tenant.get('ma_cty', '')).upper() == 'DEMO-HRM'
+    _is_demo_tenant = str(tenant.get('ma_cty', '')).upper() == 'DEMO'
     _demo_user_default = ''
     _demo_pass_default = ''
     if _is_demo_tenant:

@@ -2947,7 +2947,7 @@ def get_loi_chuc_sinh_nhat(ho_ten, gioi_tinh, tuoi=None):
 
 Thân gửi {xung_ho}: {ho_ten},
 
-Nhân dịp sinh nhật của {xung_ho}, thay mặt Ban Lãnh đạo Công ty CP Cảng Hòn La, 
+Nhân dịp sinh nhật của {xung_ho}, thay mặt Ban Lãnh đạo {COMPANY_CONFIG.get('ten_cong_ty', '')}, 
 xin gửi đến {xung_ho} những lời chúc tốt đẹp nhất.
 
 Chúc {xung_ho} luôn mạnh khỏe, hạnh phúc và thành công trong công việc 
@@ -2963,7 +2963,7 @@ Cảm ơn {xung_ho} đã luôn đồng hành và đóng góp cho sự phát tri�
 
 Trân trọng!
 
-🏗️ CÔNG TY CP CẢNG HÒN LA
+🏗️ {COMPANY_CONFIG.get('ten_cong_ty', '')}
     """
     
     return loi_chuc

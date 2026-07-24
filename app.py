@@ -3905,7 +3905,7 @@ def tao_hop_dong(nv):
     c=ht.rows[0].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
     r = p.add_run((ten_doan1).upper()); r.bold=True; r.font.size=Pt(13)
     c=ht.rows[1].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run(ten_doan2).upper()); r.bold=True; r.font.size=Pt(13)
+    r = p.add_run((ten_doan2).upper()); r.bold=True; r.font.size=Pt(13)
     c=ht.rows[0].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=p.add_run('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'); r.bold=True; r.font.size=Pt(13)
     c=ht.rows[1].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
@@ -4006,10 +4006,30 @@ def tao_hop_dong_thu_viec(nv):
         r=p.add_run(f'{label}'); r.font.size=Pt(13)
         r=p.add_run('\t: '); r.font.size=Pt(13)
         r=p.add_run(f'{value}'); r.font.size=Pt(13)
+        
+    ten_ty = CC["ten_cong_ty"]
+    # Kiểm tra loại hình doanh nghiệp
+    if "Công ty cổ phần" in ten_ty:
+        ten_doan1 = "CÔNG TY CỔ PHẦN"
+        ten_doan2 = ten_ty.replace("Công ty cổ phần", "").strip()
+    elif "Công ty TNHH" in ten_ty:
+        ten_doan1 = "CÔNG TY TNHH"
+        ten_doan2 = ten_ty.replace("Công ty TNHH", "").strip()
+    elif "Hộ Kinh Doanh" in ten_ty:
+        ten_doan1 = "HỘ KINH DOANH"
+        ten_doan2 = ten_ty.replace("Hộ Kinh Doanh", "").strip()
+    else:
+        # Trường hợp khác, lấy toàn bộ làm dòng 1
+        ten_doan1 = ten_ty.upper()
+        ten_doan2 = ""
+    
     ht=doc.add_table(rows=4,cols=2); ht.alignment=WD_TABLE_ALIGNMENT.CENTER; ht.autofit=False; remove_table_border(ht)
     for row in ht.rows: row.cells[0].width=Cm(7); row.cells[1].width=Cm(10)
+    c=ht.rows[0].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
+    r = p.add_run((ten_doan1).upper()); r.bold=True; r.font.size=Pt(13)
     c=ht.rows[1].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=p.add_run(CC["ten_cong_ty"].upper()); r.bold=True; r.font.size=Pt(13)
+    r = p.add_run((ten_doan2).upper()); r.bold=True; r.font.size=Pt(13)
+    
     c=ht.rows[0].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
     r=p.add_run('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'); r.bold=True; r.font.size=Pt(13)
     c=ht.rows[1].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER

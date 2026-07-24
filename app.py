@@ -2803,7 +2803,14 @@ if not st.session_state.get('tenant'):
     logo_url = COMPANY_CONFIG.get("logo_url")
     if logo_url:
         with st.sidebar:
-            st.image(logo_url, width='stretch')
+            st.markdown(f"""
+            <div style="display: flex; justify-content: center; width: 100%;">
+                <img src="{logo_url}" 
+                     style="width: 150px; height: 150px; border-radius: 50%; 
+                            object-fit: cover; box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+                            display: block; margin: 4px auto;">
+            </div>
+            """, unsafe_allow_html=True)
             st.divider()
     elif os.path.exists("logo_cty.png"):
         with st.sidebar:
@@ -4703,7 +4710,15 @@ if not st.session_state.logged_in:
     tenant = st.session_state.tenant
     if tenant.get('logo_url'):
         try:
-            st.sidebar.image(tenant['logo_url'], width='stretch')
+            #st.sidebar.image(tenant['logo_url'], width='stretch')
+            st.sidebar.markdown(f"""
+            <div style="display: flex; justify-content: center; width: 100%;">
+                <img src="{tenant['logo_url']}" 
+                     style="width: 150px; height: 150px; border-radius: 50%; 
+                            object-fit: cover; box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+                            display: block; margin: 4px auto;">
+            </div>
+            """, unsafe_allow_html=True)
         except Exception:
             # Link logo hỏng/không truy cập được — bỏ qua, không để sập cả trang đăng nhập.
             pass

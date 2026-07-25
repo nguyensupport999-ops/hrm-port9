@@ -10632,9 +10632,11 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                         'Ghi chú': cfg_pb.get('ghi_chu') or '',
                     })
 
-                st.caption(f"💡 Cấu hình chung hiện tại: "
-                           f"{'Hệ số %' if cfg_chung['cach_tinh_tang_ca'] == 'HE_SO' else 'Đơn giá cố định'} — "
-                           f"TC thường: {cfg_chung['he_so_tc_thuong'] if cfg_chung['cach_tinh_tang_ca'] == 'HE_SO' else f\"{cfg_chung['don_gia_tc_thuong']:,.0f}đ/h\"}")
+                _kieu_tc = 'Hệ số %' if cfg_chung['cach_tinh_tang_ca'] == 'HE_SO' else 'Đơn giá cố định'
+                _gia_tri_tc = (str(cfg_chung['he_so_tc_thuong'])
+                               if cfg_chung['cach_tinh_tang_ca'] == 'HE_SO'
+                               else f"{cfg_chung['don_gia_tc_thuong']:,.0f}đ/h")
+                st.caption(f"💡 Cấu hình chung hiện tại: {_kieu_tc} — TC thường: {_gia_tri_tc}"))
 
                 df_tc_pb = pd.DataFrame(rows_hien_thi)
                 df_tc_pb_moi = st.data_editor(

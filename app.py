@@ -9441,7 +9441,7 @@ elif menu == "🕒 Chấm công":
             st.error(f"❌ Không chuẩn bị được mô hình nhận diện: {e}")
             st.stop()
 
-        tab_face_dangky, tab_face_checkin, tab_face_ketqua = st.tabs(
+        tab_face_dangky, tab_face_checkin, tab_face_ketqua, tab_face_dieuchinh = st.tabs(
             ["📸 Đăng ký khuôn mặt", "🎥 Check-in / Check-out", "📋 Kết quả hôm nay", "✏️ Điều chỉnh"]
         )
 

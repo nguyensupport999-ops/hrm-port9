@@ -1345,7 +1345,8 @@ def handle_language_change():
 # Gọi hàm xử lý ngôn ngữ trước khi hiển thị landing page
 handle_language_change()
 
-st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide")
+st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide",
+                   initial_sidebar_state="expanded")
 
 # Gọi định danh tenant
 resolve_tenant()
@@ -1838,6 +1839,108 @@ def update_cau_hinh_cham_cong_full(cfg):
     ok &= set_cau_hinh('cc_so_ngay_phep_co_ban', str(cfg['so_ngay_phep_co_ban']), 'Số ngày phép cơ bản/năm')
     ok &= set_cau_hinh('cc_danh_sach_ngay_le', json.dumps(cfg['danh_sach_ngay_le'], ensure_ascii=False), 'Danh sách ngày nghỉ lễ trong năm')
     return ok
+
+def get_dia_diem_lam_viec():
+    """Danh sách địa điểm làm việc của tenant: [{ten, lat, lng, ban_kinh}]"""
+    try:
+        ds = json.loads(get_cau_hinh('cc_dia_diem_lam_viec', '[]'))
+        return ds if isinstance(ds, list) else []
+    except Exception:
+        return []
+
+
+def luu_dia_diem_lam_viec(danh_sach):
+    return set_cau_hinh('cc_dia_diem_lam_viec',
+                        json.dumps(danh_sach, ensure_ascii=False),
+                        'Danh sách địa điểm làm việc (GPS)')
+
+
+def get_cau_hinh_gps():
+    """Cấu hình chấm công qua điện thoại (GPS + đối chiếu khuôn mặt) theo tenant."""
+    return {
+        'bat_gps': get_cau_hinh('cc_bat_gps', '1') == '1',
+        'bat_doi_chieu_mat': get_cau_hinh('cc_bat_doi_chieu_mat', '1') == '1',
+        'dia_diem': get_dia_diem_lam_viec(),
+    }
+
+
+def tinh_khoang_cach_met(lat1, lng1, lat2, lng2):
+    """Khoảng cách giữa 2 toạ độ, tính bằng mét (công thức Haversine)."""
+    import math
+    ban_kinh_trai_dat = 6371000.0
+    p1, p2 = math.radians(float(lat1)), math.radians(float(lat2))
+    d_phi = p2 - p1
+    d_lambda = math.radians(float(lng2) - float(lng1))
+    a = math.sin(d_phi / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(d_lambda / 2) ** 2
+    return 2 * ban_kinh_trai_dat * math.asin(math.sqrt(a))
+
+
+def kiem_tra_vi_tri_hop_le(lat, lng):
+    """Kiểm tra toạ độ có nằm trong bán kính của 1 địa điểm làm việc nào không.
+    Trả về (hop_le, ten_dia_diem_gan_nhat, khoang_cach_met)."""
+    ds = get_dia_diem_lam_viec()
+    if not ds:
+        return False, None, None
+    gan_nhat, kc_min = None, None
+    for dd in ds:
+        try:
+            kc = tinh_khoang_cach_met(lat, lng, dd['lat'], dd['lng'])
+        except Exception:
+            continue
+        if kc_min is None or kc < kc_min:
+            gan_nhat, kc_min = dd, kc
+        if kc <= float(dd.get('ban_kinh', 200)):
+            return True, dd.get('ten', ''), kc
+    return False, (gan_nhat.get('ten') if gan_nhat else None), kc_min
+
+
+def nut_lay_toa_do(khoa="gps", nhan="📍 Lấy vị trí hiện tại của tôi"):
+    """Hiện 1 nút xin quyền định vị của trình duyệt. Khi người dùng đồng ý, trang tự tải
+    lại kèm toạ độ trong URL. Trả về (lat, lng, do_chinh_xac_met) hoặc (None, None, None).
+    Dùng window.top (KHÔNG dùng window.parent) theo đúng bài học đã rút ra ở context.md."""
+    components.html(f"""
+        <div style="font-family: sans-serif;">
+          <button onclick="layViTri_{khoa}()" style="
+              background:#ff4b4b; color:#fff; border:none; border-radius:8px;
+              padding:10px 18px; font-size:15px; cursor:pointer; width:100%;">
+            {nhan}
+          </button>
+          <div id="tb_{khoa}" style="margin-top:8px; font-size:13px; color:#d33;"></div>
+        </div>
+        <script>
+        function layViTri_{khoa}() {{
+          var tb = document.getElementById('tb_{khoa}');
+          if (!navigator.geolocation) {{
+            tb.innerText = 'Thiết bị/trình duyệt không hỗ trợ định vị.';
+            return;
+          }}
+          tb.innerText = 'Đang lấy vị trí, vui lòng chờ...';
+          navigator.geolocation.getCurrentPosition(
+            function(p) {{
+              var u = new URL(window.top.location.href);
+              u.searchParams.set('gps_lat', p.coords.latitude);
+              u.searchParams.set('gps_lng', p.coords.longitude);
+              u.searchParams.set('gps_acc', p.coords.accuracy);
+              window.top.location.href = u.toString();
+            }},
+            function(e) {{
+              tb.innerText = 'Không lấy được vị trí: ' + e.message +
+                ' (Cần bấm "Cho phép" khi trình duyệt hỏi, và bật GPS trên điện thoại.)';
+            }},
+            {{ enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }}
+          );
+        }}
+        </script>
+    """, height=90)
+
+    qp = st.query_params
+    lat, lng, acc = qp.get('gps_lat'), qp.get('gps_lng'), qp.get('gps_acc')
+    if lat and lng:
+        try:
+            return float(lat), float(lng), float(acc or 0)
+        except Exception:
+            return None, None, None
+    return None, None, None
 
 # === Cấu hình công thức tính lương đang áp dụng (khung sườn - salary/salary_{key}.py) ===
 def get_cau_hinh_luong_key():
@@ -4992,6 +5095,8 @@ if not st.session_state.logged_in:
                     st.rerun()
 
     # ---------- Landing page giới thiệu (hiển thị ở vùng nội dung chính, bên phải sidebar đăng nhập) ----------
+    st.info("📱 **Đang dùng điện thoại?** Form đăng nhập nằm ở thanh bên trái. "
+            "Nếu không thấy, bấm vào biểu tượng **›** (mũi tên) ở góc trên bên trái màn hình để mở ra.")
     render_landing_page()
 
     st.stop()
@@ -9232,7 +9337,9 @@ elif menu == "🕒 Chấm công":
             st.error(f"❌ Không chuẩn bị được mô hình nhận diện: {e}")
             st.stop()
 
-        tab_face_dangky, tab_face_checkin = st.tabs(["📸 Đăng ký khuôn mặt", "🎥 Check-in / Check-out"])
+        tab_face_dangky, tab_face_checkin, tab_face_ketqua = st.tabs(
+            ["📸 Đăng ký khuôn mặt", "🎥 Check-in / Check-out", "📋 Kết quả hôm nay"]
+        )
 
         # ----- TAB ĐĂNG KÝ -----
         with tab_face_dangky:
@@ -9275,8 +9382,8 @@ elif menu == "🕒 Chấm công":
 
         # ----- TAB CHECK-IN / CHECK-OUT (camera live) -----
         with tab_face_checkin:
-            st.caption("Camera nhận diện liên tục — nhân viên chỉ cần đứng trước camera, "
-                       "hệ thống tự ghi giờ vào/ra, không cần bấm nút.")
+            st.caption("Bấm START để bật camera. Nhân viên đứng trước camera, hệ thống tự ghi "
+                       "giờ vào/ra. Xong việc bấm STOP (cùng vị trí nút START) để tắt camera.")
 
             db_load = st.session_state.db_engine.get_connection()
             danh_sach_emb = face_id_cham_cong.tai_toan_bo_embedding(db_load)
@@ -9285,7 +9392,7 @@ elif menu == "🕒 Chấm công":
                 st.warning("⚠️ Chưa có nhân viên nào đăng ký khuôn mặt. Vào tab 'Đăng ký khuôn mặt' để thêm.")
                 db_load.close()
             else:
-                st.caption(f"Đã đăng ký: {len(danh_sach_emb)} nhân viên.")
+                st.caption(f"Đã đăng ký khuôn mặt: {len(danh_sach_emb)} nhân viên.")
 
                 ctx = webrtc_streamer(
                     key="face_id_checkin",
@@ -9311,8 +9418,69 @@ elif menu == "🕒 Chấm công":
                         else:
                             ket_qua_box.info("📷 Đưa mặt vào khung hình camera...")
                         time.sleep(1)
-                else:
+
+                    # Camera đã tắt (người dùng bấm STOP)
+                    ket_qua_box.info("⏹️ Camera đã tắt. Xem kết quả tại tab '📋 Kết quả hôm nay'.")
+
+                try:
                     db_load.close()
+                except Exception:
+                    pass
+
+            st.divider()
+            if st.button("⬅️ Quay lại Chấm công thủ công", key="btn_thoat_faceid"):
+                st.session_state.cc_method = 'manual'
+                st.rerun()
+
+        # ----- TAB KẾT QUẢ CHẤM CÔNG HÔM NAY -----
+        with tab_face_ketqua:
+            col_kq1, col_kq2 = st.columns([3, 1])
+            with col_kq1:
+                ngay_xem_kq = st.date_input("📅 Xem kết quả ngày:", value=date.today(), key="face_kq_ngay")
+            with col_kq2:
+                st.write("")
+                st.write("")
+                if st.button("🔄 Tải lại", key="btn_reload_face_kq"):
+                    st.rerun()
+
+            db_kq = st.session_state.db_engine.get_connection()
+            c_kq = db_kq.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            c_kq.execute("""
+                SELECT nv.ma_nv, nv.ho_ten, cc.gio_vao, cc.gio_ra, cc.ma_cong, cc.nguon
+                FROM cham_cong cc
+                JOIN nhan_vien nv ON nv.id = cc.nhan_vien_id
+                WHERE cc.ngay = %s AND (cc.gio_vao IS NOT NULL OR cc.gio_ra IS NOT NULL)
+                ORDER BY cc.gio_vao NULLS LAST, nv.ho_ten
+            """, (ngay_xem_kq,))
+            ds_kq = c_kq.fetchall()
+            db_kq.close()
+
+            if not ds_kq:
+                st.info(f"Chưa có dữ liệu chấm công giờ vào/ra cho ngày {ngay_xem_kq.strftime('%d/%m/%Y')}.")
+            else:
+                bang_kq = []
+                for r in ds_kq:
+                    gv = r['gio_vao'].strftime('%H:%M:%S') if r['gio_vao'] else '—'
+                    gr = r['gio_ra'].strftime('%H:%M:%S') if r['gio_ra'] else '—'
+                    if r['gio_vao'] and r['gio_ra']:
+                        gio_lam = round(
+                            (datetime.combine(ngay_xem_kq, r['gio_ra']) -
+                             datetime.combine(ngay_xem_kq, r['gio_vao'])).total_seconds() / 3600, 2)
+                    else:
+                        gio_lam = None
+                    bang_kq.append({
+                        "Mã NV": r['ma_nv'],
+                        "Họ tên": r['ho_ten'],
+                        "Giờ vào": gv,
+                        "Giờ ra": gr,
+                        "Số giờ": gio_lam if gio_lam is not None else '—',
+                        "Ký hiệu": r['ma_cong'] or '—',
+                        "Nguồn": r['nguon'] or '—',
+                    })
+
+                st.dataframe(pd.DataFrame(bang_kq), use_container_width=True, hide_index=True)
+                st.caption(f"Tổng: {len(bang_kq)} nhân viên có dữ liệu giờ vào/ra. "
+                           "Cột 'Số giờ' chỉ tính khi đã có cả giờ vào và giờ ra.")
 
 # ========== TÍNH THU NHẬP ==========
 elif menu == "💰 Tính thu nhập":
@@ -10153,6 +10321,83 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
             "Ngày nghỉ lễ", height=120,
             value="\n".join(f"{x['ngay']} | {x['ten']}" for x in cc['danh_sach_ngay_le']),
             key="cc_ds_le_input")
+
+        st.divider()
+        st.markdown("**📱 Chấm công qua điện thoại nhân viên (GPS)**")
+        st.caption("Nhân viên tự chấm công bằng điện thoại của mình; hệ thống kiểm tra họ có đang ở "
+                   "đúng địa điểm làm việc hay không dựa trên toạ độ GPS.")
+
+        cfg_gps = get_cau_hinh_gps()
+        col_g1, col_g2 = st.columns(2)
+        with col_g1:
+            bat_gps_moi = st.toggle("Bật chấm công qua điện thoại (kiểm tra GPS)",
+                                    value=cfg_gps['bat_gps'], key="cc_bat_gps_input")
+        with col_g2:
+            bat_mat_moi = st.toggle("Bắt buộc đối chiếu khuôn mặt khi chấm công",
+                                    value=cfg_gps['bat_doi_chieu_mat'], key="cc_bat_mat_input",
+                                    help="Bật: nhân viên phải chụp ảnh mặt, hệ thống đối chiếu với ảnh đã "
+                                         "đăng ký để chống chấm công hộ. Tắt: chỉ cần đăng nhập đúng tài "
+                                         "khoản và đứng đúng địa điểm.")
+
+        st.markdown("**📍 Danh sách địa điểm làm việc**")
+        st.caption("Thêm tất cả nơi nhân viên có thể chấm công: văn phòng, nhà máy, công trường, chi nhánh... "
+                   "Bán kính nên đặt 100–300m tuỳ độ rộng mặt bằng (GPS điện thoại thường sai số 10–50m).")
+
+        ds_dd_hien_tai = cfg_gps['dia_diem'] or []
+        df_dd = pd.DataFrame(ds_dd_hien_tai) if ds_dd_hien_tai else pd.DataFrame(
+            columns=['ten', 'lat', 'lng', 'ban_kinh'])
+        for cot in ['ten', 'lat', 'lng', 'ban_kinh']:
+            if cot not in df_dd.columns:
+                df_dd[cot] = None
+        df_dd = df_dd[['ten', 'lat', 'lng', 'ban_kinh']]
+
+        df_dd_moi = st.data_editor(
+            df_dd, num_rows="dynamic", use_container_width=True, key="cc_dia_diem_editor",
+            column_config={
+                "ten": st.column_config.TextColumn("Tên địa điểm", required=True,
+                                                   help="VD: Văn phòng Hòn La, Nhà máy 1..."),
+                "lat": st.column_config.NumberColumn("Vĩ độ (lat)", format="%.6f", required=True),
+                "lng": st.column_config.NumberColumn("Kinh độ (lng)", format="%.6f", required=True),
+                "ban_kinh": st.column_config.NumberColumn("Bán kính (m)", min_value=30, max_value=5000,
+                                                          step=10, default=200, required=True),
+            },
+            disabled=not can_edit(),
+        )
+
+        with st.expander("🧭 Chưa biết toạ độ? Bấm vào đây để lấy toạ độ nơi bạn đang đứng"):
+            st.caption("Cách dùng: mang điện thoại/máy tính tới đúng địa điểm cần khai báo, bấm nút dưới đây, "
+                       "chọn 'Cho phép' khi trình duyệt hỏi quyền vị trí. Toạ độ sẽ hiện ra để bạn copy vào bảng trên.")
+            lat_lay, lng_lay, acc_lay = nut_lay_toa_do(khoa="cauhinh")
+            if lat_lay is not None:
+                st.success(f"Toạ độ hiện tại: **{lat_lay:.6f}** , **{lng_lay:.6f}** "
+                           f"(sai số khoảng {acc_lay:.0f}m)")
+                st.caption("Copy 2 số này vào cột 'Vĩ độ (lat)' và 'Kinh độ (lng)' ở bảng phía trên, "
+                           "rồi bấm Lưu.")
+
+        if st.button("💾 Lưu cấu hình GPS & địa điểm", key="btn_luu_gps"):
+            if not can_edit():
+                st.error("❌ Bạn không có quyền chỉnh sửa!")
+            else:
+                ds_luu = []
+                for _, dong in df_dd_moi.iterrows():
+                    if pd.isna(dong['lat']) or pd.isna(dong['lng']) or not str(dong['ten'] or '').strip():
+                        continue
+                    ds_luu.append({
+                        'ten': str(dong['ten']).strip(),
+                        'lat': float(dong['lat']),
+                        'lng': float(dong['lng']),
+                        'ban_kinh': int(dong['ban_kinh'] or 200),
+                    })
+                ok1 = set_cau_hinh('cc_bat_gps', '1' if bat_gps_moi else '0',
+                                   'Bật chấm công qua điện thoại (GPS)')
+                ok2 = set_cau_hinh('cc_bat_doi_chieu_mat', '1' if bat_mat_moi else '0',
+                                   'Bắt buộc đối chiếu khuôn mặt khi chấm công')
+                ok3 = luu_dia_diem_lam_viec(ds_luu)
+                if ok1 and ok2 and ok3:
+                    st.success(f"✅ Đã lưu {len(ds_luu)} địa điểm làm việc.")
+                    st.rerun()
+                else:
+                    st.error("❌ Lưu thất bại, thử lại.")
 
         st.divider()
         st.markdown("**📖 Bảng ký hiệu chấm công chuẩn (tham khảo — 23 ký hiệu, áp dụng chung mọi doanh nghiệp)**")

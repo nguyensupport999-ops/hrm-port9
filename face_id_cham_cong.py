@@ -8,7 +8,8 @@ import threading
 import urllib.request
 import numpy as np
 import cv2
-from datetime import datetime, date
+from datetime import datetime, date, timezone, timedelta
+_TZ_VN = timezone(timedelta(hours=7))  # GMT+7 Việt Nam
 from streamlit_webrtc import VideoProcessorBase
 import av
 
@@ -168,8 +169,9 @@ def ghi_nhan_cham_cong(conn, nhan_vien_id):
     Mọi lần quét sau (cách ít nhất 60 giây, kiểm tra ở FaceIDVideoProcessor)
     = cập nhật giờ RA muộn nhất. Không bao giờ từ chối ghi khi còn trong ngày.
     Trả về (loai, gio) với loai = 'VAO' | 'RA'."""
-    hom_nay = date.today()
-    gio_hien_tai = datetime.now().time().replace(microsecond=0)
+    bay_gio_vn = datetime.now(_TZ_VN)
+    hom_nay = bay_gio_vn.date()
+    gio_hien_tai = bay_gio_vn.time().replace(microsecond=0, tzinfo=None)
     cur = conn.cursor()
     cur.execute(
         "SELECT id, gio_vao, gio_ra FROM cham_cong WHERE nhan_vien_id = %s AND ngay = %s",

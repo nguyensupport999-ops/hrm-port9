@@ -48,6 +48,11 @@ import tinh_thu_nhap
 import mimetypes
 from io import BytesIO
 from datetime import time as _time
+import time
+import numpy as np
+import cv2
+from streamlit_webrtc import webrtc_streamer
+import face_id_cham_cong
 
 try:
     from config import COMPANY_CONFIG, BHXH_CONFIG, EMAIL_CONFIG, TELEGRAM_CONFIG, USERS
@@ -3460,10 +3465,34 @@ def ensure_cham_cong_table():
     # Nâng cấp cho DB đã tạo bảng từ phiên bản trước (chưa có ca_ngay/ca_dem)
     c.execute("ALTER TABLE cham_cong ADD COLUMN IF NOT EXISTS ca_ngay VARCHAR(10)")
     c.execute("ALTER TABLE cham_cong ADD COLUMN IF NOT EXISTS ca_dem VARCHAR(10)")
+    # Nâng cấp cho module Chấm công Face ID (giờ vào/ra thực tế, phân loại tăng ca)
+    c.execute("ALTER TABLE cham_cong ADD COLUMN IF NOT EXISTS gio_vao TIME")
+    c.execute("ALTER TABLE cham_cong ADD COLUMN IF NOT EXISTS gio_ra TIME")
+    c.execute("ALTER TABLE cham_cong ADD COLUMN IF NOT EXISTS loai_tang_ca TEXT")
+    c.execute("ALTER TABLE cham_cong ADD COLUMN IF NOT EXISTS gio_tang_ca_dem NUMERIC(5,2) DEFAULT 0")
+    c.execute("ALTER TABLE cham_cong ADD COLUMN IF NOT EXISTS gio_tang_ca_cn NUMERIC(5,2) DEFAULT 0")
     db.commit()
     c.close()
     db.close()
 
+def ensure_face_id_table():
+    """Tạo bảng nhan_vien_face_id trên Supabase nếu chưa có (idempotent)."""
+    db = st.session_state.db_engine.get_connection()
+    c = db.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS nhan_vien_face_id (
+            id SERIAL PRIMARY KEY,
+            nhan_vien_id INTEGER NOT NULL REFERENCES nhan_vien(id) ON DELETE CASCADE,
+            face_encoding JSONB NOT NULL,
+            model_name TEXT NOT NULL DEFAULT 'Facenet',
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            UNIQUE(nhan_vien_id)
+        )
+    """)
+    db.commit()
+    c.close()
+    db.close()
 
 def ensure_qdns_columns():
     """Bổ sung cột 'chuc_vu' và 'ngay_qd_ns' vào bảng nhan_vien nếu chưa có (idempotent).
@@ -9193,14 +9222,89 @@ elif menu == "🕒 Chấm công":
 
     # ========== 3. FACE ID ==========
     elif st.session_state.get('cc_method') == 'faceid':
-        st.info("""
-        ### 🚧 Tính năng đang phát triển
-        
-        Dự kiến hỗ trợ:
-        - ✅ Đăng ký khuôn mặt cho nhân viên
-        - ✅ Chấm công bằng camera
-        - ✅ Lịch sử chấm công theo thời gian thực
-        """)
+        ensure_face_id_table()
+
+        tab_face_dangky, tab_face_checkin = st.tabs(["📸 Đăng ký khuôn mặt", "🎥 Check-in / Check-out"])
+
+        # ----- TAB ĐĂNG KÝ -----
+        with tab_face_dangky:
+            st.caption("Chọn nhân viên và chụp 1 ảnh khuôn mặt rõ nét, đủ sáng, nhìn thẳng camera để đăng ký.")
+
+            if not can_edit():
+                st.warning("⚠️ Bạn không có quyền đăng ký khuôn mặt (chỉ Admin/HR/Văn thư/Kế toán lương).")
+            else:
+                db_face = st.session_state.db_engine.get_connection()
+                c_face = db_face.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                c_face.execute("""
+                    SELECT id, ma_nv, ho_ten FROM nhan_vien
+                    WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+                    ORDER BY ho_ten
+                """)
+                ds_nv_face = c_face.fetchall()
+                db_face.close()
+
+                if not ds_nv_face:
+                    st.info("Không có nhân viên đang làm việc/thử việc.")
+                else:
+                    nv_map_face = {f"{x['ma_nv']} - {x['ho_ten']}": x['id'] for x in ds_nv_face}
+                    nv_chon_label = st.selectbox("📌 Chọn nhân viên:", list(nv_map_face.keys()), key="face_dangky_nv_select")
+                    nv_chon_id = nv_map_face[nv_chon_label]
+
+                    anh_chup = st.camera_input("Chụp ảnh khuôn mặt", key="face_dangky_camera")
+
+                    if anh_chup is not None and st.button("💾 Lưu đăng ký khuôn mặt", type="primary", key="btn_luu_face_dangky"):
+                        img_arr = np.frombuffer(anh_chup.getvalue(), dtype=np.uint8)
+                        img_bgr = cv2.imdecode(img_arr, cv2.IMREAD_COLOR)
+
+                        db_luu = st.session_state.db_engine.get_connection()
+                        ok, msg = face_id_cham_cong.dang_ky_khuon_mat(db_luu, nv_chon_id, img_bgr)
+                        db_luu.close()
+
+                        if ok:
+                            st.success(msg)
+                        else:
+                            st.error(msg)
+
+        # ----- TAB CHECK-IN / CHECK-OUT (camera live) -----
+        with tab_face_checkin:
+            st.caption("Camera nhận diện liên tục — nhân viên chỉ cần đứng trước camera, "
+                       "hệ thống tự ghi giờ vào/ra, không cần bấm nút.")
+
+            db_load = st.session_state.db_engine.get_connection()
+            danh_sach_emb = face_id_cham_cong.tai_toan_bo_embedding(db_load)
+
+            if not danh_sach_emb:
+                st.warning("⚠️ Chưa có nhân viên nào đăng ký khuôn mặt. Vào tab 'Đăng ký khuôn mặt' để thêm.")
+                db_load.close()
+            else:
+                st.caption(f"Đã đăng ký: {len(danh_sach_emb)} nhân viên.")
+
+                ctx = webrtc_streamer(
+                    key="face_id_checkin",
+                    video_processor_factory=face_id_cham_cong.FaceIDVideoProcessor,
+                    media_stream_constraints={"video": True, "audio": False},
+                    async_processing=True,
+                )
+
+                ket_qua_box = st.empty()
+
+                if ctx.video_processor:
+                    ctx.video_processor.conn = db_load
+                    ctx.video_processor.danh_sach_embedding = danh_sach_emb
+
+                    while ctx.state.playing:
+                        kq = ctx.video_processor.ket_qua
+                        if kq["trang_thai"] == "THANH_CONG":
+                            ket_qua_box.success(kq["thong_bao"])
+                        elif kq["trang_thai"] == "DA_DU":
+                            ket_qua_box.info(kq["thong_bao"])
+                        elif kq["trang_thai"] == "KHONG_KHOP":
+                            ket_qua_box.error(kq["thong_bao"])
+                        else:
+                            ket_qua_box.info("📷 Đưa mặt vào khung hình camera...")
+                        time.sleep(1)
+                else:
+                    db_load.close()
 
 # ========== TÍNH THU NHẬP ==========
 elif menu == "💰 Tính thu nhập":

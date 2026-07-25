@@ -1812,6 +1812,8 @@ def get_cau_hinh_cham_cong_full():
         'cach_tinh_phep_nam': get_cau_hinh('cc_cach_tinh_phep_nam', 'TU_DONG'),
         'so_ngay_phep_co_ban': float(get_cau_hinh('cc_so_ngay_phep_co_ban', 12)),
         'danh_sach_ngay_le': danh_sach_le,
+        'phut_nghi_giua_ca': int(get_cau_hinh('cc_phut_nghi_giua_ca', 120)),
+        'ap_dung_nghi_giua_ca': get_cau_hinh('cc_ap_dung_nghi_giua_ca', '1') == '1',
     }
 
 
@@ -1838,7 +1840,31 @@ def update_cau_hinh_cham_cong_full(cfg):
     ok &= set_cau_hinh('cc_cach_tinh_phep_nam', cfg['cach_tinh_phep_nam'], 'Cách tính phép năm')
     ok &= set_cau_hinh('cc_so_ngay_phep_co_ban', str(cfg['so_ngay_phep_co_ban']), 'Số ngày phép cơ bản/năm')
     ok &= set_cau_hinh('cc_danh_sach_ngay_le', json.dumps(cfg['danh_sach_ngay_le'], ensure_ascii=False), 'Danh sách ngày nghỉ lễ trong năm')
+    ok &= set_cau_hinh('cc_phut_nghi_giua_ca', str(cfg['phut_nghi_giua_ca']), 'Số phút nghỉ giữa ca')
+    ok &= set_cau_hinh('cc_ap_dung_nghi_giua_ca', '1' if cfg['ap_dung_nghi_giua_ca'] else '0', 'Áp dụng trừ nghỉ giữa ca khi tính giờ làm')
     return ok
+def tinh_gio_lam_thuc_te(gio_vao, gio_ra, ngay=None):
+    """Tính số giờ làm thực tế từ giờ vào và giờ ra.
+    Tự động trừ thời gian nghỉ giữa ca nếu cấu hình bật.
+    Trả về số giờ (float, làm tròn 2 chữ số) hoặc None nếu thiếu dữ liệu."""
+    if not gio_vao or not gio_ra:
+        return None
+    try:
+        from datetime import datetime, date as _date
+        _ngay = ngay or _date.today()
+        dt_vao = datetime.combine(_ngay, gio_vao)
+        dt_ra = datetime.combine(_ngay, gio_ra)
+        if dt_ra <= dt_vao:
+            dt_ra = dt_ra.replace(day=dt_ra.day + 1)  # qua ngày hôm sau (ca đêm)
+        tong_phut = (dt_ra - dt_vao).total_seconds() / 60
+
+        cfg = get_cau_hinh_cham_cong_full()
+        if cfg['ap_dung_nghi_giua_ca'] and cfg['phut_nghi_giua_ca'] > 0:
+            tong_phut -= cfg['phut_nghi_giua_ca']
+
+        return round(max(tong_phut, 0) / 60, 2)
+    except Exception:
+        return None
 
 def get_cau_hinh_tang_ca_theo_phong(ten_phong_ban):
     """Lấy cấu hình tăng ca của 1 phòng ban cụ thể.
@@ -9640,12 +9666,7 @@ elif menu == "🕒 Chấm công":
                 for r in ds_kq:
                     gv = r['gio_vao'].strftime('%H:%M:%S') if r['gio_vao'] else '—'
                     gr = r['gio_ra'].strftime('%H:%M:%S') if r['gio_ra'] else '—'
-                    if r['gio_vao'] and r['gio_ra']:
-                        gio_lam = round(
-                            (datetime.combine(ngay_xem_kq, r['gio_ra']) -
-                             datetime.combine(ngay_xem_kq, r['gio_vao'])).total_seconds() / 3600, 2)
-                    else:
-                        gio_lam = None
+                    gio_lam = tinh_gio_lam_thuc_te(r['gio_vao'], r['gio_ra'], ngay_xem_kq)
                     bang_kq.append({
                         "Mã NV": r['ma_nv'],
                         "Họ tên": r['ho_ten'],
@@ -10690,6 +10711,24 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                                                 value=cc['so_ngay_lam_viec_tuan'], step=1, key="cc_so_ngay_tuan_input")
 
         st.divider()
+        st.markdown("**☕ Nghỉ giữa ca**")
+        col_nghi1, col_nghi2 = st.columns(2)
+        with col_nghi1:
+            ap_dung_nghi_moi = st.toggle(
+                "Tự động trừ thời gian nghỉ giữa ca khi tính giờ làm",
+                value=cc['ap_dung_nghi_giua_ca'], key="cc_ap_dung_nghi_input",
+                help="Bật: số giờ làm = (giờ ra − giờ vào) − thời gian nghỉ giữa ca. "
+                     "Tắt: tính nguyên từ giờ vào đến giờ ra.")
+        with col_nghi2:
+            phut_nghi_moi = st.number_input(
+                "Thời gian nghỉ giữa ca (phút)",
+                min_value=0, max_value=180,
+                value=cc['phut_nghi_giua_ca'], step=5,
+                key="cc_phut_nghi_input",
+                disabled=not ap_dung_nghi_moi,
+                help="Thường là 60 phút (nghỉ trưa). Sẽ bị trừ ra khi tính số giờ làm thực tế.")
+
+        st.divider()
         st.markdown("**📈 Cách tính tăng ca**")
         cach_tinh_tc_moi = st.radio(
             "Chọn cách tính lương tăng ca:",
@@ -11025,6 +11064,8 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                     'don_gia_tc_le': don_gia_tcl_moi, 'don_gia_tc_dem': don_gia_tcd_moi,
                     'cach_tinh_phep_nam': cach_tinh_phep_moi, 'so_ngay_phep_co_ban': so_ngay_phep_moi,
                     'danh_sach_ngay_le': danh_sach_le_moi,
+                    'phut_nghi_giua_ca': phut_nghi_moi,
+                    'ap_dung_nghi_giua_ca': ap_dung_nghi_moi,
                 })
                 if ok:
                     st.cache_data.clear()

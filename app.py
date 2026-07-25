@@ -3640,6 +3640,25 @@ def ensure_cham_cong_table():
     c.execute("ALTER TABLE cham_cong ADD COLUMN IF NOT EXISTS loai_tang_ca TEXT")
     c.execute("ALTER TABLE cham_cong ADD COLUMN IF NOT EXISTS gio_tang_ca_dem NUMERIC(5,2) DEFAULT 0")
     c.execute("ALTER TABLE cham_cong ADD COLUMN IF NOT EXISTS gio_tang_ca_cn NUMERIC(5,2) DEFAULT 0")
+    # Bảng audit log điều chỉnh chấm công
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS audit_cham_cong (
+            id SERIAL PRIMARY KEY,
+            cham_cong_id INTEGER,           -- id dòng trong bảng cham_cong được sửa
+            nhan_vien_id INTEGER,
+            ngay DATE,
+            truong_sua TEXT,                -- 'gio_vao' | 'gio_ra' | 'ma_cong' | 'ghi_chu'
+            gia_tri_cu TEXT,
+            gia_tri_moi TEXT,
+            ly_do TEXT NOT NULL,
+            nguoi_sua TEXT,                 -- username người thực hiện
+            thoi_diem_sua TIMESTAMP DEFAULT NOW(),
+            trang_thai TEXT DEFAULT 'DA_DUYET',  -- 'CHO_DUYET' | 'DA_DUYET' | 'TU_CHOI'
+            nguoi_duyet TEXT,
+            thoi_diem_duyet TIMESTAMP,
+            ghi_chu_duyet TEXT
+        )
+    """)
     # Bảng cấu hình tăng ca theo phòng ban
     c.execute("""
         CREATE TABLE IF NOT EXISTS cau_hinh_tang_ca_phong_ban (
@@ -9423,7 +9442,7 @@ elif menu == "🕒 Chấm công":
             st.stop()
 
         tab_face_dangky, tab_face_checkin, tab_face_ketqua = st.tabs(
-            ["📸 Đăng ký khuôn mặt", "🎥 Check-in / Check-out", "📋 Kết quả hôm nay"]
+            ["📸 Đăng ký khuôn mặt", "🎥 Check-in / Check-out", "📋 Kết quả hôm nay", "✏️ Điều chỉnh"]
         )
 
         # ----- TAB ĐĂNG KÝ -----
@@ -9640,7 +9659,266 @@ elif menu == "🕒 Chấm công":
                 st.dataframe(pd.DataFrame(bang_kq), use_container_width=True, hide_index=True)
                 st.caption(f"Tổng: {len(bang_kq)} nhân viên có dữ liệu giờ vào/ra. "
                            "Cột 'Số giờ' chỉ tính khi đã có cả giờ vào và giờ ra.")
+        # ----- TAB ĐIỀU CHỈNH CHẤM CÔNG -----
+        with tab_face_dieuchinh:
+            st.caption("Admin/HR điều chỉnh dữ liệu chấm công khi có sai sót. "
+                       "Mọi thay đổi đều được ghi log đầy đủ (ai sửa, lúc nào, giá trị cũ/mới, lý do).")
 
+            # Cấu hình: có bắt buộc phê duyệt không
+            can_edit_cc = can_edit()
+            yeu_cau_phe_duyet = get_cau_hinh('cc_dieu_chinh_can_duyet', '0') == '1'
+
+            if not can_edit_cc:
+                st.warning("⚠️ Bạn không có quyền điều chỉnh chấm công.")
+            else:
+                # Toggle bật/tắt yêu cầu phê duyệt (chỉ Admin)
+                if st.session_state.role == 'admin':
+                    with st.expander("⚙️ Cài đặt quy trình điều chỉnh"):
+                        yeu_cau_phe_duyet_moi = st.toggle(
+                            "Bắt buộc phê duyệt khi điều chỉnh chấm công",
+                            value=yeu_cau_phe_duyet,
+                            key="cc_toggle_phe_duyet",
+                            help="Bật: mọi điều chỉnh tạo yêu cầu chờ Admin/Giám đốc duyệt trước khi có hiệu lực. "
+                                 "Tắt: Admin/HR sửa trực tiếp, hệ thống vẫn ghi log đầy đủ.")
+                        if yeu_cau_phe_duyet_moi != yeu_cau_phe_duyet:
+                            set_cau_hinh('cc_dieu_chinh_can_duyet',
+                                         '1' if yeu_cau_phe_duyet_moi else '0',
+                                         'Điều chỉnh chấm công cần phê duyệt')
+                            st.rerun()
+
+                st.divider()
+
+                # -- Phần 1: Tạo điều chỉnh mới --
+                st.markdown("**📝 Tạo yêu cầu điều chỉnh**")
+
+                db_dc = st.session_state.db_engine.get_connection()
+                c_dc = db_dc.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                c_dc.execute("""
+                    SELECT id, ma_nv, ho_ten FROM nhan_vien
+                    WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+                    ORDER BY ho_ten
+                """)
+                ds_nv_dc = c_dc.fetchall()
+
+                col_dc1, col_dc2 = st.columns(2)
+                with col_dc1:
+                    nv_dc_map = {f"{x['ma_nv']} - {x['ho_ten']}": x['id'] for x in ds_nv_dc}
+                    nv_dc_chon = st.selectbox("👤 Nhân viên:", list(nv_dc_map.keys()),
+                                              key="dc_nv_select")
+                    nv_dc_id = nv_dc_map[nv_dc_chon]
+                with col_dc2:
+                    ngay_dc = st.date_input("📅 Ngày cần điều chỉnh:",
+                                            value=date.today(), key="dc_ngay_input")
+
+                # Lấy dữ liệu hiện tại
+                c_dc.execute("""
+                    SELECT id, gio_vao, gio_ra, ma_cong, nguon, ghi_chu
+                    FROM cham_cong
+                    WHERE nhan_vien_id = %s AND ngay = %s
+                """, (nv_dc_id, ngay_dc))
+                row_cc = c_dc.fetchone()
+
+                if row_cc:
+                    st.markdown("**Dữ liệu hiện tại:**")
+                    col_h1, col_h2, col_h3, col_h4 = st.columns(4)
+                    col_h1.metric("Giờ vào",
+                                  row_cc['gio_vao'].strftime('%H:%M:%S') if row_cc['gio_vao'] else '—')
+                    col_h2.metric("Giờ ra",
+                                  row_cc['gio_ra'].strftime('%H:%M:%S') if row_cc['gio_ra'] else '—')
+                    col_h3.metric("Ký hiệu", row_cc['ma_cong'] or '—')
+                    col_h4.metric("Nguồn", row_cc['nguon'] or '—')
+
+                    st.markdown("**Giá trị mới:**")
+                    col_m1, col_m2, col_m3 = st.columns(3)
+                    with col_m1:
+                        gio_vao_moi_dc = st.time_input(
+                            "Giờ vào mới",
+                            value=row_cc['gio_vao'] or _time(8, 0),
+                            key="dc_gio_vao_moi")
+                    with col_m2:
+                        gio_ra_moi_dc = st.time_input(
+                            "Giờ ra mới",
+                            value=row_cc['gio_ra'] or _time(17, 0),
+                            key="dc_gio_ra_moi")
+                    with col_m3:
+                        ma_cong_moi_dc = st.selectbox(
+                            "Ký hiệu mới",
+                            CHAM_CONG_MA_OPTIONS,
+                            index=CHAM_CONG_MA_OPTIONS.index(row_cc['ma_cong'])
+                            if row_cc['ma_cong'] in CHAM_CONG_MA_OPTIONS else 0,
+                            key="dc_ma_cong_moi")
+
+                    ly_do_dc = st.text_area(
+                        "📋 Lý do điều chỉnh (bắt buộc):",
+                        placeholder="VD: Camera ghi nhận sai giờ ra do mất điện lúc 17:00. "
+                                    "Giờ ra thực tế theo bảo vệ xác nhận là 17:30.",
+                        key="dc_ly_do", height=80)
+
+                    col_btn1, col_btn2 = st.columns(2)
+                    with col_btn1:
+                        if st.button("💾 Lưu điều chỉnh", type="primary",
+                                     key="btn_luu_dieu_chinh",
+                                     disabled=not ly_do_dc.strip()):
+                            # Ghi log từng trường thay đổi
+                            thay_doi = []
+                            if str(gio_vao_moi_dc) != str(row_cc['gio_vao'] or ''):
+                                thay_doi.append(('gio_vao',
+                                                 str(row_cc['gio_vao']), str(gio_vao_moi_dc)))
+                            if str(gio_ra_moi_dc) != str(row_cc['gio_ra'] or ''):
+                                thay_doi.append(('gio_ra',
+                                                 str(row_cc['gio_ra']), str(gio_ra_moi_dc)))
+                            if ma_cong_moi_dc != (row_cc['ma_cong'] or ''):
+                                thay_doi.append(('ma_cong',
+                                                 row_cc['ma_cong'], ma_cong_moi_dc))
+
+                            if not thay_doi:
+                                st.warning("⚠️ Không có thay đổi nào so với dữ liệu hiện tại.")
+                            else:
+                                trang_thai_log = 'CHO_DUYET' if yeu_cau_phe_duyet else 'DA_DUYET'
+                                c_dc2 = db_dc.cursor()
+
+                                if not yeu_cau_phe_duyet:
+                                    # Sửa trực tiếp
+                                    c_dc2.execute("""
+                                        UPDATE cham_cong
+                                        SET gio_vao=%s, gio_ra=%s, ma_cong=%s,
+                                            nguon='DIEU_CHINH', updated_at=NOW()
+                                        WHERE id=%s
+                                    """, (gio_vao_moi_dc, gio_ra_moi_dc,
+                                          ma_cong_moi_dc or None, row_cc['id']))
+
+                                # Ghi audit log (dù có hay không cần duyệt)
+                                for truong, cu, moi in thay_doi:
+                                    c_dc2.execute("""
+                                        INSERT INTO audit_cham_cong
+                                            (cham_cong_id, nhan_vien_id, ngay, truong_sua,
+                                             gia_tri_cu, gia_tri_moi, ly_do, nguoi_sua,
+                                             trang_thai)
+                                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                                    """, (row_cc['id'], nv_dc_id, ngay_dc,
+                                          truong, cu, moi, ly_do_dc.strip(),
+                                          st.session_state.get('username', ''),
+                                          trang_thai_log))
+
+                                db_dc.commit()
+                                if yeu_cau_phe_duyet:
+                                    st.info("📨 Đã tạo yêu cầu điều chỉnh, chờ phê duyệt.")
+                                else:
+                                    st.success("✅ Đã điều chỉnh và ghi log thành công.")
+                                st.rerun()
+                else:
+                    st.info(f"Không có dữ liệu chấm công ngày "
+                            f"{ngay_dc.strftime('%d/%m/%Y')} cho nhân viên này.")
+
+                db_dc.close()
+
+                # -- Phần 2: Lịch sử điều chỉnh --
+                st.divider()
+                st.markdown("**📜 Lịch sử điều chỉnh & phê duyệt**")
+
+                col_ls1, col_ls2 = st.columns(2)
+                with col_ls1:
+                    tu_ngay_ls = st.date_input("Từ ngày:",
+                                               value=date.today().replace(day=1),
+                                               key="dc_ls_tu_ngay")
+                with col_ls2:
+                    den_ngay_ls = st.date_input("Đến ngày:",
+                                                value=date.today(),
+                                                key="dc_ls_den_ngay")
+
+                db_ls = st.session_state.db_engine.get_connection()
+                c_ls = db_ls.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                c_ls.execute("""
+                    SELECT a.id, nv.ma_nv, nv.ho_ten, a.ngay, a.truong_sua,
+                           a.gia_tri_cu, a.gia_tri_moi, a.ly_do,
+                           a.nguoi_sua, a.thoi_diem_sua,
+                           a.trang_thai, a.nguoi_duyet, a.ghi_chu_duyet
+                    FROM audit_cham_cong a
+                    JOIN nhan_vien nv ON nv.id = a.nhan_vien_id
+                    WHERE a.ngay BETWEEN %s AND %s
+                    ORDER BY a.thoi_diem_sua DESC
+                    LIMIT 200
+                """, (tu_ngay_ls, den_ngay_ls))
+                ds_ls = c_ls.fetchall()
+
+                # Nếu đang bật chế độ phê duyệt: hiện nút Duyệt/Từ chối cho Admin
+                cho_duyet = [r for r in ds_ls if r['trang_thai'] == 'CHO_DUYET']
+                if cho_duyet and st.session_state.role == 'admin':
+                    st.warning(f"⏳ Có {len(cho_duyet)} yêu cầu đang chờ phê duyệt:")
+                    for req in cho_duyet:
+                        with st.container(border=True):
+                            st.write(f"**{req['ma_nv']} — {req['ho_ten']}** | "
+                                     f"Ngày: {req['ngay']} | "
+                                     f"Trường: `{req['truong_sua']}` | "
+                                     f"{req['gia_tri_cu']} → {req['gia_tri_moi']}")
+                            st.caption(f"Lý do: {req['ly_do']} | Người yêu cầu: {req['nguoi_sua']}")
+                            col_d1, col_d2, col_d3 = st.columns([2, 1, 1])
+                            with col_d2:
+                                if st.button("✅ Duyệt", key=f"duyet_{req['id']}"):
+                                    db_duyet = st.session_state.db_engine.get_connection()
+                                    c_duyet = db_duyet.cursor()
+                                    # Áp dụng thay đổi
+                                    c_duyet.execute(f"""
+                                        UPDATE cham_cong SET {req['truong_sua']} = %s,
+                                            nguon='DIEU_CHINH', updated_at=NOW()
+                                        WHERE id = %s
+                                    """, (req['gia_tri_moi'], req['cham_cong_id']))
+                                    # Cập nhật trạng thái log
+                                    c_duyet.execute("""
+                                        UPDATE audit_cham_cong
+                                        SET trang_thai='DA_DUYET', nguoi_duyet=%s,
+                                            thoi_diem_duyet=NOW()
+                                        WHERE id=%s
+                                    """, (st.session_state.get('username', ''), req['id']))
+                                    db_duyet.commit()
+                                    db_duyet.close()
+                                    st.rerun()
+                            with col_d3:
+                                ghi_chu_tc = st.text_input("Lý do từ chối:",
+                                                           key=f"tc_note_{req['id']}")
+                                if st.button("❌ Từ chối", key=f"tuchoi_{req['id']}"):
+                                    db_tc = st.session_state.db_engine.get_connection()
+                                    c_tc = db_tc.cursor()
+                                    c_tc.execute("""
+                                        UPDATE audit_cham_cong
+                                        SET trang_thai='TU_CHOI', nguoi_duyet=%s,
+                                            thoi_diem_duyet=NOW(), ghi_chu_duyet=%s
+                                        WHERE id=%s
+                                    """, (st.session_state.get('username', ''),
+                                          ghi_chu_tc, req['id']))
+                                    db_tc.commit()
+                                    db_tc.close()
+                                    st.rerun()
+
+                if ds_ls:
+                    bang_ls = []
+                    for r in ds_ls:
+                        trang_thai_hien = {
+                            'DA_DUYET': '✅ Đã duyệt',
+                            'CHO_DUYET': '⏳ Chờ duyệt',
+                            'TU_CHOI': '❌ Từ chối',
+                        }.get(r['trang_thai'], r['trang_thai'])
+                        bang_ls.append({
+                            'Mã NV': r['ma_nv'],
+                            'Họ tên': r['ho_ten'],
+                            'Ngày CC': r['ngay'],
+                            'Trường sửa': r['truong_sua'],
+                            'Giá trị cũ': r['gia_tri_cu'],
+                            'Giá trị mới': r['gia_tri_moi'],
+                            'Lý do': r['ly_do'],
+                            'Người sửa': r['nguoi_sua'],
+                            'Thời điểm': r['thoi_diem_sua'].strftime('%d/%m %H:%M')
+                            if r['thoi_diem_sua'] else '',
+                            'Trạng thái': trang_thai_hien,
+                            'Người duyệt': r['nguoi_duyet'] or '',
+                        })
+                    st.dataframe(pd.DataFrame(bang_ls),
+                                 use_container_width=True, hide_index=True)
+                else:
+                    st.info("Không có lịch sử điều chỉnh trong khoảng thời gian này.")
+
+                db_ls.close()
+        
 # ========== TÍNH THU NHẬP ==========
 elif menu == "💰 Tính thu nhập":
     tinh_thu_nhap.show_tinh_thu_nhap()
@@ -10636,7 +10914,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                 _gia_tri_tc = (str(cfg_chung['he_so_tc_thuong'])
                                if cfg_chung['cach_tinh_tang_ca'] == 'HE_SO'
                                else f"{cfg_chung['don_gia_tc_thuong']:,.0f}đ/h")
-                st.caption(f"💡 Cấu hình chung hiện tại: {_kieu_tc} — TC thường: {_gia_tri_tc}"))
+                st.caption(f"💡 Cấu hình chung hiện tại: {_kieu_tc} — TC thường: {_gia_tri_tc}")
 
                 df_tc_pb = pd.DataFrame(rows_hien_thi)
                 df_tc_pb_moi = st.data_editor(

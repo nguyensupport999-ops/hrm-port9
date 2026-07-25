@@ -1798,6 +1798,11 @@ def get_cau_hinh_cham_cong_full():
         'he_so_tc_chu_nhat': float(get_cau_hinh('cc_he_so_tc_chu_nhat', 2.0)),
         'he_so_tc_le': float(get_cau_hinh('cc_he_so_tc_le', 3.0)),
         'he_so_tc_dem': float(get_cau_hinh('cc_he_so_tc_dem', 1.3)),
+        'cach_tinh_tang_ca': get_cau_hinh('cc_cach_tinh_tang_ca', 'HE_SO'),  # HE_SO | DON_GIA
+        'don_gia_tc_thuong': float(get_cau_hinh('cc_don_gia_tc_thuong', 0)),
+        'don_gia_tc_chu_nhat': float(get_cau_hinh('cc_don_gia_tc_chu_nhat', 0)),
+        'don_gia_tc_le': float(get_cau_hinh('cc_don_gia_tc_le', 0)),
+        'don_gia_tc_dem': float(get_cau_hinh('cc_don_gia_tc_dem', 0)),
         'cach_tinh_phep_nam': get_cau_hinh('cc_cach_tinh_phep_nam', 'TU_DONG'),
         'so_ngay_phep_co_ban': float(get_cau_hinh('cc_so_ngay_phep_co_ban', 12)),
         'danh_sach_ngay_le': danh_sach_le,
@@ -1819,6 +1824,11 @@ def update_cau_hinh_cham_cong_full(cfg):
     ok &= set_cau_hinh('cc_he_so_tc_chu_nhat', str(cfg['he_so_tc_chu_nhat']), 'Hệ số tăng ca Chủ nhật')
     ok &= set_cau_hinh('cc_he_so_tc_le', str(cfg['he_so_tc_le']), 'Hệ số tăng ca ngày lễ')
     ok &= set_cau_hinh('cc_he_so_tc_dem', str(cfg['he_so_tc_dem']), 'Hệ số cộng thêm tăng ca đêm')
+    ok &= set_cau_hinh('cc_cach_tinh_tang_ca', cfg['cach_tinh_tang_ca'], 'Cách tính tăng ca: HE_SO hoặc DON_GIA')
+    ok &= set_cau_hinh('cc_don_gia_tc_thuong', str(cfg['don_gia_tc_thuong']), 'Đơn giá TC ngày thường (đ/giờ)')
+    ok &= set_cau_hinh('cc_don_gia_tc_chu_nhat', str(cfg['don_gia_tc_chu_nhat']), 'Đơn giá TC Chủ nhật (đ/giờ)')
+    ok &= set_cau_hinh('cc_don_gia_tc_le', str(cfg['don_gia_tc_le']), 'Đơn giá TC ngày lễ (đ/giờ)')
+    ok &= set_cau_hinh('cc_don_gia_tc_dem', str(cfg['don_gia_tc_dem']), 'Đơn giá cộng thêm TC đêm (đ/giờ)')
     ok &= set_cau_hinh('cc_cach_tinh_phep_nam', cfg['cach_tinh_phep_nam'], 'Cách tính phép năm')
     ok &= set_cau_hinh('cc_so_ngay_phep_co_ban', str(cfg['so_ngay_phep_co_ban']), 'Số ngày phép cơ bản/năm')
     ok &= set_cau_hinh('cc_danh_sach_ngay_le', json.dumps(cfg['danh_sach_ngay_le'], ensure_ascii=False), 'Danh sách ngày nghỉ lễ trong năm')
@@ -9963,20 +9973,53 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                                                 value=cc['so_ngay_lam_viec_tuan'], step=1, key="cc_so_ngay_tuan_input")
 
         st.divider()
-        st.markdown("**📈 Hệ số tăng ca**")
-        col4, col5, col6, col7 = st.columns(4)
-        with col4:
-            he_so_tc_moi = st.number_input("TC ngày thường", min_value=1.0, max_value=5.0,
-                                            value=cc['he_so_tc_thuong'], step=0.1, key="cc_he_so_tc_input")
-        with col5:
-            he_so_tcn_moi = st.number_input("TCN (Chủ nhật)", min_value=1.0, max_value=5.0,
-                                             value=cc['he_so_tc_chu_nhat'], step=0.1, key="cc_he_so_tcn_input")
-        with col6:
-            he_so_tcl_moi = st.number_input("TCL (ngày lễ)", min_value=1.0, max_value=5.0,
-                                             value=cc['he_so_tc_le'], step=0.1, key="cc_he_so_tcl_input")
-        with col7:
-            he_so_tcd_moi = st.number_input("TCĐ (cộng thêm, đêm)", min_value=1.0, max_value=3.0,
-                                             value=cc['he_so_tc_dem'], step=0.1, key="cc_he_so_tcd_input")
+        st.markdown("**📈 Cách tính tăng ca**")
+        cach_tinh_tc_moi = st.radio(
+            "Chọn cách tính lương tăng ca:",
+            options=["HE_SO", "DON_GIA"],
+            index=0 if cc['cach_tinh_tang_ca'] == "HE_SO" else 1,
+            format_func=lambda x: "Hệ số % trên lương (VD: 150%, 200%...)" if x == "HE_SO" else "Đơn giá cố định (đồng/giờ)",
+            horizontal=True, key="cc_cach_tinh_tc_input"
+        )
+        st.caption("💡 Doanh nghiệp trả TC theo đơn giá cố định (VD: CHL) chọn 'Đơn giá cố định'; "
+                   "doanh nghiệp trả theo % lương cơ bản/lương đóng BH chọn 'Hệ số % trên lương'.")
+
+        if cach_tinh_tc_moi == "HE_SO":
+            col4, col5, col6, col7 = st.columns(4)
+            with col4:
+                he_so_tc_moi = st.number_input("TC ngày thường", min_value=1.0, max_value=5.0,
+                                                value=cc['he_so_tc_thuong'], step=0.1, key="cc_he_so_tc_input")
+            with col5:
+                he_so_tcn_moi = st.number_input("TCN (Chủ nhật)", min_value=1.0, max_value=5.0,
+                                                 value=cc['he_so_tc_chu_nhat'], step=0.1, key="cc_he_so_tcn_input")
+            with col6:
+                he_so_tcl_moi = st.number_input("TCL (ngày lễ)", min_value=1.0, max_value=5.0,
+                                                 value=cc['he_so_tc_le'], step=0.1, key="cc_he_so_tcl_input")
+            with col7:
+                he_so_tcd_moi = st.number_input("TCĐ (cộng thêm, đêm)", min_value=1.0, max_value=3.0,
+                                                 value=cc['he_so_tc_dem'], step=0.1, key="cc_he_so_tcd_input")
+            don_gia_tc_moi = cc['don_gia_tc_thuong']
+            don_gia_tcn_moi = cc['don_gia_tc_chu_nhat']
+            don_gia_tcl_moi = cc['don_gia_tc_le']
+            don_gia_tcd_moi = cc['don_gia_tc_dem']
+        else:
+            col4, col5, col6, col7 = st.columns(4)
+            with col4:
+                don_gia_tc_moi = st.number_input("Đơn giá TC thường (đ/giờ)", min_value=0.0,
+                                                  value=cc['don_gia_tc_thuong'], step=1000.0, key="cc_don_gia_tc_input")
+            with col5:
+                don_gia_tcn_moi = st.number_input("Đơn giá TCN - CN (đ/giờ)", min_value=0.0,
+                                                   value=cc['don_gia_tc_chu_nhat'], step=1000.0, key="cc_don_gia_tcn_input")
+            with col6:
+                don_gia_tcl_moi = st.number_input("Đơn giá TCL - lễ (đ/giờ)", min_value=0.0,
+                                                   value=cc['don_gia_tc_le'], step=1000.0, key="cc_don_gia_tcl_input")
+            with col7:
+                don_gia_tcd_moi = st.number_input("Đơn giá TCĐ - cộng thêm đêm (đ/giờ)", min_value=0.0,
+                                                   value=cc['don_gia_tc_dem'], step=1000.0, key="cc_don_gia_tcd_input")
+            he_so_tc_moi = cc['he_so_tc_thuong']
+            he_so_tcn_moi = cc['he_so_tc_chu_nhat']
+            he_so_tcl_moi = cc['he_so_tc_le']
+            he_so_tcd_moi = cc['he_so_tc_dem']
 
         st.divider()
         st.markdown("**📅 Phép năm**")
@@ -10025,6 +10068,9 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                     'ngay_nghi_hang_tuan': 'CN', 'gio_lam_chuan_ngay': gio_lam_chuan_moi,
                     'he_so_tc_thuong': he_so_tc_moi, 'he_so_tc_chu_nhat': he_so_tcn_moi,
                     'he_so_tc_le': he_so_tcl_moi, 'he_so_tc_dem': he_so_tcd_moi,
+                    'cach_tinh_tang_ca': cach_tinh_tc_moi,
+                    'don_gia_tc_thuong': don_gia_tc_moi, 'don_gia_tc_chu_nhat': don_gia_tcn_moi,
+                    'don_gia_tc_le': don_gia_tcl_moi, 'don_gia_tc_dem': don_gia_tcd_moi,
                     'cach_tinh_phep_nam': cach_tinh_phep_moi, 'so_ngay_phep_co_ban': so_ngay_phep_moi,
                     'danh_sach_ngay_le': danh_sach_le_moi,
                 })

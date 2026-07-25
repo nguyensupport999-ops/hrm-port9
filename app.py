@@ -5263,6 +5263,17 @@ if st.session_state.get('phai_doi_mat_khau'):
                 st.error(f"❌ Lỗi khi đổi mật khẩu: {e}")
     st.stop()
 
+# Điểm 2 — Lazy check: quét NV thiếu giờ ra & gửi cảnh báo qua Chat nội bộ,
+# chạy 1 lần/phiên (tránh query lặp lại mỗi lần rerun trong cùng phiên làm việc).
+if not st.session_state.get('_da_quet_canh_bao_thieu_gio_ra'):
+    try:
+        _db_quet = st.session_state.db_engine.get_connection()
+        face_id_cham_cong.quet_va_canh_bao_thieu_gio_ra(_db_quet, date.today())
+        _db_quet.close()
+    except Exception:
+        pass  # không để lỗi quét cảnh báo làm sập cả trang
+    st.session_state['_da_quet_canh_bao_thieu_gio_ra'] = True
+
 # Menu theo role — 4 vai trò cố định: admin / hr / kt_luong / viewer (+ 'nhan_vien' tự phục vụ)
 if st.session_state.role == "admin":
     # Toàn quyền

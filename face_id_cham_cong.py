@@ -14,16 +14,6 @@ from streamlit_webrtc import VideoProcessorBase
 import av
 import chat_noi_bo
 
-def _lay_id_nhan_vien_he_thong(conn):
-    """Lay id ban ghi 'nhan vien He thong' (ma_nv='HE_THONG') de lam nguoi gui
-    cac tin nhan canh bao tu dong qua Chat noi bo."""
-    cur = conn.cursor()
-    cur.execute("SELECT id FROM nhan_vien WHERE ma_nv = 'HE_THONG' LIMIT 1")
-    row = cur.fetchone()
-    cur.close()
-    return row[0] if row else None
-
-
 def suy_ma_cong_tu_gio_vao_ra(gio_vao, gio_ra, cfg):
     """
     Diem 2: Suy ma_cong tu dong tu gio vao/ra ghi nhan qua Face ID.
@@ -62,9 +52,8 @@ def quet_va_canh_bao_thieu_gio_ra(conn, ngay_hom_nay):
     thanh cong, trong app.py). Quet cac ngay TRUOC ngay_hom_nay con o trang thai
     THIEU_GIO_RA va chua gui canh bao -> gui tin nhan qua Chat noi bo + danh dau da gui.
     """
-    id_he_thong = _lay_id_nhan_vien_he_thong(conn)
-    if not id_he_thong:
-        return 0
+    ID_HE_THONG = 0  # Quy ước có sẵn trong code gốc: id=0 = "Hệ thống"
+                      # (giống chat_rooms.created_by=0 dùng cho phòng "Thông báo chung")
 
     cur = conn.cursor()
     cur.execute("""
@@ -83,9 +72,9 @@ def quet_va_canh_bao_thieu_gio_ra(conn, ngay_hom_nay):
             f"để HR/Trưởng phòng xác nhận lại giờ ra, nếu không ngày công này "
             f"sẽ chưa được tính vào bảng chấm công tháng."
         )
-        room_id = chat_noi_bo.create_private_room(id_he_thong, nhan_vien_id)
+        room_id = chat_noi_bo.create_private_room(ID_HE_THONG, nhan_vien_id)
         if room_id:
-            chat_noi_bo.send_message(room_id, id_he_thong, noi_dung, message_type="system")
+            chat_noi_bo.send_message(room_id, ID_HE_THONG, noi_dung, message_type="system")
 
         cur.execute("""
             UPDATE cham_cong SET da_gui_canh_bao_thieu_gio_ra = true WHERE id = %s

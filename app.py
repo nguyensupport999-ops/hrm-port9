@@ -1737,6 +1737,60 @@ def update_cau_hinh_cham_cong(gio_vao, gio_ra, phut_tre):
     except:
         return False
 
+def get_cau_hinh_cham_cong_full():
+    """Đọc toàn bộ cấu hình chấm công (giờ vào/ra, số ngày làm việc, hệ số TC,
+    phép năm, ngày lễ...). Dùng chung cơ chế get_cau_hinh() (cache session,
+    bảng cau_hinh_he_thong) — không tạo bảng riêng."""
+    def _parse_time(s, default):
+        try:
+            h, m = map(int, s.split(':'))
+            return _time(h, m)
+        except Exception:
+            return default
+
+    try:
+        danh_sach_le = json.loads(get_cau_hinh('cc_danh_sach_ngay_le', '[]'))
+    except Exception:
+        danh_sach_le = []
+
+    return {
+        'gio_vao': _parse_time(get_cau_hinh('cc_gio_vao', '08:00'), _time(8, 0)),
+        'gio_ra': _parse_time(get_cau_hinh('cc_gio_ra', '17:00'), _time(17, 0)),
+        'phut_tre': int(get_cau_hinh('cc_phut_tre', 15)),
+        'gio_bat_dau_ca_dem': _parse_time(get_cau_hinh('cc_gio_bat_dau_ca_dem', '22:00'), _time(22, 0)),
+        'so_ngay_lam_viec_tuan': int(get_cau_hinh('cc_so_ngay_lam_viec_tuan', 6)),
+        'ngay_nghi_hang_tuan': get_cau_hinh('cc_ngay_nghi_hang_tuan', 'CN'),
+        'gio_lam_chuan_ngay': float(get_cau_hinh('cc_gio_lam_chuan_ngay', 8)),
+        'he_so_tc_thuong': float(get_cau_hinh('cc_he_so_tc_thuong', 1.5)),
+        'he_so_tc_chu_nhat': float(get_cau_hinh('cc_he_so_tc_chu_nhat', 2.0)),
+        'he_so_tc_le': float(get_cau_hinh('cc_he_so_tc_le', 3.0)),
+        'he_so_tc_dem': float(get_cau_hinh('cc_he_so_tc_dem', 1.3)),
+        'cach_tinh_phep_nam': get_cau_hinh('cc_cach_tinh_phep_nam', 'TU_DONG'),
+        'so_ngay_phep_co_ban': float(get_cau_hinh('cc_so_ngay_phep_co_ban', 12)),
+        'danh_sach_ngay_le': danh_sach_le,
+    }
+
+
+def update_cau_hinh_cham_cong_full(cfg):
+    """Ghi toàn bộ cấu hình chấm công. `cfg` cùng cấu trúc dict trả về bởi
+    get_cau_hinh_cham_cong_full()."""
+    ok = True
+    ok &= set_cau_hinh('cc_gio_vao', cfg['gio_vao'].strftime('%H:%M'), 'Giờ vào chuẩn')
+    ok &= set_cau_hinh('cc_gio_ra', cfg['gio_ra'].strftime('%H:%M'), 'Giờ ra chuẩn')
+    ok &= set_cau_hinh('cc_phut_tre', str(cfg['phut_tre']), 'Số phút cho phép trễ')
+    ok &= set_cau_hinh('cc_gio_bat_dau_ca_dem', cfg['gio_bat_dau_ca_dem'].strftime('%H:%M'), 'Giờ bắt đầu ca đêm (tính TCĐ)')
+    ok &= set_cau_hinh('cc_so_ngay_lam_viec_tuan', str(cfg['so_ngay_lam_viec_tuan']), 'Số ngày làm việc/tuần')
+    ok &= set_cau_hinh('cc_ngay_nghi_hang_tuan', cfg['ngay_nghi_hang_tuan'], 'Ngày nghỉ hàng tuần')
+    ok &= set_cau_hinh('cc_gio_lam_chuan_ngay', str(cfg['gio_lam_chuan_ngay']), 'Giờ làm chuẩn/ngày')
+    ok &= set_cau_hinh('cc_he_so_tc_thuong', str(cfg['he_so_tc_thuong']), 'Hệ số tăng ca ngày thường')
+    ok &= set_cau_hinh('cc_he_so_tc_chu_nhat', str(cfg['he_so_tc_chu_nhat']), 'Hệ số tăng ca Chủ nhật')
+    ok &= set_cau_hinh('cc_he_so_tc_le', str(cfg['he_so_tc_le']), 'Hệ số tăng ca ngày lễ')
+    ok &= set_cau_hinh('cc_he_so_tc_dem', str(cfg['he_so_tc_dem']), 'Hệ số cộng thêm tăng ca đêm')
+    ok &= set_cau_hinh('cc_cach_tinh_phep_nam', cfg['cach_tinh_phep_nam'], 'Cách tính phép năm')
+    ok &= set_cau_hinh('cc_so_ngay_phep_co_ban', str(cfg['so_ngay_phep_co_ban']), 'Số ngày phép cơ bản/năm')
+    ok &= set_cau_hinh('cc_danh_sach_ngay_le', json.dumps(cfg['danh_sach_ngay_le'], ensure_ascii=False), 'Danh sách ngày nghỉ lễ trong năm')
+    return ok
+
 # === Cấu hình công thức tính lương đang áp dụng (khung sườn - salary/salary_{key}.py) ===
 def get_cau_hinh_luong_key():
     try:
@@ -9541,9 +9595,9 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
         else:
             st.info(f"Chưa có {tieu_de.lower()} nào.")
 
-    tab_pb, tab_cd, tab_hd, tab_hv, tab_mau_hd, tab_cv, tab_cty = st.tabs([
+    tab_pb, tab_cd, tab_hd, tab_hv, tab_mau_hd, tab_cv, tab_cty, tab_cc = st.tabs([
         "🏢 Phòng ban", "💼 Chức danh", "📄 Loại hợp đồng", "🎓 Trình độ học vấn",
-        "📃 Mẫu Hợp đồng", "🎖️ Chức vụ", "⚙️ Cấu hình Doanh nghiệp"
+        "📃 Mẫu Hợp đồng", "🎖️ Chức vụ", "⚙️ Cấu hình Doanh nghiệp", "🕒 Chấm công"
     ])
 
     with tab_pb:
@@ -9818,19 +9872,6 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
         )
 
         st.divider()
-        st.markdown("**🕒 Cấu hình Chấm công**")
-        st.caption("⚠️ Khung sườn cấu hình — logic tính công/đi trễ sẽ được tích hợp và hoàn thiện dần theo nhu cầu phát sinh.")
-        cc_hien_tai = get_cau_hinh_cham_cong()
-        col_cc1, col_cc2, col_cc3 = st.columns(3)
-        with col_cc1:
-            cc_gio_vao_moi = st.time_input("Giờ vào chuẩn:", value=cc_hien_tai['gio_vao'], key="cty_cc_gio_vao")
-        with col_cc2:
-            cc_gio_ra_moi = st.time_input("Giờ ra chuẩn:", value=cc_hien_tai['gio_ra'], key="cty_cc_gio_ra")
-        with col_cc3:
-            cc_phut_tre_moi = st.number_input("Số phút cho phép trễ:", min_value=0, max_value=120,
-                                               value=cc_hien_tai['phut_tre'], step=5, key="cty_cc_phut_tre")
-
-        st.divider()
         st.markdown("**💰 Phần mềm tính lương**")
         st.caption("Mỗi công ty có thể có 1 công thức tính lương RIÊNG — file `salary/salary_{Mã số thuế}.py` "
                    "(đặt cùng cấp với app.py). Hệ thống TỰ ĐỘNG chọn đúng file của công ty bạn theo Mã số "
@@ -9858,16 +9899,108 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                 loi_luu.append("Prefix HĐKT")
             if not update_han_nop_bhxh(int(han_bhxh_moi)):
                 loi_luu.append("Hạn nộp BHXH")
-            if not update_cau_hinh_cham_cong(cc_gio_vao_moi, cc_gio_ra_moi, int(cc_phut_tre_moi)):
-                loi_luu.append("Cấu hình chấm công")
-
+            
             if loi_luu:
                 st.error(f"❌ Lưu thất bại một số mục: {', '.join(loi_luu)}")
             else:
                 st.success("✅ Đã lưu toàn bộ cấu hình doanh nghiệp!")
                 st.cache_data.clear()
                 st.rerun()
+    
+    with tab_cc:
+    st.subheader("🕒 Cấu hình Chấm công")
+    st.caption("Áp dụng cho toàn bộ doanh nghiệp bạn — dùng làm cơ sở tính công chuẩn, "
+               "tăng ca, phép năm và cho module Chấm công Face ID.")
 
+    cc = get_cau_hinh_cham_cong_full()
+
+    st.markdown("**⏰ Giờ làm việc & ca**")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        gio_vao_moi = st.time_input("Giờ vào chuẩn", value=cc['gio_vao'], key="cc_gio_vao_input")
+        gio_bd_dem_moi = st.time_input("Giờ bắt đầu ca đêm (tính TCĐ)", value=cc['gio_bat_dau_ca_dem'], key="cc_gio_bd_dem_input")
+    with col2:
+        gio_ra_moi = st.time_input("Giờ ra chuẩn", value=cc['gio_ra'], key="cc_gio_ra_input")
+        gio_lam_chuan_moi = st.number_input("Giờ làm chuẩn/ngày", min_value=1.0, max_value=12.0,
+                                             value=cc['gio_lam_chuan_ngay'], step=0.5, key="cc_gio_lam_chuan_input")
+    with col3:
+        phut_tre_moi = st.number_input("Số phút cho phép trễ", min_value=0, max_value=120,
+                                        value=cc['phut_tre'], step=5, key="cc_phut_tre_input")
+        so_ngay_tuan_moi = st.number_input("Số ngày làm việc/tuần", min_value=1, max_value=7,
+                                            value=cc['so_ngay_lam_viec_tuan'], step=1, key="cc_so_ngay_tuan_input")
+
+    st.divider()
+    st.markdown("**📈 Hệ số tăng ca**")
+    col4, col5, col6, col7 = st.columns(4)
+    with col4:
+        he_so_tc_moi = st.number_input("TC ngày thường", min_value=1.0, max_value=5.0,
+                                        value=cc['he_so_tc_thuong'], step=0.1, key="cc_he_so_tc_input")
+    with col5:
+        he_so_tcn_moi = st.number_input("TCN (Chủ nhật)", min_value=1.0, max_value=5.0,
+                                         value=cc['he_so_tc_chu_nhat'], step=0.1, key="cc_he_so_tcn_input")
+    with col6:
+        he_so_tcl_moi = st.number_input("TCL (ngày lễ)", min_value=1.0, max_value=5.0,
+                                         value=cc['he_so_tc_le'], step=0.1, key="cc_he_so_tcl_input")
+    with col7:
+        he_so_tcd_moi = st.number_input("TCĐ (cộng thêm, đêm)", min_value=1.0, max_value=3.0,
+                                         value=cc['he_so_tc_dem'], step=0.1, key="cc_he_so_tcd_input")
+
+    st.divider()
+    st.markdown("**📅 Phép năm**")
+    col8, col9 = st.columns(2)
+    with col8:
+        cach_tinh_phep_moi = st.selectbox(
+            "Cách tính phép năm", ["TU_DONG", "CO_DINH"],
+            index=0 if cc['cach_tinh_phep_nam'] == "TU_DONG" else 1,
+            format_func=lambda x: "Tự động (12 + 1/5 năm thâm niên)" if x == "TU_DONG" else "Cố định theo số ngày nhập",
+            key="cc_cach_tinh_phep_input")
+    with col9:
+        so_ngay_phep_moi = st.number_input("Số ngày phép cơ bản/năm", min_value=0.0, max_value=30.0,
+                                            value=cc['so_ngay_phep_co_ban'], step=0.5, key="cc_so_ngay_phep_input")
+
+    st.divider()
+    st.markdown("**🎌 Danh sách ngày nghỉ lễ trong năm**")
+    st.caption("Mỗi dòng 1 ngày lễ, cú pháp: `YYYY-MM-DD | Tên ngày lễ`")
+    ds_le_text_moi = st.text_area(
+        "Ngày nghỉ lễ", height=120,
+        value="\n".join(f"{x['ngay']} | {x['ten']}" for x in cc['danh_sach_ngay_le']),
+        key="cc_ds_le_input")
+
+    st.divider()
+    st.markdown("**📖 Bảng ký hiệu chấm công chuẩn (tham khảo — 23 ký hiệu, áp dụng chung mọi doanh nghiệp)**")
+    with st.expander("Xem đầy đủ bảng ký hiệu"):
+        st.dataframe(
+            [{"Ký hiệu": ma, "Ý nghĩa": tt["ten"], "Nhóm": tt["nhom"],
+              "Cần phê duyệt": "✅" if tt.get("can_duyet") else ""}
+             for ma, tt in KY_HIEU_CHAM_CONG.items()],
+            use_container_width=True, hide_index=True
+        )
+
+    if st.button("💾 Lưu cấu hình chấm công", key="btn_save_cau_hinh_cham_cong"):
+        if not can_edit():
+            st.error("❌ Bạn không có quyền chỉnh sửa!")
+        else:
+            danh_sach_le_moi = []
+            for line in ds_le_text_moi.strip().split("\n"):
+                if "|" in line:
+                    ngay, ten = line.split("|", 1)
+                    danh_sach_le_moi.append({"ngay": ngay.strip(), "ten": ten.strip()})
+
+            ok = update_cau_hinh_cham_cong_full({
+                'gio_vao': gio_vao_moi, 'gio_ra': gio_ra_moi, 'phut_tre': phut_tre_moi,
+                'gio_bat_dau_ca_dem': gio_bd_dem_moi, 'so_ngay_lam_viec_tuan': so_ngay_tuan_moi,
+                'ngay_nghi_hang_tuan': 'CN', 'gio_lam_chuan_ngay': gio_lam_chuan_moi,
+                'he_so_tc_thuong': he_so_tc_moi, 'he_so_tc_chu_nhat': he_so_tcn_moi,
+                'he_so_tc_le': he_so_tcl_moi, 'he_so_tc_dem': he_so_tcd_moi,
+                'cach_tinh_phep_nam': cach_tinh_phep_moi, 'so_ngay_phep_co_ban': so_ngay_phep_moi,
+                'danh_sach_ngay_le': danh_sach_le_moi,
+            })
+            if ok:
+                st.success("✅ Đã lưu cấu hình chấm công!")
+                st.rerun()
+            else:
+                st.error("❌ Lưu thất bại, thử lại.")
+    
     st.divider()
     with st.expander("🏷️ Ký hiệu Mã nhân viên riêng của công ty"):
         st.caption(

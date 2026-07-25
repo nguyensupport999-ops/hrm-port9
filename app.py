@@ -47,6 +47,7 @@ import base64
 import tinh_thu_nhap
 import mimetypes
 from io import BytesIO
+from datetime import time as _time
 
 # Import config - ưu tiên config.py (local), fallback to config_template (cloud)
 try:

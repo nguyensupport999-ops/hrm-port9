@@ -9908,98 +9908,98 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                 st.rerun()
     
     with tab_cc:
-    st.subheader("🕒 Cấu hình Chấm công")
-    st.caption("Áp dụng cho toàn bộ doanh nghiệp bạn — dùng làm cơ sở tính công chuẩn, "
-               "tăng ca, phép năm và cho module Chấm công Face ID.")
+        st.subheader("🕒 Cấu hình Chấm công")
+        st.caption("Áp dụng cho toàn bộ doanh nghiệp bạn — dùng làm cơ sở tính công chuẩn, "
+                   "tăng ca, phép năm và cho module Chấm công Face ID.")
 
-    cc = get_cau_hinh_cham_cong_full()
+        cc = get_cau_hinh_cham_cong_full()
 
-    st.markdown("**⏰ Giờ làm việc & ca**")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        gio_vao_moi = st.time_input("Giờ vào chuẩn", value=cc['gio_vao'], key="cc_gio_vao_input")
-        gio_bd_dem_moi = st.time_input("Giờ bắt đầu ca đêm (tính TCĐ)", value=cc['gio_bat_dau_ca_dem'], key="cc_gio_bd_dem_input")
-    with col2:
-        gio_ra_moi = st.time_input("Giờ ra chuẩn", value=cc['gio_ra'], key="cc_gio_ra_input")
-        gio_lam_chuan_moi = st.number_input("Giờ làm chuẩn/ngày", min_value=1.0, max_value=12.0,
-                                             value=cc['gio_lam_chuan_ngay'], step=0.5, key="cc_gio_lam_chuan_input")
-    with col3:
-        phut_tre_moi = st.number_input("Số phút cho phép trễ", min_value=0, max_value=120,
-                                        value=cc['phut_tre'], step=5, key="cc_phut_tre_input")
-        so_ngay_tuan_moi = st.number_input("Số ngày làm việc/tuần", min_value=1, max_value=7,
-                                            value=cc['so_ngay_lam_viec_tuan'], step=1, key="cc_so_ngay_tuan_input")
+        st.markdown("**⏰ Giờ làm việc & ca**")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            gio_vao_moi = st.time_input("Giờ vào chuẩn", value=cc['gio_vao'], key="cc_gio_vao_input")
+            gio_bd_dem_moi = st.time_input("Giờ bắt đầu ca đêm (tính TCĐ)", value=cc['gio_bat_dau_ca_dem'], key="cc_gio_bd_dem_input")
+        with col2:
+            gio_ra_moi = st.time_input("Giờ ra chuẩn", value=cc['gio_ra'], key="cc_gio_ra_input")
+            gio_lam_chuan_moi = st.number_input("Giờ làm chuẩn/ngày", min_value=1.0, max_value=12.0,
+                                                 value=cc['gio_lam_chuan_ngay'], step=0.5, key="cc_gio_lam_chuan_input")
+        with col3:
+            phut_tre_moi = st.number_input("Số phút cho phép trễ", min_value=0, max_value=120,
+                                            value=cc['phut_tre'], step=5, key="cc_phut_tre_input")
+            so_ngay_tuan_moi = st.number_input("Số ngày làm việc/tuần", min_value=1, max_value=7,
+                                                value=cc['so_ngay_lam_viec_tuan'], step=1, key="cc_so_ngay_tuan_input")
 
-    st.divider()
-    st.markdown("**📈 Hệ số tăng ca**")
-    col4, col5, col6, col7 = st.columns(4)
-    with col4:
-        he_so_tc_moi = st.number_input("TC ngày thường", min_value=1.0, max_value=5.0,
-                                        value=cc['he_so_tc_thuong'], step=0.1, key="cc_he_so_tc_input")
-    with col5:
-        he_so_tcn_moi = st.number_input("TCN (Chủ nhật)", min_value=1.0, max_value=5.0,
-                                         value=cc['he_so_tc_chu_nhat'], step=0.1, key="cc_he_so_tcn_input")
-    with col6:
-        he_so_tcl_moi = st.number_input("TCL (ngày lễ)", min_value=1.0, max_value=5.0,
-                                         value=cc['he_so_tc_le'], step=0.1, key="cc_he_so_tcl_input")
-    with col7:
-        he_so_tcd_moi = st.number_input("TCĐ (cộng thêm, đêm)", min_value=1.0, max_value=3.0,
-                                         value=cc['he_so_tc_dem'], step=0.1, key="cc_he_so_tcd_input")
+        st.divider()
+        st.markdown("**📈 Hệ số tăng ca**")
+        col4, col5, col6, col7 = st.columns(4)
+        with col4:
+            he_so_tc_moi = st.number_input("TC ngày thường", min_value=1.0, max_value=5.0,
+                                            value=cc['he_so_tc_thuong'], step=0.1, key="cc_he_so_tc_input")
+        with col5:
+            he_so_tcn_moi = st.number_input("TCN (Chủ nhật)", min_value=1.0, max_value=5.0,
+                                             value=cc['he_so_tc_chu_nhat'], step=0.1, key="cc_he_so_tcn_input")
+        with col6:
+            he_so_tcl_moi = st.number_input("TCL (ngày lễ)", min_value=1.0, max_value=5.0,
+                                             value=cc['he_so_tc_le'], step=0.1, key="cc_he_so_tcl_input")
+        with col7:
+            he_so_tcd_moi = st.number_input("TCĐ (cộng thêm, đêm)", min_value=1.0, max_value=3.0,
+                                             value=cc['he_so_tc_dem'], step=0.1, key="cc_he_so_tcd_input")
 
-    st.divider()
-    st.markdown("**📅 Phép năm**")
-    col8, col9 = st.columns(2)
-    with col8:
-        cach_tinh_phep_moi = st.selectbox(
-            "Cách tính phép năm", ["TU_DONG", "CO_DINH"],
-            index=0 if cc['cach_tinh_phep_nam'] == "TU_DONG" else 1,
-            format_func=lambda x: "Tự động (12 + 1/5 năm thâm niên)" if x == "TU_DONG" else "Cố định theo số ngày nhập",
-            key="cc_cach_tinh_phep_input")
-    with col9:
-        so_ngay_phep_moi = st.number_input("Số ngày phép cơ bản/năm", min_value=0.0, max_value=30.0,
-                                            value=cc['so_ngay_phep_co_ban'], step=0.5, key="cc_so_ngay_phep_input")
+        st.divider()
+        st.markdown("**📅 Phép năm**")
+        col8, col9 = st.columns(2)
+        with col8:
+            cach_tinh_phep_moi = st.selectbox(
+                "Cách tính phép năm", ["TU_DONG", "CO_DINH"],
+                index=0 if cc['cach_tinh_phep_nam'] == "TU_DONG" else 1,
+                format_func=lambda x: "Tự động (12 + 1/5 năm thâm niên)" if x == "TU_DONG" else "Cố định theo số ngày nhập",
+                key="cc_cach_tinh_phep_input")
+        with col9:
+            so_ngay_phep_moi = st.number_input("Số ngày phép cơ bản/năm", min_value=0.0, max_value=30.0,
+                                                value=cc['so_ngay_phep_co_ban'], step=0.5, key="cc_so_ngay_phep_input")
 
-    st.divider()
-    st.markdown("**🎌 Danh sách ngày nghỉ lễ trong năm**")
-    st.caption("Mỗi dòng 1 ngày lễ, cú pháp: `YYYY-MM-DD | Tên ngày lễ`")
-    ds_le_text_moi = st.text_area(
-        "Ngày nghỉ lễ", height=120,
-        value="\n".join(f"{x['ngay']} | {x['ten']}" for x in cc['danh_sach_ngay_le']),
-        key="cc_ds_le_input")
+        st.divider()
+        st.markdown("**🎌 Danh sách ngày nghỉ lễ trong năm**")
+        st.caption("Mỗi dòng 1 ngày lễ, cú pháp: `YYYY-MM-DD | Tên ngày lễ`")
+        ds_le_text_moi = st.text_area(
+            "Ngày nghỉ lễ", height=120,
+            value="\n".join(f"{x['ngay']} | {x['ten']}" for x in cc['danh_sach_ngay_le']),
+            key="cc_ds_le_input")
 
-    st.divider()
-    st.markdown("**📖 Bảng ký hiệu chấm công chuẩn (tham khảo — 23 ký hiệu, áp dụng chung mọi doanh nghiệp)**")
-    with st.expander("Xem đầy đủ bảng ký hiệu"):
-        st.dataframe(
-            [{"Ký hiệu": ma, "Ý nghĩa": tt["ten"], "Nhóm": tt["nhom"],
-              "Cần phê duyệt": "✅" if tt.get("can_duyet") else ""}
-             for ma, tt in KY_HIEU_CHAM_CONG.items()],
-            use_container_width=True, hide_index=True
-        )
+        st.divider()
+        st.markdown("**📖 Bảng ký hiệu chấm công chuẩn (tham khảo — 23 ký hiệu, áp dụng chung mọi doanh nghiệp)**")
+        with st.expander("Xem đầy đủ bảng ký hiệu"):
+            st.dataframe(
+                [{"Ký hiệu": ma, "Ý nghĩa": tt["ten"], "Nhóm": tt["nhom"],
+                  "Cần phê duyệt": "✅" if tt.get("can_duyet") else ""}
+                 for ma, tt in KY_HIEU_CHAM_CONG.items()],
+                use_container_width=True, hide_index=True
+            )
 
-    if st.button("💾 Lưu cấu hình chấm công", key="btn_save_cau_hinh_cham_cong"):
-        if not can_edit():
-            st.error("❌ Bạn không có quyền chỉnh sửa!")
-        else:
-            danh_sach_le_moi = []
-            for line in ds_le_text_moi.strip().split("\n"):
-                if "|" in line:
-                    ngay, ten = line.split("|", 1)
-                    danh_sach_le_moi.append({"ngay": ngay.strip(), "ten": ten.strip()})
-
-            ok = update_cau_hinh_cham_cong_full({
-                'gio_vao': gio_vao_moi, 'gio_ra': gio_ra_moi, 'phut_tre': phut_tre_moi,
-                'gio_bat_dau_ca_dem': gio_bd_dem_moi, 'so_ngay_lam_viec_tuan': so_ngay_tuan_moi,
-                'ngay_nghi_hang_tuan': 'CN', 'gio_lam_chuan_ngay': gio_lam_chuan_moi,
-                'he_so_tc_thuong': he_so_tc_moi, 'he_so_tc_chu_nhat': he_so_tcn_moi,
-                'he_so_tc_le': he_so_tcl_moi, 'he_so_tc_dem': he_so_tcd_moi,
-                'cach_tinh_phep_nam': cach_tinh_phep_moi, 'so_ngay_phep_co_ban': so_ngay_phep_moi,
-                'danh_sach_ngay_le': danh_sach_le_moi,
-            })
-            if ok:
-                st.success("✅ Đã lưu cấu hình chấm công!")
-                st.rerun()
+        if st.button("💾 Lưu cấu hình chấm công", key="btn_save_cau_hinh_cham_cong"):
+            if not can_edit():
+                st.error("❌ Bạn không có quyền chỉnh sửa!")
             else:
-                st.error("❌ Lưu thất bại, thử lại.")
+                danh_sach_le_moi = []
+                for line in ds_le_text_moi.strip().split("\n"):
+                    if "|" in line:
+                        ngay, ten = line.split("|", 1)
+                        danh_sach_le_moi.append({"ngay": ngay.strip(), "ten": ten.strip()})
+
+                ok = update_cau_hinh_cham_cong_full({
+                    'gio_vao': gio_vao_moi, 'gio_ra': gio_ra_moi, 'phut_tre': phut_tre_moi,
+                    'gio_bat_dau_ca_dem': gio_bd_dem_moi, 'so_ngay_lam_viec_tuan': so_ngay_tuan_moi,
+                    'ngay_nghi_hang_tuan': 'CN', 'gio_lam_chuan_ngay': gio_lam_chuan_moi,
+                    'he_so_tc_thuong': he_so_tc_moi, 'he_so_tc_chu_nhat': he_so_tcn_moi,
+                    'he_so_tc_le': he_so_tcl_moi, 'he_so_tc_dem': he_so_tcd_moi,
+                    'cach_tinh_phep_nam': cach_tinh_phep_moi, 'so_ngay_phep_co_ban': so_ngay_phep_moi,
+                    'danh_sach_ngay_le': danh_sach_le_moi,
+                })
+                if ok:
+                    st.success("✅ Đã lưu cấu hình chấm công!")
+                    st.rerun()
+                else:
+                    st.error("❌ Lưu thất bại, thử lại.")
     
     st.divider()
     with st.expander("🏷️ Ký hiệu Mã nhân viên riêng của công ty"):

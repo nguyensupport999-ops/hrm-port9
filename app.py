@@ -4904,17 +4904,17 @@ if st.session_state.get('phai_doi_mat_khau'):
 if st.session_state.role == "admin":
     # Toàn quyền
     menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📥 Nhập/Xuất Excel","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","🔍 Audit Dashboard","📘 Hướng dẫn sử dụng",]
-#elif st.session_state.role in ["văn thư", "hr"]:
+elif st.session_state.role in ["văn thư", "hr"]:
     # HR: như admin trừ Upload hồ sơ, Danh mục — và KHÔNG được xem Tính thu nhập (dữ liệu lương)
-#    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
-#elif st.session_state.role == "kt_luong":
+    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
+elif st.session_state.role == "kt_luong":
     # Kế toán lương: tập trung vào Chấm công + Tính thu nhập, không có Upload hồ sơ/Danh mục
- #   menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
-#elif st.session_state.role == "van_thu":
- #   menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
-#elif st.session_state.role == "viewer":
+    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
+elif st.session_state.role == "van_thu":
+    menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
+elif st.session_state.role == "viewer":
     # Viewer: chỉ xem, thu hẹp — không có BHXH, không có Tính thu nhập
-  #  menu_options = ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo định kỳ","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
+    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo định kỳ","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role == "xem_toan_bo":
     # Vai trò "Xem toàn bộ (không chỉnh sửa)": thấy ĐẦY ĐỦ menu & tab giống hệt Admin,
     # nhưng KHÔNG có quyền thay đổi dữ liệu — mọi nút Lưu/Sửa/Xóa/Cập nhật/Save trong các
@@ -4929,8 +4929,10 @@ elif st.session_state.role == "demo_readonly":
     # màn hình trong app (chỉ mới có ở một số form) — trước khi phát hành tài khoản demo
     # công khai, cần rà soát thêm các nút còn thiếu để đảm bảo dữ liệu thật sự không đổi được.
     menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
-#else:  # 'nhan_vien' thường — chỉ xem hồ sơ bản thân + chat nội bộ
-   # menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"]
+else:  # 'nhan_vien' thường (mặc định) hoặc bất kỳ vai trò nào khác chưa được liệt kê ở trên
+    # -> LUÔN có 1 menu tối thiểu an toàn, tuyệt đối KHÔNG được để menu_options rơi vào
+    # trạng thái "không được gán" (từng gây lỗi NameError crash toàn bộ app khi đăng nhập).
+    menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"]
 menu = st.sidebar.radio(i18n.t("📋 Menu"), menu_options, format_func=i18n.t)
 st.sidebar.divider()
 st.sidebar.caption(f"👤 {st.session_state.get('ho_ten_dang_nhap', st.session_state.username)} ({st.session_state.role})")
@@ -10037,18 +10039,21 @@ elif menu == "📋 BHXH":
         """, (tu_ngay, den_ngay))
         tang_list = c.fetchall()
         
-        # Lao động giảm trong kỳ (dựa vào thang_ket_thuc_bh)
+        # Lao động giảm trong kỳ — ưu tiên thang_ket_thuc_bh (đúng nghiệp vụ báo giảm BHXH),
+        # nếu trống (hồ sơ cũ/nhập Excel/chưa qua luồng Quyết định nhân sự Chấm dứt HĐ) thì
+        # lấy ngay_ket_thuc (ngày nghỉ việc thực tế) làm dự phòng — tránh sót lao động giảm
+        # trong báo cáo D02-LT chỉ vì thiếu 1 cột BHXH riêng chưa kịp đồng bộ.
         c.execute("""
             SELECT 
                 nv.id, nv.ma_nv, nv.ho_ten, nv.ma_so_bhxh, nv.ngay_sinh, nv.gioi_tinh, nv.so_cccd,
                 nv.chuc_danh_nghe, nv.phong_ban_lam_viec, nv.luong_bao_hiem, nv.he_so_luong,
-                nv.thang_ket_thuc_bh as ngay_ket_thuc,
+                COALESCE(nv.thang_ket_thuc_bh, nv.ngay_ket_thuc) as ngay_ket_thuc,
                 nv.loai_hop_dong, nv.so_hdld, nv.ngay_vao_lam, nv.thuong_tru,
                 nv.ly_do_nghi
             FROM nhan_vien nv
             WHERE nv.trang_thai = 'NGHI_VIEC'
-            AND nv.thang_ket_thuc_bh BETWEEN %s AND %s
-            ORDER BY nv.thang_ket_thuc_bh ASC
+            AND COALESCE(nv.thang_ket_thuc_bh, nv.ngay_ket_thuc) BETWEEN %s AND %s
+            ORDER BY COALESCE(nv.thang_ket_thuc_bh, nv.ngay_ket_thuc) ASC
         """, (tu_ngay, den_ngay))
         giam_list = c.fetchall()
         db.close()

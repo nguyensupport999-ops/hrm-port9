@@ -1915,19 +1915,40 @@ def nut_lay_toa_do(khoa="gps", nhan="📍 Lấy vị trí hiện tại của tô
             return;
           }}
           tb.innerText = 'Đang lấy vị trí, vui lòng chờ...';
+          var thanhCong = function(p) {{
+            var u = new URL(window.top.location.href);
+            u.searchParams.set('gps_lat', p.coords.latitude);
+            u.searchParams.set('gps_lng', p.coords.longitude);
+            u.searchParams.set('gps_acc', p.coords.accuracy);
+            window.top.location.href = u.toString();
+          }};
+
+          var thatBai = function(e) {{
+            var ly_do = {{1: 'Bạn (hoặc trình duyệt) đã CHẶN quyền vị trí.',
+                          2: 'Thiết bị không xác định được vị trí (thử bật GPS / đổi sang mạng WiFi).',
+                          3: 'Quá thời gian chờ.'}}[e.code] || e.message;
+            tb.innerHTML = '❌ Không lấy được vị trí: ' + ly_do +
+              '<br>• Trên điện thoại: bật GPS/Vị trí rồi thử lại.' +
+              '<br>• Trên máy tính: máy tính không có GPS, hãy lấy toạ độ từ Google Maps (bấm chuột phải lên bản đồ).' +
+              '<br>• Nếu đã từng bấm "Chặn": bấm vào biểu tượng ổ khoá cạnh địa chỉ web → cho phép Vị trí → tải lại trang.';
+          }};
+
+          // Lần 1: dò nhanh, không đòi độ chính xác cao (máy tính không có GPS vẫn chạy được)
           navigator.geolocation.getCurrentPosition(
-            function(p) {{
-              var u = new URL(window.top.location.href);
-              u.searchParams.set('gps_lat', p.coords.latitude);
-              u.searchParams.set('gps_lng', p.coords.longitude);
-              u.searchParams.set('gps_acc', p.coords.accuracy);
-              window.top.location.href = u.toString();
-            }},
+            thanhCong,
             function(e) {{
-              tb.innerText = 'Không lấy được vị trí: ' + e.message +
-                ' (Cần bấm "Cho phép" khi trình duyệt hỏi, và bật GPS trên điện thoại.)';
+              if (e.code === 3) {{
+                // Hết thời gian chờ → thử lại lần 2 với độ chính xác cao (điện thoại có GPS)
+                tb.innerText = 'Đang thử lại bằng GPS chính xác cao...';
+                navigator.geolocation.getCurrentPosition(
+                  thanhCong, thatBai,
+                  {{ enableHighAccuracy: true, timeout: 25000, maximumAge: 0 }}
+                );
+              }} else {{
+                thatBai(e);
+              }}
             }},
-            {{ enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }}
+            {{ enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 }}
           );
         }}
         </script>
@@ -9343,17 +9364,23 @@ elif menu == "🕒 Chấm công":
 
         # ----- TAB ĐĂNG KÝ -----
         with tab_face_dangky:
-            st.caption("Chọn nhân viên và chụp 1 ảnh khuôn mặt rõ nét, đủ sáng, nhìn thẳng camera để đăng ký.")
+            st.caption("Hệ thống tự lấy ảnh avatar đã upload trong hồ sơ nhân viên để đăng ký khuôn mặt. "
+                       "Nhân viên nào chưa có ảnh avatar sẽ hiện ở đây để HR xử lý trước.")
 
             if not can_edit():
-                st.warning("⚠️ Bạn không có quyền đăng ký khuôn mặt (chỉ Admin/HR/Văn thư/Kế toán lương).")
+                st.warning("⚠️ Bạn không có quyền thực hiện thao tác này.")
             else:
                 db_face = st.session_state.db_engine.get_connection()
                 c_face = db_face.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+                # Lấy danh sách NV đang làm + trạng thái avatar + trạng thái đã đăng ký Face ID chưa
                 c_face.execute("""
-                    SELECT id, ma_nv, ho_ten FROM nhan_vien
-                    WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
-                    ORDER BY ho_ten
+                    SELECT nv.id, nv.ma_nv, nv.ho_ten, nv.anh_ho_so,
+                           f.id AS face_id_id
+                    FROM nhan_vien nv
+                    LEFT JOIN nhan_vien_face_id f ON f.nhan_vien_id = nv.id
+                    WHERE nv.trang_thai IN ('DANG_LAM', 'THU_VIEC')
+                    ORDER BY nv.ho_ten
                 """)
                 ds_nv_face = c_face.fetchall()
                 db_face.close()
@@ -9361,24 +9388,90 @@ elif menu == "🕒 Chấm công":
                 if not ds_nv_face:
                     st.info("Không có nhân viên đang làm việc/thử việc.")
                 else:
-                    nv_map_face = {f"{x['ma_nv']} - {x['ho_ten']}": x['id'] for x in ds_nv_face}
-                    nv_chon_label = st.selectbox("📌 Chọn nhân viên:", list(nv_map_face.keys()), key="face_dangky_nv_select")
-                    nv_chon_id = nv_map_face[nv_chon_label]
+                    # Phân loại
+                    chua_co_anh    = [x for x in ds_nv_face if not x['anh_ho_so']]
+                    co_anh_chua_dk = [x for x in ds_nv_face if x['anh_ho_so'] and not x['face_id_id']]
+                    da_dk          = [x for x in ds_nv_face if x['anh_ho_so'] and x['face_id_id']]
 
-                    anh_chup = st.camera_input("Chụp ảnh khuôn mặt", key="face_dangky_camera")
+                    # Tóm tắt trạng thái
+                    col_s1, col_s2, col_s3 = st.columns(3)
+                    col_s1.metric("✅ Đã đăng ký Face ID", len(da_dk))
+                    col_s2.metric("⏳ Có ảnh, chưa đăng ký", len(co_anh_chua_dk))
+                    col_s3.metric("❌ Chưa có ảnh avatar", len(chua_co_anh))
 
-                    if anh_chup is not None and st.button("💾 Lưu đăng ký khuôn mặt", type="primary", key="btn_luu_face_dangky"):
-                        img_arr = np.frombuffer(anh_chup.getvalue(), dtype=np.uint8)
-                        img_bgr = cv2.imdecode(img_arr, cv2.IMREAD_COLOR)
+                    # Nhân viên chưa có ảnh — cảnh báo HR upload ảnh trước
+                    if chua_co_anh:
+                        with st.expander(f"❌ {len(chua_co_anh)} nhân viên CHƯA CÓ ảnh avatar — không thể đăng ký Face ID"):
+                            st.caption("Vào hồ sơ từng nhân viên (menu Nhân viên → Upload ảnh hồ sơ) để upload ảnh, "
+                                       "sau đó quay lại đây đồng bộ.")
+                            for nv in chua_co_anh:
+                                st.write(f"• {nv['ma_nv']} — {nv['ho_ten']}")
 
-                        db_luu = st.session_state.db_engine.get_connection()
-                        ok, msg = face_id_cham_cong.dang_ky_khuon_mat(db_luu, nv_chon_id, img_bgr)
-                        db_luu.close()
+                    # Đồng bộ 1 người
+                    if co_anh_chua_dk:
+                        st.divider()
+                        st.markdown(f"**⏳ {len(co_anh_chua_dk)} nhân viên có ảnh, chưa đăng ký Face ID**")
+                        nv_map_dk = {f"{x['ma_nv']} - {x['ho_ten']}": x for x in co_anh_chua_dk}
+                        nv_chon_label = st.selectbox("📌 Chọn nhân viên để đăng ký:", list(nv_map_dk.keys()),
+                                                     key="face_dangky_nv_select")
+                        nv_chon = nv_map_dk[nv_chon_label]
 
-                        if ok:
-                            st.success(msg)
+                        # Hiển thị preview ảnh avatar sẽ dùng
+                        anh_bytes = get_anh_ho_so_bytes(nv_chon['anh_ho_so'])
+                        if anh_bytes:
+                            col_prev, col_btn = st.columns([1, 3])
+                            with col_prev:
+                                st.image(anh_bytes, caption="Ảnh avatar sẽ dùng", width=120)
+                            with col_btn:
+                                st.caption("Ảnh này sẽ được dùng làm mẫu nhận diện khuôn mặt. "
+                                           "Đảm bảo ảnh thấy rõ mặt, không đeo kính đen, không che mặt.")
+                                if st.button("💾 Đăng ký Face ID từ ảnh avatar", type="primary",
+                                             key="btn_luu_face_dangky"):
+                                    img_arr = np.frombuffer(anh_bytes, dtype=np.uint8)
+                                    img_bgr = cv2.imdecode(img_arr, cv2.IMREAD_COLOR)
+                                    db_luu = st.session_state.db_engine.get_connection()
+                                    ok, msg = face_id_cham_cong.dang_ky_khuon_mat(db_luu, nv_chon['id'], img_bgr)
+                                    db_luu.close()
+                                    if ok:
+                                        st.success(msg)
+                                        st.rerun()
+                                    else:
+                                        st.error(msg)
                         else:
-                            st.error(msg)
+                            st.warning("⚠️ Không tải được ảnh avatar từ Storage. "
+                                       "Kiểm tra cấu hình Supabase Storage của tenant.")
+
+                    # Đồng bộ lại toàn bộ (nút dành cho Admin khi muốn cập nhật lại tất cả)
+                    if da_dk or co_anh_chua_dk:
+                        st.divider()
+                        so_co_the_dong_bo = len(co_anh_chua_dk) + len(da_dk)
+                        if st.button(f"🔄 Đồng bộ lại Face ID cho TẤT CẢ {so_co_the_dong_bo} nhân viên có ảnh",
+                                     key="btn_dong_bo_tat_ca"):
+                            thanh_cong, that_bai = 0, []
+                            progress = st.progress(0)
+                            ds_dong_bo = [x for x in ds_nv_face if x['anh_ho_so']]
+                            for i, nv in enumerate(ds_dong_bo):
+                                anh_bytes = get_anh_ho_so_bytes(nv['anh_ho_so'])
+                                if not anh_bytes:
+                                    that_bai.append(f"{nv['ho_ten']} (không tải được ảnh)")
+                                    continue
+                                img_arr = np.frombuffer(anh_bytes, dtype=np.uint8)
+                                img_bgr = cv2.imdecode(img_arr, cv2.IMREAD_COLOR)
+                                db_luu = st.session_state.db_engine.get_connection()
+                                ok, msg = face_id_cham_cong.dang_ky_khuon_mat(db_luu, nv['id'], img_bgr)
+                                db_luu.close()
+                                if ok:
+                                    thanh_cong += 1
+                                else:
+                                    that_bai.append(f"{nv['ho_ten']} ({msg})")
+                                progress.progress((i + 1) / len(ds_dong_bo))
+                            progress.empty()
+                            if thanh_cong:
+                                st.success(f"✅ Đã đồng bộ thành công {thanh_cong} nhân viên.")
+                            if that_bai:
+                                st.warning("⚠️ Các trường hợp thất bại:\n" + "\n".join(f"• {x}" for x in that_bai))
+                            if thanh_cong:
+                                st.rerun()
 
         # ----- TAB CHECK-IN / CHECK-OUT (camera live) -----
         with tab_face_checkin:

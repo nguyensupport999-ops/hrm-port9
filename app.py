@@ -9224,6 +9224,14 @@ elif menu == "🕒 Chấm công":
     elif st.session_state.get('cc_method') == 'faceid':
         ensure_face_id_table()
 
+        # Tải mô hình nhận diện khuôn mặt (lần đầu tải ~39MB, các lần sau dùng lại từ cache)
+        try:
+            with st.spinner("Đang chuẩn bị mô hình nhận diện khuôn mặt (lần đầu có thể mất 1-2 phút)..."):
+                face_id_cham_cong.chuan_bi_model()
+        except Exception as e:
+            st.error(f"❌ Không chuẩn bị được mô hình nhận diện: {e}")
+            st.stop()
+
         tab_face_dangky, tab_face_checkin = st.tabs(["📸 Đăng ký khuôn mặt", "🎥 Check-in / Check-out"])
 
         # ----- TAB ĐĂNG KÝ -----

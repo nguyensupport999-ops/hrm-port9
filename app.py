@@ -10422,7 +10422,6 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
             st.write("")
             if st.button(f"📥 Tải ngày lễ cố định năm {int(nam_tai_le)}", key="btn_tai_le_co_dinh"):
                 le_co_dinh = [
-                    le_co_dinh = [
                     {"ngay": f"{int(nam_tai_le)}-01-01", "ten": "Tết Dương lịch"},
                     {"ngay": f"{int(nam_tai_le)}-04-30", "ten": "Ngày Giải phóng miền Nam"},
                     {"ngay": f"{int(nam_tai_le)}-05-01", "ten": "Quốc tế Lao động"},

@@ -350,6 +350,23 @@ def update_tenant_logo(ma_so_thue, logo_url):
     get_tenant_by_code.clear()
     get_tenant_by_ma_so_thue.clear()
 
+def update_tenant_supabase_config(ma_so_thue, supabase_url, supabase_key):
+    """Sửa lại Supabase Project URL + API Key cho 1 tenant đã tồn tại (dùng khi
+    nhập sai/thiếu lúc tạo tenant, hoặc khi cần đổi sang project Supabase khác).
+    Key mới được mã hoá lại trước khi lưu. Tra cứu theo MÃ SỐ THUẾ."""
+    ensure_control_plane_schema()
+    conn = get_control_plane_connection()
+    try:
+        c = conn.cursor()
+        c.execute(
+            "UPDATE tenants SET supabase_url=%s, supabase_key_enc=%s WHERE ma_so_thue=%s",
+            (supabase_url.strip(), encrypt_text(supabase_key.strip()), (ma_so_thue or "").strip())
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    get_tenant_by_code.clear()
+    get_tenant_by_ma_so_thue.clear()
 
 def update_tenant_status(ma_so_thue, trang_thai):
     """Bật/tắt (active / suspended) 1 khách hàng — dùng khi khách ngừng hợp đồng.

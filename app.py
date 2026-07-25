@@ -4521,6 +4521,35 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
                             st.error(f"❌ Lỗi upload logo: {e}")
 
         st.divider()
+        st.markdown("##### 🔧 Sửa lại Supabase URL / API Key (khi nhập sai lúc tạo khách hàng)")
+        st.caption("Dùng khi upload/tải ảnh hồ sơ báo lỗi 'Bucket not found' hoặc 'Invalid Compact JWS' — "
+                   "thường do Key đã lưu bị sai/thiếu ký tự. Lấy lại đúng URL + Key tại Supabase Dashboard "
+                   "của khách hàng > Project Settings > API.")
+        col_fix1, col_fix2 = st.columns(2)
+        with col_fix1:
+            mst_fix = st.text_input("Mã số thuế khách hàng cần sửa", key="mst_fix_supabase")
+        with col_fix2:
+            st.markdown("")
+        supabase_url_fix = st.text_input("Supabase Project URL (mới)", key="supabase_url_fix")
+        supabase_key_fix = st.text_input("Supabase API Key (mới)", type="password", key="supabase_key_fix")
+        if st.button("💾 Cập nhật URL/Key", key="btn_fix_supabase"):
+            if not mst_fix or not supabase_url_fix or not supabase_key_fix:
+                st.warning("⚠️ Vui lòng nhập đầy đủ Mã số thuế, URL và Key.")
+            else:
+                try:
+                    control_plane.update_tenant_supabase_config(
+                        mst_fix.strip(), supabase_url_fix.strip(), supabase_key_fix.strip()
+                    )
+                    st.success(f"✅ Đã cập nhật Supabase URL/Key cho khách hàng MST {mst_fix.strip()}. "
+                               f"Khách hàng cần đăng xuất/đăng nhập lại (hoặc app tự restart) để dùng key mới.")
+                    st.rerun()
+                except AttributeError:
+                    st.error("❌ Chưa có hàm `update_tenant_supabase_config()` trong control_plane.py. "
+                             "Cần thêm hàm này trước.")
+                except Exception as e:
+                    st.error(f"❌ Lỗi khi cập nhật: {e}")
+
+        st.divider()
         st.markdown("##### 📥 Nhập/Xuất dữ liệu Excel cho 1 khách hàng")
         mst_excel = st.selectbox(
             "Chọn công ty cần thao tác",

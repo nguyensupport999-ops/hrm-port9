@@ -61,6 +61,8 @@ except ImportError:
     from config_template import COMPANY_CONFIG, BHXH_CONFIG, EMAIL_CONFIG, TELEGRAM_CONFIG, USERS
     print("Using config_template.py")
 
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_avatar_bytes_cached(storage_path: str) -> bytes:
     """Tải ảnh avatar có cache 1 giờ"""
@@ -9610,6 +9612,7 @@ elif menu == "🕒 Chấm công":
                 if ctx.video_processor:
                     ctx.video_processor.conn = db_load
                     ctx.video_processor.danh_sach_embedding = danh_sach_emb
+                    ctx.video_processor.cfg = get_cau_hinh_cham_cong_full()
 
                     while ctx.state.playing:
                         kq = ctx.video_processor.ket_qua

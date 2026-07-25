@@ -12,38 +12,89 @@ from datetime import datetime, date, timezone, timedelta
 _TZ_VN = timezone(timedelta(hours=7))  # GMT+7 Việt Nam
 from streamlit_webrtc import VideoProcessorBase
 import av
+import chat_noi_bo
 
-# Ngưỡng cosine similarity: >= ngưỡng thì coi là CÙNG 1 người.
-# 0.363 là ngưỡng khuyến nghị của OpenCV cho model SFace. Tăng lên (VD 0.40) để khắt khe hơn.
-NGUONG_TUONG_DONG = 0.363
-
-_THU_MUC_MODEL = os.path.expanduser("~/.cache/hrm_face_models")
-
-# Nhiều URL dự phòng: link Git LFS của GitHub, sau đó tới HuggingFace.
-_MODEL_INFO = {
-    "yunet": {
-        "ten_file": "face_detection_yunet_2023mar.onnx",
-        "kich_thuoc_toi_thieu": 100_000,
-        "urls": [
-            "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx",
-            "https://huggingface.co/opencv/face_detection_yunet/resolve/main/face_detection_yunet_2023mar.onnx",
-        ],
-    },
-    "sface": {
-        "ten_file": "face_recognition_sface_2021dec.onnx",
-        "kich_thuoc_toi_thieu": 30_000_000,
-        "urls": [
-            "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx",
-            "https://huggingface.co/opencv/face_recognition_sface/resolve/main/face_recognition_sface_2021dec.onnx",
-        ],
-    },
-}
-
-_detector = None
-_recognizer = None
-_lock = threading.Lock()
+def _lay_id_nhan_vien_he_thong(conn):
+    """Lay id ban ghi 'nhan vien He thong' (ma_nv='HE_THONG') de lam nguoi gui
+    cac tin nhan canh bao tu dong qua Chat noi bo."""
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM nhan_vien WHERE ma_nv = 'HE_THONG' LIMIT 1")
+    row = cur.fetchone()
+    cur.close()
+    return row[0] if row else None
 
 
+def suy_ma_cong_tu_gio_vao_ra(gio_vao, gio_ra, cfg):
+    """
+    Diem 2: Suy ma_cong tu dong tu gio vao/ra ghi nhan qua Face ID.
+    cfg = get_cau_hinh_cham_cong_full() (dinh nghia trong app.py, truyen vao
+    tu FaceIDVideoProcessor.cfg) - dung 3 key: gio_vao, gio_ra (gio chuan), phut_tre.
+    - Chua co gio_ra (quen bam ra) -> ma_cong de trong, cho canh bao.
+    - Co du gio_vao/gio_ra -> luon la 'x' (di lam du ngay), chi ghi nhan
+      so phut di tre/ve som de lam tieu chi KPI cuoi thang, KHONG tru cong.
+    - Khong tinh gio tang ca o day (thuoc Diem 3).
+    """
+    if gio_ra is None:
+        return {
+            'ma_cong': None,
+            'trang_thai_cham_cong': 'THIEU_GIO_RA',
+            'so_phut_di_tre': None,
+            'so_phut_ve_som': None,
+        }
+
+    def _phut_tu_nua_dem(t):
+        return t.hour * 60 + t.minute
+
+    so_phut_di_tre = max(0, _phut_tu_nua_dem(gio_vao) - _phut_tu_nua_dem(cfg['gio_vao']))
+    so_phut_ve_som = max(0, _phut_tu_nua_dem(cfg['gio_ra']) - _phut_tu_nua_dem(gio_ra))
+
+    return {
+        'ma_cong': 'x',
+        'trang_thai_cham_cong': 'HOP_LE',
+        'so_phut_di_tre': so_phut_di_tre,
+        'so_phut_ve_som': so_phut_ve_som,
+    }
+
+
+def quet_va_canh_bao_thieu_gio_ra(conn, ngay_hom_nay):
+    """
+    Diem 2 - Lazy check: goi 1 lan moi khi co nguoi mo app (ngay sau khi login
+    thanh cong, trong app.py). Quet cac ngay TRUOC ngay_hom_nay con o trang thai
+    THIEU_GIO_RA va chua gui canh bao -> gui tin nhan qua Chat noi bo + danh dau da gui.
+    """
+    id_he_thong = _lay_id_nhan_vien_he_thong(conn)
+    if not id_he_thong:
+        return 0
+
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT cc.id, cc.nhan_vien_id, cc.ngay
+        FROM cham_cong cc
+        WHERE cc.trang_thai_cham_cong = 'THIEU_GIO_RA'
+          AND cc.ngay < %s
+          AND cc.da_gui_canh_bao_thieu_gio_ra = false
+    """, (ngay_hom_nay,))
+    danh_sach_thieu = cur.fetchall()
+
+    for cham_cong_id, nhan_vien_id, ngay_thieu in danh_sach_thieu:
+        noi_dung = (
+            f"⚠️ Bạn quên chấm công RA ngày {ngay_thieu.strftime('%d/%m/%Y')}.\n"
+            f"Vui lòng gửi yêu cầu điều chỉnh chấm công qua mục Duyệt yêu cầu "
+            f"để HR/Trưởng phòng xác nhận lại giờ ra, nếu không ngày công này "
+            f"sẽ chưa được tính vào bảng chấm công tháng."
+        )
+        room_id = chat_noi_bo.create_private_room(id_he_thong, nhan_vien_id)
+        if room_id:
+            chat_noi_bo.send_message(room_id, id_he_thong, noi_dung, message_type="system")
+
+        cur.execute("""
+            UPDATE cham_cong SET da_gui_canh_bao_thieu_gio_ra = true WHERE id = %s
+        """, (cham_cong_id,))
+
+    conn.commit()
+    cur.close()
+    return len(danh_sach_thieu)
+    
 def _tai_file_model(khoa):
     """Tải 1 file model về cache nếu chưa có. Trả về đường dẫn file.
     Tự kiểm tra file tải về là model thật (không phải con trỏ Git LFS)."""
@@ -164,10 +215,12 @@ def nhan_dien(emb, danh_sach_embedding):
     return None, None, diem
 
 
-def ghi_nhan_cham_cong(conn, nhan_vien_id):
+def ghi_nhan_cham_cong(conn, nhan_vien_id, cfg):
     """Cách B: lần quét đầu tiên trong ngày = giờ VÀO (sớm nhất).
     Mọi lần quét sau (cách ít nhất 60 giây, kiểm tra ở FaceIDVideoProcessor)
     = cập nhật giờ RA muộn nhất. Không bao giờ từ chối ghi khi còn trong ngày.
+    cfg = get_cau_hinh_cham_cong_full() (app.py), truyền vào từ
+    FaceIDVideoProcessor.cfg để suy ma_cong ngay lúc ghi giờ ra (Điểm 2).
     Trả về (loai, gio) với loai = 'VAO' | 'RA'."""
     bay_gio_vn = datetime.now(_TZ_VN)
     hom_nay = bay_gio_vn.date()
@@ -180,11 +233,11 @@ def ghi_nhan_cham_cong(conn, nhan_vien_id):
     row = cur.fetchone()
 
     if row is None:
-        # Lần đầu trong ngày → ghi giờ vào
+        # Lần đầu trong ngày → ghi giờ vào; ma_cong CHƯA xác định (chờ giờ ra)
         cur.execute("""
             INSERT INTO cham_cong
-                (nhan_vien_id, ngay, gio_vao, ma_cong, nguon, created_by, created_at, updated_at)
-            VALUES (%s, %s, %s, 'x', 'FACE_ID', 'FACE_ID', NOW(), NOW())
+                (nhan_vien_id, ngay, gio_vao, ma_cong, trang_thai_cham_cong, nguon, created_by, created_at, updated_at)
+            VALUES (%s, %s, %s, NULL, 'THIEU_GIO_RA', 'FACE_ID', 'FACE_ID', NOW(), NOW())
         """, (nhan_vien_id, hom_nay, gio_hien_tai))
         conn.commit()
         cur.close()
@@ -195,18 +248,22 @@ def ghi_nhan_cham_cong(conn, nhan_vien_id):
     if not gio_vao:
         # Có dòng nhưng chưa ghi gio_vao (do chấm thủ công tạo dòng trước)
         cur.execute(
-            "UPDATE cham_cong SET gio_vao=%s, nguon='FACE_ID', updated_at=NOW() WHERE id=%s",
+            "UPDATE cham_cong SET gio_vao=%s, trang_thai_cham_cong='THIEU_GIO_RA', nguon='FACE_ID', updated_at=NOW() WHERE id=%s",
             (gio_hien_tai, cc_id)
         )
         conn.commit()
         cur.close()
         return "VAO", gio_hien_tai
 
-    # Đã có gio_vao → luôn cập nhật gio_ra muộn nhất (không từ chối)
-    cur.execute(
-        "UPDATE cham_cong SET gio_ra=%s, nguon='FACE_ID', updated_at=NOW() WHERE id=%s",
-        (gio_hien_tai, cc_id)
-    )
+    # Đã có gio_vao → cập nhật gio_ra muộn nhất + suy ma_cong ngay (Điểm 2)
+    ket_qua = suy_ma_cong_tu_gio_vao_ra(gio_vao, gio_hien_tai, cfg)
+    cur.execute("""
+        UPDATE cham_cong
+        SET gio_ra=%s, ma_cong=%s, trang_thai_cham_cong=%s,
+            so_phut_di_tre=%s, so_phut_ve_som=%s, nguon='FACE_ID', updated_at=NOW()
+        WHERE id=%s
+    """, (gio_hien_tai, ket_qua['ma_cong'], ket_qua['trang_thai_cham_cong'],
+          ket_qua['so_phut_di_tre'], ket_qua['so_phut_ve_som'], cc_id))
     conn.commit()
     cur.close()
     return "RA", gio_hien_tai
@@ -219,6 +276,7 @@ class FaceIDVideoProcessor(VideoProcessorBase):
     def __init__(self):
         self.danh_sach_embedding = []
         self.conn = None
+        self.cfg = None
         self.ket_qua = {"trang_thai": "DANG_CHO", "ten": None, "thong_bao": None}
         self._lan_cuoi = 0.0
         self._da_ghi = {}  # {nhan_vien_id: thời điểm ghi gần nhất}
@@ -244,7 +302,7 @@ class FaceIDVideoProcessor(VideoProcessorBase):
                                     "thong_bao": f"ℹ️ {ten} — vừa chấm công xong, vui lòng rời khỏi camera."}
                 else:
                     try:
-                        loai, gio = ghi_nhan_cham_cong(self.conn, nv_id)
+                        loai, gio = ghi_nhan_cham_cong(self.conn, nv_id, self.cfg)
                         self._da_ghi[nv_id] = bay_gio
                         if loai == "VAO":
                             self.ket_qua = {"trang_thai": "THANH_CONG", "ten": ten,

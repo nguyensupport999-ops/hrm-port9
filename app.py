@@ -9433,6 +9433,7 @@ elif menu == "🕒 Chấm công":
                                     ok, msg = face_id_cham_cong.dang_ky_khuon_mat(db_luu, nv_chon['id'], img_bgr)
                                     db_luu.close()
                                     if ok:
+                                        st.cache_data.clear()
                                         st.success(msg)
                                         st.rerun()
                                     else:
@@ -9471,6 +9472,7 @@ elif menu == "🕒 Chấm công":
                             if that_bai:
                                 st.warning("⚠️ Các trường hợp thất bại:\n" + "\n".join(f"• {x}" for x in that_bai))
                             if thanh_cong:
+                                st.cache_data.clear()
                                 st.rerun()
 
         # ----- TAB CHECK-IN / CHECK-OUT (camera live) -----
@@ -10520,6 +10522,8 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                                    'Bắt buộc đối chiếu khuôn mặt khi chấm công')
                 ok3 = luu_dia_diem_lam_viec(ds_luu)
                 if ok1 and ok2 and ok3:
+                    st.cache_data.clear()
+                    st.session_state.pop('_cau_hinh_cache', None)
                     st.success(f"✅ Đã lưu {len(ds_luu)} địa điểm làm việc.")
                     st.rerun()
                 else:
@@ -10558,6 +10562,8 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                     'danh_sach_ngay_le': danh_sach_le_moi,
                 })
                 if ok:
+                    st.cache_data.clear()
+                    st.session_state.pop('_cau_hinh_cache', None)
                     st.success("✅ Đã lưu cấu hình chấm công!")
                     st.rerun()
                 else:

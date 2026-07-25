@@ -1840,6 +1840,51 @@ def update_cau_hinh_cham_cong_full(cfg):
     ok &= set_cau_hinh('cc_danh_sach_ngay_le', json.dumps(cfg['danh_sach_ngay_le'], ensure_ascii=False), 'Danh sách ngày nghỉ lễ trong năm')
     return ok
 
+def get_cau_hinh_tang_ca_theo_phong(ten_phong_ban):
+    """Lấy cấu hình tăng ca của 1 phòng ban cụ thể.
+    Trả về dict cấu hình, trong đó:
+    - cho_phep_tang_ca: True/False
+    - các hệ số/đơn giá: lấy từ phòng nếu có, fallback về cấu hình chung tenant.
+    Dùng cho Payroll Engine khi tính lương tăng ca."""
+    cfg_chung = get_cau_hinh_cham_cong_full()
+    mac_dinh = {
+        'cho_phep_tang_ca': True,
+        'he_so_tc_thuong': cfg_chung['he_so_tc_thuong'],
+        'he_so_tc_chu_nhat': cfg_chung['he_so_tc_chu_nhat'],
+        'he_so_tc_le': cfg_chung['he_so_tc_le'],
+        'he_so_tc_dem': cfg_chung['he_so_tc_dem'],
+        'don_gia_tc_thuong': cfg_chung['don_gia_tc_thuong'],
+        'don_gia_tc_chu_nhat': cfg_chung['don_gia_tc_chu_nhat'],
+        'don_gia_tc_le': cfg_chung['don_gia_tc_le'],
+        'don_gia_tc_dem': cfg_chung['don_gia_tc_dem'],
+        'cach_tinh_tang_ca': cfg_chung['cach_tinh_tang_ca'],
+        'nguon': 'CHUNG',  # để Payroll Engine biết đang dùng cấu hình nào
+    }
+    if not ten_phong_ban:
+        return mac_dinh
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        c.execute(
+            "SELECT * FROM cau_hinh_tang_ca_phong_ban WHERE ten_phong_ban = %s",
+            (ten_phong_ban,)
+        )
+        row = c.fetchone()
+        db.close()
+        if not row:
+            return mac_dinh
+        ket_qua = mac_dinh.copy()
+        ket_qua['cho_phep_tang_ca'] = row['cho_phep_tang_ca']
+        ket_qua['nguon'] = 'PHONG_BAN'
+        # Ghi đè từng trường nếu phòng ban có cấu hình riêng (không NULL)
+        for truong in ['he_so_tc_thuong', 'he_so_tc_chu_nhat', 'he_so_tc_le', 'he_so_tc_dem',
+                       'don_gia_tc_thuong', 'don_gia_tc_chu_nhat', 'don_gia_tc_le', 'don_gia_tc_dem']:
+            if row[truong] is not None:
+                ket_qua[truong] = float(row[truong])
+        return ket_qua
+    except Exception:
+        return mac_dinh
+
 def get_dia_diem_lam_viec():
     """Danh sách địa điểm làm việc của tenant: [{ten, lat, lng, ban_kinh}]"""
     try:
@@ -3595,6 +3640,25 @@ def ensure_cham_cong_table():
     c.execute("ALTER TABLE cham_cong ADD COLUMN IF NOT EXISTS loai_tang_ca TEXT")
     c.execute("ALTER TABLE cham_cong ADD COLUMN IF NOT EXISTS gio_tang_ca_dem NUMERIC(5,2) DEFAULT 0")
     c.execute("ALTER TABLE cham_cong ADD COLUMN IF NOT EXISTS gio_tang_ca_cn NUMERIC(5,2) DEFAULT 0")
+    # Bảng cấu hình tăng ca theo phòng ban
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS cau_hinh_tang_ca_phong_ban (
+            id SERIAL PRIMARY KEY,
+            ten_phong_ban TEXT NOT NULL,
+            cho_phep_tang_ca BOOLEAN NOT NULL DEFAULT TRUE,
+            he_so_tc_thuong NUMERIC(4,2),
+            he_so_tc_chu_nhat NUMERIC(4,2),
+            he_so_tc_le NUMERIC(4,2),
+            he_so_tc_dem NUMERIC(4,2),
+            don_gia_tc_thuong NUMERIC(12,2),
+            don_gia_tc_chu_nhat NUMERIC(12,2),
+            don_gia_tc_le NUMERIC(12,2),
+            don_gia_tc_dem NUMERIC(12,2),
+            ghi_chu TEXT,
+            updated_at TIMESTAMP DEFAULT NOW(),
+            UNIQUE(ten_phong_ban)
+        )
+    """)
     db.commit()
     c.close()
     db.close()
@@ -10528,6 +10592,127 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                     st.rerun()
                 else:
                     st.error("❌ Lưu thất bại, thử lại.")
+
+        st.divider()
+        st.markdown("**🏢 Cấu hình tăng ca theo Phòng ban**")
+        st.caption("Mặc định tất cả phòng ban kế thừa cấu hình chung ở trên. "
+                   "Chỉ cần cấu hình riêng cho phòng nào KHÁC với mặc định (VD: VP không tăng ca, "
+                   "SX có hệ số tăng ca cao hơn). Để trống hệ số/đơn giá = kế thừa cấu hình chung.")
+
+        try:
+            db_pb = st.session_state.db_engine.get_connection()
+            c_pb = db_pb.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+            # Lấy danh sách phòng ban từ danh mục
+            c_pb.execute("SELECT ten_phong_ban FROM danh_muc_phong_ban ORDER BY thu_tu, id")
+            ds_phong_ban = [r['ten_phong_ban'] for r in c_pb.fetchall()]
+
+            # Lấy cấu hình tăng ca hiện tại theo phòng
+            c_pb.execute("SELECT * FROM cau_hinh_tang_ca_phong_ban ORDER BY ten_phong_ban")
+            ds_tc_pb = {r['ten_phong_ban']: r for r in c_pb.fetchall()}
+            db_pb.close()
+
+            if not ds_phong_ban:
+                st.info("Chưa có phòng ban nào trong Danh mục. Vào Danh mục → 🏢 Phòng ban để thêm.")
+            else:
+                cfg_chung = get_cau_hinh_cham_cong_full()
+
+                # Xây dựng dataframe hiển thị
+                rows_hien_thi = []
+                for pb in ds_phong_ban:
+                    cfg_pb = ds_tc_pb.get(pb, {})
+                    rows_hien_thi.append({
+                        'Phòng ban': pb,
+                        'Cho phép TC': cfg_pb.get('cho_phep_tang_ca', True),
+                        'HS TC thường': cfg_pb.get('he_so_tc_thuong'),
+                        'HS TC CN': cfg_pb.get('he_so_tc_chu_nhat'),
+                        'HS TC lễ': cfg_pb.get('he_so_tc_le'),
+                        'HS TC đêm': cfg_pb.get('he_so_tc_dem'),
+                        'Đơn giá TC (đ/h)': cfg_pb.get('don_gia_tc_thuong'),
+                        'Ghi chú': cfg_pb.get('ghi_chu') or '',
+                    })
+
+                st.caption(f"💡 Cấu hình chung hiện tại: "
+                           f"{'Hệ số %' if cfg_chung['cach_tinh_tang_ca'] == 'HE_SO' else 'Đơn giá cố định'} — "
+                           f"TC thường: {cfg_chung['he_so_tc_thuong'] if cfg_chung['cach_tinh_tang_ca'] == 'HE_SO' else f\"{cfg_chung['don_gia_tc_thuong']:,.0f}đ/h\"}")
+
+                df_tc_pb = pd.DataFrame(rows_hien_thi)
+                df_tc_pb_moi = st.data_editor(
+                    df_tc_pb,
+                    use_container_width=True,
+                    hide_index=True,
+                    key="cc_tc_phong_ban_editor",
+                    disabled=['Phòng ban'] + ([] if can_edit() else
+                              ['Cho phép TC', 'HS TC thường', 'HS TC CN', 'HS TC lễ',
+                               'HS TC đêm', 'Đơn giá TC (đ/h)', 'Ghi chú']),
+                    column_config={
+                        'Phòng ban': st.column_config.TextColumn(disabled=True),
+                        'Cho phép TC': st.column_config.CheckboxColumn(
+                            "✅ Cho phép TC",
+                            help="Bỏ tick = phòng ban này không được tính tăng ca"),
+                        'HS TC thường': st.column_config.NumberColumn(
+                            "Hệ số TC thường", format="%.2f", min_value=1.0, max_value=5.0,
+                            help="Để trống = dùng cấu hình chung"),
+                        'HS TC CN': st.column_config.NumberColumn(
+                            "Hệ số TC CN", format="%.2f", min_value=1.0, max_value=5.0),
+                        'HS TC lễ': st.column_config.NumberColumn(
+                            "Hệ số TC lễ", format="%.2f", min_value=1.0, max_value=5.0),
+                        'HS TC đêm': st.column_config.NumberColumn(
+                            "Hệ số TC đêm", format="%.2f", min_value=1.0, max_value=3.0),
+                        'Đơn giá TC (đ/h)': st.column_config.NumberColumn(
+                            "Đơn giá TC (đ/h)", format="%d",
+                            help="Dùng khi chọn 'Đơn giá cố định'. Để trống = dùng cấu hình chung"),
+                        'Ghi chú': st.column_config.TextColumn("Ghi chú"),
+                    }
+                )
+
+                if st.button("💾 Lưu cấu hình tăng ca theo phòng ban",
+                             key="btn_luu_tc_phong_ban", disabled=not can_edit()):
+                    db_luu_pb = st.session_state.db_engine.get_connection()
+                    c_luu = db_luu_pb.cursor()
+                    loi_luu = []
+                    for _, dong in df_tc_pb_moi.iterrows():
+                        pb = dong['Phòng ban']
+                        try:
+                            c_luu.execute("""
+                                INSERT INTO cau_hinh_tang_ca_phong_ban
+                                    (ten_phong_ban, cho_phep_tang_ca,
+                                     he_so_tc_thuong, he_so_tc_chu_nhat, he_so_tc_le, he_so_tc_dem,
+                                     don_gia_tc_thuong, ghi_chu, updated_at)
+                                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+                                ON CONFLICT (ten_phong_ban) DO UPDATE SET
+                                    cho_phep_tang_ca = EXCLUDED.cho_phep_tang_ca,
+                                    he_so_tc_thuong = EXCLUDED.he_so_tc_thuong,
+                                    he_so_tc_chu_nhat = EXCLUDED.he_so_tc_chu_nhat,
+                                    he_so_tc_le = EXCLUDED.he_so_tc_le,
+                                    he_so_tc_dem = EXCLUDED.he_so_tc_dem,
+                                    don_gia_tc_thuong = EXCLUDED.don_gia_tc_thuong,
+                                    ghi_chu = EXCLUDED.ghi_chu,
+                                    updated_at = NOW()
+                            """, (
+                                pb,
+                                bool(dong['Cho phép TC']),
+                                dong['HS TC thường'] if pd.notna(dong['HS TC thường']) else None,
+                                dong['HS TC CN'] if pd.notna(dong['HS TC CN']) else None,
+                                dong['HS TC lễ'] if pd.notna(dong['HS TC lễ']) else None,
+                                dong['HS TC đêm'] if pd.notna(dong['HS TC đêm']) else None,
+                                dong['Đơn giá TC (đ/h)'] if pd.notna(dong['Đơn giá TC (đ/h)']) else None,
+                                dong['Ghi chú'] or None,
+                            ))
+                        except Exception as e:
+                            loi_luu.append(f"{pb}: {e}")
+                    db_luu_pb.commit()
+                    db_luu_pb.close()
+                    if loi_luu:
+                        st.error("❌ Lỗi lưu một số phòng:\n" + "\n".join(loi_luu))
+                    else:
+                        st.cache_data.clear()
+                        st.session_state.pop('_cau_hinh_cache', None)
+                        st.success("✅ Đã lưu cấu hình tăng ca theo phòng ban.")
+                        st.rerun()
+
+        except Exception as e:
+            st.error(f"❌ Lỗi tải cấu hình tăng ca phòng ban: {e}")
 
         st.divider()
         st.markdown("**📖 Bảng ký hiệu chấm công chuẩn (tham khảo — 23 ký hiệu, áp dụng chung mọi doanh nghiệp)**")

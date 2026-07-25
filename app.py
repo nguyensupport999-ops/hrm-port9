@@ -4436,16 +4436,26 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
         df = pd.DataFrame(tenants)
         st.dataframe(df, width='stretch', hide_index=True)
         st.divider()
+
+        # Danh sách MST + hàm hiển thị "Tên công ty (MST: xxx)" dùng chung cho MỌI dropdown
+        # chọn khách hàng bên dưới -> tránh gõ tay sai mã số thuế.
+        _mst_options = [t['ma_so_thue'] for t in tenants if t.get('ma_so_thue')]
+        _mst_format = lambda mst: next(
+            (f"{t['ten_cty']} (MST: {t['ma_so_thue']})" for t in tenants if t['ma_so_thue'] == mst), mst
+        )
+
         col_a, col_b = st.columns(2)
         with col_a:
-            mst_toggle = st.text_input("Mã số thuế cần Khoá/Mở khoá")
+            mst_toggle = st.selectbox("Mã số thuế cần Khoá/Mở khoá", _mst_options,
+                                       format_func=_mst_format, key="mst_toggle_select")
             trang_thai_moi = st.selectbox("Trạng thái mới", ["active", "suspended"])
             if st.button("🔄 Cập nhật trạng thái"):
                 if mst_toggle:
                     control_plane.update_tenant_status(mst_toggle, trang_thai_moi)
                     st.success("✅ Đã cập nhật!"); st.rerun()
         with col_b:
-            mst_xoa = st.text_input("Mã số thuế cần XOÁ vĩnh viễn khỏi hệ thống")
+            mst_xoa = st.selectbox("Mã số thuế cần XOÁ vĩnh viễn khỏi hệ thống", _mst_options,
+                                    format_func=_mst_format, key="mst_xoa_select")
             if st.button("🗑️ Xoá khách hàng", type="primary"):
                 if mst_xoa:
                     control_plane.delete_tenant(mst_xoa)
@@ -4455,7 +4465,8 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
         st.markdown("##### 🌐 Đổi ngôn ngữ giao diện của 1 khách hàng đã có")
         col_lang1, col_lang2 = st.columns(2)
         with col_lang1:
-            mst_doi_ngon_ngu = st.text_input("Mã số thuế cần đổi ngôn ngữ", key="ma_doi_ngon_ngu")
+            mst_doi_ngon_ngu = st.selectbox("Mã số thuế cần đổi ngôn ngữ", _mst_options,
+                                             format_func=_mst_format, key="ma_doi_ngon_ngu")
         with col_lang2:
             ngon_ngu_doi_thanh = st.selectbox(
                 "Ngôn ngữ mới", list(i18n.LANGUAGE_OPTIONS.keys()),
@@ -4469,13 +4480,14 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
                 except AttributeError:
                     st.error("❌ Chưa có hàm `update_tenant_language()` trong control_plane.py.")
             else:
-                st.warning("⚠️ Vui lòng nhập mã số thuế.")
+                st.warning("⚠️ Vui lòng chọn mã số thuế.")
 
         st.divider()
         st.markdown("##### 🖼️ Upload logo cho khách hàng")
         col_logo1, col_logo2 = st.columns([1, 2])
         with col_logo1:
-            mst_logo = st.text_input("Mã số thuế", key="mst_upload_logo")
+            mst_logo = st.selectbox("Mã số thuế", _mst_options,
+                                     format_func=_mst_format, key="mst_upload_logo")
         with col_logo2:
             logo_file = st.file_uploader("Chọn file logo (PNG/JPG)", type=["png", "jpg", "jpeg"], key="logo_file_uploader")
         if st.button("📤 Upload logo", key="btn_upload_logo"):
@@ -4519,35 +4531,6 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
                             )
                         else:
                             st.error(f"❌ Lỗi upload logo: {e}")
-
-        st.divider()
-        st.markdown("##### 🔧 Sửa lại Supabase URL / API Key (khi nhập sai lúc tạo khách hàng)")
-        st.caption("Dùng khi upload/tải ảnh hồ sơ báo lỗi 'Bucket not found' hoặc 'Invalid Compact JWS' — "
-                   "thường do Key đã lưu bị sai/thiếu ký tự. Lấy lại đúng URL + Key tại Supabase Dashboard "
-                   "của khách hàng > Project Settings > API.")
-        col_fix1, col_fix2 = st.columns(2)
-        with col_fix1:
-            mst_fix = st.text_input("Mã số thuế khách hàng cần sửa", key="mst_fix_supabase")
-        with col_fix2:
-            st.markdown("")
-        supabase_url_fix = st.text_input("Supabase Project URL (mới)", key="supabase_url_fix")
-        supabase_key_fix = st.text_input("Supabase API Key (mới)", type="password", key="supabase_key_fix")
-        if st.button("💾 Cập nhật URL/Key", key="btn_fix_supabase"):
-            if not mst_fix or not supabase_url_fix or not supabase_key_fix:
-                st.warning("⚠️ Vui lòng nhập đầy đủ Mã số thuế, URL và Key.")
-            else:
-                try:
-                    control_plane.update_tenant_supabase_config(
-                        mst_fix.strip(), supabase_url_fix.strip(), supabase_key_fix.strip()
-                    )
-                    st.success(f"✅ Đã cập nhật Supabase URL/Key cho khách hàng MST {mst_fix.strip()}. "
-                               f"Khách hàng cần đăng xuất/đăng nhập lại (hoặc app tự restart) để dùng key mới.")
-                    st.rerun()
-                except AttributeError:
-                    st.error("❌ Chưa có hàm `update_tenant_supabase_config()` trong control_plane.py. "
-                             "Cần thêm hàm này trước.")
-                except Exception as e:
-                    st.error(f"❌ Lỗi khi cập nhật: {e}")
 
         st.divider()
         st.markdown("##### 📥 Nhập/Xuất dữ liệu Excel cho 1 khách hàng")
@@ -8497,6 +8480,12 @@ elif menu == "✅ Nhân viên":
         # (VD: "Trưởng Phòng", "Tổ trưởng", "Giám đốc", "Trưởng Ban"...). So khớp chính xác
         # từng ký tự trước đây khiến nhiều Trưởng phòng/Tổ trưởng/Đội trưởng không được
         # nhận diện đúng, làm họ bị rơi khỏi hàng đầu (bug đã sửa).
+        # THỨ TỰ trong danh sách này = THỨ TỰ ƯU TIÊN cấp bậc (đứng trước = cấp cao hơn):
+        # Chủ tịch > Tổng Giám Đốc > Giám Đốc (các khối) > Trưởng phòng/Tổ trưởng/Đội trưởng/
+        # Trưởng ban/Trưởng bộ phận > Phụ trách. Dùng để chọn ĐÚNG người cao cấp nhất xếp
+        # hàng đầu khi phòng ban có nhiều chức danh "đứng đầu" khác nhau (bug đã sửa: trước
+        # đây chỉ lấy người đầu tiên khớp bất kỳ từ khóa nào, không phân biệt cấp bậc, khiến
+        # VD "Giám Đốc Tài Chính" bị xếp trên cả "Tổng Giám Đốc").
         TU_KHOA_DUNG_DAU = ['chủ tịch', 'tổng giám đốc', 'giám đốc', 'trưởng phòng',
                             'tổ trưởng', 'đội trưởng', 'trưởng ban', 'trưởng bộ phận', 'phụ trách']
 
@@ -8509,6 +8498,16 @@ elif menu == "✅ Nhân viên":
             if not cv or cv.startswith('phó'):
                 return False
             return any(tk in cv for tk in TU_KHOA_DUNG_DAU)
+
+        def _hang_dung_dau(nv):
+            """Thứ hạng ưu tiên của người đứng đầu (số nhỏ = cấp cao hơn), dựa theo vị trí
+            từ khóa khớp được trong TU_KHOA_DUNG_DAU. Dùng để chọn đúng người cao cấp nhất
+            khi có nhiều người cùng khớp điều kiện 'đứng đầu' trong 1 phòng ban."""
+            cv = (nv.get('chuc_vu') or '').strip().lower()
+            for idx, tk in enumerate(TU_KHOA_DUNG_DAU):
+                if tk in cv:
+                    return idx
+            return len(TU_KHOA_DUNG_DAU)
 
         def _vi_tri_hang_cuoi(so_luong, so_cot=5):
             """Vị trí cột (0..4) cho 1 hàng có `so_luong` người (< so_cot, tức hàng cuối chưa đủ).
@@ -8593,7 +8592,11 @@ elif menu == "✅ Nhân viên":
 
             # Tách người đứng đầu phòng ban (nếu có) -> luôn ở hàng đầu tiên, cột giữa (index 2/5).
             # Nếu không có người đứng đầu -> bỏ qua hàng riêng này, các hàng sau tịnh tiến lên.
-            nguoi_dung_dau = next((nv for nv in ds_nv_ct if _la_dung_dau(nv)), None)
+            ung_vien_dung_dau = [nv for nv in ds_nv_ct if _la_dung_dau(nv)]
+            nguoi_dung_dau = min(
+                ung_vien_dung_dau,
+                key=lambda nv: (_hang_dung_dau(nv), nv.get('ho_ten') or '')
+            ) if ung_vien_dung_dau else None
             if not nguoi_dung_dau:
                 # Không có Tổng/Giám đốc/Trưởng/Phụ trách -> đôn "Phó" đầu tiên (theo alpha) lên hàng 1
                 nguoi_dung_dau = next((nv for nv in sorted(ds_nv_ct, key=lambda x: x.get('ho_ten') or '') if _la_cap_pho(nv)), None)

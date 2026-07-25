@@ -64,10 +64,12 @@ def get_avatar_bytes_cached(storage_path: str) -> bytes:
     try:
         sb = get_supabase_storage()
         if not sb:
+            st.session_state["_debug_avatar_error"] = "get_supabase_storage() trả về None (chưa có tenant/url/key)"
             return None
         return sb.storage.from_(SUPABASE_BUCKET).download(storage_path)
     except Exception as e:
         print(f"Lỗi tải avatar: {e}")
+        st.session_state["_debug_avatar_error"] = str(e)
         return None
 
 @st.cache_data(ttl=3600, show_spinner=False)
@@ -4977,6 +4979,8 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
         if anh_path:
             # Dùng cache để tải ảnh (chỉ tải 1 lần, cache 1 giờ)
             anh_bytes = get_avatar_bytes_cached(anh_path)
+            if st.session_state.get("_debug_avatar_error"):
+                st.error(f"🔧 DEBUG avatar: {st.session_state['_debug_avatar_error']}")
             if anh_bytes:
                 img_base64 = base64.b64encode(anh_bytes).decode()
                 st.markdown(f"""
@@ -7005,7 +7009,7 @@ elif menu == "✅ Nhân viên":
                                         st.session_state[f'convert_open_{nv_id_key}'] = False
                                     
                                     if not st.session_state[f'convert_open_{nv_id_key}']:
-                                        if st.button(f"🔄 CHUYỂN HĐLĐ KHÔNG XĐTH - {selected_nv['ho_ten']}", 
+                                        if st.button(f"🔄 CHUYỂN ĐỔI HĐLĐ - {selected_nv['ho_ten']}", 
                                                     key=f"convert_hdld_btn_{nv_id_key}", 
                                                     width='stretch', type="primary"):
                                             st.session_state[f'convert_open_{nv_id_key}'] = True

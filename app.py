@@ -10409,11 +10409,45 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
 
         st.divider()
         st.markdown("**🎌 Danh sách ngày nghỉ lễ trong năm**")
-        st.caption("Mỗi dòng 1 ngày lễ, cú pháp: `YYYY-MM-DD | Tên ngày lễ`")
+        st.caption("Ngày lễ cố định (1/1, 30/4, 1/5, 2/9) có thể tải tự động. "
+                   "Ngày Tết âm lịch và Giỗ Tổ Hùng Vương thay đổi theo năm — "
+                   "thêm thủ công sau khi Chính phủ công bố (thường tháng 10–11 năm trước).")
+
+        nam_hien_tai = datetime.now().year
+        col_le1, col_le2 = st.columns([1, 3])
+        with col_le1:
+            nam_tai_le = st.number_input("Năm:", min_value=2024, max_value=2030,
+                                         value=nam_hien_tai, step=1, key="cc_nam_tai_le")
+        with col_le2:
+            st.write("")
+            if st.button(f"📥 Tải ngày lễ cố định năm {int(nam_tai_le)}", key="btn_tai_le_co_dinh"):
+                le_co_dinh = [
+                    le_co_dinh = [
+                    {"ngay": f"{int(nam_tai_le)}-01-01", "ten": "Tết Dương lịch"},
+                    {"ngay": f"{int(nam_tai_le)}-04-30", "ten": "Ngày Giải phóng miền Nam"},
+                    {"ngay": f"{int(nam_tai_le)}-05-01", "ten": "Quốc tế Lao động"},
+                    {"ngay": f"{int(nam_tai_le)}-09-01", "ten": "Quốc khánh (nghỉ bù ngày liền kề trước)"},
+                    {"ngay": f"{int(nam_tai_le)}-09-02", "ten": "Quốc khánh"},
+                    {"ngay": f"{int(nam_tai_le)}-11-24", "ten": "Ngày Di sản Văn hóa Việt Nam"},
+                ]
+                # Gộp với danh sách hiện có, tránh trùng ngày
+                ds_hien_co = {x['ngay']: x for x in (cc['danh_sach_ngay_le'] or [])}
+                for le in le_co_dinh:
+                    ds_hien_co[le['ngay']] = le
+                ds_gop = sorted(ds_hien_co.values(), key=lambda x: x['ngay'])
+                set_cau_hinh('cc_danh_sach_ngay_le',
+                             json.dumps(ds_gop, ensure_ascii=False),
+                             'Danh sách ngày nghỉ lễ trong năm')
+                st.success(f"✅ Đã thêm {len(le_co_dinh)} ngày lễ cố định năm {int(nam_tai_le)}. "
+                           "Bấm '💾 Lưu cấu hình chấm công' để xác nhận.")
+                st.rerun()
+
         ds_le_text_moi = st.text_area(
-            "Ngày nghỉ lễ", height=120,
-            value="\n".join(f"{x['ngay']} | {x['ten']}" for x in cc['danh_sach_ngay_le']),
-            key="cc_ds_le_input")
+            "Danh sách đầy đủ (sửa trực tiếp nếu cần):", height=150,
+            value="\n".join(f"{x['ngay']} | {x['ten']}" for x in (cc['danh_sach_ngay_le'] or [])),
+            key="cc_ds_le_input",
+            help="Thêm ngày Tết âm lịch và Giỗ Tổ Hùng Vương theo công bố chính thức hàng năm.\n"
+                 "VD: 2026-02-17 | Tết Nguyên Đán (28 tháng Chạp)")
 
         st.divider()
         st.markdown("**📱 Chấm công qua điện thoại nhân viên (GPS)**")

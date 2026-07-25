@@ -164,18 +164,24 @@ def nhan_dien(emb, danh_sach_embedding):
 
 
 def ghi_nhan_cham_cong(conn, nhan_vien_id):
-    """Ghi giờ vào (lần đầu trong ngày) hoặc giờ ra (lần sau).
-    Trả về (loai, gio) với loai = 'VAO' | 'RA' | 'DA_DU_2_LUOT'."""
+    """Cách B: lần quét đầu tiên trong ngày = giờ VÀO (sớm nhất).
+    Mọi lần quét sau (cách ít nhất 60 giây, kiểm tra ở FaceIDVideoProcessor)
+    = cập nhật giờ RA muộn nhất. Không bao giờ từ chối ghi khi còn trong ngày.
+    Trả về (loai, gio) với loai = 'VAO' | 'RA'."""
     hom_nay = date.today()
     gio_hien_tai = datetime.now().time().replace(microsecond=0)
     cur = conn.cursor()
-    cur.execute("SELECT id, gio_vao, gio_ra FROM cham_cong WHERE nhan_vien_id = %s AND ngay = %s",
-                (nhan_vien_id, hom_nay))
+    cur.execute(
+        "SELECT id, gio_vao, gio_ra FROM cham_cong WHERE nhan_vien_id = %s AND ngay = %s",
+        (nhan_vien_id, hom_nay)
+    )
     row = cur.fetchone()
 
     if row is None:
+        # Lần đầu trong ngày → ghi giờ vào
         cur.execute("""
-            INSERT INTO cham_cong (nhan_vien_id, ngay, gio_vao, ma_cong, nguon, created_by, created_at, updated_at)
+            INSERT INTO cham_cong
+                (nhan_vien_id, ngay, gio_vao, ma_cong, nguon, created_by, created_at, updated_at)
             VALUES (%s, %s, %s, 'x', 'FACE_ID', 'FACE_ID', NOW(), NOW())
         """, (nhan_vien_id, hom_nay, gio_hien_tai))
         conn.commit()
@@ -183,22 +189,25 @@ def ghi_nhan_cham_cong(conn, nhan_vien_id):
         return "VAO", gio_hien_tai
 
     cc_id, gio_vao, gio_ra = row
-    if gio_vao and not gio_ra:
-        cur.execute("UPDATE cham_cong SET gio_ra = %s, nguon = 'FACE_ID', updated_at = NOW() WHERE id = %s",
-                    (gio_hien_tai, cc_id))
-        conn.commit()
-        cur.close()
-        return "RA", gio_hien_tai
 
     if not gio_vao:
-        cur.execute("UPDATE cham_cong SET gio_vao = %s, nguon = 'FACE_ID', updated_at = NOW() WHERE id = %s",
-                    (gio_hien_tai, cc_id))
+        # Có dòng nhưng chưa ghi gio_vao (do chấm thủ công tạo dòng trước)
+        cur.execute(
+            "UPDATE cham_cong SET gio_vao=%s, nguon='FACE_ID', updated_at=NOW() WHERE id=%s",
+            (gio_hien_tai, cc_id)
+        )
         conn.commit()
         cur.close()
         return "VAO", gio_hien_tai
 
+    # Đã có gio_vao → luôn cập nhật gio_ra muộn nhất (không từ chối)
+    cur.execute(
+        "UPDATE cham_cong SET gio_ra=%s, nguon='FACE_ID', updated_at=NOW() WHERE id=%s",
+        (gio_hien_tai, cc_id)
+    )
+    conn.commit()
     cur.close()
-    return "DA_DU_2_LUOT", None
+    return "RA", gio_hien_tai
 
 
 class FaceIDVideoProcessor(VideoProcessorBase):
@@ -238,12 +247,9 @@ class FaceIDVideoProcessor(VideoProcessorBase):
                         if loai == "VAO":
                             self.ket_qua = {"trang_thai": "THANH_CONG", "ten": ten,
                                             "thong_bao": f"✅ {ten} — Vào lúc {gio.strftime('%H:%M:%S')}"}
-                        elif loai == "RA":
-                            self.ket_qua = {"trang_thai": "THANH_CONG", "ten": ten,
-                                            "thong_bao": f"✅ {ten} — Ra lúc {gio.strftime('%H:%M:%S')}"}
                         else:
-                            self.ket_qua = {"trang_thai": "DA_DU", "ten": ten,
-                                            "thong_bao": f"ℹ️ {ten} đã chấm công đủ 2 lượt hôm nay."}
+                            self.ket_qua = {"trang_thai": "THANH_CONG", "ten": ten,
+                                            "thong_bao": f"✅ {ten} — Cập nhật giờ ra: {gio.strftime('%H:%M:%S')}"}
                     except Exception as e:
                         self.ket_qua = {"trang_thai": "KHONG_KHOP", "ten": None,
                                         "thong_bao": f"❌ Lỗi ghi chấm công: {e}"}

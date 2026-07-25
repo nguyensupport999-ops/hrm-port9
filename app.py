@@ -49,7 +49,6 @@ import mimetypes
 from io import BytesIO
 from datetime import time as _time
 
-# Import config - ưu tiên config.py (local), fallback to config_template (cloud)
 try:
     from config import COMPANY_CONFIG, BHXH_CONFIG, EMAIL_CONFIG, TELEGRAM_CONFIG, USERS
     print("Using local config.py")
@@ -140,6 +139,39 @@ def get_dashboard_stats():
     
     db.close()
     return stats
+
+# ===== CHẤM CÔNG - DANH MỤC KÝ HIỆU CHUẨN (23 ký hiệu) =====
+KY_HIEU_CHAM_CONG = {
+    "x":     {"ten": "Đi làm ngày thường", "nhom": "A", "cong": 1.0, "can_duyet": False},
+    "x/2":   {"ten": "Đi làm nửa ngày", "nhom": "A", "cong": 0.5, "can_duyet": False},
+    "P":     {"ten": "Nghỉ phép năm (cả ngày)", "nhom": "A", "cong": 1.0, "tru_phep": 1.0, "can_duyet": True},
+    "1/2P":  {"ten": "Nghỉ phép nửa ngày", "nhom": "A", "cong": 0.5, "tru_phep": 0.5, "can_duyet": True},
+    "NL":    {"ten": "Nghỉ lễ", "nhom": "A", "cong": 1.0, "can_duyet": False},
+    "CN":    {"ten": "Nghỉ hàng tuần (Chủ nhật)", "nhom": "A", "cong": 0.0, "auto": True},
+    "CT":    {"ten": "Công tác", "nhom": "A", "cong": 1.0, "can_duyet": True},
+    "NB":    {"ten": "Nghỉ bù (đã OT không nhận tiền)", "nhom": "A", "cong": 1.0, "can_duyet": True},
+    "Ro":    {"ten": "Nghỉ việc riêng hưởng lương", "nhom": "A", "cong": 1.0, "can_duyet": True},
+    "OD":    {"ten": "Nghỉ ốm (có giấy y tế)", "nhom": "B", "cong": 0.0, "can_duyet": True, "canh_bao_bao_giam": 14},
+    "CÔ":    {"ten": "Nghỉ con ốm", "nhom": "B", "cong": 0.0, "can_duyet": True},
+    "TS":    {"ten": "Thai sản", "nhom": "B", "cong": 0.0, "can_duyet": True, "bao_giam_ngay": True},
+    "KT":    {"ten": "Khám thai", "nhom": "B", "cong": 0.0, "can_duyet": True},
+    "TN":    {"ten": "Tai nạn lao động", "nhom": "B", "cong": 0.0, "can_duyet": True, "canh_bao_bao_giam": 14},
+    "DSOD":  {"ten": "Dưỡng sức sau ốm đau", "nhom": "B", "cong": 0.0, "can_duyet": True},
+    "DSTS":  {"ten": "Dưỡng sức sau thai sản", "nhom": "B", "cong": 0.0, "can_duyet": True},
+    "DSTN":  {"ten": "Dưỡng sức sau TNLĐ", "nhom": "B", "cong": 0.0, "can_duyet": True},
+    "KL":    {"ten": "Nghỉ không lương (được duyệt)", "nhom": "C", "cong": 0.0, "can_duyet": True, "canh_bao_bao_giam": 14},
+    "KP":    {"ten": "Nghỉ không phép", "nhom": "C", "cong": 0.0, "can_duyet": False, "ky_luat": True},
+}
+
+LOAI_TANG_CA = {
+    "TC":  {"ten": "Tăng ca ngày thường", "he_so_mac_dinh": 1.5},
+    "TCN": {"ten": "Tăng ca Chủ nhật", "he_so_mac_dinh": 2.0},
+    "TCL": {"ten": "Tăng ca ngày lễ", "he_so_mac_dinh": 3.0},
+    "TCĐ": {"ten": "Tăng ca đêm (cộng thêm)", "he_so_mac_dinh": 1.3},
+}
+
+CHAM_CONG_MA_OPTIONS = [""] + list(KY_HIEU_CHAM_CONG.keys())
+KY_HIEU_CAN_PHE_DUYET = [ma for ma, tt in KY_HIEU_CHAM_CONG.items() if tt.get("can_duyet")]
 
 # ========== HÀM TIỆN ÍCH MỚI ==========
 def format_date_thang_nam(date_obj):

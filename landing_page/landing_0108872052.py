@@ -75,6 +75,17 @@ def render():
                 padding-right: 0 !important;
                 max-width: 100% !important;
             }
+            [data-testid="stVerticalBlock"] {
+                gap: 0 !important;
+            }
+            [data-testid="stElementContainer"],
+            .element-container {
+                margin: 0 !important;
+            }
+            [data-testid="stMain"],
+            [data-testid="stAppViewContainer"] > .main {
+                padding: 0 !important;
+            }
             section[data-testid="stMain"] > div {
                 padding-top: 0 !important;
             }
@@ -1363,5 +1374,5 @@ def render():
     """
     
     # Render landing page
-    components.html(landing_html, height=3150, scrolling=False)
+    components.html(landing_html, height=3050, scrolling=False)
 

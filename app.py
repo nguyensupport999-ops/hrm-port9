@@ -5229,6 +5229,15 @@ if not st.session_state.logged_in:
                     st.rerun()
 
     # ---------- Landing page giới thiệu (hiển thị ở vùng nội dung chính, bên phải sidebar đăng nhập) ----------
+    st.markdown("""
+        <style>
+            @media (min-width: 769px) {
+                div[data-testid="stAlertContainer"]:has(div[data-testid="stMarkdownContainer"] p:-webkit-any(:contains("Đang dùng điện thoại"))) {
+                    display: none !important;
+                }
+            }
+        </style>
+    """, unsafe_allow_html=True)
     st.info("📱 **Đang dùng điện thoại?** Form đăng nhập nằm ở thanh bên trái. "
             "Nếu không thấy, bấm vào biểu tượng **›** (mũi tên) ở góc trên bên trái màn hình để mở ra.")
     render_landing_page()

@@ -46,6 +46,84 @@ def suy_ma_cong_tu_gio_vao_ra(gio_vao, gio_ra, cfg):
     }
 
 
+def _cho_phep_tang_ca_phong_ban(conn, ten_phong_ban):
+    """Kiem tra phong ban co duoc phep tang ca khong (mac dinh True neu chua
+    co cau hinh rieng). Chi lay dung 1 truong can cho buoc cham cong - phan
+    he so luong day du thuoc ve Payroll Engine (get_cau_hinh_tang_ca_theo_phong
+    trong app.py), khong lap lai o day."""
+    if not ten_phong_ban:
+        return True
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT cho_phep_tang_ca FROM cau_hinh_tang_ca_phong_ban WHERE ten_phong_ban = %s",
+            (ten_phong_ban,)
+        )
+        row = cur.fetchone()
+        cur.close()
+        return True if row is None else bool(row[0])
+    except Exception:
+        return True
+
+
+def suy_gio_tang_ca(ngay, gio_vao, gio_ra, cfg):
+    """
+    Diem 3: Suy so gio tang ca tu dong khi lam qua gio ra ca chuan.
+    cfg = get_cau_hinh_cham_cong_full() - dung: gio_ra, gio_bat_dau_ca_dem,
+    danh_sach_ngay_le, phut_toi_thieu_tang_ca.
+    - CHI tinh phan gio VUOT SAU gio ra ca chuan (den som truoc ca KHONG tinh TC).
+    - Duoi nguong phut_toi_thieu_tang_ca -> khong tinh la co tang ca.
+    - Xac dinh loai_ngay_tang_ca: LE (uu tien cao nhat) > CHU_NHAT > THUONG.
+    - Tach rieng phan gio roi vao khung gio dem (tu gio_bat_dau_ca_dem tro di).
+    - Luon tra ve trang_thai_duyet_tc = 'CHO_DUYET' neu co gio TC - CHUA tu duyet,
+      cho Truong phong xac nhan truoc khi dua vao luong.
+    """
+    rong = {'tong_gio_tang_ca': 0.0, 'gio_tang_ca_dem': 0.0,
+            'loai_ngay_tang_ca': None, 'trang_thai_duyet_tc': None}
+    if not gio_vao or not gio_ra:
+        return rong
+
+    dt_ra_chuan = datetime.combine(ngay, cfg['gio_ra'])
+    dt_ra_thuc_te = datetime.combine(ngay, gio_ra)
+    dt_vao_thuc_te = datetime.combine(ngay, gio_vao)
+    if dt_ra_thuc_te <= dt_vao_thuc_te:
+        dt_ra_thuc_te += timedelta(days=1)  # ca qua đêm
+    if dt_ra_thuc_te <= dt_ra_chuan:
+        return rong  # chưa vượt giờ ra chuẩn -> không có tăng ca
+
+    so_phut_vuot = (dt_ra_thuc_te - dt_ra_chuan).total_seconds() / 60
+    if so_phut_vuot < cfg.get('phut_toi_thieu_tang_ca', 30):
+        return rong
+
+    tong_gio_tang_ca = round(so_phut_vuot / 60, 2)
+
+    # Xác định loại ngày: Lễ ưu tiên cao nhất, sau đó Chủ nhật, còn lại Thường
+    ngay_str = ngay.strftime('%Y-%m-%d')
+    danh_sach_le = {x['ngay'] for x in (cfg.get('danh_sach_ngay_le') or [])}
+    if ngay_str in danh_sach_le:
+        loai_ngay = 'LE'
+    elif ngay.weekday() == 6:  # Chủ nhật
+        loai_ngay = 'CHU_NHAT'
+    else:
+        loai_ngay = 'THUONG'
+
+    # Tách phần giờ rơi vào khung đêm (từ gio_bat_dau_ca_dem trở đi)
+    dt_bat_dau_dem = datetime.combine(ngay, cfg['gio_bat_dau_ca_dem'])
+    if dt_bat_dau_dem < dt_ra_chuan:
+        dt_bat_dau_dem += timedelta(days=1)
+    gio_tang_ca_dem = 0.0
+    if dt_ra_thuc_te > dt_bat_dau_dem:
+        moc_bat_dau_dem = max(dt_ra_chuan, dt_bat_dau_dem)
+        gio_tang_ca_dem = round((dt_ra_thuc_te - moc_bat_dau_dem).total_seconds() / 3600, 2)
+
+    return {
+        'tong_gio_tang_ca': tong_gio_tang_ca,
+        'gio_tang_ca_dem': gio_tang_ca_dem,
+        'loai_ngay_tang_ca': loai_ngay,
+        'trang_thai_duyet_tc': 'CHO_DUYET',
+    }
+
+
 def quet_va_canh_bao_thieu_gio_ra(conn, ngay_hom_nay):
     """
     Diem 2 - Lazy check: goi 1 lan moi khi co nguoi mo app (ngay sau khi login
@@ -244,15 +322,29 @@ def ghi_nhan_cham_cong(conn, nhan_vien_id, cfg):
         cur.close()
         return "VAO", gio_hien_tai
 
-    # Đã có gio_vao → cập nhật gio_ra muộn nhất + suy ma_cong ngay (Điểm 2)
+    # Đã có gio_vao → cập nhật gio_ra muộn nhất + suy ma_cong (Điểm 2) + gio tang ca (Điểm 3)
     ket_qua = suy_ma_cong_tu_gio_vao_ra(gio_vao, gio_hien_tai, cfg)
+
+    cur.execute("SELECT phong_ban_lam_viec FROM nhan_vien WHERE id = %s", (nhan_vien_id,))
+    row_nv = cur.fetchone()
+    phong_ban = row_nv[0] if row_nv else None
+
+    tc = {'tong_gio_tang_ca': 0.0, 'gio_tang_ca_dem': 0.0,
+          'loai_ngay_tang_ca': None, 'trang_thai_duyet_tc': None}
+    if _cho_phep_tang_ca_phong_ban(conn, phong_ban):
+        tc = suy_gio_tang_ca(hom_nay, gio_vao, gio_hien_tai, cfg)
+
     cur.execute("""
         UPDATE cham_cong
         SET gio_ra=%s, ma_cong=%s, trang_thai_cham_cong=%s,
-            so_phut_di_tre=%s, so_phut_ve_som=%s, nguon='FACE_ID', updated_at=NOW()
+            so_phut_di_tre=%s, so_phut_ve_som=%s,
+            gio_tang_ca=%s, gio_tang_ca_dem=%s, loai_ngay_tang_ca=%s, trang_thai_duyet_tc=%s,
+            nguon='FACE_ID', updated_at=NOW()
         WHERE id=%s
     """, (gio_hien_tai, ket_qua['ma_cong'], ket_qua['trang_thai_cham_cong'],
-          ket_qua['so_phut_di_tre'], ket_qua['so_phut_ve_som'], cc_id))
+          ket_qua['so_phut_di_tre'], ket_qua['so_phut_ve_som'],
+          tc['tong_gio_tang_ca'], tc['gio_tang_ca_dem'], tc['loai_ngay_tang_ca'], tc['trang_thai_duyet_tc'],
+          cc_id))
     conn.commit()
     cur.close()
     return "RA", gio_hien_tai

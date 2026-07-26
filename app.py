@@ -1816,6 +1816,7 @@ def get_cau_hinh_cham_cong_full():
         'danh_sach_ngay_le': danh_sach_le,
         'phut_nghi_giua_ca': int(get_cau_hinh('cc_phut_nghi_giua_ca', 120)),
         'ap_dung_nghi_giua_ca': get_cau_hinh('cc_ap_dung_nghi_giua_ca', '1') == '1',
+        'phut_toi_thieu_tang_ca': int(get_cau_hinh('cc_phut_toi_thieu_tang_ca', 30)),
     }
 
 
@@ -1844,6 +1845,7 @@ def update_cau_hinh_cham_cong_full(cfg):
     ok &= set_cau_hinh('cc_danh_sach_ngay_le', json.dumps(cfg['danh_sach_ngay_le'], ensure_ascii=False), 'Danh sách ngày nghỉ lễ trong năm')
     ok &= set_cau_hinh('cc_phut_nghi_giua_ca', str(cfg['phut_nghi_giua_ca']), 'Số phút nghỉ giữa ca')
     ok &= set_cau_hinh('cc_ap_dung_nghi_giua_ca', '1' if cfg['ap_dung_nghi_giua_ca'] else '0', 'Áp dụng trừ nghỉ giữa ca khi tính giờ làm')
+    ok &= set_cau_hinh('cc_phut_toi_thieu_tang_ca', str(cfg['phut_toi_thieu_tang_ca']), 'Số phút tối thiểu vượt giờ ra chuẩn mới tính là tăng ca')
     return ok
 def tinh_gio_lam_thuc_te(gio_vao, gio_ra, ngay=None):
     """Tính số giờ làm thực tế từ giờ vào và giờ ra.

@@ -9415,39 +9415,39 @@ elif menu == "🕒 Chấm công":
     # ========== BCC LUÔN HIỂN THỊ (không phụ thuộc phương thức) ==========
     ensure_cham_cong_table()
 
-        # Bố cục chọn tháng/năm/bộ phận
-        if not st.session_state.get('cc_full_open', False):
-            col_m1, col_m2, col_m3, col_m4 = st.columns([1, 1, 2, 1.5])
-            with col_m1:
-                thang_nhap = st.selectbox("Tháng", list(range(1, 13)), index=date.today().month - 1, key="cc_thang_nhap", label_visibility="collapsed")
-            with col_m2:
-                nam_nhap = st.number_input("Năm", min_value=2020, max_value=2100, value=date.today().year, step=1, key="cc_nam_nhap", label_visibility="collapsed")
-            with col_m3:
-                db_bp = st.session_state.db_engine.get_connection()
-                c_bp = db_bp.cursor()
-                c_bp.execute("""SELECT DISTINCT phong_ban_lam_viec FROM nhan_vien
-                                WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND phong_ban_lam_viec IS NOT NULL
-                                AND phong_ban_lam_viec != '' ORDER BY phong_ban_lam_viec""")
-                all_depts = [r[0] for r in c_bp.fetchall()]
-                c_bp.close(); db_bp.close()
-                bo_phan_nhap = st.multiselect(
-                    "Bộ phận", all_depts, default=[],
-                    format_func=lambda d: CHAM_CONG_DEPT_LABEL.get(d, d),
-                    key="cc_bp_nhap",
-                    placeholder="Tất cả bộ phận",
-                    label_visibility="collapsed"
-                )
-            with col_m4:
-                if st.button("📂 Mở BCC", type="primary", use_container_width=True):
-                    st.session_state.cc_full_open = True
-                    st.session_state.cc_view_thang = thang_nhap
-                    st.session_state.cc_view_nam = int(nam_nhap)
-                    st.session_state.cc_view_bo_phan = bo_phan_nhap
-                    st.session_state.cc_edit_mode = False
-                    st.session_state.cc_data_loaded = False
-                    st.rerun()
+    # Bố cục chọn tháng/năm/bộ phận
+    if not st.session_state.get('cc_full_open', False):
+        col_m1, col_m2, col_m3, col_m4 = st.columns([1, 1, 2, 1.5])
+        with col_m1:
+            thang_nhap = st.selectbox("Tháng", list(range(1, 13)), index=date.today().month - 1, key="cc_thang_nhap", label_visibility="collapsed")
+        with col_m2:
+            nam_nhap = st.number_input("Năm", min_value=2020, max_value=2100, value=date.today().year, step=1, key="cc_nam_nhap", label_visibility="collapsed")
+        with col_m3:
+            db_bp = st.session_state.db_engine.get_connection()
+            c_bp = db_bp.cursor()
+            c_bp.execute("""SELECT DISTINCT phong_ban_lam_viec FROM nhan_vien
+                            WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND phong_ban_lam_viec IS NOT NULL
+                            AND phong_ban_lam_viec != '' ORDER BY phong_ban_lam_viec""")
+            all_depts = [r[0] for r in c_bp.fetchall()]
+            c_bp.close(); db_bp.close()
+            bo_phan_nhap = st.multiselect(
+                "Bộ phận", all_depts, default=[],
+                format_func=lambda d: CHAM_CONG_DEPT_LABEL.get(d, d),
+                key="cc_bp_nhap",
+                placeholder="Tất cả bộ phận",
+                label_visibility="collapsed"
+            )
+        with col_m4:
+            if st.button("📂 Mở BCC", type="primary", use_container_width=True):
+                st.session_state.cc_full_open = True
+                st.session_state.cc_view_thang = thang_nhap
+                st.session_state.cc_view_nam = int(nam_nhap)
+                st.session_state.cc_view_bo_phan = bo_phan_nhap
+                st.session_state.cc_edit_mode = False
+                st.session_state.cc_data_loaded = False
+                st.rerun()
 
-            st.caption("💡 Chọn tháng/năm và bộ phận (để trống = tất cả), sau đó bấm 'Mở BCC'")
+        st.caption("💡 Chọn tháng/năm và bộ phận (để trống = tất cả), sau đó bấm 'Mở BCC'")
 
         # ===== Bảng chấm công full-width (BCC tháng — Điểm 1) =====
         else:

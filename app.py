@@ -177,6 +177,82 @@ LOAI_TANG_CA = {
     "TCĐ": {"ten": "Tăng ca đêm (cộng thêm)", "he_so_mac_dinh": 1.3},
 }
 
+# ===== PHƯƠNG ÁN ĐIỀU CHỈNH BHXH (dùng cho báo tăng/giảm D02-LT) =====
+PHUONG_AN_TANG = [
+    "TD - Tăng đến đã có số sổ, di chuyển trong địa bàn tỉnh",
+    "TM - Tăng mới chưa có số sổ",
+    "TC - Tăng chuyển đã có số sổ, di chuyển từ tỉnh khác đến",
+]
+PHUONG_AN_GIAM = [
+    "GH - Giảm hẳn",
+    "KL - Nghỉ không lương",
+    "OF - Nghỉ ốm đau",
+    "TS - Nghỉ thai sản",
+]
+PHUONG_AN_TANG_LAI = [
+    "ON - Đi làm lại",
+]
+PHUONG_AN_ALL = PHUONG_AN_TANG + PHUONG_AN_GIAM + PHUONG_AN_TANG_LAI
+
+def lay_ma_phuong_an(phuong_an_text):
+    """Trích mã phương án từ text đầy đủ. VD: 'TD - Tăng đến...' → 'TD'"""
+    if not phuong_an_text:
+        return ""
+    return phuong_an_text.split(" - ")[0].strip()
+
+def tinh_thang_bat_dau_bh(ngay_vao_lam_hoac_chuyen, so_ngay_lam_viec_tuan=6):
+    """Tính tháng bắt đầu đóng BHXH theo quy tắc 14 ngày (Khoản 5 Điều 33 Luật BHXH 2024).
+    
+    Logic: Nếu số ngày làm việc còn lại trong tháng (tính từ ngày vào làm đến cuối tháng) < 14 
+    → tháng bắt đầu BH = tháng tiếp theo. Ngược lại → tháng hiện tại.
+    
+    Args:
+        ngay_vao_lam_hoac_chuyen: date - ngày vào làm hoặc ngày QĐ chuyển đổi HĐ
+        so_ngay_lam_viec_tuan: int - số ngày làm việc/tuần (mặc định 6, T2-T7)
+    Returns:
+        date - ngày 1 của tháng bắt đầu BH (kiểu DATE, hiển thị mm/yyyy)
+    """
+    if not ngay_vao_lam_hoac_chuyen:
+        return None
+    
+    from calendar import monthrange
+    
+    ngay = ngay_vao_lam_hoac_chuyen
+    _, so_ngay_trong_thang = monthrange(ngay.year, ngay.month)
+    
+    # Đếm số ngày làm việc còn lại từ ngày vào làm đến cuối tháng
+    so_ngay_lv_con_lai = 0
+    for d in range(ngay.day, so_ngay_trong_thang + 1):
+        ngay_check = date(ngay.year, ngay.month, d)
+        weekday = ngay_check.weekday()  # 0=T2, 6=CN
+        
+        if so_ngay_lam_viec_tuan == 6:
+            # T2-T7 làm việc, CN nghỉ
+            if weekday < 6:  # 0-5 = T2-T7
+                so_ngay_lv_con_lai += 1
+        elif so_ngay_lam_viec_tuan == 5:
+            # T2-T6 làm việc, T7+CN nghỉ
+            if weekday < 5:  # 0-4 = T2-T6
+                so_ngay_lv_con_lai += 1
+    
+    if so_ngay_lv_con_lai < 14:
+        # Tháng tiếp theo
+        if ngay.month == 12:
+            return date(ngay.year + 1, 1, 1)
+        else:
+            return date(ngay.year, ngay.month + 1, 1)
+    else:
+        # Tháng hiện tại
+        return date(ngay.year, ngay.month, 1)
+
+def format_thang_nam(d):
+    """Hiển thị date thành mm/yyyy. VD: date(2026,8,1) → '08/2026'"""
+    if not d:
+        return ""
+    if hasattr(d, 'strftime'):
+        return d.strftime('%m/%Y')
+    return str(d)
+    
 CHAM_CONG_MA_OPTIONS = [""] + list(KY_HIEU_CHAM_CONG.keys())
 KY_HIEU_CAN_PHE_DUYET = [ma for ma, tt in KY_HIEU_CHAM_CONG.items() if tt.get("can_duyet")]
 
@@ -457,12 +533,19 @@ def tao_bao_cao_bhxh_d02_lt(tang_list, giam_list, tu_ngay, den_ngay, ten_cong_ty
         row_data['Phụ cấp TNVK (%)'] = nv.get('phu_cap_tnvk', '')
         row_data['Phụ cấp TN nghề (%)'] = nv.get('phu_cap_tnn', '')
         
-        # Xác định phương án điều chỉnh
-        if nv.get('ma_so_bhxh'):
-            row_data['Phương án điều chỉnh'] = "TD-Tăng đến đã có số sổ, di chuyển trong địa bàn tỉnh"
+        # Xác định phương án điều chỉnh — ưu tiên lấy từ cột phuong_an_dieu_chinh (đã lưu khi nhập NV)
+        pa_da_luu = nv.get('phuong_an_dieu_chinh', '')
+        if pa_da_luu:
+            # Đã có phương án do user chọn hoặc app tự set
+            row_data['Mã PA'] = pa_da_luu
+            # Tìm label đầy đủ
+            pa_label_map = {lay_ma_phuong_an(pa): pa for pa in PHUONG_AN_ALL}
+            row_data['Phương án điều chỉnh'] = pa_label_map.get(pa_da_luu, pa_da_luu)
+        elif nv.get('ma_so_bhxh'):
+            row_data['Phương án điều chỉnh'] = "TD - Tăng đến đã có số sổ, di chuyển trong địa bàn tỉnh"
             row_data['Mã PA'] = "TD"
         else:
-            row_data['Phương án điều chỉnh'] = "TM-Tăng mới chưa có số sổ"
+            row_data['Phương án điều chỉnh'] = "TM - Tăng mới chưa có số sổ"
             row_data['Mã PA'] = "TM"
         
         row_data['Tháng/ năm bắt đầu'] = format_date_thang_nam(nv.get('thang_bat_dau_bh')) if nv.get('thang_bat_dau_bh') else ""
@@ -5935,6 +6018,42 @@ if menu == "📊 Dashboard":
         else:
             st.info(f"📌 {thong_diep_bhxh}")
 
+    # ===== CẢNH BÁO 3: Nhắc liên hệ BHXH chốt sổ cho NV đã chấm dứt HĐLĐ (ngày 7-12) =====
+    try:
+        db_chot = st.session_state.db_engine.get_connection()
+        c_chot = db_chot.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        c_chot.execute("""
+            SELECT q.nhan_vien_id, q.ngay_quyet_dinh, q.ngay_hieu_luc,
+                   nv.ho_ten, nv.ma_nv, nv.ma_so_bhxh,
+                   (CURRENT_DATE - q.ngay_quyet_dinh::date) AS so_ngay
+            FROM quyet_dinh_nhan_su q
+            JOIN nhan_vien nv ON nv.id = q.nhan_vien_id
+            WHERE q.loai_quyet_dinh = 'CHAM_DUT_HD'
+              AND nv.trang_thai = 'NGHI_VIEC'
+              AND nv.loai_hop_dong IS DISTINCT FROM 'Thử việc'
+              AND (CURRENT_DATE - q.ngay_quyet_dinh::date) BETWEEN 7 AND 12
+            ORDER BY q.ngay_quyet_dinh ASC
+        """)
+        ds_can_chot_so = c_chot.fetchall()
+        db_chot.close()
+        if ds_can_chot_so:
+            for nv_cs in ds_can_chot_so:
+                so_ngay = nv_cs['so_ngay']
+                ho_ten = nv_cs['ho_ten']
+                ma_nv = nv_cs['ma_nv'] or ''
+                ma_bhxh = nv_cs['ma_so_bhxh'] or '(chưa có)'
+                ngay_qd = nv_cs['ngay_quyet_dinh']
+                ngay_qd_str = ngay_qd.strftime('%d/%m/%Y') if hasattr(ngay_qd, 'strftime') else str(ngay_qd)
+                han_con_lai = 12 - so_ngay
+                if han_con_lai <= 2:
+                    st.error(f"🚨 **KHẨN — Chốt sổ BHXH:** {ho_ten} ({ma_nv}) — Mã BHXH: {ma_bhxh} | "
+                             f"QĐ chấm dứt ngày {ngay_qd_str}, đã {so_ngay} ngày — còn {han_con_lai} ngày để liên hệ BHXH chốt sổ!")
+                else:
+                    st.warning(f"📋 **Nhắc chốt sổ BHXH:** {ho_ten} ({ma_nv}) — Mã BHXH: {ma_bhxh} | "
+                               f"QĐ chấm dứt ngày {ngay_qd_str}, đã {so_ngay} ngày — liên hệ cơ quan BHXH chốt sổ cho NV này.")
+    except Exception as e:
+        print(f"Lỗi kiểm tra chốt sổ BHXH: {e}")
+
     st.divider()
         
     
@@ -6918,7 +7037,18 @@ elif menu == "👤 Ứng viên":
                 ngay_vao_lam_chuyen = st.date_input("Ngày vào làm", value=uv_data.get('ngay_vao_lam', date.today()))
                 ngay_ket_thuc_chuyen = st.text_input("Ngày kết thúc (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
                 ma_bhxh_chuyen = st.text_input("Mã BHXH")
-                bat_dau_bh_chuyen = st.text_input("Bắt đầu BH (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
+                # Tháng bắt đầu BH — tự tính theo quy tắc 14 ngày (chỉ hiện khi không phải Thử việc)
+                if loai_hd_chuyen != "Thử việc":
+                    thang_bh_auto_chuyen = tinh_thang_bat_dau_bh(ngay_vao_lam_chuyen)
+                    st.text_input("Tháng bắt đầu BH (mm/yyyy)", 
+                                  value=format_thang_nam(thang_bh_auto_chuyen),
+                                  disabled=True, key="tbd_chuyen_display",
+                                  help="Tự tính theo Khoản 5 Điều 33 Luật BHXH 2024: nếu số ngày LV còn lại trong tháng < 14 → tháng sau")
+                    bat_dau_bh_chuyen_val = thang_bh_auto_chuyen
+                else:
+                    st.text_input("Tháng bắt đầu BH (mm/yyyy)", value="(Thử việc - chưa đóng BH)", 
+                                  disabled=True, key="tbd_chuyen_display")
+                    bat_dau_bh_chuyen_val = None
             with col5:
                 luong_bh_chuyen = st.text_input("Lương BH")
                 he_so_luong_chuyen = st.text_input("Hệ số lương")
@@ -6931,6 +7061,11 @@ elif menu == "👤 Ứng viên":
                 muc_tien_dong_chuyen = st.text_input("Mức tiền đóng")
                 phuong_thuc_dong_chuyen = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"])
                 nhom_bhxh_chuyen = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"])
+                # Phương án điều chỉnh BHXH (chỉ hiện khi không phải Thử việc)
+                if loai_hd_chuyen != "Thử việc":
+                    phuong_an_chuyen = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_chuyen")
+                else:
+                    phuong_an_chuyen = ""
             
             st.divider()
             st.caption("🏦 Ngân hàng & KCB")
@@ -6985,7 +7120,7 @@ elif menu == "👤 Ứng viên":
                                 c.execute("SELECT COALESCE(MAX(STT),0)+1 FROM nhan_vien")
                                                                 
                                 nhl = ngay_vao_lam_chuyen
-                                tbd_val = parse_date(bat_dau_bh_chuyen) if bat_dau_bh_chuyen and bat_dau_bh_chuyen.strip() else None
+                                tbd_val = bat_dau_bh_chuyen_val  # Đã tính tự động ở trên
 
                                 # Mã công ty của TENANT ĐANG ĐĂNG NHẬP (không phải luôn là "CHL" của Hòn La)
                                 ma_cty_hd = st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL'
@@ -7010,6 +7145,7 @@ elif menu == "👤 Ứng viên":
                                         luong_bao_hiem, ma_so_bhxh, ngay_vao_lam, noi_lam_viec,
                                         so_tai_khoan_nh, chi_nhanh_nh, ngay_ky_hd, loai_hop_dong,
                                         nhom_bhxh, thang_bat_dau_bh, thang_ket_thuc_bh, trang_thai, trang_thai_bhxh,
+                                        phuong_an_dieu_chinh, thang_phuong_an,
                                         phong_ban_lam_viec, ngay_ket_thuc, quoc_tich, dan_toc, 
                                         he_so_luong, phu_cap_chuc_vu, phu_cap_tnvk, phu_cap_tnn,
                                         muc_huong_bhyt, ty_le_dong, muc_tien_dong, phuong_thuc_dong,
@@ -7026,6 +7162,7 @@ elif menu == "👤 Ứng viên":
                                     luong_bh_chuyen, ma_bhxh_chuyen, ngay_vao_lam_chuyen, noi_lam_viec_nv,
                                     stk_chuyen, chi_nhanh_nh_chuyen, ngay_vao_lam_chuyen, loai_hd_chuyen,
                                     nhom_bhxh_chuyen, tbd_val, parse_date(ngay_ket_thuc_chuyen), trang_thai_nv, trang_thai_bhxh,
+                                    lay_ma_phuong_an(phuong_an_chuyen), format_thang_nam(tbd_val) if tbd_val else None,
                                     phong_ban_nv, parse_date(ngay_ket_thuc_chuyen), quoc_tich_nv, dan_toc_nv,
                                     to_float_or_none(he_so_luong_chuyen), to_float_or_none(pc_chuc_vu_chuyen),
                                     to_float_or_none(pc_tnvk_chuyen), to_float_or_none(pc_tnn_chuyen),
@@ -7432,13 +7569,25 @@ elif menu == "✅ Nhân viên":
                     st.divider()
                     st.caption("💼 Hợp đồng & BHXH")
                     c4, c5, c6 = st.columns(3)
-                    # ... (các trường c4, c5, c6 giữ nguyên)
                     with c4:
                         lhd = st.selectbox("Loại HĐ *", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"], key="lhd")
                         nvl = st.text_input("Ngày vào làm (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key="nvl")
                         nkt = st.text_input("Ngày kết thúc", placeholder="dd/mm/yyyy", max_chars=10, key="nkt")
                         mbh = st.text_input("Mã BHXH", key="mbh")
-                        tbd = st.text_input("Bắt đầu BH (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key="tbd")
+                        # Tháng bắt đầu BH — tự tính
+                        nvl_parsed = parse_date(nvl) if nvl else None
+                        if lhd != "Thử việc" and nvl_parsed:
+                            thang_bh_auto_add = tinh_thang_bat_dau_bh(nvl_parsed)
+                            st.text_input("Tháng bắt đầu BH (mm/yyyy)", 
+                                          value=format_thang_nam(thang_bh_auto_add),
+                                          disabled=True, key="tbd_display",
+                                          help="Tự tính: nếu số ngày LV còn lại < 14 → tháng sau")
+                            tbd_auto_val = thang_bh_auto_add
+                        else:
+                            st.text_input("Tháng bắt đầu BH (mm/yyyy)", 
+                                          value="(Thử việc - chưa đóng BH)" if lhd == "Thử việc" else "(Nhập ngày vào làm trước)",
+                                          disabled=True, key="tbd_display")
+                            tbd_auto_val = None
                     with c5:
                         lbh = st.text_input("Lương BH", key="lbh")
                         hsl = st.text_input("Hệ số lương", key="hsl")
@@ -7451,6 +7600,11 @@ elif menu == "✅ Nhân viên":
                         mtd = st.text_input("Mức tiền đóng", key="mtd")
                         ptd = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"], key="ptd")
                         nbh = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"], key="nbh")
+                        # Phương án điều chỉnh (chỉ khi không phải Thử việc)
+                        if lhd != "Thử việc":
+                            pa_add = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_add")
+                        else:
+                            pa_add = ""
                     st.divider()
                     st.caption("🏦 Ngân hàng & Hồ sơ")
                     c7, c8 = st.columns(2)
@@ -7498,7 +7652,7 @@ elif menu == "✅ Nhân viên":
                                             ma_nv = sinh_ma_nv_moi(c)
 
                                             nhl = parse_date(nvl)
-                                            tbd_val = parse_date(tbd) if tbd and tbd.strip() else None
+                                            tbd_val = tbd_auto_val  # Đã tính tự động
 
                                             ma_cty_hd = st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL'
                                             if lhd == "Thử việc":
@@ -8021,7 +8175,20 @@ elif menu == "✅ Nhân viên":
                                 nvlv = st.text_input("Ngày vào làm (dd/mm/yyyy)", value=format_date(nd.get('ngay_vao_lam')), placeholder="dd/mm/yyyy", max_chars=10)
                                 nktv = st.text_input("Ngày kết thúc (dd/mm/yyyy)", value=format_date(nd.get('ngay_ket_thuc')), placeholder="dd/mm/yyyy", max_chars=10)
                                 mbhv = st.text_input("Mã BHXH", value=nd.get('ma_so_bhxh', ''))
-                                tbdv = st.text_input("Bắt đầu BH (dd/mm/yyyy)", value=format_date(nd.get('thang_bat_dau_bh')), placeholder="dd/mm/yyyy", max_chars=10)
+                                # Tháng bắt đầu BH — hiện giá trị đã lưu (dạng mm/yyyy), cho phép sửa thủ công nếu cần
+                                thang_bh_hien_tai = format_thang_nam(nd.get('thang_bat_dau_bh')) if nd.get('thang_bat_dau_bh') else ""
+                                tbdv = st.text_input("Tháng bắt đầu BH (mm/yyyy)", value=thang_bh_hien_tai, 
+                                                     placeholder="mm/yyyy", max_chars=7,
+                                                     help="Định dạng mm/yyyy. Tự tính khi thêm mới; có thể sửa thủ công nếu cần.")
+                                # Phương án điều chỉnh BHXH
+                                pa_hien_tai = nd.get('phuong_an_dieu_chinh', '')
+                                pa_label_hien_tai = ""
+                                for pa in PHUONG_AN_ALL:
+                                    if pa.startswith(pa_hien_tai + " - ") if pa_hien_tai else False:
+                                        pa_label_hien_tai = pa
+                                        break
+                                pa_index = ([""] + PHUONG_AN_ALL).index(pa_label_hien_tai) if pa_label_hien_tai in PHUONG_AN_ALL else 0
+                                pa_edit = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_ALL, index=pa_index, key="pa_edit")                     
                             with col5:
                                 lbhv = st.text_input("Lương BH", value=nd.get('luong_bao_hiem', ''))
                                 hslv = st.text_input("Hệ số lương", value=str(nd.get('he_so_luong', '')))
@@ -8964,15 +9131,24 @@ elif menu == "✅ Nhân viên":
                         # QUAN TRỌNG: phải đồng thời cập nhật trang_thai_bhxh và thang_ket_thuc_bh,
                         # nếu không báo cáo tăng/giảm BHXH (lọc theo 2 cột này) sẽ KHÔNG bao giờ
                         # thấy nhân sự này ở danh sách "Giảm", dù trang_thai đã là NGHI_VIEC.
+                        
+                        # Chỉ set GH nếu HĐLĐ không phải Thử việc
+                        loai_hd_hien_tai = nv_qd.get('loai_hop_dong', '')
+                        pa_giam = 'GH' if loai_hd_hien_tai != 'Thử việc' else ''
+                        thang_pa_giam = ngay_qd.strftime('%m/%Y') if ngay_qd and pa_giam else None
+                        
                         c_s.execute("""
                             UPDATE nhan_vien
                             SET trang_thai = 'NGHI_VIEC',
                                 ngay_ket_thuc = %s,
                                 ly_do_nghi = %s,
                                 trang_thai_bhxh = 'DA_BAO_GIAM',
-                                thang_ket_thuc_bh = %s
+                                thang_ket_thuc_bh = %s,
+                                phuong_an_dieu_chinh = CASE WHEN %s != '' THEN %s ELSE phuong_an_dieu_chinh END,
+                                thang_phuong_an = CASE WHEN %s IS NOT NULL THEN %s ELSE thang_phuong_an END
                             WHERE id = %s
-                        """, (ngay_qd, ly_do_cd if ly_do_cd.strip() else None, ngay_qd, nv_qd['id']))
+                        """, (ngay_qd, ly_do_cd if ly_do_cd.strip() else None, ngay_qd,
+                              pa_giam, pa_giam, thang_pa_giam, thang_pa_giam, nv_qd['id']))
 
                     # Cập nhật thêm Chức danh/Phòng ban vào hồ sơ nếu QĐ này làm thay đổi các
                     # trường đó (áp dụng chung mọi loại QĐ — trước đây chỉ DOI_CHUC_DANH/

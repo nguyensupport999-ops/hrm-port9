@@ -9374,27 +9374,46 @@ elif menu == "✅ Nhân viên":
 # ========== CHẤM CÔNG ==========
 elif menu == "🕒 Chấm công":
     st.markdown(f"# {i18n.tm('🕒 Chấm công')}", unsafe_allow_html=True)
-    
-    # 3 nút lựa chọn phương thức
+
+    # Đọc phương thức chấm công từ cấu hình tenant
+    _MAP_PT = {'THU_CONG': 'manual', 'MAY_VAN_TAY': 'fingerprint', 'FACE_ID': 'faceid'}
+    _MAP_PT_LABEL = {'THU_CONG': '📝 Thủ công', 'MAY_VAN_TAY': '📥 Máy vân tay', 'FACE_ID': '👤 Face ID'}
+    phuong_thuc_cfg = get_cau_hinh('cc_phuong_thuc', 'THU_CONG')
+
+    # Admin cấu hình phương thức
+    if st.session_state.role == 'admin':
+        with st.expander("⚙️ Cấu hình phương thức chấm công", expanded=False):
+            pt_chon = st.selectbox(
+                "Phương thức chấm công đang áp dụng:",
+                list(_MAP_PT.keys()),
+                format_func=lambda k: _MAP_PT_LABEL[k],
+                index=list(_MAP_PT.keys()).index(phuong_thuc_cfg),
+                key="cc_cfg_phuong_thuc"
+            )
+            if pt_chon != phuong_thuc_cfg:
+                set_cau_hinh('cc_phuong_thuc', pt_chon, 'Phương thức chấm công')
+                st.success(f"✅ Đã chuyển sang: {_MAP_PT_LABEL[pt_chon]}")
+                st.rerun()
+
+    # 3 nút chỉ báo — chỉ phương thức đã cấu hình là sáng, 2 cái kia mờ
     col_method1, col_method2, col_method3 = st.columns(3)
     with col_method1:
-        if st.button("📝 Thủ công", use_container_width=True, type="primary" if st.session_state.get('cc_method') == 'manual' else "secondary"):
-            st.session_state.cc_method = 'manual'
-            st.rerun()
+        st.button("📝 Thủ công", use_container_width=True,
+                  type="primary" if phuong_thuc_cfg == 'THU_CONG' else "secondary",
+                  disabled=(phuong_thuc_cfg != 'THU_CONG'), key="cc_btn_m")
     with col_method2:
-        if st.button("📥 Máy vân tay", use_container_width=True, type="primary" if st.session_state.get('cc_method') == 'fingerprint' else "secondary"):
-            st.session_state.cc_method = 'fingerprint'
-            st.rerun()
+        st.button("📥 Máy vân tay", use_container_width=True,
+                  type="primary" if phuong_thuc_cfg == 'MAY_VAN_TAY' else "secondary",
+                  disabled=(phuong_thuc_cfg != 'MAY_VAN_TAY'), key="cc_btn_f")
     with col_method3:
-        if st.button("👤 Face ID", use_container_width=True, type="primary" if st.session_state.get('cc_method') == 'faceid' else "secondary"):
-            st.session_state.cc_method = 'faceid'
-            st.rerun()
-    
+        st.button("👤 Face ID", use_container_width=True,
+                  type="primary" if phuong_thuc_cfg == 'FACE_ID' else "secondary",
+                  disabled=(phuong_thuc_cfg != 'FACE_ID'), key="cc_btn_fi")
+
     st.divider()
-    
-    # ========== 1. CHẤM CÔNG THỦ CÔNG ==========
-    if st.session_state.get('cc_method', 'manual') == 'manual':
-        ensure_cham_cong_table()
+
+    # ========== BCC LUÔN HIỂN THỊ (không phụ thuộc phương thức) ==========
+    ensure_cham_cong_table()
 
         # Bố cục chọn tháng/năm/bộ phận
         if not st.session_state.get('cc_full_open', False):
@@ -9504,10 +9523,12 @@ elif menu == "🕒 Chấm công":
             if bp_v:
                 c.execute("""SELECT id, ma_nv, ho_ten, chuc_danh_nghe, phong_ban_lam_viec FROM nhan_vien
                              WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND phong_ban_lam_viec = ANY(%s)
+                               AND so_hdld IS NOT NULL
                              ORDER BY ma_nv ASC""", (bp_v,))
             else:
                 c.execute("""SELECT id, ma_nv, ho_ten, chuc_danh_nghe, phong_ban_lam_viec FROM nhan_vien
-                             WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY ma_nv ASC""")
+                             WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND so_hdld IS NOT NULL
+                             ORDER BY ma_nv ASC""")
             nv_list = c.fetchall()
 
             # Lấy dữ liệu chấm công hiện có — ĐỌC ma_cong (mới) + ca_ngay (cũ, fallback)
@@ -9820,10 +9841,12 @@ elif menu == "🕒 Chấm công":
                                 c2_nv.execute("""SELECT id, ma_nv FROM nhan_vien
                                                  WHERE trang_thai IN ('DANG_LAM','THU_VIEC')
                                                    AND phong_ban_lam_viec = ANY(%s)
+                                                   AND so_hdld IS NOT NULL
                                                  ORDER BY ma_nv ASC""", (bp_v,))
                             else:
                                 c2_nv.execute("""SELECT id, ma_nv FROM nhan_vien
                                                  WHERE trang_thai IN ('DANG_LAM','THU_VIEC')
+                                                   AND so_hdld IS NOT NULL
                                                  ORDER BY ma_nv ASC""")
                             nv_map = {row['ma_nv']: row['id'] for row in c2_nv.fetchall()}
                             c2_nv.close()
@@ -9881,7 +9904,7 @@ elif menu == "🕒 Chấm công":
                             st.rerun()
 
     # ========== 2. TRÍCH XUẤT TỪ MÁY CHẤM VÂN TAY ==========
-    elif st.session_state.get('cc_method') == 'fingerprint':
+    if phuong_thuc_cfg == 'MAY_VAN_TAY':
         st.info("""
         ### 🚧 Tính năng đang phát triển
         
@@ -9892,7 +9915,7 @@ elif menu == "🕒 Chấm công":
         """)
 
     # ========== 3. FACE ID ==========
-    elif st.session_state.get('cc_method') == 'faceid':
+    if phuong_thuc_cfg == 'FACE_ID':
         ensure_face_id_table()
 
         # Tải mô hình nhận diện khuôn mặt (lần đầu tải ~39MB, các lần sau dùng lại từ cache)

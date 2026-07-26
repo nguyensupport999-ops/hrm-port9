@@ -152,7 +152,8 @@ def render():
     
     # Đọc ảnh slider
     def load_img_b64(filename):
-        path = os.path.join(os.path.dirname(__file__), "static", filename)
+        thu_muc_goc = os.path.dirname(os.path.dirname(__file__))  # lên 1 cấp: ra khỏi landing_page/, tới thư mục chứa app.py
+        path = os.path.join(thu_muc_goc, "static", filename)
         if os.path.exists(path):
             with open(path, "rb") as f:
                 ext = filename.rsplit(".", 1)[-1].lower()
@@ -390,7 +391,7 @@ def render():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-        <title></title>   ### Sửa ở đây
+        <title></title>
         <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
         <style>
@@ -1362,89 +1363,4 @@ def render():
     
     # Render landing page
     components.html(landing_html, height=3150, scrolling=False)
-    
-    # Nút HRM dùng components.html (giữ nguyên phần còn lại)
-    hrm_html = """<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<style>
-* { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-    background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
-    display: flex; justify-content: center; align-items: center;
-    min-height: 100px;
-    border-top: 3px solid #f59e0b;
-    border-bottom: 3px solid #f59e0b;
-    padding: 20px;
-}
-.hrm-button {
-    background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
-    color: #0f3b5c; font-weight: 800; font-size: 1.2rem;
-    border: none; border-radius: 60px; padding: 18px 60px;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.3); letter-spacing: 1px;
-    cursor: pointer; transition: all 0.3s ease; min-width: 420px;
-    font-family: sans-serif;
-}
-.hrm-button:hover {
-    background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
-    transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0,0,0,0.4);
-}
-@media (max-width: 768px) {
-    .hrm-button { font-size: 0.9rem; padding: 14px 30px; min-width: 260px; }
-}
-</style>
-</head>
-<body>
-    <button class="hrm-button" id="hrmBtn">
-        🔐 HRM - QUẢN LÝ NHÂN SỰ / Chỉ dành cho Nhân viên
-    </button>
-    <script>
-    document.getElementById('hrmBtn').addEventListener('click', function() {
-        var topWin = window.top || window.parent || window;
-        var url = new URL(topWin.location.href);
-        url.searchParams.set('goto', 'hrm');
-        topWin.location.href = url.toString();
-    });
-    </script>
-</body>
-</html>"""
- 
-    st.markdown("""
-        <style>
-            .hrm-button-container {
-                background: linear-gradient(135deg, #0f3b5c 0%, #1a4a6e 100%);
-                border-top: 3px solid #f59e0b;
-                border-bottom: 3px solid #f59e0b;
-                padding: 20px;
-                text-align: center;
-            }
-            .stButton > button {
-                background: linear-gradient(135deg, #f59e0b 0%, #e67e22 100%);
-                color: #0f3b5c !important;
-                font-weight: 800;
-                font-size: 1.2rem;
-                border: none;
-                border-radius: 60px;
-                padding: 18px 60px;
-                box-shadow: 0 8px 25px rgba(0,0,0,0.3);
-                min-width: 420px;
-                transition: all 0.3s ease;
-                width: auto !important;
-            }
-            .stButton > button:hover {
-                background: linear-gradient(135deg, #e67e22 0%, #d35400 100%);
-                transform: translateY(-3px);
-                box-shadow: 0 12px 30px rgba(0,0,0,0.4);
-            }
-            @media (max-width: 768px) {
-                .stButton > button {
-                    font-size: 0.9rem;
-                    padding: 14px 30px;
-                    min-width: 260px;
-                }
-            }
-        </style>
-        <div class="hrm-button-container">
-    """, unsafe_allow_html=True)
 

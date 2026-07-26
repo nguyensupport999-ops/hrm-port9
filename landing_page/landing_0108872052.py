@@ -1005,6 +1005,7 @@ def render():
                 height: 100%;
                 border-radius: 50%;
                 object-fit: cover;
+                object-position: center 15%;
                 border: 3px solid #f59e0b;
                 box-shadow: 0 4px 15px rgba(0,0,0,0.15);
             }}

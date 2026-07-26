@@ -14,6 +14,31 @@ from streamlit_webrtc import VideoProcessorBase
 import av
 import chat_noi_bo
 
+_lock = threading.Lock()
+_detector = None
+_recognizer = None
+NGUONG_TUONG_DONG = 0.36  # Độ giống cosine tối thiểu để coi là cùng 1 người (SFace khuyến nghị ~0.36)
+
+_THU_MUC_MODEL = os.path.join(os.path.dirname(__file__), "models_cache")
+
+_MODEL_INFO = {
+    "yunet": {
+        "ten_file": "face_detection_yunet_2023mar.onnx",
+        "kich_thuoc_toi_thieu": 100_000,       # file thật ~228KB, đặt ngưỡng an toàn thấp hơn
+        "urls": [
+            "https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx",
+        ],
+    },
+    "sface": {
+        "ten_file": "face_recognition_sface_2021dec.onnx",
+        "kich_thuoc_toi_thieu": 5_000_000,     # file thật ~37MB, đặt ngưỡng an toàn thấp hơn
+        "urls": [
+            "https://github.com/opencv/opencv_zoo/raw/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx",
+        ],
+    },
+}
+
+
 def suy_ma_cong_tu_gio_vao_ra(gio_vao, gio_ra, cfg):
     """
     Diem 2: Suy ma_cong tu dong tu gio vao/ra ghi nhan qua Face ID.

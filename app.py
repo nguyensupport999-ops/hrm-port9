@@ -3624,7 +3624,12 @@ def cc_marker_is(v, target):
 
 
 def ensure_cham_cong_table():
-    """Tạo bảng cham_cong trên Supabase nếu chưa có, và tự nâng cấp thêm cột mới (idempotent)."""
+    """Tạo bảng cham_cong trên Supabase nếu chưa có, và tự nâng cấp thêm cột mới (idempotent).
+    BỎ QUA cho tenant DEMO: DB demo bị khóa ghi kể cả lệnh ALTER/CREATE, nên schema DEMO
+    phải được đồng bộ thủ công 1 lần (xem SQL bên dưới), không tự chạy lại mỗi lần tải trang."""
+    tenant = st.session_state.get('tenant') or {}
+    if str(tenant.get('ma_cty', '')).upper() == 'DEMO':
+        return
     db = st.session_state.db_engine.get_connection()
     c = db.cursor()
     c.execute("""
@@ -10401,8 +10406,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
 
     with tab_pb:
         st.info("ℹ️ Danh sách phòng ban dùng cho các form Thêm/Sửa nhân viên lấy **trực tiếp từ "
-                "danh mục bên dưới** (riêng cho công ty bạn, không ảnh hưởng tenant khác). "
-                "Nếu bảng này đang trống, hệ thống sẽ tạm dùng danh mục mặc định của Hòn La.")
+                "danh mục bên dưới** ")
 
         if st.session_state.role in ("admin", "xem_toan_bo"):
             with st.expander("🧹 Dọn dữ liệu phòng ban cũ (chạy 1 lần)", expanded=False):

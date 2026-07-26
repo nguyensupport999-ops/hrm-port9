@@ -7050,11 +7050,7 @@ elif menu == "👤 Ứng viên":
                 muc_tien_dong_chuyen = st.text_input("Mức tiền đóng")
                 phuong_thuc_dong_chuyen = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"])
                 nhom_bhxh_chuyen = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"])
-                # Phương án điều chỉnh BHXH (chỉ hiện khi không phải Thử việc)
-                if loai_hd_chuyen != "Thử việc":
-                    phuong_an_chuyen = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_chuyen")
-                else:
-                    phuong_an_chuyen = ""
+                phuong_an_chuyen = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_chuyen")
             
             st.divider()
             st.caption("🏦 Ngân hàng & KCB")
@@ -7578,11 +7574,7 @@ elif menu == "✅ Nhân viên":
                         mtd = st.text_input("Mức tiền đóng", key="mtd")
                         ptd = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"], key="ptd")
                         nbh = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"], key="nbh")
-                        # Phương án điều chỉnh (chỉ khi không phải Thử việc)
-                        if lhd != "Thử việc":
-                            pa_add = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_add")
-                        else:
-                            pa_add = ""
+                        pa_add = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_add")
                     st.divider()
                     st.caption("🏦 Ngân hàng & Hồ sơ")
                     c7, c8 = st.columns(2)

@@ -7037,18 +7037,7 @@ elif menu == "👤 Ứng viên":
                 ngay_vao_lam_chuyen = st.date_input("Ngày vào làm", value=uv_data.get('ngay_vao_lam', date.today()))
                 ngay_ket_thuc_chuyen = st.text_input("Ngày kết thúc (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
                 ma_bhxh_chuyen = st.text_input("Mã BHXH")
-                # Tháng bắt đầu BH — tự tính theo quy tắc 14 ngày (chỉ hiện khi không phải Thử việc)
-                if loai_hd_chuyen != "Thử việc":
-                    thang_bh_auto_chuyen = tinh_thang_bat_dau_bh(ngay_vao_lam_chuyen)
-                    st.text_input("Tháng bắt đầu BH (mm/yyyy)", 
-                                  value=format_thang_nam(thang_bh_auto_chuyen),
-                                  disabled=True, key="tbd_chuyen_display",
-                                  help="Tự tính theo Khoản 5 Điều 33 Luật BHXH 2024: nếu số ngày LV còn lại trong tháng < 14 → tháng sau")
-                    bat_dau_bh_chuyen_val = thang_bh_auto_chuyen
-                else:
-                    st.text_input("Tháng bắt đầu BH (mm/yyyy)", value="(Thử việc - chưa đóng BH)", 
-                                  disabled=True, key="tbd_chuyen_display")
-                    bat_dau_bh_chuyen_val = None
+                st.caption("📅 Tháng bắt đầu BH: tự tính khi lưu (quy tắc 14 ngày — Điều 33 Luật BHXH 2024)")
             with col5:
                 luong_bh_chuyen = st.text_input("Lương BH")
                 he_so_luong_chuyen = st.text_input("Hệ số lương")
@@ -7120,21 +7109,22 @@ elif menu == "👤 Ứng viên":
                                 c.execute("SELECT COALESCE(MAX(STT),0)+1 FROM nhan_vien")
                                                                 
                                 nhl = ngay_vao_lam_chuyen
-                                tbd_val = bat_dau_bh_chuyen_val  # Đã tính tự động ở trên
 
                                 # Mã công ty của TENANT ĐANG ĐĂNG NHẬP (không phải luôn là "CHL" của Hòn La)
                                 ma_cty_hd = st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL'
 
-                                # Tạo số hợp đồng theo loại
+                                # Tạo số hợp đồng theo loại + tự tính tháng bắt đầu BH
                                 if loai_hd_chuyen == "Thử việc":
                                     trang_thai_nv = 'THU_VIEC'
                                     trang_thai_bhxh = 'CHUA_DONG'
+                                    tbd_val = None
+                                    pa_val = None
                                     so_hd = sinh_so_hdld_moi(c, ma_cty_hd, nhl.year, la_thu_viec=True)
                                 else:
                                     trang_thai_nv = 'DANG_LAM'
                                     trang_thai_bhxh = 'DANG_DONG'
-                                    if not tbd_val:
-                                        tbd_val = nhl
+                                    tbd_val = tinh_thang_bat_dau_bh(nhl)
+                                    pa_val = lay_ma_phuong_an(phuong_an_chuyen)
                                     so_hd = sinh_so_hdld_moi(c, ma_cty_hd, nhl.year, la_thu_viec=False)
                                 
                                 # Thêm nhân viên mới (đã thêm trường ten_don_vi_thu_huong, trinh_do)
@@ -7145,15 +7135,16 @@ elif menu == "👤 Ứng viên":
                                         luong_bao_hiem, ma_so_bhxh, ngay_vao_lam, noi_lam_viec,
                                         so_tai_khoan_nh, chi_nhanh_nh, ngay_ky_hd, loai_hop_dong,
                                         nhom_bhxh, thang_bat_dau_bh, thang_ket_thuc_bh, trang_thai, trang_thai_bhxh,
-                                        phuong_an_dieu_chinh, thang_phuong_an,
                                         phong_ban_lam_viec, ngay_ket_thuc, quoc_tich, dan_toc, 
                                         he_so_luong, phu_cap_chuc_vu, phu_cap_tnvk, phu_cap_tnn,
                                         muc_huong_bhyt, ty_le_dong, muc_tien_dong, phuong_thuc_dong,
                                         tinh_nhan_hs, phuong_nhan_hs, dia_chi_nhan_hs, 
-                                        tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so, ten_don_vi_thu_huong, so_luong_npt, trinh_do)
+                                        tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so, ten_don_vi_thu_huong, so_luong_npt, trinh_do,
+                                        phuong_an_dieu_chinh, thang_phuong_an)
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                        %s, %s)
                                     RETURNING id
                                 """, (
                                     stt_moi, ma_nv, so_hd, ho_ten_nv, chuc_danh_nv,
@@ -7162,13 +7153,13 @@ elif menu == "👤 Ứng viên":
                                     luong_bh_chuyen, ma_bhxh_chuyen, ngay_vao_lam_chuyen, noi_lam_viec_nv,
                                     stk_chuyen, chi_nhanh_nh_chuyen, ngay_vao_lam_chuyen, loai_hd_chuyen,
                                     nhom_bhxh_chuyen, tbd_val, parse_date(ngay_ket_thuc_chuyen), trang_thai_nv, trang_thai_bhxh,
-                                    lay_ma_phuong_an(phuong_an_chuyen), format_thang_nam(tbd_val) if tbd_val else None,
                                     phong_ban_nv, parse_date(ngay_ket_thuc_chuyen), quoc_tich_nv, dan_toc_nv,
                                     to_float_or_none(he_so_luong_chuyen), to_float_or_none(pc_chuc_vu_chuyen),
                                     to_float_or_none(pc_tnvk_chuyen), to_float_or_none(pc_tnn_chuyen),
                                     muc_huong_bhyt_chuyen, to_float_or_none(ty_le_dong_chuyen), to_float_or_none(muc_tien_dong_chuyen),
                                     phuong_thuc_dong_chuyen, tinh_nhan_hs_chuyen, phuong_nhan_hs_chuyen, dia_chi_nhan_hs_chuyen,
-                                    tinh_kcb_chuyen, noi_kcb_chuyen, dk_nhan_so_chuyen, ten_don_vi_thu_huong, so_luong_npt_nv, trinh_do_nv
+                                    tinh_kcb_chuyen, noi_kcb_chuyen, dk_nhan_so_chuyen, ten_don_vi_thu_huong, so_luong_npt_nv, trinh_do_nv,
+                                    pa_val, format_thang_nam(tbd_val)
                                 ))
                                 nhan_vien_id_moi = c.fetchone()[0]
 
@@ -7574,20 +7565,7 @@ elif menu == "✅ Nhân viên":
                         nvl = st.text_input("Ngày vào làm (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key="nvl")
                         nkt = st.text_input("Ngày kết thúc", placeholder="dd/mm/yyyy", max_chars=10, key="nkt")
                         mbh = st.text_input("Mã BHXH", key="mbh")
-                        # Tháng bắt đầu BH — tự tính
-                        nvl_parsed = parse_date(nvl) if nvl else None
-                        if lhd != "Thử việc" and nvl_parsed:
-                            thang_bh_auto_add = tinh_thang_bat_dau_bh(nvl_parsed)
-                            st.text_input("Tháng bắt đầu BH (mm/yyyy)", 
-                                          value=format_thang_nam(thang_bh_auto_add),
-                                          disabled=True, key="tbd_display",
-                                          help="Tự tính: nếu số ngày LV còn lại < 14 → tháng sau")
-                            tbd_auto_val = thang_bh_auto_add
-                        else:
-                            st.text_input("Tháng bắt đầu BH (mm/yyyy)", 
-                                          value="(Thử việc - chưa đóng BH)" if lhd == "Thử việc" else "(Nhập ngày vào làm trước)",
-                                          disabled=True, key="tbd_display")
-                            tbd_auto_val = None
+                        st.caption("📅 Tháng bắt đầu BH: tự tính khi lưu (quy tắc 14 ngày — Điều 33 Luật BHXH 2024)")
                     with c5:
                         lbh = st.text_input("Lương BH", key="lbh")
                         hsl = st.text_input("Hệ số lương", key="hsl")
@@ -7652,18 +7630,19 @@ elif menu == "✅ Nhân viên":
                                             ma_nv = sinh_ma_nv_moi(c)
 
                                             nhl = parse_date(nvl)
-                                            tbd_val = tbd_auto_val  # Đã tính tự động
 
                                             ma_cty_hd = st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL'
                                             if lhd == "Thử việc":
                                                 ttnv = 'THU_VIEC'
                                                 ttbh = 'CHUA_DONG'
+                                                tbd_val = None
+                                                pa_val_add = None
                                                 so_hd = sinh_so_hdld_moi(c, ma_cty_hd, nhl.year, la_thu_viec=True)
                                             else:
                                                 ttnv = 'DANG_LAM'
                                                 ttbh = 'DANG_DONG'
-                                                if not tbd_val:
-                                                    tbd_val = nhl
+                                                tbd_val = tinh_thang_bat_dau_bh(nhl)
+                                                pa_val_add = lay_ma_phuong_an(pa_add)
                                                 so_hd = sinh_so_hdld_moi(c, ma_cty_hd, nhl.year, la_thu_viec=False)
                                             
                                             # Chuẩn hóa tên phòng ban
@@ -7677,16 +7656,19 @@ elif menu == "✅ Nhân viên":
                                                 phong_ban_lam_viec, ngay_ket_thuc, quoc_tich, dan_toc, he_so_luong, phu_cap_chuc_vu,
                                                 phu_cap_tnvk, phu_cap_tnn, muc_huong_bhyt, ty_le_dong, muc_tien_dong, phuong_thuc_dong,
                                                 tinh_nhan_hs, phuong_nhan_hs, dia_chi_nhan_hs, tinh_kcb, noi_dang_ky_kcb, dang_ky_nhan_so,
-                                                ten_don_vi_thu_huong, trinh_do, so_luong_npt)
+                                                ten_don_vi_thu_huong, trinh_do, so_luong_npt,
+                                                phuong_an_dieu_chinh, thang_phuong_an)
                                                 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                                                 %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                                                %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
+                                                %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                                                %s, %s) RETURNING id""",
                                                 (stt_moi, ma_nv, so_hd, htn, cdn, parse_date(nsn), gtn, scc, parse_date(ncc), ncc2, nqn, ttn,
                                                  (dtn2.strip() or None) if dtn2 else None, emn, emn, hso, to_float_or_none(lbh), mbh, parse_date(nvl), nlv, stk, cnh, parse_date(nvl), lhd,
                                                  nbh, tbd_val, None, ttnv, ttbh, pbn_chuan, parse_date(nkt), qtn, dtn, 
                                                  to_float_or_none(hsl), to_float_or_none(pcv), to_float_or_none(ptv), to_float_or_none(ptn),
                                                  mhb, to_float_or_none(tld), to_float_or_none(mtd), ptd, ths, phs, dhs, tkb, nkb, dks,
-                                                 ten_don_vi_thu_huong, trinh_do_moi, so_luong_npt))
+                                                 ten_don_vi_thu_huong, trinh_do_moi, so_luong_npt,
+                                                 pa_val_add, format_thang_nam(tbd_val)))
                                             new_nv_id = c.fetchone()[0]
                                             
                                             if anh_ho_so_moi is not None:
@@ -7991,11 +7973,14 @@ elif menu == "✅ Nhân viên":
                                             else:
                                                 ngay_het_han_hd = None
                                             
-                                            ngay_bat_dau_bh = st.date_input(
-                                                "📅 Ngày bắt đầu đóng BHXH:", 
-                                                value=ngay_hieu_luc,
-                                                key=f"ngay_bhxh_{nv_id_key}",
-                                                help="⚠️ Ngày bắt đầu tham gia BHXH. Thường là ngày hiệu lực HĐLĐ chính thức."
+                                            ngay_bat_dau_bh = tinh_thang_bat_dau_bh(ngay_hieu_luc)
+                                            st.info(f"📅 Tháng bắt đầu đóng BHXH: **{format_thang_nam(ngay_bat_dau_bh)}** (tự tính theo quy tắc 14 ngày)")
+                                            
+                                            phuong_an_chuyen_doi = st.selectbox(
+                                                "Phương án điều chỉnh BHXH",
+                                                [""] + PHUONG_AN_TANG,
+                                                key=f"pa_bhxh_{nv_id_key}",
+                                                help="Bắt buộc chọn — dùng cho báo tăng D02-LT"
                                             )
                                             
                                             ly_do_chuyen = st.text_area(
@@ -8040,6 +8025,7 @@ elif menu == "✅ Nhân viên":
                                                         stt_str = str(next_stt).zfill(2)
                                                         so_hd_moi = f"{stt_str}/{current_year}/HĐLĐ-{ma_cty_hd}"
                                                         
+                                                        pa_chuyen_doi_val = lay_ma_phuong_an(phuong_an_chuyen_doi)
                                                         c.execute("""
                                                             UPDATE nhan_vien SET 
                                                                 trang_thai = 'DANG_LAM',
@@ -8050,9 +8036,11 @@ elif menu == "✅ Nhân viên":
                                                                 ngay_chinh_thuc = %s,
                                                                 thang_bat_dau_bh = %s,
                                                                 trang_thai_bhxh = 'DANG_DONG',
+                                                                phuong_an_dieu_chinh = %s,
+                                                                thang_phuong_an = %s,
                                                                 ngay_ket_thuc = NULL
                                                             WHERE id = %s
-                                                        """, (loai_hop_dong_luu, han_hd_thang, so_hd_moi, ngay_quyet_dinh, ngay_hieu_luc, ngay_bat_dau_bh, int(selected_nv['id'])))
+                                                        """, (loai_hop_dong_luu, han_hd_thang, so_hd_moi, ngay_quyet_dinh, ngay_hieu_luc, ngay_bat_dau_bh, pa_chuyen_doi_val, format_thang_nam(ngay_bat_dau_bh), int(selected_nv['id'])))
                                                         
                                                         c.execute("""
                                                             INSERT INTO quyet_dinh_nhan_su (

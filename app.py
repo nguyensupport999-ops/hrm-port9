@@ -3084,18 +3084,6 @@ if 'logged_in' not in st.session_state:
     st.session_state.role = None
     st.session_state.username = None
 
-# show_hrm=False → hiện landing | show_hrm=True → vào HRM (sidebar login)
-if 'show_hrm' not in st.session_state:
-    st.session_state.show_hrm = False
-
-# ========== KIỂM TRA URL PARAMS (Từ nút Nhân viên trên Landing Page) ==========
-query_params = st.query_params
-if query_params.get('goto') == 'hrm':
-    st.session_state.show_hrm = True   # Chỉ thoát landing, KHÔNG tự đăng nhập
-    st.query_params.clear()
-    st.rerun()
-
-
 # ========== HIỂN THỊ LANDING PAGE NẾU CHƯA VÀO HRM ==========
 # Chỉ hiện logo mặc định (COMPANY_CONFIG/logo_cty.png) khi KHÔNG có tenant (chế độ standalone
 # cũ). Nếu đã xác định được tenant (đa khách hàng), logo của tenant sẽ tự hiện ở bước đăng nhập
@@ -3118,10 +3106,6 @@ if not st.session_state.get('tenant'):
         with st.sidebar:
             st.image("logo_cty.png", width='stretch')
             st.divider()
-
-# ========== ĐÃ BỎ LANDING PAGE (mỗi khách hàng có domain riêng, vào thẳng màn hình đăng nhập) ==========
-# show_hrm được ép luôn True để các đoạn code phía dưới (vốn kiểm tra show_hrm) không bị ảnh hưởng.
-st.session_state.show_hrm = True
 
 # ========== PHẦN CODE HRM BẮT ĐẦU TỪ ĐÂY ==========
 
@@ -5238,8 +5222,18 @@ if not st.session_state.logged_in:
             }
         </style>
     """, unsafe_allow_html=True)
-    st.info("📱 **Đang dùng điện thoại?** Form đăng nhập nằm ở thanh bên trái. "
-            "Nếu không thấy, bấm vào biểu tượng **›** (mũi tên) ở góc trên bên trái màn hình để mở ra.")
+    st.markdown("""
+        <style>
+            @media (min-width: 769px) {
+                .canh-bao-mobile-only { display: none !important; }
+            }
+        </style>
+        <div class="canh-bao-mobile-only" style="background-color:#e7f3fe; border-radius:8px;
+                    padding:0.9rem 1rem; margin-bottom:1rem; border:1px solid #b6d4f5; color:#0c5da8;">
+            📱 <b>Đang dùng điện thoại?</b> Form đăng nhập nằm ở thanh bên trái.
+            Nếu không thấy, bấm vào biểu tượng <b>›</b> (mũi tên) ở góc trên bên trái màn hình để mở ra.
+        </div>
+    """, unsafe_allow_html=True)
     render_landing_page()
 
     st.stop()
@@ -5326,7 +5320,6 @@ if st.sidebar.button(i18n.t("🚪 Đăng xuất"), width='stretch'):
     st.session_state.logged_in = False
     st.session_state.role = None
     st.session_state.username = None
-    st.session_state.show_hrm = False
     st.session_state.pop('last_birthday_check', None)
     st.session_state.pop('sinh_nhat_hom_nay_list', None)
     st.cache_data.clear()
@@ -12646,7 +12639,7 @@ def reset_ui_and_cache():
     st.cache_resource.clear()
     
     # Giữ lại các session state quan trọng
-    keep_keys = ['logged_in', 'role', 'username', 'language', 'show_hrm']
+    keep_keys = ['logged_in', 'role', 'username', 'language']
     for key in list(st.session_state.keys()):
         if key not in keep_keys:
             del st.session_state[key]

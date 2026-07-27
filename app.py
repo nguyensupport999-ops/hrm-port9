@@ -1519,74 +1519,96 @@ if not st.session_state.get('logged_in', False):
     </script>
     """, height=0)
 else:
-    # ĐÃ LOGIN: nút Menu nổi góc trái trên (mobile only)
-    # Dùng CSS checkbox trick — không phụ thuộc JS click nút Streamlit
+    # ĐÃ LOGIN: nút Menu nổi (mobile only) — JS trực tiếp thao tác style
     components.html("""
     <script>
     (function() {
         var doc = window.top.document;
-        if (doc.getElementById('hrm-mob-style')) return;
+        if (doc.getElementById('hrm-menu-btn')) return;
         if (window.top.innerWidth >= 769) return;
 
-        // 1. Inject CSS toggle
-        var style = doc.createElement('style');
-        style.id = 'hrm-mob-style';
-        style.textContent = ''
-            + '#hrm-menu-btn {'
-            + '  position:fixed; top:6px; left:6px; z-index:999999;'
-            + '  background:#ff4b4b; color:#fff; border:none; border-radius:8px;'
-            + '  padding:10px 18px; font-size:15px; font-weight:bold;'
-            + '  box-shadow:0 2px 10px rgba(0,0,0,0.35); cursor:pointer;'
-            + '}'
-            + '#hrm-menu-overlay {'
-            + '  display:none; position:fixed; top:0; left:0; width:100vw; height:100vh;'
-            + '  background:rgba(0,0,0,0.3); z-index:999998; cursor:pointer;'
-            + '}'
-            + '.hrm-sidebar-open [data-testid="stSidebar"] {'
-            + '  transform: none !important;'
-            + '  width: 85vw !important;'
-            + '  min-width: 85vw !important;'
-            + '  transition: transform 0.3s ease !important;'
-            + '}'
-            + '.hrm-sidebar-open #hrm-menu-btn { display:none !important; }'
-            + '.hrm-sidebar-open #hrm-menu-overlay { display:block !important; }'
-        ;
-        doc.head.appendChild(style);
+        // Tìm sidebar element
+        function getSidebar() {
+            return doc.querySelector('[data-testid="stSidebar"]');
+        }
 
-        // 2. Nút Menu
+        // 1. Nút Menu
         var btn = doc.createElement('button');
         btn.id = 'hrm-menu-btn';
         btn.innerHTML = '☰ Menu';
-        btn.addEventListener('click', function(e) {
-            e.stopPropagation();
-            doc.body.classList.add('hrm-sidebar-open');
-        });
-        doc.body.appendChild(btn);
+        btn.style.cssText = 'position:fixed; top:6px; left:6px; z-index:999999;'
+            + 'background:#ff4b4b; color:#fff; border:none; border-radius:8px;'
+            + 'padding:10px 18px; font-size:15px; font-weight:bold;'
+            + 'box-shadow:0 2px 10px rgba(0,0,0,0.35); cursor:pointer;';
 
-        // 3. Overlay (tap để đóng sidebar)
+        // 2. Overlay
         var overlay = doc.createElement('div');
         overlay.id = 'hrm-menu-overlay';
-        overlay.addEventListener('click', function() {
-            doc.body.classList.remove('hrm-sidebar-open');
+        overlay.style.cssText = 'display:none; position:fixed; top:0; left:0;'
+            + 'width:100vw; height:100vh; background:rgba(0,0,0,0.4);'
+            + 'z-index:999990; cursor:pointer;';
+
+        function openSidebar() {
+            var sb = getSidebar();
+            if (!sb) return;
+            // Ghi đè inline style của Streamlit
+            sb.style.setProperty('transform', 'none', 'important');
+            sb.style.setProperty('width', '85vw', 'important');
+            sb.style.setProperty('min-width', '85vw', 'important');
+            sb.style.setProperty('z-index', '999995', 'important');
+            sb.style.setProperty('position', 'fixed', 'important');
+            sb.style.setProperty('top', '0', 'important');
+            sb.style.setProperty('left', '0', 'important');
+            sb.style.setProperty('height', '100vh', 'important');
+            // Đảm bảo nội dung bên trong cũng full width
+            var inner = sb.querySelector(':scope > div');
+            if (inner) {
+                inner.style.setProperty('width', '85vw', 'important');
+            }
+            btn.style.display = 'none';
+            overlay.style.display = 'block';
+        }
+
+        function closeSidebar() {
+            var sb = getSidebar();
+            if (!sb) return;
+            // Khôi phục style mặc định mobile (ẩn sidebar)
+            sb.style.setProperty('transform', 'translateX(-100%)', 'important');
+            var inner = sb.querySelector(':scope > div');
+            if (inner) {
+                inner.style.removeProperty('width');
+            }
+            btn.style.display = 'block';
+            overlay.style.display = 'none';
+        }
+
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            openSidebar();
         });
+
+        overlay.addEventListener('click', function(e) {
+            e.preventDefault();
+            closeSidebar();
+        });
+
+        doc.body.appendChild(btn);
         doc.body.appendChild(overlay);
 
-        // 4. Đóng sidebar khi user chọn menu (radio button click)
+        // Tự đóng sidebar khi chọn menu item
         doc.addEventListener('click', function(e) {
-            if (!doc.body.classList.contains('hrm-sidebar-open')) return;
-            var target = e.target;
-            // Kiểm tra click vào radio button trong sidebar (menu item)
-            var sb = doc.querySelector('[data-testid="stSidebar"]');
-            if (sb && sb.contains(target)) {
-                var isRadio = target.closest('[role="radio"]')
-                           || target.closest('[data-testid="stMarkdownContainer"]');
-                if (isRadio) {
-                    setTimeout(function() {
-                        doc.body.classList.remove('hrm-sidebar-open');
-                    }, 200);
-                }
+            if (overlay.style.display !== 'block') return;
+            var sb = getSidebar();
+            if (!sb) return;
+            if (!sb.contains(e.target)) return;
+            // Click vào radio (menu item) hoặc button (Đăng xuất)
+            var menuItem = e.target.closest('[role="radio"]')
+                        || e.target.closest('button');
+            if (menuItem) {
+                setTimeout(closeSidebar, 300);
             }
-        });
+        }, true);
     })();
     </script>
     """, height=0)

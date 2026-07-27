@@ -1519,40 +1519,31 @@ if not st.session_state.get('logged_in', False):
     </script>
     """, height=0)
 else:
-    # ĐÃ LOGIN: phóng to nút hamburger mặc định của Streamlit trên mobile
-    # Không inject JS — chỉ CSS thuần, không gây đơ
+    # ĐÃ LOGIN trên mobile: hiện gợi ý vuốt + nút mở sidebar
     st.markdown("""
     <style>
         @media (max-width: 768px) {
-            /* Phóng to + tô nổi nút mở sidebar (hamburger) của Streamlit */
+            /* Phóng to nút mở sidebar mặc định của Streamlit */
             [data-testid="collapsedControl"] {
-                position: fixed !important;
-                top: 6px !important;
-                left: 6px !important;
-                z-index: 999999 !important;
                 background: #ff4b4b !important;
                 border-radius: 8px !important;
-                padding: 6px 10px !important;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.35) !important;
+                padding: 4px 8px !important;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
             }
-            /* Icon SVG bên trong — đổi trắng + to hơn */
             [data-testid="collapsedControl"] svg {
-                width: 28px !important;
-                height: 28px !important;
+                width: 26px !important;
+                height: 26px !important;
                 color: white !important;
                 stroke: white !important;
             }
-            /* Thêm chữ "Menu" bên cạnh icon */
-            [data-testid="collapsedControl"] button::after {
-                content: ' Menu';
-                color: white;
-                font-size: 14px;
-                font-weight: bold;
-                margin-left: 4px;
+            /* Phóng to nút > ở header (một số phiên bản Streamlit) */
+            [data-testid="stHeader"] button {
+                background: #ff4b4b !important;
+                border-radius: 8px !important;
             }
-            /* Đẩy nội dung chính xuống để không bị nút Menu đè */
-            section[data-testid="stMain"] > div:first-child {
-                padding-top: 50px !important;
+            [data-testid="stHeader"] button svg {
+                color: white !important;
+                stroke: white !important;
             }
         }
     </style>
@@ -5915,6 +5906,26 @@ else:  # 'nhan_vien' thường (mặc định) hoặc bất kỳ vai trò nào k
 menu = st.sidebar.radio(i18n.t("📋 Menu"), menu_options, format_func=i18n.t)
 st.sidebar.divider()
 st.sidebar.caption(f"👤 {st.session_state.get('ho_ten_dang_nhap', st.session_state.username)} ({st.session_state.role})")
+
+# Mobile: dropdown menu phụ ở đầu main content (khi sidebar khó mở trên điện thoại)
+st.markdown("""<style>
+    @media (min-width: 769px) { .mobile-menu-box { display:none !important; } }
+    @media (max-width: 768px) { .mobile-menu-box {
+        position: sticky; top: 0; z-index: 999; background: white;
+        padding: 4px 0; border-bottom: 1px solid #eee;
+    }}
+</style>""", unsafe_allow_html=True)
+with st.container():
+    st.markdown('<div class="mobile-menu-box">', unsafe_allow_html=True)
+    menu_mobile = st.selectbox(
+        "📋", menu_options, format_func=i18n.t,
+        index=menu_options.index(menu) if menu in menu_options else 0,
+        key="hrm_mobile_menu", label_visibility="collapsed",
+    )
+    st.markdown('</div>', unsafe_allow_html=True)
+    # Nếu user chọn menu khác trên mobile → đồng bộ
+    if menu_mobile != menu:
+        menu = menu_mobile
 # MỚI:
 if st.sidebar.button(i18n.t("🚪 Đăng xuất"), width='stretch'):
     st.session_state.logged_in = False

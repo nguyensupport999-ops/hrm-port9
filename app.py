@@ -1519,63 +1519,68 @@ if not st.session_state.get('logged_in', False):
     </script>
     """, height=0)
 else:
-    # ĐÃ LOGIN: thêm nút Menu nổi cố định ở góc trái (mobile only)
-    st.markdown("""
-    <style>
-        @media (max-width: 768px) {
-            /* Nút Menu nổi cố định góc trái trên */
-            #hrm-mobile-menu-btn {
-                position: fixed;
-                top: 8px;
-                left: 8px;
-                z-index: 999999;
-                background: #ff4b4b;
-                color: white;
-                border: none;
-                border-radius: 8px;
-                padding: 8px 16px;
-                font-size: 16px;
-                font-weight: bold;
-                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                gap: 6px;
-            }
-            #hrm-mobile-menu-btn:active {
-                background: #d63333;
-            }
-        }
-        @media (min-width: 769px) {
-            #hrm-mobile-menu-btn { display: none !important; }
-        }
-    </style>
-    """, unsafe_allow_html=True)
+    # ĐÃ LOGIN: nút Menu nổi góc trái trên (mobile only)
+    # Inject trực tiếp vào window.top.document (không qua CSS iframe)
     components.html("""
     <script>
     (function() {
-        const doc = window.top.document;
+        var doc = window.top.document;
+        // Chỉ tạo 1 lần
         if (doc.getElementById('hrm-mobile-menu-btn')) return;
+        // Chỉ hiện trên mobile (màn hình < 769px)
+        if (window.top.innerWidth >= 769) return;
 
-        const btn = doc.createElement('button');
+        var btn = doc.createElement('button');
         btn.id = 'hrm-mobile-menu-btn';
         btn.innerHTML = '☰ Menu';
-        btn.onclick = function() {
-            const sb = doc.querySelector('[data-testid="stSidebar"]');
-            if (!sb) return;
-            const expanded = sb.getAttribute('aria-expanded') === 'true';
-            if (expanded) {
-                // Đóng sidebar
-                const closeBtn = sb.querySelector('button[kind="header"]');
-                if (closeBtn) closeBtn.click();
-            } else {
-                // Mở sidebar
-                sb.setAttribute('aria-expanded', 'true');
-                const headerBtn = doc.querySelector('[data-testid="baseButton-header"]');
-                if (headerBtn) headerBtn.click();
+        btn.style.cssText = 'position:fixed; top:6px; left:6px; z-index:999999; '
+            + 'background:#ff4b4b; color:#fff; border:none; border-radius:8px; '
+            + 'padding:10px 18px; font-size:15px; font-weight:bold; '
+            + 'box-shadow:0 2px 10px rgba(0,0,0,0.35); cursor:pointer; '
+            + 'display:flex; align-items:center; gap:6px;';
+
+        btn.addEventListener('click', function() {
+            // Tìm nút hamburger mặc định của Streamlit rồi click
+            var stBtns = doc.querySelectorAll('[data-testid="collapsedControl"]');
+            if (stBtns.length > 0) {
+                stBtns[0].click();
+                return;
             }
-        };
+            // Fallback: tìm nút header trong sidebar (nút X đóng)
+            var sb = doc.querySelector('[data-testid="stSidebar"]');
+            if (sb) {
+                var closeBtn = sb.querySelector('button[kind="header"]');
+                if (closeBtn) {
+                    closeBtn.click();
+                    return;
+                }
+            }
+            // Fallback 2: toggle aria-expanded
+            if (sb) {
+                var exp = sb.getAttribute('aria-expanded');
+                sb.setAttribute('aria-expanded', exp === 'true' ? 'false' : 'true');
+            }
+        });
+
         doc.body.appendChild(btn);
+
+        // Ẩn nút khi sidebar đang mở (tránh chồng lên menu)
+        var observer = new MutationObserver(function() {
+            var sb = doc.querySelector('[data-testid="stSidebar"]');
+            if (sb && sb.getAttribute('aria-expanded') === 'true') {
+                btn.style.display = 'none';
+            } else {
+                btn.style.display = 'flex';
+            }
+        });
+        var sb = doc.querySelector('[data-testid="stSidebar"]');
+        if (sb) {
+            observer.observe(sb, {attributes: true, attributeFilter: ['aria-expanded']});
+            // Check trạng thái ban đầu
+            if (sb.getAttribute('aria-expanded') === 'true') {
+                btn.style.display = 'none';
+            }
+        }
     })();
     </script>
     """, height=0)

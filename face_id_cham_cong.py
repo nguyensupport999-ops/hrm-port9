@@ -420,4 +420,18 @@ class FaceIDVideoProcessor(VideoProcessorBase):
                         self.ket_qua = {"trang_thai": "KHONG_KHOP", "ten": None,
                                         "thong_bao": f"❌ Lỗi ghi chấm công: {e}"}
 
+        # Vẽ khung Elip hướng dẫn đặt khuôn mặt
+        cao, rong = img.shape[:2]
+        tam_x, tam_y = rong // 2, cao // 2
+        truc_x, truc_y = int(rong * 0.22), int(cao * 0.35)
+        # Elip viền trắng
+        cv2.ellipse(img, (tam_x, tam_y), (truc_x, truc_y), 0, 0, 360, (255, 255, 255), 2)
+        # Làm tối vùng ngoài elip (giúp user tập trung vào khuôn mặt)
+        mask = np.zeros((cao, rong), dtype=np.uint8)
+        cv2.ellipse(mask, (tam_x, tam_y), (truc_x, truc_y), 0, 0, 360, 255, -1)
+        img[mask == 0] = (img[mask == 0] * 0.4).astype(np.uint8)
+        # Chữ hướng dẫn
+        cv2.putText(img, "Dat khuon mat vao khung", (tam_x - 130, tam_y + truc_y + 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+
         return av.VideoFrame.from_ndarray(img, format="bgr24")

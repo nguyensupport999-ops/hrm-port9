@@ -348,12 +348,20 @@ def can_manage_users():
     return st.session_state.get('role') == 'admin'
 
 def can_edit_bcc():
-    """Quyền nhập mới/sửa BCC (ô trống)"""
-    return st.session_state.role in ('admin', 'admin_bcc')
+    """Quyền nhập mới/sửa BCC (ô trống) — đọc cấu hình tenant."""
+    mac_dinh = 'admin,admin_bcc'
+    ds_role_str = get_cau_hinh('cc_vai_tro_edit_bcc', mac_dinh)
+    ds_role = [r.strip() for r in ds_role_str.split(',') if r.strip()]
+    return st.session_state.role in ds_role
 
 def can_dieu_chinh_bcc():
-    """Quyền điều chỉnh BCC (sửa ô đã có dữ liệu, bắt buộc audit)"""
-    return st.session_state.role in ('admin', 'admin_bcc')
+    """Quyền điều chỉnh BCC — đọc cấu hình tenant để biết vai trò nào được phép."""
+    # Mặc định: admin + admin_bcc
+    # Tenant có thể cấu hình thêm vai trò khác (VD: 'kt_luong', 'truong_phong')
+    mac_dinh = 'admin,admin_bcc'
+    ds_role_str = get_cau_hinh('cc_vai_tro_dieu_chinh_bcc', mac_dinh)
+    ds_role = [r.strip() for r in ds_role_str.split(',') if r.strip()]
+    return st.session_state.role in ds_role
 
 def can_khoa_thang_bcc():
     """Quyền khoá/mở khoá BCC tháng"""
@@ -5894,43 +5902,53 @@ menu = st.sidebar.radio(i18n.t("📋 Menu"), menu_options, format_func=i18n.t)
 st.sidebar.divider()
 st.sidebar.caption(f"👤 {st.session_state.get('ho_ten_dang_nhap', st.session_state.username)} ({st.session_state.role})")
 
-# Mobile: dropdown menu — dùng HTML native, chỉ hiện trên mobile
-# Trên desktop: ẩn hoàn toàn cả container (không chiếm khoảng trắng)
-st.markdown("""<style>
-    @media (min-width: 769px) { .mobile-only-menu { display:none !important; height:0 !important; overflow:hidden !important; margin:0 !important; padding:0 !important; } }
-    @media (max-width: 768px) { .mobile-only-menu { margin-bottom: 8px; } }
-</style>""", unsafe_allow_html=True)
-
+# Mobile: dropdown menu — HTML native, tự ẩn trên desktop bằng JS
 import json as _json_menu
 _menu_json = _json_menu.dumps(menu_options, ensure_ascii=False)
 _current_idx = menu_options.index(menu) if menu in menu_options else 0
 import streamlit.components.v1 as _comp_menu
-
-with st.container():
-    st.markdown('<div class="mobile-only-menu">', unsafe_allow_html=True)
-    _comp_menu.html(f"""
-    <select id="hrm-mob-sel" style="width:100%;padding:8px 12px;font-size:15px;
-        border:1px solid #ddd;border-radius:8px;background:#f8f8f8;" onchange="
-        var idx = this.selectedIndex;
-        var url = new URL(window.top.location.href);
-        url.searchParams.set('hmenu', idx);
-        window.top.location.href = url.toString();
-    ">
-    </select>
-    <script>
-    (function() {{
-        var opts = {_menu_json};
-        var sel = document.getElementById('hrm-mob-sel');
-        for (var i = 0; i < opts.length; i++) {{
-            var o = document.createElement('option');
-            o.value = i; o.text = opts[i];
-            if (i === {_current_idx}) o.selected = true;
-            sel.appendChild(o);
-        }}
-    }})();
-    </script>
-    """, height=40)
-    st.markdown('</div>', unsafe_allow_html=True)
+_comp_menu.html(f"""
+<select id="hrm-mob-sel" style="width:100%;padding:8px 12px;font-size:15px;
+    border:1px solid #ddd;border-radius:8px;background:#f8f8f8;" onchange="
+    var idx = this.selectedIndex;
+    var url = new URL(window.top.location.href);
+    url.searchParams.set('hmenu', idx);
+    window.top.location.href = url.toString();
+">
+</select>
+<script>
+(function() {{
+    var opts = {_menu_json};
+    var sel = document.getElementById('hrm-mob-sel');
+    for (var i = 0; i < opts.length; i++) {{
+        var o = document.createElement('option');
+        o.value = i; o.text = opts[i];
+        if (i === {_current_idx}) o.selected = true;
+        sel.appendChild(o);
+    }}
+    // Desktop: ẩn toàn bộ iframe container (không chiếm khoảng trắng)
+    if (window.top.innerWidth >= 769) {{
+        // Ẩn select
+        sel.style.display = 'none';
+        // Ẩn iframe container ở tầng parent (Streamlit tạo div bọc iframe)
+        try {{
+            var fr = window.frameElement;
+            if (fr) {{
+                fr.style.display = 'none';
+                fr.style.height = '0';
+                if (fr.parentElement) {{
+                    fr.parentElement.style.display = 'none';
+                    fr.parentElement.style.height = '0';
+                    fr.parentElement.style.margin = '0';
+                    fr.parentElement.style.padding = '0';
+                    fr.parentElement.style.overflow = 'hidden';
+                }}
+            }}
+        }} catch(e) {{}}
+    }}
+}})();
+</script>
+""", height=40)
 
 # Đọc query param hmenu nếu có (mobile navigation)
 _qp = st.query_params
@@ -9712,22 +9730,6 @@ elif menu == "🕒 Chấm công":
     _MAP_PT = {'THU_CONG': 'manual', 'MAY_VAN_TAY': 'fingerprint', 'FACE_ID': 'faceid'}
     _MAP_PT_LABEL = {'THU_CONG': '📝 Thủ công', 'MAY_VAN_TAY': '📥 Máy vân tay', 'FACE_ID': '👤 Face ID'}
     phuong_thuc_cfg = get_cau_hinh('cc_phuong_thuc', 'THU_CONG')
-
-    # Admin cấu hình phương thức
-    if st.session_state.role == 'admin':
-        with st.expander("⚙️ Cấu hình phương thức chấm công", expanded=False):
-            pt_chon = st.selectbox(
-                "Phương thức chấm công đang áp dụng:",
-                list(_MAP_PT.keys()),
-                format_func=lambda k: _MAP_PT_LABEL[k],
-                index=list(_MAP_PT.keys()).index(phuong_thuc_cfg),
-                key="cc_cfg_phuong_thuc"
-            )
-            if pt_chon != phuong_thuc_cfg:
-                set_cau_hinh('cc_phuong_thuc', pt_chon, 'Phương thức chấm công')
-                st.success(f"✅ Đã chuyển sang: {_MAP_PT_LABEL[pt_chon]}")
-                st.rerun()
-
     # 3 nút chỉ báo — chỉ phương thức đã cấu hình là sáng, 2 cái kia mờ
     col_method1, col_method2, col_method3 = st.columns(3)
     with col_method1:
@@ -9744,6 +9746,7 @@ elif menu == "🕒 Chấm công":
                   disabled=(phuong_thuc_cfg != 'FACE_ID'), key="cc_btn_fi")
 
     st.divider()
+    st.caption("💡 Thay đổi phương thức chấm công → vào **⚙️ Danh mục** > tab **🕒 Chấm công**")
 
     # ========== BCC LUÔN HIỂN THỊ (không phụ thuộc phương thức) ==========
     ensure_cham_cong_table()
@@ -10457,20 +10460,34 @@ elif menu == "🕒 Chấm công":
                     ctx.video_processor.danh_sach_embedding = danh_sach_emb
                     ctx.video_processor.cfg = get_cau_hinh_cham_cong_full()
 
+                    dem_sau_nhan_dien = 0  # đếm ngược sau khi nhận diện xong
+
                     while ctx.state.playing:
                         kq = ctx.video_processor.ket_qua
                         if kq["trang_thai"] == "THANH_CONG":
-                            ket_qua_box.success(kq["thong_bao"])
+                            ket_qua_box.success(
+                                f"{kq['thong_bao']}\n\n✅ Camera sẽ tự tắt sau {3 - dem_sau_nhan_dien} giây...")
+                            dem_sau_nhan_dien += 1
+                            if dem_sau_nhan_dien >= 3:
+                                break  # thoát loop → camera dừng hiển thị
                         elif kq["trang_thai"] == "DA_DU":
-                            ket_qua_box.info(kq["thong_bao"])
+                            ket_qua_box.info(
+                                f"{kq['thong_bao']}\n\n✅ Camera sẽ tự tắt sau {3 - dem_sau_nhan_dien} giây...")
+                            dem_sau_nhan_dien += 1
+                            if dem_sau_nhan_dien >= 3:
+                                break
                         elif kq["trang_thai"] == "KHONG_KHOP":
                             ket_qua_box.error(kq["thong_bao"])
+                            dem_sau_nhan_dien = 0
                         else:
                             ket_qua_box.info("📷 Đưa mặt vào khung hình camera...")
+                            dem_sau_nhan_dien = 0
                         time.sleep(1)
 
-                    # Camera đã tắt (người dùng bấm STOP)
-                    ket_qua_box.info("⏹️ Camera đã tắt. Xem kết quả tại tab '📋 Kết quả hôm nay'.")
+                    # Camera đã tắt (tự động hoặc người dùng bấm STOP)
+                    ket_qua_box.success("✅ Đã ghi nhận chấm công! Xem kết quả tại tab '📋 Kết quả hôm nay'.")
+                    time.sleep(2)
+                    st.rerun()
 
                 try:
                     db_load.close()
@@ -11538,6 +11555,50 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
         st.subheader("🕒 Cấu hình Chấm công")
         st.caption("Áp dụng cho toàn bộ doanh nghiệp bạn — dùng làm cơ sở tính công chuẩn, "
                    "tăng ca, phép năm và cho module Chấm công Face ID.")
+
+        # === PHƯƠNG THỨC CHẤM CÔNG + VAI TRÒ BCC ===
+        st.markdown("**📱 Phương thức chấm công**")
+        _MAP_PT_DM = {'THU_CONG': 'manual', 'MAY_VAN_TAY': 'fingerprint', 'FACE_ID': 'faceid'}
+        _MAP_PT_LABEL_DM = {'THU_CONG': '📝 Thủ công', 'MAY_VAN_TAY': '📥 Máy vân tay', 'FACE_ID': '👤 Face ID'}
+        phuong_thuc_dm = get_cau_hinh('cc_phuong_thuc', 'THU_CONG')
+
+        col_pt1, col_pt2 = st.columns(2)
+        with col_pt1:
+            pt_chon_dm = st.selectbox(
+                "Phương thức đang áp dụng:",
+                list(_MAP_PT_DM.keys()),
+                format_func=lambda k: _MAP_PT_LABEL_DM[k],
+                index=list(_MAP_PT_DM.keys()).index(phuong_thuc_dm),
+                key="cc_cfg_phuong_thuc_dm",
+                disabled=not can_edit(),
+            )
+        with col_pt2:
+            st.markdown("**👥 Vai trò điều chỉnh BCC**")
+            vai_tro_hien_tai = get_cau_hinh('cc_vai_tro_dieu_chinh_bcc', 'admin,admin_bcc')
+            TAT_CA_VAI_TRO = ['admin', 'admin_bcc', 'hr', 'kt_luong', 'truong_phong', 'van_thu']
+            ds_hien_tai = [r.strip() for r in vai_tro_hien_tai.split(',') if r.strip()]
+            ds_chon = st.multiselect(
+                "Vai trò:",
+                TAT_CA_VAI_TRO,
+                default=[r for r in ds_hien_tai if r in TAT_CA_VAI_TRO],
+                key="cc_cfg_vai_tro_bcc_dm",
+                disabled=not can_edit(),
+            )
+
+        # Nút lưu chung cho cả phương thức + vai trò
+        co_thay_doi = (pt_chon_dm != phuong_thuc_dm) or (ds_chon != ds_hien_tai)
+        if co_thay_doi:
+            if st.button("💾 Lưu phương thức & vai trò BCC", key="btn_luu_pt_vt", type="primary",
+                         disabled=not can_edit()):
+                if pt_chon_dm != phuong_thuc_dm:
+                    set_cau_hinh('cc_phuong_thuc', pt_chon_dm, 'Phương thức chấm công')
+                if ds_chon != ds_hien_tai:
+                    set_cau_hinh('cc_vai_tro_dieu_chinh_bcc', ','.join(ds_chon), 'Vai trò điều chỉnh BCC')
+                    set_cau_hinh('cc_vai_tro_edit_bcc', ','.join(ds_chon), 'Vai trò nhập BCC')
+                st.success("✅ Đã lưu!")
+                st.rerun()
+
+        st.divider()
 
         cc = get_cau_hinh_cham_cong_full()
 

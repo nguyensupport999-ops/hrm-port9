@@ -1520,67 +1520,73 @@ if not st.session_state.get('logged_in', False):
     """, height=0)
 else:
     # ĐÃ LOGIN: nút Menu nổi góc trái trên (mobile only)
-    # Inject trực tiếp vào window.top.document (không qua CSS iframe)
+    # Dùng CSS checkbox trick — không phụ thuộc JS click nút Streamlit
     components.html("""
     <script>
     (function() {
         var doc = window.top.document;
-        // Chỉ tạo 1 lần
-        if (doc.getElementById('hrm-mobile-menu-btn')) return;
-        // Chỉ hiện trên mobile (màn hình < 769px)
+        if (doc.getElementById('hrm-mob-style')) return;
         if (window.top.innerWidth >= 769) return;
 
+        // 1. Inject CSS toggle
+        var style = doc.createElement('style');
+        style.id = 'hrm-mob-style';
+        style.textContent = ''
+            + '#hrm-menu-btn {'
+            + '  position:fixed; top:6px; left:6px; z-index:999999;'
+            + '  background:#ff4b4b; color:#fff; border:none; border-radius:8px;'
+            + '  padding:10px 18px; font-size:15px; font-weight:bold;'
+            + '  box-shadow:0 2px 10px rgba(0,0,0,0.35); cursor:pointer;'
+            + '}'
+            + '#hrm-menu-overlay {'
+            + '  display:none; position:fixed; top:0; left:0; width:100vw; height:100vh;'
+            + '  background:rgba(0,0,0,0.3); z-index:999998; cursor:pointer;'
+            + '}'
+            + '.hrm-sidebar-open [data-testid="stSidebar"] {'
+            + '  transform: none !important;'
+            + '  width: 85vw !important;'
+            + '  min-width: 85vw !important;'
+            + '  transition: transform 0.3s ease !important;'
+            + '}'
+            + '.hrm-sidebar-open #hrm-menu-btn { display:none !important; }'
+            + '.hrm-sidebar-open #hrm-menu-overlay { display:block !important; }'
+        ;
+        doc.head.appendChild(style);
+
+        // 2. Nút Menu
         var btn = doc.createElement('button');
-        btn.id = 'hrm-mobile-menu-btn';
+        btn.id = 'hrm-menu-btn';
         btn.innerHTML = '☰ Menu';
-        btn.style.cssText = 'position:fixed; top:6px; left:6px; z-index:999999; '
-            + 'background:#ff4b4b; color:#fff; border:none; border-radius:8px; '
-            + 'padding:10px 18px; font-size:15px; font-weight:bold; '
-            + 'box-shadow:0 2px 10px rgba(0,0,0,0.35); cursor:pointer; '
-            + 'display:flex; align-items:center; gap:6px;';
-
-        btn.addEventListener('click', function() {
-            // Tìm nút hamburger mặc định của Streamlit rồi click
-            var stBtns = doc.querySelectorAll('[data-testid="collapsedControl"]');
-            if (stBtns.length > 0) {
-                stBtns[0].click();
-                return;
-            }
-            // Fallback: tìm nút header trong sidebar (nút X đóng)
-            var sb = doc.querySelector('[data-testid="stSidebar"]');
-            if (sb) {
-                var closeBtn = sb.querySelector('button[kind="header"]');
-                if (closeBtn) {
-                    closeBtn.click();
-                    return;
-                }
-            }
-            // Fallback 2: toggle aria-expanded
-            if (sb) {
-                var exp = sb.getAttribute('aria-expanded');
-                sb.setAttribute('aria-expanded', exp === 'true' ? 'false' : 'true');
-            }
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            doc.body.classList.add('hrm-sidebar-open');
         });
-
         doc.body.appendChild(btn);
 
-        // Ẩn nút khi sidebar đang mở (tránh chồng lên menu)
-        var observer = new MutationObserver(function() {
+        // 3. Overlay (tap để đóng sidebar)
+        var overlay = doc.createElement('div');
+        overlay.id = 'hrm-menu-overlay';
+        overlay.addEventListener('click', function() {
+            doc.body.classList.remove('hrm-sidebar-open');
+        });
+        doc.body.appendChild(overlay);
+
+        // 4. Đóng sidebar khi user chọn menu (radio button click)
+        doc.addEventListener('click', function(e) {
+            if (!doc.body.classList.contains('hrm-sidebar-open')) return;
+            var target = e.target;
+            // Kiểm tra click vào radio button trong sidebar (menu item)
             var sb = doc.querySelector('[data-testid="stSidebar"]');
-            if (sb && sb.getAttribute('aria-expanded') === 'true') {
-                btn.style.display = 'none';
-            } else {
-                btn.style.display = 'flex';
+            if (sb && sb.contains(target)) {
+                var isRadio = target.closest('[role="radio"]')
+                           || target.closest('[data-testid="stMarkdownContainer"]');
+                if (isRadio) {
+                    setTimeout(function() {
+                        doc.body.classList.remove('hrm-sidebar-open');
+                    }, 200);
+                }
             }
         });
-        var sb = doc.querySelector('[data-testid="stSidebar"]');
-        if (sb) {
-            observer.observe(sb, {attributes: true, attributeFilter: ['aria-expanded']});
-            // Check trạng thái ban đầu
-            if (sb.getAttribute('aria-expanded') === 'true') {
-                btn.style.display = 'none';
-            }
-        }
     })();
     </script>
     """, height=0)

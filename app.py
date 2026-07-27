@@ -10285,8 +10285,8 @@ elif menu == "🕒 Chấm công":
 
         # ----- TAB ĐĂNG KÝ (chỉ admin/admin_bcc) -----
         if tab_face_dangky is not None:
-          with tab_face_dangky:
-            st.caption("Hệ thống tự lấy ảnh avatar đã upload trong hồ sơ nhân viên để đăng ký khuôn mặt. "
+            with tab_face_dangky:
+                st.caption("Hệ thống tự lấy ảnh avatar đã upload trong hồ sơ nhân viên để đăng ký khuôn mặt. "
                        "Nhân viên nào chưa có ảnh avatar sẽ hiện ở đây để HR xử lý trước.")
 
                 if not can_edit():

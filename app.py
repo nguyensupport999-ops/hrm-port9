@@ -328,7 +328,7 @@ def can_edit():
     # LƯU Ý: 'xem_toan_bo' (Xem toàn bộ - không chỉnh sửa) CỐ Ý không có trong danh sách này —
     # vai trò này được thấy TOÀN BỘ menu/tab như Admin nhưng mọi nút Lưu/Sửa/Xóa/Cập nhật đều
     # phải bị disabled (xem các nơi dùng disabled=not can_edit()).
-    edit_roles = ['admin', 'hr', 'van_thu', 'kt_luong']
+    edit_roles = ['admin', 'admin_bcc', 'hr', 'van_thu', 'kt_luong']
     return st.session_state.get('role') in edit_roles
 
 def can_delete():
@@ -1576,19 +1576,6 @@ if st.session_state.get('tenant'):
     for config_key, tenant_key in mapping.items():
         if tenant_key in tenant_data and tenant_data[tenant_key]:
             COMPANY_CONFIG[config_key] = tenant_data[tenant_key]
-
-    # Banner chế độ Demo: dữ liệu dùng chung, chỉ xem thử — không lưu/sửa/xoá được.
-    # CHỈ hiện khi đã ĐĂNG NHẬP — khối này chạy ở mức module (mọi lần rerun, kể cả
-    # trước khi đăng nhập), nên nếu không kiểm tra logged_in, banner sẽ nổi lên đầu
-    # trang landing/login (phía trên cả sidebar đăng nhập và nội dung landing page).
-    #if str(tenant_data.get('ma_cty', '')).upper() == 'DEMO' and st.session_state.get('logged_in'):
-    #    st.info(
-    #        "🧪 **Chế độ Demo** — Bạn đang xem dữ liệu mẫu dùng chung. "
-    #        "Mọi thao tác Lưu/Sửa/Xoá sẽ bị chặn để bảo vệ dữ liệu chung. "
-    #        "Liên hệ để đăng ký dùng thử với dữ liệu riêng của công ty bạn.",
-    #        icon="🧪"
-    #    )
-
 
 # ========== XỬ LÝ ĐA NGÔN NGỮ ==========
 def init_language():
@@ -5907,25 +5894,53 @@ menu = st.sidebar.radio(i18n.t("📋 Menu"), menu_options, format_func=i18n.t)
 st.sidebar.divider()
 st.sidebar.caption(f"👤 {st.session_state.get('ho_ten_dang_nhap', st.session_state.username)} ({st.session_state.role})")
 
-# Mobile: dropdown menu phụ ở đầu main content (khi sidebar khó mở trên điện thoại)
+# Mobile: dropdown menu — dùng HTML native, chỉ hiện trên mobile
+# Trên desktop: ẩn hoàn toàn cả container (không chiếm khoảng trắng)
 st.markdown("""<style>
-    @media (min-width: 769px) { .mobile-menu-box { display:none !important; } }
-    @media (max-width: 768px) { .mobile-menu-box {
-        position: sticky; top: 0; z-index: 999; background: white;
-        padding: 4px 0; border-bottom: 1px solid #eee;
-    }}
+    @media (min-width: 769px) { .mobile-only-menu { display:none !important; height:0 !important; overflow:hidden !important; margin:0 !important; padding:0 !important; } }
+    @media (max-width: 768px) { .mobile-only-menu { margin-bottom: 8px; } }
 </style>""", unsafe_allow_html=True)
+
+import json as _json_menu
+_menu_json = _json_menu.dumps(menu_options, ensure_ascii=False)
+_current_idx = menu_options.index(menu) if menu in menu_options else 0
+import streamlit.components.v1 as _comp_menu
+
 with st.container():
-    st.markdown('<div class="mobile-menu-box">', unsafe_allow_html=True)
-    menu_mobile = st.selectbox(
-        "📋", menu_options, format_func=i18n.t,
-        index=menu_options.index(menu) if menu in menu_options else 0,
-        key="hrm_mobile_menu", label_visibility="collapsed",
-    )
+    st.markdown('<div class="mobile-only-menu">', unsafe_allow_html=True)
+    _comp_menu.html(f"""
+    <select id="hrm-mob-sel" style="width:100%;padding:8px 12px;font-size:15px;
+        border:1px solid #ddd;border-radius:8px;background:#f8f8f8;" onchange="
+        var idx = this.selectedIndex;
+        var url = new URL(window.top.location.href);
+        url.searchParams.set('hmenu', idx);
+        window.top.location.href = url.toString();
+    ">
+    </select>
+    <script>
+    (function() {{
+        var opts = {_menu_json};
+        var sel = document.getElementById('hrm-mob-sel');
+        for (var i = 0; i < opts.length; i++) {{
+            var o = document.createElement('option');
+            o.value = i; o.text = opts[i];
+            if (i === {_current_idx}) o.selected = true;
+            sel.appendChild(o);
+        }}
+    }})();
+    </script>
+    """, height=40)
     st.markdown('</div>', unsafe_allow_html=True)
-    # Nếu user chọn menu khác trên mobile → đồng bộ
-    if menu_mobile != menu:
-        menu = menu_mobile
+
+# Đọc query param hmenu nếu có (mobile navigation)
+_qp = st.query_params
+if 'hmenu' in _qp:
+    try:
+        _midx = int(_qp['hmenu'])
+        if 0 <= _midx < len(menu_options) and menu_options[_midx] != menu:
+            menu = menu_options[_midx]
+    except (ValueError, IndexError):
+        pass
 # MỚI:
 if st.sidebar.button(i18n.t("🚪 Đăng xuất"), width='stretch'):
     st.session_state.logged_in = False
@@ -9862,13 +9877,13 @@ elif menu == "🕒 Chấm công":
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         if bp_v:
             c.execute("""SELECT id, ma_nv, ho_ten, chuc_danh_nghe, phong_ban_lam_viec FROM nhan_vien
-                         WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND phong_ban_lam_viec = ANY(%s)
-                           AND so_hdld IS NOT NULL
-                         ORDER BY ma_nv ASC""", (bp_v,))
+                             WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND phong_ban_lam_viec = ANY(%s)
+                               AND so_hdld IS NOT NULL
+                             ORDER BY phong_ban_lam_viec ASC, ma_nv ASC""", (bp_v,))
         else:
             c.execute("""SELECT id, ma_nv, ho_ten, chuc_danh_nghe, phong_ban_lam_viec FROM nhan_vien
-                         WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND so_hdld IS NOT NULL
-                         ORDER BY ma_nv ASC""")
+                             WHERE trang_thai IN ('DANG_LAM','THU_VIEC') AND so_hdld IS NOT NULL
+                             ORDER BY phong_ban_lam_viec ASC, ma_nv ASC""")
         nv_list = c.fetchall()
 
         # Lấy dữ liệu chấm công hiện có — ĐỌC ma_cong (mới) + ca_ngay (cũ, fallback)
@@ -9990,7 +10005,8 @@ elif menu == "🕒 Chấm công":
             df_month = df_month[col_order]
 
             CC_HEADER_H = 38
-            table_height = CC_HEADER_H + CC_ROW_HEIGHT * (len(df_month) + 2)
+            MAX_VISIBLE = 25  # tối đa 25 dòng hiện cùng lúc, scroll nếu nhiều hơn
+            table_height = CC_HEADER_H + CC_ROW_HEIGHT * min(len(df_month) + 2, MAX_VISIBLE)
 
             # --- Export Excel ---
             if st.session_state.get('cc_export_trigger', False):
@@ -10517,7 +10533,7 @@ elif menu == "🕒 Chấm công":
                            "Mọi thay đổi đều được ghi log đầy đủ (ai sửa, lúc nào, giá trị cũ/mới, lý do).")
 
                 # Cấu hình: có bắt buộc phê duyệt không
-                can_edit_cc = can_edit()
+                can_edit_cc = can_dieu_chinh_bcc()
                 yeu_cau_phe_duyet = get_cau_hinh('cc_dieu_chinh_can_duyet', '0') == '1'
 
                 if not can_edit_cc:

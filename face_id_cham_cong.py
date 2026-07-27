@@ -42,12 +42,12 @@ _MODEL_INFO = {
 def suy_ma_cong_tu_gio_vao_ra(gio_vao, gio_ra, cfg):
     """
     Diem 2: Suy ma_cong tu dong tu gio vao/ra ghi nhan qua Face ID.
-    cfg = get_cau_hinh_cham_cong_full() (dinh nghia trong app.py, truyen vao
-    tu FaceIDVideoProcessor.cfg) - dung 3 key: gio_vao, gio_ra (gio chuan), phut_tre.
-    - Chua co gio_ra (quen bam ra) -> ma_cong de trong, cho canh bao.
-    - Co du gio_vao/gio_ra -> luon la 'x' (di lam du ngay), chi ghi nhan
-      so phut di tre/ve som de lam tieu chi KPI cuoi thang, KHONG tru cong.
-    - Khong tinh gio tang ca o day (thuoc Diem 3).
+    cfg = get_cau_hinh_cham_cong_full() - dung key: gio_vao, gio_ra (gio chuan), phut_tre.
+
+    Logic di tre:
+    - Tre <= phut_tre (mac dinh 15p): 'x' binh thuong, ghi so_phut_di_tre
+    - Tre > phut_tre va <= 60p: 'x' + canh bao admin_bcc/truong phong
+    - Tre > 60p: ma_cong = None (cho duyet), trang_thai = CHO_DUYET_GIO
     """
     if gio_ra is None:
         return {
@@ -55,19 +55,37 @@ def suy_ma_cong_tu_gio_vao_ra(gio_vao, gio_ra, cfg):
             'trang_thai_cham_cong': 'THIEU_GIO_RA',
             'so_phut_di_tre': None,
             'so_phut_ve_som': None,
+            'canh_bao': None,
         }
 
     def _phut_tu_nua_dem(t):
         return t.hour * 60 + t.minute
 
+    phut_tre_cfg = int(cfg.get('phut_tre', 15))
     so_phut_di_tre = max(0, _phut_tu_nua_dem(gio_vao) - _phut_tu_nua_dem(cfg['gio_vao']))
     so_phut_ve_som = max(0, _phut_tu_nua_dem(cfg['gio_ra']) - _phut_tu_nua_dem(gio_ra))
+
+    canh_bao = None
+
+    if so_phut_di_tre > 60:
+        # Trễ > 60 phút → không tự gán x, chờ admin_bcc duyệt
+        return {
+            'ma_cong': None,
+            'trang_thai_cham_cong': 'CHO_DUYET_GIO',
+            'so_phut_di_tre': so_phut_di_tre,
+            'so_phut_ve_som': so_phut_ve_som,
+            'canh_bao': f'DI_TRE_{so_phut_di_tre}P_CHO_DUYET',
+        }
+    elif so_phut_di_tre > phut_tre_cfg:
+        # Trễ > ngưỡng cho phép (15p) nhưng <= 60p → vẫn gán x + cảnh báo
+        canh_bao = f'DI_TRE_{so_phut_di_tre}P_CANH_BAO'
 
     return {
         'ma_cong': 'x',
         'trang_thai_cham_cong': 'HOP_LE',
         'so_phut_di_tre': so_phut_di_tre,
         'so_phut_ve_som': so_phut_ve_som,
+        'canh_bao': canh_bao,
     }
 
 
@@ -350,9 +368,11 @@ def ghi_nhan_cham_cong(conn, nhan_vien_id, cfg):
     # Đã có gio_vao → cập nhật gio_ra muộn nhất + suy ma_cong (Điểm 2) + gio tang ca (Điểm 3)
     ket_qua = suy_ma_cong_tu_gio_vao_ra(gio_vao, gio_hien_tai, cfg)
 
-    cur.execute("SELECT phong_ban_lam_viec FROM nhan_vien WHERE id = %s", (nhan_vien_id,))
+    cur.execute("SELECT phong_ban_lam_viec, ho_ten, ma_nv FROM nhan_vien WHERE id = %s", (nhan_vien_id,))
     row_nv = cur.fetchone()
     phong_ban = row_nv[0] if row_nv else None
+    ho_ten_nv = row_nv[1] if row_nv else ''
+    ma_nv = row_nv[2] if row_nv else ''
 
     tc = {'tong_gio_tang_ca': 0.0, 'gio_tang_ca_dem': 0.0,
           'loai_ngay_tang_ca': None, 'trang_thai_duyet_tc': None}
@@ -371,6 +391,50 @@ def ghi_nhan_cham_cong(conn, nhan_vien_id, cfg):
           tc['tong_gio_tang_ca'], tc['gio_tang_ca_dem'], tc['loai_ngay_tang_ca'], tc['trang_thai_duyet_tc'],
           cc_id))
     conn.commit()
+
+    # Gửi cảnh báo đi trễ qua Chat nội bộ cho Trưởng phòng
+    canh_bao = ket_qua.get('canh_bao')
+    if canh_bao and phong_ban:
+        try:
+            so_phut = ket_qua['so_phut_di_tre']
+            loai_cb = 'CHỜ DUYỆT' if 'CHO_DUYET' in canh_bao else 'CẢNH BÁO'
+
+            noi_dung = (f"⚠️ [{loai_cb}] {ma_nv} - {ho_ten_nv} đi trễ {so_phut} phút "
+                        f"(ngày {hom_nay.strftime('%d/%m/%Y')}). "
+                        f"Giờ vào: {gio_vao.strftime('%H:%M')}, "
+                        f"quy định: {cfg['gio_vao'].strftime('%H:%M')}.")
+            if 'CHO_DUYET' in canh_bao:
+                noi_dung += " Công ngày này CHƯA được tính — cần admin_bcc xác nhận."
+
+            # Tìm trưởng phòng
+            cur2 = conn.cursor()
+            cur2.execute("""
+                SELECT truong_phong_id FROM danh_muc_phong_ban
+                WHERE ten_phong_ban = %s AND truong_phong_id IS NOT NULL
+            """, (phong_ban,))
+            tp_row = cur2.fetchone()
+            nguoi_nhan_id = tp_row[0] if tp_row else None
+
+            if not nguoi_nhan_id:
+                # Fallback: gửi cho admin/hr đầu tiên
+                cur2.execute("""
+                    SELECT id FROM nhan_vien
+                    WHERE trang_thai = 'DANG_LAM'
+                    ORDER BY id ASC LIMIT 1
+                """)
+                admin_row = cur2.fetchone()
+                nguoi_nhan_id = admin_row[0] if admin_row else None
+
+            if nguoi_nhan_id:
+                cur2.execute("""
+                    INSERT INTO chat_noi_bo (nguoi_gui_id, nguoi_nhan_id, noi_dung, loai, created_at)
+                    VALUES (0, %s, %s, 'CANH_BAO_DI_TRE', NOW())
+                """, (nguoi_nhan_id, noi_dung))
+                conn.commit()
+            cur2.close()
+        except Exception:
+            pass  # Không để lỗi chat phá vỡ luồng chấm công
+
     cur.close()
     return "RA", gio_hien_tai
 

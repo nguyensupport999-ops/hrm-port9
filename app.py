@@ -347,6 +347,22 @@ def can_manage_users():
     # Chỉ Admin mới có quyền quản lý người dùng ('xem_toan_bo' không có quyền này)
     return st.session_state.get('role') == 'admin'
 
+def can_edit_bcc():
+    """Quyền nhập mới/sửa BCC (ô trống)"""
+    return st.session_state.role in ('admin', 'admin_bcc')
+
+def can_dieu_chinh_bcc():
+    """Quyền điều chỉnh BCC (sửa ô đã có dữ liệu, bắt buộc audit)"""
+    return st.session_state.role in ('admin', 'admin_bcc')
+
+def can_khoa_thang_bcc():
+    """Quyền khoá/mở khoá BCC tháng"""
+    return st.session_state.role == 'admin'
+
+def can_duyet_ot():
+    """Quyền phê duyệt tăng ca"""
+    return st.session_state.role in ('admin', 'admin_bcc', 'truong_phong')
+    
 def get_chu_ho_info(nhan_vien_id):
     """Lấy thông tin chủ hộ từ bảng phu_luc_gia_dinh"""
     try:
@@ -4141,9 +4157,66 @@ def ensure_cham_cong_table():
             UNIQUE(ten_phong_ban)
         )
     """)
+    # Bảng khoá tháng BCC
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS khoa_thang_bcc (
+            id SERIAL PRIMARY KEY,
+            thang INTEGER NOT NULL,
+            nam INTEGER NOT NULL,
+            trang_thai TEXT NOT NULL DEFAULT 'MO',   -- 'MO' | 'KHOA'
+            nguoi_khoa TEXT,
+            thoi_diem_khoa TIMESTAMP,
+            nguoi_mo TEXT,
+            thoi_diem_mo TIMESTAMP,
+            ghi_chu TEXT,
+            UNIQUE(thang, nam)
+        )
+    """)
     db.commit()
     c.close()
     db.close()
+
+
+def is_thang_da_khoa(thang, nam):
+    """Kiểm tra tháng đã bị khoá BCC chưa. Trả về True nếu đã khoá."""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("SELECT trang_thai FROM khoa_thang_bcc WHERE thang=%s AND nam=%s", (thang, nam))
+        row = c.fetchone()
+        db.close()
+        return row is not None and row[0] == 'KHOA'
+    except Exception:
+        return False
+
+
+def khoa_mo_thang_bcc(thang, nam, hanh_dong, ghi_chu=''):
+    """Khoá hoặc mở khoá BCC tháng. hanh_dong = 'KHOA' | 'MO'."""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        if hanh_dong == 'KHOA':
+            c.execute("""
+                INSERT INTO khoa_thang_bcc (thang, nam, trang_thai, nguoi_khoa, thoi_diem_khoa, ghi_chu)
+                VALUES (%s, %s, 'KHOA', %s, NOW(), %s)
+                ON CONFLICT (thang, nam) DO UPDATE SET
+                    trang_thai='KHOA', nguoi_khoa=EXCLUDED.nguoi_khoa,
+                    thoi_diem_khoa=NOW(), ghi_chu=EXCLUDED.ghi_chu
+            """, (thang, nam, st.session_state.username, ghi_chu))
+        else:
+            c.execute("""
+                INSERT INTO khoa_thang_bcc (thang, nam, trang_thai, nguoi_mo, thoi_diem_mo, ghi_chu)
+                VALUES (%s, %s, 'MO', %s, NOW(), %s)
+                ON CONFLICT (thang, nam) DO UPDATE SET
+                    trang_thai='MO', nguoi_mo=EXCLUDED.nguoi_mo,
+                    thoi_diem_mo=NOW(), ghi_chu=EXCLUDED.ghi_chu
+            """, (thang, nam, st.session_state.username, ghi_chu))
+        db.commit()
+        db.close()
+        return True
+    except Exception:
+        return False
+
 
 def ensure_face_id_table():
     """Tạo bảng nhan_vien_face_id trên Supabase nếu chưa có (idempotent)."""
@@ -5740,6 +5813,9 @@ elif st.session_state.role == "kt_luong":
     menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role == "van_thu":
     menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
+elif st.session_state.role == "admin_bcc":
+    # Admin BCC: Chấm công + BHXH + Tính thu nhập + Dashboard (không có Ứng viên, Danh mục, Công văn)
+    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
 elif st.session_state.role == "viewer":
     # Viewer: chỉ xem, thu hẹp — không có BHXH, không có Tính thu nhập
     menu_options = ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo định kỳ","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
@@ -9623,31 +9699,53 @@ elif menu == "🕒 Chấm công":
         holiday_cols = [t for d, t in zip(day_list, col_titles)
                         if d.strftime('%Y-%m-%d') in danh_sach_le_set]
 
+        # Kiểm tra khoá tháng
+        da_khoa = is_thang_da_khoa(thang_v, nam_v)
+
         # Thanh điều khiển
-        col_h1, col_h2, col_h3, col_h4, col_h5 = st.columns([2.5, 0.7, 0.7, 0.7, 0.7])
+        col_h1, col_h2, col_h3, col_h4, col_h5, col_h6 = st.columns([2.5, 0.6, 0.6, 0.6, 0.6, 0.7])
         with col_h1:
             ten_bp = ", ".join(CHAM_CONG_DEPT_LABEL.get(b, b) for b in bp_v) if bp_v else "Tất cả bộ phận"
-            st.markdown(f"**📅 BCC tháng {thang_v}/{nam_v} — {ten_bp}**")
+            trang_thai_khoa = " 🔒" if da_khoa else ""
+            st.markdown(f"**📅 BCC tháng {thang_v}/{nam_v} — {ten_bp}{trang_thai_khoa}**")
         with col_h2:
             if st.button("◀️ Đóng", key="cc_close_btn", use_container_width=True):
                 st.session_state.cc_full_open = False
                 st.session_state.cc_pending_missing = None
                 st.rerun()
         with col_h3:
+            # Nút sửa: chỉ admin/admin_bcc được bấm, tháng khoá thì disable
             edit_label = "👁️" if st.session_state.get('cc_edit_mode') else "✏️"
-            if st.button(edit_label, key="cc_toggle_edit_btn", use_container_width=True):
+            if st.button(edit_label, key="cc_toggle_edit_btn", use_container_width=True,
+                         disabled=(da_khoa or not can_edit_bcc())):
                 st.session_state.cc_edit_mode = not st.session_state.get('cc_edit_mode', False)
                 st.session_state.cc_pending_missing = None
                 st.rerun()
         with col_h4:
             save_clicked = st.button(
                 "💾", key="cc_save_month_btn", type="primary", use_container_width=True,
-                disabled=not st.session_state.get('cc_edit_mode', False)
+                disabled=(da_khoa or not st.session_state.get('cc_edit_mode', False) or not can_edit_bcc())
             )
         with col_h5:
             if st.button("📤 Xuất", key="cc_export_btn", use_container_width=True):
                 st.session_state.cc_export_trigger = True
                 st.rerun()
+        with col_h6:
+            # Nút khoá/mở khoá — chỉ admin
+            if can_khoa_thang_bcc():
+                if da_khoa:
+                    if st.button("🔓", key="cc_unlock_btn", use_container_width=True,
+                                 help="Mở khoá BCC tháng này"):
+                        khoa_mo_thang_bcc(thang_v, nam_v, 'MO')
+                        st.rerun()
+                else:
+                    if st.button("🔒", key="cc_lock_btn", use_container_width=True,
+                                 help="Khoá BCC tháng này (sau khi tính lương)"):
+                        khoa_mo_thang_bcc(thang_v, nam_v, 'KHOA')
+                        st.rerun()
+
+        if da_khoa:
+            st.info("🔒 Tháng này đã khoá — không thể sửa BCC. Chỉ Admin có quyền mở khoá.")
 
         # Hướng dẫn ký hiệu mới
         with st.expander("📖 Bảng ký hiệu chấm công (22 mã)", expanded=False):
@@ -9800,9 +9898,8 @@ elif menu == "🕒 Chấm công":
                     df_month[col_need] = ""
             df_month = df_month[col_order]
 
-            CC_MAX_VISIBLE_ROWS = 30
             CC_HEADER_H = 38
-            table_height = CC_HEADER_H + CC_ROW_HEIGHT * min(len(df_month), CC_MAX_VISIBLE_ROWS)
+            table_height = CC_HEADER_H + CC_ROW_HEIGHT * (len(df_month) + 2)
 
             # --- Export Excel ---
             if st.session_state.get('cc_export_trigger', False):
@@ -12957,6 +13054,7 @@ elif menu == "🔑 Quản lý MK":
             VAI_TRO_LUA_CHON = [
                 ("nhan_vien", "👤 Nhân viên (mặc định, không có quyền quản trị)"),
                 ("admin", "🛡️ Admin (toàn quyền hệ thống)"),
+                ("admin_bcc", "📋 Admin BCC (theo dõi, phê duyệt, điều chỉnh chấm công & OT)"),
                 ("hr", "👥 HR (nhân sự)"),
                 ("van_thu", "📄 Văn thư (Công văn & HĐ kinh tế)"),
                 ("kt_luong", "💰 Kế toán lương (Chấm công & Tính thu nhập)"),

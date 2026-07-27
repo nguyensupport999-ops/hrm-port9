@@ -1483,6 +1483,46 @@ handle_language_change()
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide",
                    initial_sidebar_state="expanded")
 
+# Mobile: ép mở sidebar khi chưa đăng nhập (form login nằm trong sidebar)
+if not st.session_state.get('logged_in', False):
+    st.markdown("""
+    <style>
+        /* Mobile: ẩn khu vực làm việc, chỉ hiện sidebar login */
+        @media (max-width: 768px) {
+            [data-testid="stSidebar"] {
+                width: 100vw !important;
+                min-width: 100vw !important;
+                transform: none !important;
+                position: relative !important;
+                z-index: 999999 !important;
+            }
+            [data-testid="stSidebar"] > div:first-child {
+                width: 100vw !important;
+            }
+            /* Ẩn nút đóng sidebar trên mobile khi chưa login */
+            [data-testid="stSidebar"] button[kind="header"] {
+                display: none !important;
+            }
+            /* Ẩn main content */
+            section[data-testid="stMain"] {
+                display: none !important;
+            }
+        }
+    </style>
+    <script>
+        // Ép mở sidebar trên mobile
+        const sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
+        if (sidebar) {
+            sidebar.setAttribute('aria-expanded', 'true');
+        }
+        // Click nút mở sidebar nếu đang đóng
+        const btn = window.parent.document.querySelector('[data-testid="baseButton-header"]');
+        if (btn && sidebar && sidebar.getAttribute('aria-expanded') !== 'true') {
+            btn.click();
+        }
+    </script>
+    """, unsafe_allow_html=True)
+
 # Gọi định danh tenant
 resolve_tenant()
 
@@ -9870,8 +9910,12 @@ elif menu == "🕒 Chấm công":
                 row_tc["TC(h)"] = None
                 row_tc["Chấm công full"] = ""
 
-                # Quyết định 1 hay 2 dòng
-                if is_van_phong(dept):
+                # Quyết định 1 hay 2 dòng: kiểm tra phòng ban có cho phép tăng ca không
+                cfg_tc_phong = get_cau_hinh_tang_ca_theo_phong(dept)
+                hien_dong_tc = cfg_tc_phong.get('cho_phep_tang_ca', True)
+
+                if not hien_dong_tc:
+                    # Phòng không cho phép TC → 1 dòng (chỉ ký hiệu)
                     flat_rows.append(row_kh)
                     nv_row_indices[nv['ma_nv']] = {
                         'nv_id': nv['id'],
@@ -9879,6 +9923,7 @@ elif menu == "🕒 Chấm công":
                         'tc': None,
                     }
                 else:
+                    # Phòng cho phép TC → 2 dòng (ký hiệu + tăng ca)
                     flat_rows.append(row_kh)
                     idx_kh = len(flat_rows) - 1
                     flat_rows.append(row_tc)
@@ -11532,8 +11577,10 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                 set_cau_hinh('cc_danh_sach_ngay_le',
                              json.dumps(ds_gop, ensure_ascii=False),
                              'Danh sách ngày nghỉ lễ trong năm')
-                st.success(f"✅ Đã thêm {len(le_co_dinh)} ngày lễ cố định năm {int(nam_tai_le)}. "
-                           "Bấm '💾 Lưu cấu hình chấm công' để xác nhận.")
+                # Xoá cache để rerun đọc lại từ DB
+                if 'cau_hinh_cache' in st.session_state:
+                    st.session_state.pop('cau_hinh_cache', None)
+                st.success(f"✅ Đã thêm {len(le_co_dinh)} ngày lễ cố định năm {int(nam_tai_le)}.")
                 st.rerun()
 
         ds_le_text_moi = st.text_area(

@@ -1519,99 +1519,44 @@ if not st.session_state.get('logged_in', False):
     </script>
     """, height=0)
 else:
-    # ĐÃ LOGIN: nút Menu nổi (mobile only) — JS trực tiếp thao tác style
-    components.html("""
-    <script>
-    (function() {
-        var doc = window.top.document;
-        if (doc.getElementById('hrm-menu-btn')) return;
-        if (window.top.innerWidth >= 769) return;
-
-        // Tìm sidebar element
-        function getSidebar() {
-            return doc.querySelector('[data-testid="stSidebar"]');
-        }
-
-        // 1. Nút Menu
-        var btn = doc.createElement('button');
-        btn.id = 'hrm-menu-btn';
-        btn.innerHTML = '☰ Menu';
-        btn.style.cssText = 'position:fixed; top:6px; left:6px; z-index:999999;'
-            + 'background:#ff4b4b; color:#fff; border:none; border-radius:8px;'
-            + 'padding:10px 18px; font-size:15px; font-weight:bold;'
-            + 'box-shadow:0 2px 10px rgba(0,0,0,0.35); cursor:pointer;';
-
-        // 2. Overlay
-        var overlay = doc.createElement('div');
-        overlay.id = 'hrm-menu-overlay';
-        overlay.style.cssText = 'display:none; position:fixed; top:0; left:0;'
-            + 'width:100vw; height:100vh; background:rgba(0,0,0,0.4);'
-            + 'z-index:999990; cursor:pointer;';
-
-        function openSidebar() {
-            var sb = getSidebar();
-            if (!sb) return;
-            // Ghi đè inline style của Streamlit
-            sb.style.setProperty('transform', 'none', 'important');
-            sb.style.setProperty('width', '85vw', 'important');
-            sb.style.setProperty('min-width', '85vw', 'important');
-            sb.style.setProperty('z-index', '999995', 'important');
-            sb.style.setProperty('position', 'fixed', 'important');
-            sb.style.setProperty('top', '0', 'important');
-            sb.style.setProperty('left', '0', 'important');
-            sb.style.setProperty('height', '100vh', 'important');
-            // Đảm bảo nội dung bên trong cũng full width
-            var inner = sb.querySelector(':scope > div');
-            if (inner) {
-                inner.style.setProperty('width', '85vw', 'important');
+    # ĐÃ LOGIN: phóng to nút hamburger mặc định của Streamlit trên mobile
+    # Không inject JS — chỉ CSS thuần, không gây đơ
+    st.markdown("""
+    <style>
+        @media (max-width: 768px) {
+            /* Phóng to + tô nổi nút mở sidebar (hamburger) của Streamlit */
+            [data-testid="collapsedControl"] {
+                position: fixed !important;
+                top: 6px !important;
+                left: 6px !important;
+                z-index: 999999 !important;
+                background: #ff4b4b !important;
+                border-radius: 8px !important;
+                padding: 6px 10px !important;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.35) !important;
             }
-            btn.style.display = 'none';
-            overlay.style.display = 'block';
-        }
-
-        function closeSidebar() {
-            var sb = getSidebar();
-            if (!sb) return;
-            // Khôi phục style mặc định mobile (ẩn sidebar)
-            sb.style.setProperty('transform', 'translateX(-100%)', 'important');
-            var inner = sb.querySelector(':scope > div');
-            if (inner) {
-                inner.style.removeProperty('width');
+            /* Icon SVG bên trong — đổi trắng + to hơn */
+            [data-testid="collapsedControl"] svg {
+                width: 28px !important;
+                height: 28px !important;
+                color: white !important;
+                stroke: white !important;
             }
-            btn.style.display = 'block';
-            overlay.style.display = 'none';
-        }
-
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            openSidebar();
-        });
-
-        overlay.addEventListener('click', function(e) {
-            e.preventDefault();
-            closeSidebar();
-        });
-
-        doc.body.appendChild(btn);
-        doc.body.appendChild(overlay);
-
-        // Tự đóng sidebar khi chọn menu item
-        doc.addEventListener('click', function(e) {
-            if (overlay.style.display !== 'block') return;
-            var sb = getSidebar();
-            if (!sb) return;
-            if (!sb.contains(e.target)) return;
-            // Click vào radio (menu item) hoặc button (Đăng xuất)
-            var menuItem = e.target.closest('[role="radio"]')
-                        || e.target.closest('button');
-            if (menuItem) {
-                setTimeout(closeSidebar, 300);
+            /* Thêm chữ "Menu" bên cạnh icon */
+            [data-testid="collapsedControl"] button::after {
+                content: ' Menu';
+                color: white;
+                font-size: 14px;
+                font-weight: bold;
+                margin-left: 4px;
             }
-        }, true);
-    })();
-    </script>
-    """, height=0)
+            /* Đẩy nội dung chính xuống để không bị nút Menu đè */
+            section[data-testid="stMain"] > div:first-child {
+                padding-top: 50px !important;
+            }
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
 # Gọi định danh tenant
 resolve_tenant()

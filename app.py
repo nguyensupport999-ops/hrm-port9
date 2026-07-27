@@ -1483,11 +1483,13 @@ handle_language_change()
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide",
                    initial_sidebar_state="expanded")
 
-# Mobile: ép mở sidebar khi chưa đăng nhập (form login nằm trong sidebar)
+# Mobile UX: sidebar login + nút Menu nổi sau đăng nhập
+import streamlit.components.v1 as components
+
 if not st.session_state.get('logged_in', False):
+    # CHƯA LOGIN: ép sidebar full-width, ẩn main content
     st.markdown("""
     <style>
-        /* Mobile: ẩn khu vực làm việc, chỉ hiện sidebar login */
         @media (max-width: 768px) {
             [data-testid="stSidebar"] {
                 width: 100vw !important;
@@ -1499,29 +1501,84 @@ if not st.session_state.get('logged_in', False):
             [data-testid="stSidebar"] > div:first-child {
                 width: 100vw !important;
             }
-            /* Ẩn nút đóng sidebar trên mobile khi chưa login */
             [data-testid="stSidebar"] button[kind="header"] {
                 display: none !important;
             }
-            /* Ẩn main content */
             section[data-testid="stMain"] {
                 display: none !important;
             }
         }
     </style>
-    <script>
-        // Ép mở sidebar trên mobile
-        const sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
-        if (sidebar) {
-            sidebar.setAttribute('aria-expanded', 'true');
-        }
-        // Click nút mở sidebar nếu đang đóng
-        const btn = window.parent.document.querySelector('[data-testid="baseButton-header"]');
-        if (btn && sidebar && sidebar.getAttribute('aria-expanded') !== 'true') {
-            btn.click();
-        }
-    </script>
     """, unsafe_allow_html=True)
+    components.html("""
+    <script>
+        const sb = window.top.document.querySelector('[data-testid="stSidebar"]');
+        if (sb) sb.setAttribute('aria-expanded', 'true');
+        const btn = window.top.document.querySelector('[data-testid="baseButton-header"]');
+        if (btn && sb && sb.getAttribute('aria-expanded') !== 'true') btn.click();
+    </script>
+    """, height=0)
+else:
+    # ĐÃ LOGIN: thêm nút Menu nổi cố định ở góc trái (mobile only)
+    st.markdown("""
+    <style>
+        @media (max-width: 768px) {
+            /* Nút Menu nổi cố định góc trái trên */
+            #hrm-mobile-menu-btn {
+                position: fixed;
+                top: 8px;
+                left: 8px;
+                z-index: 999999;
+                background: #ff4b4b;
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-size: 16px;
+                font-weight: bold;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                cursor: pointer;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            #hrm-mobile-menu-btn:active {
+                background: #d63333;
+            }
+        }
+        @media (min-width: 769px) {
+            #hrm-mobile-menu-btn { display: none !important; }
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    components.html("""
+    <script>
+    (function() {
+        const doc = window.top.document;
+        if (doc.getElementById('hrm-mobile-menu-btn')) return;
+
+        const btn = doc.createElement('button');
+        btn.id = 'hrm-mobile-menu-btn';
+        btn.innerHTML = '☰ Menu';
+        btn.onclick = function() {
+            const sb = doc.querySelector('[data-testid="stSidebar"]');
+            if (!sb) return;
+            const expanded = sb.getAttribute('aria-expanded') === 'true';
+            if (expanded) {
+                // Đóng sidebar
+                const closeBtn = sb.querySelector('button[kind="header"]');
+                if (closeBtn) closeBtn.click();
+            } else {
+                // Mở sidebar
+                sb.setAttribute('aria-expanded', 'true');
+                const headerBtn = doc.querySelector('[data-testid="baseButton-header"]');
+                if (headerBtn) headerBtn.click();
+            }
+        };
+        doc.body.appendChild(btn);
+    })();
+    </script>
+    """, height=0)
 
 # Gọi định danh tenant
 resolve_tenant()

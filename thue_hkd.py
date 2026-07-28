@@ -312,43 +312,41 @@ def _render_tab_cau_hinh(db_engine):
         key="hkd_nganh",
     )
 
-    # Tự gợi ý tỷ lệ thuế theo ngành, nhưng cho phép sửa tay
+    # Tỷ lệ thuế auto theo ngành nghề (luật định — không cho sửa tay)
     ty_le_mac_dinh = TY_LE_THUE_THEO_NGANH[nganh_nghe]
+    ty_le_gtgt = ty_le_mac_dinh["gtgt"]
+    ty_le_tncn = ty_le_mac_dinh["tncn"]
     col_a, col_b = st.columns(2)
     with col_a:
-        ty_le_gtgt = st.number_input(
-            "Tỷ lệ thuế GTGT (%)", min_value=0.0, max_value=10.0, step=0.5,
-            value=float(cfg.get("ty_le_thue_gtgt", ty_le_mac_dinh["gtgt"])),
-            key="hkd_gtgt",
-        )
+        st.metric("Tỷ lệ thuế GTGT", f"{ty_le_gtgt}%")
     with col_b:
-        ty_le_tncn = st.number_input(
-            "Tỷ lệ thuế TNCN (%)", min_value=0.0, max_value=5.0, step=0.5,
-            value=float(cfg.get("ty_le_thue_tncn", ty_le_mac_dinh["tncn"])),
-            key="hkd_tncn",
-        )
+        st.metric("Tỷ lệ thuế TNCN", f"{ty_le_tncn}%")
+    st.caption("📌 Tỷ lệ thuế theo Thông tư 40/2021/TT-BTC, tự động theo ngành nghề.")
 
+    # Phương pháp tính thuế: HKD 500tr–3tỷ được chọn 1 trong 2; nhóm khác fix theo luật
     phuong_phap_options = ["TY_LE_DOANH_THU", "LOI_NHUAN"]
     phuong_phap_labels = {
-        "TY_LE_DOANH_THU": "Tính thuế theo tỷ lệ % trên doanh thu",
-        "LOI_NHUAN": "Tính thuế theo lợi nhuận (DT − Chi phí)",
+        "TY_LE_DOANH_THU": "Theo tỷ lệ % trên doanh thu (không cần chứng từ chi phí)",
+        "LOI_NHUAN": "Theo lợi nhuận: (DT − Chi phí) × thuế suất (cần hóa đơn đầu vào)",
     }
     pp_hien_tai = cfg.get("phuong_phap_tinh_thue", "TY_LE_DOANH_THU")
     idx_pp = phuong_phap_options.index(pp_hien_tai) if pp_hien_tai in phuong_phap_options else 0
     phuong_phap = st.selectbox(
-        "Phương pháp tính thuế",
+        "Phương pháp tính thuế (HKD DT 500tr–3tỷ được chọn)",
         phuong_phap_options,
         index=idx_pp,
         format_func=lambda k: phuong_phap_labels[k],
         key="hkd_phuongphap",
     )
 
+    # Kỳ kê khai: auto theo luật — DT ≤ 500tr → năm, DT > 500tr → quý
+    # Lần đầu admin tự chọn dự kiến; sau đó Tab "Theo dõi" sẽ tự điều chỉnh khi có DT thực tế
     ky_options = ["NAM", "QUY"]
     ky_labels = {"NAM": "Kê khai theo năm (DT ≤ 500 triệu)", "QUY": "Kê khai theo quý (DT > 500 triệu)"}
     ky_hien_tai = cfg.get("ky_ke_khai", "NAM")
     idx_ky = ky_options.index(ky_hien_tai) if ky_hien_tai in ky_options else 0
     ky_ke_khai = st.selectbox(
-        "Kỳ kê khai",
+        "Kỳ kê khai (dự kiến — sẽ tự điều chỉnh theo DT thực tế)",
         ky_options,
         index=idx_ky,
         format_func=lambda k: ky_labels[k],
@@ -368,14 +366,25 @@ def _render_tab_cau_hinh(db_engine):
     if chu_ho_dong_bhxh:
         col_m1, col_m2 = st.columns(2)
         with col_m1:
-            muc_luong = st.number_input(
+            _ml_hien_tai = int(cfg.get("muc_luong_dong_bhxh_chu_ho", MUC_THAM_CHIEU_BHXH))
+            _ml_text = st.text_input(
                 f"Mức lương đóng BHXH (tối thiểu {_fmt_tien(MUC_THAM_CHIEU_BHXH)}đ)",
-                min_value=MUC_THAM_CHIEU_BHXH,
-                max_value=MUC_THAM_CHIEU_BHXH * 20,
-                step=100_000,
-                value=int(cfg.get("muc_luong_dong_bhxh_chu_ho", MUC_THAM_CHIEU_BHXH)),
+                value=_fmt_tien(_ml_hien_tai),
                 key="hkd_mucluong",
             )
+            # Parse: bỏ dấu chấm phân hàng → số nguyên
+            try:
+                muc_luong = int(_ml_text.replace(".", "").replace(",", "").strip())
+            except ValueError:
+                muc_luong = _ml_hien_tai
+                st.caption("⚠️ Nhập số, VD: 2.340.000")
+            # Validate
+            if muc_luong < MUC_THAM_CHIEU_BHXH:
+                st.caption(f"⚠️ Tối thiểu {_fmt_tien(MUC_THAM_CHIEU_BHXH)}đ")
+                muc_luong = MUC_THAM_CHIEU_BHXH
+            elif muc_luong > MUC_THAM_CHIEU_BHXH * 20:
+                st.caption(f"⚠️ Tối đa {_fmt_tien(MUC_THAM_CHIEU_BHXH * 20)}đ")
+                muc_luong = MUC_THAM_CHIEU_BHXH * 20
         with col_m2:
             pt_options = ["HANG_THANG", "3_THANG", "6_THANG"]
             pt_labels = {"HANG_THANG": "Hàng tháng", "3_THANG": "3 tháng/lần", "6_THANG": "6 tháng/lần"}
@@ -477,12 +486,37 @@ def _render_tab_theo_doi(db_engine):
 
         col1, col2 = st.columns(2)
         with col1:
-            doanh_thu_ky = st.number_input("Doanh thu kỳ này (VNĐ)", min_value=0,
-                                           step=1_000_000, value=0, key="hkd_dt_ky")
+            _dt_text = st.text_input("Doanh thu kỳ này (VNĐ)", value="0", key="hkd_dt_ky")
+            try:
+                doanh_thu_ky = int(_dt_text.replace(".", "").replace(",", "").strip())
+                if doanh_thu_ky < 0:
+                    doanh_thu_ky = 0
+                # Hiển thị lại dạng có dấu chấm để user thấy
+                if doanh_thu_ky > 0:
+                    st.caption(f"= {_fmt_tien(doanh_thu_ky)}đ")
+            except ValueError:
+                doanh_thu_ky = 0
+                st.caption("⚠️ Nhập số, VD: 150.000.000")
         with col2:
-            chi_phi_ky = st.number_input("Chi phí kỳ này (VNĐ)", min_value=0,
-                                         step=1_000_000, value=0, key="hkd_cp_ky",
-                                         disabled=(cfg["phuong_phap_tinh_thue"] != "LOI_NHUAN"))
+            _is_loi_nhuan = cfg["phuong_phap_tinh_thue"] == "LOI_NHUAN"
+            _cp_text = st.text_input(
+                "Chi phí kỳ này (VNĐ)",
+                value="0",
+                key="hkd_cp_ky",
+                disabled=not _is_loi_nhuan,
+            )
+            if _is_loi_nhuan:
+                try:
+                    chi_phi_ky = int(_cp_text.replace(".", "").replace(",", "").strip())
+                    if chi_phi_ky < 0:
+                        chi_phi_ky = 0
+                    if chi_phi_ky > 0:
+                        st.caption(f"= {_fmt_tien(chi_phi_ky)}đ")
+                except ValueError:
+                    chi_phi_ky = 0
+                    st.caption("⚠️ Nhập số, VD: 80.000.000")
+            else:
+                chi_phi_ky = 0
 
         # Tính doanh thu lũy kế
         dt_luy_ke = sum(d.get("doanh_thu_ky", 0) or 0 for d in ds_thue) + doanh_thu_ky

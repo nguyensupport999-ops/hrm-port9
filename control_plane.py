@@ -81,6 +81,8 @@ def ensure_control_plane_schema():
         c = conn.cursor()
         # Chạy ALTER TABLE để thêm các cột nếu chưa tồn tại
         columns_to_add = [
+            ("loai_hinh", "TEXT DEFAULT 'DOANH_NGHIEP'"),
+            ("nganh_nghe_chinh", "TEXT"),
             ("dai_dien", "TEXT"),
             ("chuc_vu", "TEXT"),
             ("ma_so_thue", "TEXT"),
@@ -173,6 +175,8 @@ def get_tenant_by_code(ma_cty: str):
         "supabase_key": decrypt_text(row["supabase_key_enc"]),
         "goi_dich_vu": row["goi_dich_vu"],
         "ngon_ngu": row.get("ngon_ngu") or "VI",
+        "loai_hinh": row.get("loai_hinh") or "DOANH_NGHIEP",
+        "nganh_nghe_chinh": row.get("nganh_nghe_chinh") or "",
 
         # Metadata cấu hình động
         "dai_dien": row.get("dai_dien") or "",
@@ -224,6 +228,8 @@ def get_tenant_by_ma_so_thue(ma_so_thue: str):
         "supabase_key": decrypt_text(row["supabase_key_enc"]),
         "goi_dich_vu": row["goi_dich_vu"],
         "ngon_ngu": row.get("ngon_ngu") or "VI",
+        "loai_hinh": row.get("loai_hinh") or "DOANH_NGHIEP",
+        "nganh_nghe_chinh": row.get("nganh_nghe_chinh") or "",
 
         # Metadata cấu hình động
         "dai_dien": row.get("dai_dien") or "",

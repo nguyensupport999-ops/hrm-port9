@@ -5979,6 +5979,25 @@ else:  # 'nhan_vien' thường (mặc định) hoặc bất kỳ vai trò nào k
     # -> LUÔN có 1 menu tối thiểu an toàn, tuyệt đối KHÔNG được để menu_options rơi vào
     # trạng thái "không được gán" (từng gây lỗi NameError crash toàn bộ app khi đăng nhập).
     menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"]
+# ── Phân luồng menu theo loại hình tenant (DN / HKD) ──
+_tenant = st.session_state.get("tenant") or {}
+if _tenant.get("loai_hinh") == "HO_KINH_DOANH":
+    _menu_bo_hkd = {
+        "👤 Ứng viên",
+        "📋 Báo cáo định kỳ",
+        "📄 Quản lý Công văn & HĐ kinh tế",
+        "💬 Chat nội bộ",
+        "🖼️ Tạo ảnh thẻ NV",
+        "🔍 Audit Dashboard",
+    }
+    menu_options = [m for m in menu_options if m not in _menu_bo_hkd]
+    # Thêm menu Thuế HKD — chèn sau 💰 Tính thu nhập (nếu có) hoặc cuối
+    if "🧾 Thuế HKD" not in menu_options:
+        if "💰 Tính thu nhập" in menu_options:
+            _vi_tri = menu_options.index("💰 Tính thu nhập") + 1
+        else:
+            _vi_tri = len(menu_options) - 1
+        menu_options.insert(_vi_tri, "🧾 Thuế HKD")
 menu = st.sidebar.radio(i18n.t("📋 Menu"), menu_options, format_func=i18n.t)
 st.sidebar.divider()
 st.sidebar.caption(f"👤 {st.session_state.get('ho_ten_dang_nhap', st.session_state.username)} ({st.session_state.role})")

@@ -45,6 +45,7 @@ import i18n
 import photo_card_gender
 import base64
 import tinh_thu_nhap
+import thue_hkd
 import mimetypes
 from io import BytesIO
 from datetime import time as _time
@@ -53,6 +54,7 @@ import numpy as np
 import cv2
 from streamlit_webrtc import webrtc_streamer
 import face_id_cham_cong
+
 
 try:
     from config import COMPANY_CONFIG, BHXH_CONFIG, EMAIL_CONFIG, TELEGRAM_CONFIG, USERS
@@ -11020,6 +11022,10 @@ elif menu == "🕒 Chấm công":
 # ========== TÍNH THU NHẬP ==========
 elif menu == "💰 Tính thu nhập":
     tinh_thu_nhap.show_tinh_thu_nhap()
+
+# ========== THUẾ HKD ==========
+elif menu == "🧾 Thuế HKD":
+    thue_hkd.render_thue_hkd(st.session_state.db_engine)
 
 # ========== UPLOAD ==========
 elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":

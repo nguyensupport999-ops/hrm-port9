@@ -2699,8 +2699,9 @@ def preview_so_cong_van(loai_cv):
     # Kiểm tra cấu hình đánh số theo kiểu dd/mm cho loại này
     kieu_ddmm = get_cv_kieu_ngay(loai_tim)
     if kieu_ddmm:
-        ngay_hom_nay = datetime.now().strftime('%d/%m')
-        so_cv = f"{so_moi:02d}/{ngay_hom_nay}/{nam_hien_tai}/{prefix}-{ma_cty}"
+        # Kiểu dd/mm: số = ddmm (VD: 2807/2026/TB-CHL)
+        ddmm = datetime.now().strftime('%d%m')
+        so_cv = f"{ddmm}/{nam_hien_tai}/{prefix}-{ma_cty}"
     else:
         so_cv = f"{so_moi:02d}/{nam_hien_tai}/{prefix}-{ma_cty}"
     return so_cv
@@ -2727,8 +2728,9 @@ def generate_so_cong_van(loai_cv):
     # Tạo số công văn — có thể theo kiểu dd/mm nếu tenant bật
     kieu_ddmm = get_cv_kieu_ngay(loai_tim)
     if kieu_ddmm:
-        ngay_hom_nay = datetime.now().strftime('%d/%m')
-        so_cv = f"{so_moi:02d}/{ngay_hom_nay}/{nam_hien_tai}/{prefix}-{ma_cty}"
+        # Kiểu dd/mm: số = ddmm (VD: 2807/2026/TB-CHL), không dùng số thứ tự tăng dần
+        ddmm = datetime.now().strftime('%d%m')
+        so_cv = f"{ddmm}/{nam_hien_tai}/{prefix}-{ma_cty}"
     else:
         so_cv = f"{so_moi:02d}/{nam_hien_tai}/{prefix}-{ma_cty}"
     return so_cv
@@ -3108,8 +3110,8 @@ def show_quan_ly_cong_van():
 
             st.divider()
             st.markdown("**📅 Đánh số theo kiểu dd/mm**")
-            st.caption("Bật tùy chọn này nếu muốn số công văn có thêm ngày/tháng phát hành. "
-                       "VD: `01/28/07/2026/QĐ-CHL` thay vì `01/2026/QĐ-CHL`")
+            st.caption("Bật tùy chọn này nếu muốn số công văn theo ngày phát hành thay vì số thứ tự. "
+                       "VD: `2807/2026/TB-CHL` (ngày 28/07) thay vì `01/2026/TB-CHL`")
 
             if option == 'CHUNG':
                 loai_ddmm_list = ['CHUNG']

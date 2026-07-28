@@ -1756,6 +1756,37 @@ def update_cv_danh_so_option(option):
     except:
         return False
 
+def get_cv_kieu_ngay(loai):
+    """Lấy cấu hình đánh số theo kiểu dd/mm cho loại công văn cụ thể.
+    Trả về True nếu loại đó bật kiểu dd/mm, False nếu dùng kiểu mặc định (chỉ năm)."""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("SELECT gia_tri FROM cau_hinh_he_thong WHERE ten_cau_hinh = %s", (f'cv_kieu_ngay_{loai}',))
+        result = c.fetchone()
+        db.close()
+        return result[0] == 'DD_MM' if result else False
+    except:
+        return False
+
+def update_cv_kieu_ngay(loai, kieu):
+    """Cập nhật cấu hình kiểu đánh số ngày cho loại công văn.
+    kieu: 'DD_MM' hoặc 'NAM' (chỉ năm, mặc định)."""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        ten_cau_hinh = f'cv_kieu_ngay_{loai}'
+        c.execute("""
+            INSERT INTO cau_hinh_he_thong (ten_cau_hinh, gia_tri, updated_at)
+            VALUES (%s, %s, NOW())
+            ON CONFLICT (ten_cau_hinh) DO UPDATE SET gia_tri = EXCLUDED.gia_tri, updated_at = NOW()
+        """, (ten_cau_hinh, kieu))
+        db.commit()
+        db.close()
+        return True
+    except:
+        return False
+
 # === Hàm lấy số max hiện tại ===
 def get_so_max_cong_van(loai=None):
     """Lấy số max hiện tại cho loại công văn (hoặc chung nếu loai=None)"""
@@ -2665,7 +2696,13 @@ def preview_so_cong_van(loai_cv):
     so_max = get_so_max_cong_van(loai_tim)
     so_moi = so_max + 1
 
-    so_cv = f"{so_moi:02d}/{nam_hien_tai}/{prefix}-{ma_cty}"
+    # Kiểm tra cấu hình đánh số theo kiểu dd/mm cho loại này
+    kieu_ddmm = get_cv_kieu_ngay(loai_tim)
+    if kieu_ddmm:
+        ngay_hom_nay = datetime.now().strftime('%d/%m')
+        so_cv = f"{so_moi:02d}/{ngay_hom_nay}/{nam_hien_tai}/{prefix}-{ma_cty}"
+    else:
+        so_cv = f"{so_moi:02d}/{nam_hien_tai}/{prefix}-{ma_cty}"
     return so_cv
 
 # === Hàm SINH SỐ CHÍNH THỨC + cập nhật số max (chỉ gọi khi user bấm "Lưu công văn đi") ===
@@ -2687,8 +2724,13 @@ def generate_so_cong_van(loai_cv):
     # Cập nhật số max - CHỈ xảy ra khi hàm này được gọi (tức là khi Lưu)
     update_so_max_cong_van(loai_tim, so_moi)
 
-    # Tạo số công văn
-    so_cv = f"{so_moi:02d}/{nam_hien_tai}/{prefix}-{ma_cty}"
+    # Tạo số công văn — có thể theo kiểu dd/mm nếu tenant bật
+    kieu_ddmm = get_cv_kieu_ngay(loai_tim)
+    if kieu_ddmm:
+        ngay_hom_nay = datetime.now().strftime('%d/%m')
+        so_cv = f"{so_moi:02d}/{ngay_hom_nay}/{nam_hien_tai}/{prefix}-{ma_cty}"
+    else:
+        so_cv = f"{so_moi:02d}/{nam_hien_tai}/{prefix}-{ma_cty}"
     return so_cv
 
 # === Hàm upload file cho công văn ===
@@ -3064,6 +3106,41 @@ def show_quan_ly_cong_van():
                             del st.session_state['cv_pending_reset']
                             st.rerun()
 
+            st.divider()
+            st.markdown("**📅 Đánh số theo kiểu dd/mm**")
+            st.caption("Bật tùy chọn này nếu muốn số công văn có thêm ngày/tháng phát hành. "
+                       "VD: `01/28/07/2026/QĐ-CHL` thay vì `01/2026/QĐ-CHL`")
+
+            if option == 'CHUNG':
+                loai_ddmm_list = ['CHUNG']
+                loai_ddmm_display = {'CHUNG': 'CHUNG (Tất cả loại)'}
+            else:
+                loai_ddmm_list = ['QUYET_DINH', 'CONG_VAN', 'BAO_CAO', 'THONG_BAO', 'TO_TRINH']
+                loai_ddmm_display = {
+                    'QUYET_DINH': 'QUYẾT ĐỊNH',
+                    'CONG_VAN': 'CÔNG VĂN',
+                    'BAO_CAO': 'BÁO CÁO',
+                    'THONG_BAO': 'THÔNG BÁO',
+                    'TO_TRINH': 'TỜ TRÌNH'
+                }
+
+            for loai_key in loai_ddmm_list:
+                col_ddmm1, col_ddmm2 = st.columns([3, 1])
+                kieu_hien_tai = get_cv_kieu_ngay(loai_key)
+                with col_ddmm1:
+                    st.write(f"**{loai_ddmm_display.get(loai_key, loai_key)}:** {'📅 dd/mm/yyyy' if kieu_hien_tai else '📆 yyyy (mặc định)'}")
+                with col_ddmm2:
+                    new_kieu = st.toggle(
+                        "dd/mm",
+                        value=kieu_hien_tai,
+                        key=f"toggle_ddmm_{loai_key}",
+                        disabled=not can_edit()
+                    )
+                    if new_kieu != kieu_hien_tai:
+                        if update_cv_kieu_ngay(loai_key, 'DD_MM' if new_kieu else 'NAM'):
+                            st.cache_data.clear()
+                            st.rerun()
+
         with st.expander("⚙️ Cấu hình đánh số Hợp đồng kinh tế (HĐKT)", expanded=False):
             st.caption("Số HĐKT tự sinh theo mẫu: **stt/năm/Prefix-ma_cty** (VD: 04/2026/HĐKT-CHL)")
             prefix_hdkt_hien_tai = get_hdkt_prefix()
@@ -3239,7 +3316,8 @@ def show_quan_ly_cong_van():
             with st.form("add_cong_van_di"):
                 col1, col2 = st.columns(2)
                 with col1:
-                    phong_phat_hanh = st.text_input("Phòng phát hành *", placeholder="VD: Phòng Hành chính")
+                    ds_phong_ban_cv = get_phong_ban_options()
+                    phong_phat_hanh = st.selectbox("Phòng phát hành *", [""] + ds_phong_ban_cv, key="cv_di_phong_phat_hanh")
                     ngay_phat_hanh = st.date_input("Ngày phát hành *", value=date.today())
                     ma_vach = st.text_input("📦 Mã vạch Bưu điện", placeholder="VD: EV123456789VN")
                 with col2:
@@ -4406,6 +4484,7 @@ LOAI_QDNS_LABEL = {
     'MIEN_NHIEM': 'QĐ Miễn nhiệm',
     'DOI_CHUC_DANH': 'QĐ Thay đổi chức danh',
     'DIEU_CHUYEN': 'QĐ Điều chuyển công tác',
+    'CHUYEN_CHINH_THUC': 'QĐ Chuyển đổi TV → Chính thức',
     'CHAM_DUT_HD': 'QĐ Chấm dứt HĐTV/HĐLĐ',
 }
 
@@ -8086,7 +8165,8 @@ elif menu == "✅ Nhân viên":
                                         st.session_state[f'convert_open_{nv_id_key}'] = False
                                     
                                     if not st.session_state[f'convert_open_{nv_id_key}']:
-                                        if st.button(f"🔄 CHUYỂN ĐỔI HĐLĐ - {selected_nv['ho_ten']}", 
+                                        st.info("💡 Chuyển đổi HĐTV → Chính thức đã chuyển sang tab **📜 QUYẾT ĐỊNH NHÂN SỰ** → chọn loại **'QĐ Chuyển đổi TV → Chính thức'**.")
+                                        if False and st.button(f"🔄 CHUYỂN ĐỔI HĐLĐ - {selected_nv['ho_ten']}", 
                                                     key=f"convert_hdld_btn_{nv_id_key}", 
                                                     width='stretch', type="primary"):
                                             st.session_state[f'convert_open_{nv_id_key}'] = True
@@ -9164,6 +9244,84 @@ elif menu == "✅ Nhân viên":
                     ok_to_submit = False
                     st.error("⚠️ Vui lòng chọn hoặc nhập phòng ban đến.")
 
+            elif loai_qd == 'CHUYEN_CHINH_THUC':
+                # Chỉ cho phép chuyển đổi NV đang ở trạng thái Thử việc
+                trang_thai_hien_tai = nv_qd.get('trang_thai', '')
+                loai_hd_hien_tai_ct = nv_qd.get('loai_hop_dong', '')
+                if trang_thai_hien_tai != 'THU_VIEC' and loai_hd_hien_tai_ct != 'Thử việc':
+                    st.error("⚠️ Nhân viên này không ở trạng thái Thử việc — không thể chuyển đổi.")
+                    ok_to_submit = False
+                else:
+                    # Kiểm tra đã chuyển đổi chưa
+                    da_chuyen, qd_cu = da_chuyen_doi_chinh_thuc(nv_qd['id'])
+                    if da_chuyen:
+                        st.warning("⚠️ Nhân viên này đã có QĐ chuyển chính thức trước đó.")
+
+                    ma_cty_hd = st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL'
+
+                    loai_hd_moi_lbl = st.selectbox(
+                        "📑 Loại HĐLĐ mới:",
+                        ["Không xác định thời hạn", "Xác định thời hạn 12 tháng",
+                         "Xác định thời hạn 24 tháng", "Xác định thời hạn 36 tháng"],
+                        key="qdns_loai_hd_moi"
+                    )
+                    if loai_hd_moi_lbl == "Không xác định thời hạn":
+                        loai_hop_dong_luu_ct = "Không xác định thời hạn"
+                        han_hd_thang_ct = None
+                    else:
+                        loai_hop_dong_luu_ct = "Xác định thời hạn"
+                        han_hd_thang_ct = int(loai_hd_moi_lbl.split()[-2])
+
+                    current_year_ct = datetime.now().year
+                    db_temp_ct = st.session_state.db_engine.get_connection()
+                    c_temp_ct = db_temp_ct.cursor()
+                    c_temp_ct.execute("""
+                        SELECT COALESCE(MAX(CAST(SPLIT_PART(so_hdld, '/', 1) AS INTEGER)), 0) as max_stt
+                        FROM nhan_vien 
+                        WHERE so_hdld LIKE %s 
+                        AND SPLIT_PART(so_hdld, '/', 1) ~ '^[0-9]+$'
+                        AND trang_thai = 'DANG_LAM'
+                        AND loai_hop_dong != 'Thử việc'
+                    """, (f'%/{current_year_ct}/HĐLĐ-%',))
+                    result_ct = c_temp_ct.fetchone()
+                    max_stt_ct = result_ct[0] if result_ct else 0
+                    db_temp_ct.close()
+
+                    next_stt_ct = max_stt_ct + 1
+                    stt_str_ct = str(next_stt_ct).zfill(2)
+                    so_hd_moi_ct = f"{stt_str_ct}/{current_year_ct}/HĐLĐ-{ma_cty_hd}"
+                    st.info(f"📄 **Số HĐLĐ mới:** {so_hd_moi_ct} (tự động sinh)")
+
+                    ngay_hieu_luc_ct = st.date_input(
+                        "📅 Ngày hiệu lực (bắt đầu HĐLĐ):",
+                        value=ngay_qd,
+                        key="qdns_ngay_hl_ct"
+                    )
+
+                    if han_hd_thang_ct:
+                        ngay_het_han_hd_ct = ngay_hieu_luc_ct + relativedelta(months=han_hd_thang_ct) - timedelta(days=1)
+                        st.caption(f"📆 Hợp đồng sẽ hết hạn: {ngay_het_han_hd_ct.strftime('%d/%m/%Y')}")
+
+                    ngay_bat_dau_bh_ct = tinh_thang_bat_dau_bh(ngay_hieu_luc_ct)
+                    st.info(f"📅 Tháng bắt đầu đóng BHXH: **{format_thang_nam(ngay_bat_dau_bh_ct)}** (tự tính theo quy tắc 14 ngày)")
+
+                    phuong_an_ct = st.selectbox(
+                        "Phương án điều chỉnh BHXH",
+                        [""] + PHUONG_AN_TANG,
+                        key="qdns_pa_bhxh_ct",
+                        help="Bắt buộc chọn — dùng cho báo tăng D02-LT"
+                    )
+
+                    so_hd_tv_cu_ct = nv_qd.get('so_hdld', '')
+                    tieu_de = f"Chuyển đổi HĐTV sang HĐLĐ - {nv_qd['ho_ten']}"
+                    dieu1_lines = [
+                        f"Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) đã hoàn thành thời gian thử việc.",
+                        f"Chuyển sang Hợp đồng lao động {loai_hd_moi_lbl.lower()} (số {so_hd_moi_ct}) kể từ ngày {ngay_hieu_luc_ct.strftime('%d/%m/%Y')}."
+                    ]
+                    hieu_luc_text = f"Quyết định có hiệu lực kể từ ngày {ngay_hieu_luc_ct.strftime('%d/%m/%Y')}."
+                    gia_tri_truoc = 'Thử việc'
+                    gia_tri_sau = loai_hop_dong_luu_ct
+
             elif loai_qd == 'CHAM_DUT_HD':
                 loai_hd_hien_tai = nv_qd.get('loai_hop_dong') or ''
                 if loai_hd_hien_tai == 'Thử việc':
@@ -9227,7 +9385,10 @@ elif menu == "✅ Nhân viên":
                         chuc_danh_nghe_moi_final = gia_tri_sau
                     elif loai_qd == 'DIEU_CHUYEN':
                         phong_ban_moi_final = gia_tri_sau
+                    elif loai_qd == 'CHUYEN_CHINH_THUC':
+                        loai_hd_moi_final = gia_tri_sau  # loại HĐ mới (Xác định/Không xác định thời hạn)
                     elif loai_qd == 'CHAM_DUT_HD':
+                        loai_hd_moi_final = 'Đã chấm dứt'
                         loai_hd_moi_final = 'Đã chấm dứt'
 
                     chuc_danh_cu_v = chuc_danh_moi_v = None
@@ -9324,6 +9485,45 @@ elif menu == "✅ Nhân viên":
                             WHERE id = %s
                         """, (ngay_qd, ly_do_cd if ly_do_cd.strip() else None, ngay_qd,
                               pa_giam, pa_giam, thang_pa_giam, thang_pa_giam, nv_qd['id']))
+
+                    elif loai_qd == 'CHUYEN_CHINH_THUC':
+                        pa_ct_val = lay_ma_phuong_an(phuong_an_ct) if phuong_an_ct else None
+                        # Cập nhật bảng nhan_vien
+                        c_s.execute("""
+                            UPDATE nhan_vien SET 
+                                trang_thai = 'DANG_LAM',
+                                loai_hop_dong = %s,
+                                han_hop_dong_thang = %s,
+                                so_hdld = %s,
+                                ngay_ky_hd = %s,
+                                ngay_chinh_thuc = %s,
+                                thang_bat_dau_bh = %s,
+                                trang_thai_bhxh = 'DANG_DONG',
+                                phuong_an_dieu_chinh = %s,
+                                thang_phuong_an = %s,
+                                ngay_ket_thuc = NULL
+                            WHERE id = %s
+                        """, (loai_hop_dong_luu_ct, han_hd_thang_ct, so_hd_moi_ct, ngay_qd, ngay_hieu_luc_ct,
+                              ngay_bat_dau_bh_ct, pa_ct_val, format_thang_nam(ngay_bat_dau_bh_ct), nv_qd['id']))
+                        # Đóng lịch sử công tác cũ (thử việc)
+                        c_s.execute("""
+                            UPDATE lich_su_cong_tac 
+                            SET den_ngay = %s, so_hop_dong = %s
+                            WHERE nhan_vien_id = %s AND loai_hop_dong = 'Thử việc' AND den_ngay IS NULL
+                        """, (ngay_hieu_luc_ct - timedelta(days=1), so_hd_tv_cu_ct, nv_qd['id']))
+                        # Mở dòng lịch sử công tác mới
+                        c_s.execute("""
+                            INSERT INTO lich_su_cong_tac (
+                                nhan_vien_id, tu_ngay, chuc_danh, phong_ban, noi_lam_viec, loai_hop_dong, he_so_luong, so_hop_dong
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (
+                            nv_qd['id'], ngay_hieu_luc_ct,
+                            nv_qd.get('chuc_danh_nghe', ''),
+                            nv_qd.get('phong_ban_lam_viec', ''),
+                            nv_qd.get('noi_lam_viec') or get_cau_hinh('noi_lam_viec', 'Cảng THQT Hòn La'),
+                            loai_hop_dong_luu_ct, nv_qd.get('he_so_luong', 0), so_hd_moi_ct
+                        ))
+                        loai_hd_moi_final = loai_hop_dong_luu_ct
 
                     # Cập nhật thêm Chức danh/Phòng ban vào hồ sơ nếu QĐ này làm thay đổi các
                     # trường đó (áp dụng chung mọi loại QĐ — trước đây chỉ DOI_CHUC_DANH/

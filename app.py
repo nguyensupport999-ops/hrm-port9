@@ -3290,10 +3290,15 @@ def show_quan_ly_cong_van():
     # === TAB 2: CÔNG VĂN ĐI ===
     with tab2:
         st.subheader("📤 Quản lý Công văn đi")
-        
-        # Form thêm mới
-        with st.expander("➕ Thêm công văn đi mới", expanded=False):
-            # Lấy danh sách loại công văn
+
+        thao_tac_cvd = st.radio(
+            "Chọn thao tác:",
+            ["📋 Danh sách", "➕ Thêm CV đi mới", "📂 Nhập lại CV đi cũ"],
+            horizontal=True, key="cv_di_thao_tac"
+        )
+
+        # ── THÊM CV ĐI MỚI (số tự sinh) ──
+        if thao_tac_cvd == "➕ Thêm CV đi mới":
             db_loai = st.session_state.db_engine.get_connection()
             c_loai = db_loai.cursor()
             c_loai.execute("SELECT ma_loai, ten_loai FROM danh_muc_loai_cong_van WHERE trang_thai = TRUE ORDER BY thu_tu")
@@ -3301,15 +3306,9 @@ def show_quan_ly_cong_van():
             db_loai.close()
 
             loai_options = {f"{loai[1]} ({loai[0]})": loai[0] for loai in loai_cv_list}
-
-            # QUAN TRỌNG: đặt selectbox "Loại công văn" NGOÀI st.form. Bên trong st.form,
-            # đổi giá trị widget không làm rerun app (chỉ form_submit_button mới rerun),
-            # nên trước đây đổi dropdown KHÔNG cập nhật được ký hiệu/prefix hiển thị.
-            # Đặt ngoài form giúp phần xem trước số/ký hiệu phản ứng ngay khi đổi lựa chọn.
             selected_loai = st.selectbox("Loại công văn *", list(loai_options.keys()), key="cv_di_loai")
             loai_cv = chuan_hoa_loai_cong_van(loai_options[selected_loai])
 
-            # CHỈ xem trước số/ký hiệu - hàm này không ghi gì vào cấu hình/DB.
             so_cv_xem_truoc = preview_so_cong_van(loai_cv)
             prefix_hien_tai = PREFIX_MAP.get(loai_cv, 'CV')
             st.info(
@@ -3338,16 +3337,10 @@ def show_quan_ly_cong_van():
                             st.error("⚠️ Vui lòng nhập đầy đủ các trường bắt buộc (*)")
                         else:
                             try:
-                                # Upload file
                                 file_url = None
                                 if uploaded_file:
                                     file_url = upload_cong_van_file(uploaded_file, "di")
-                                
-                                # Nguyên tắc: số công văn CHỈ được sinh chính thức (và cấu hình
-                                # so_max CHỈ được cập nhật) tại đây, khi user bấm "Lưu công văn đi".
                                 so_cv_chinh_thuc = generate_so_cong_van(loai_cv)
-
-                                # Lưu vào database
                                 db = st.session_state.db_engine.get_connection()
                                 c = db.cursor()
                                 c.execute("""
@@ -3358,18 +3351,16 @@ def show_quan_ly_cong_van():
                                       file_url, loai_cv, ghi_chu, st.session_state.username, ma_vach))
                                 db.commit()
                                 db.close()
-                                
                                 st.success(f"✅ Đã thêm công văn đi: {so_cv_chinh_thuc}")
                                 st.cache_data.clear()
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Lỗi: {e}")
-                                
-        # Form nhập lại CV đi cũ (số CV do user nhập tay, không tự sinh)
-        with st.expander("📂 Nhập lại công văn đi cũ", expanded=False):
-            st.caption("Dùng để nhập lại các công văn đi đã phát hành trước đây. "
+
+        # ── NHẬP LẠI CV ĐI CŨ (số nhập tay) ──
+        elif thao_tac_cvd == "📂 Nhập lại CV đi cũ":
+            st.caption("Nhập lại các công văn đi đã phát hành trước đây. "
                        "Số công văn do bạn tự nhập, hệ thống **không** tự sinh số mới.")
-            # Lấy danh sách loại công văn
             db_loai2 = st.session_state.db_engine.get_connection()
             c_loai2 = db_loai2.cursor()
             c_loai2.execute("SELECT ma_loai, ten_loai FROM danh_muc_loai_cong_van WHERE trang_thai = TRUE ORDER BY thu_tu")
@@ -3419,146 +3410,142 @@ def show_quan_ly_cong_van():
                                 st.cache_data.clear()
                                 st.rerun()
                             except Exception as e:
-                                st.error(f"❌ Lỗi: {e}")                    
-        
-        # Tìm kiếm và lọc
-        st.divider()
-        col_search1, col_search2 = st.columns([2, 1])
-        with col_search1:
-            search_text_cv_di = st.text_input("🔍 Tìm kiếm", placeholder="Theo số, tiêu đề, phòng...", key="search_cv_di")
-        with col_search2:
-            loai_filter = st.selectbox("Loại", ["Tất cả", "Quyết định", "Công văn", "Báo cáo", "Thông báo", "Tờ trình"], key="loai_filter_cv_di")
-        col_search3, col_search4 = st.columns(2)
-        with col_search3:
-            tu_ngay_cv_di = st.date_input("Từ ngày", value=None, key="tu_ngay_cv_di")
-        with col_search4:
-            den_ngay_cv_di = st.date_input("Đến ngày", value=None, key="den_ngay_cv_di")
-        
-        # Lấy dữ liệu
-        loai_map = {
-            "Tất cả": None,
-            "Quyết định": "QUYET_DINH",
-            "Công văn": "CONG_VAN",
-            "Báo cáo": "BAO_CAO",
-            "Thông báo": "THONG_BAO",
-            "Tờ trình": "TO_TRINH"
-        }
-        data_cv_di = get_cong_van_di(tu_ngay_cv_di, den_ngay_cv_di, search_text_cv_di, loai_map.get(loai_filter))
-        
-        # Hiển thị bảng
-        if data_cv_di:
-            df_cv_di = pd.DataFrame(data_cv_di)
-            
-            # Format ngày
-            for col in ['ngay_phat_hanh', 'created_at', 'updated_at']:
-                if col in df_cv_di.columns:
-                    df_cv_di[col] = df_cv_di[col].apply(format_date)
-            
-            display_cols = ['so_cong_van', 'loai_cong_van', 'phong_phat_hanh', 'ngay_phat_hanh', 'tieu_de', 'trich_yeu', 'ma_vach_buu_dien', 'file_url', 'ghi_chu']
-            available_cols = [c for c in display_cols if c in df_cv_di.columns]
-            df_display = df_cv_di[available_cols]
-            
-            # Map loại
-            loai_name_map = {
-                'QUYET_DINH': 'Quyết định',
-                'CONG_VAN': 'Công văn',
-                'BAO_CAO': 'Báo cáo',
-                'THONG_BAO': 'Thông báo',
-                'TO_TRINH': 'Tờ trình'
-            }
-            df_display['loai_cong_van'] = df_display['loai_cong_van'].map(loai_name_map)
-            
-            col_map = {
-                'so_cong_van': 'Số công văn',
-                'loai_cong_van': 'Loại',
-                'phong_phat_hanh': 'Phòng phát hành',
-                'ngay_phat_hanh': 'Ngày phát hành',
-                'tieu_de': 'Tiêu đề',
-                'trich_yeu': 'Trích yếu',
-                'ma_vach_buu_dien': 'Mã vạch BĐ',
-                'file_url': 'File',
-                'ghi_chu': 'Ghi chú'
-            }
-            df_display.rename(columns=col_map, inplace=True)
-            
-            st.caption(f"📌 Tổng số: {len(data_cv_di)} công văn đi")
-            st.dataframe(df_display, width='stretch', hide_index=True, height=400)
-
-            # ----- Sửa / Xóa công văn đi -----
-            with st.expander("✏️ Sửa / 🗑️ Xóa công văn đi", expanded=False):
-                tuy_chon_cvd = {f"{r['so_cong_van']} - {r.get('tieu_de') or ''}": r for r in data_cv_di}
-                chon_cvd = st.selectbox("Chọn công văn đi:", ["-- Chọn --"] + list(tuy_chon_cvd.keys()), key="chon_sua_cvd")
-                if chon_cvd != "-- Chọn --":
-                    bg_sua = tuy_chon_cvd[chon_cvd]
-                    col_s1, col_s2 = st.columns(2)
-                    with col_s1:
-                        tieu_de_sua_cvd = st.text_input("Tiêu đề:", value=bg_sua.get('tieu_de') or '', key=f"sua_td_cvd_{bg_sua['id']}")
-                        ma_vach_sua_cvd = st.text_input("Mã vạch Bưu điện:", value=bg_sua.get('ma_vach_buu_dien') or '', key=f"sua_mv_cvd_{bg_sua['id']}")
-                    with col_s2:
-                        trich_yeu_sua_cvd = st.text_area("Trích yếu:", value=bg_sua.get('trich_yeu') or '', key=f"sua_ty_cvd_{bg_sua['id']}", height=80)
-                    col_luu_cvd, col_xoa_cvd = st.columns(2)
-                    with col_luu_cvd:
-                        if st.button("💾 Lưu thay đổi", key=f"btn_luu_cvd_{bg_sua['id']}", type="primary", width='stretch', disabled=not can_edit()):
-                            try:
-                                db_s = st.session_state.db_engine.get_connection()
-                                c_s = db_s.cursor()
-                                c_s.execute("""
-                                    UPDATE cong_van_di SET tieu_de=%s, trich_yeu=%s, ma_vach_buu_dien=%s
-                                    WHERE id=%s
-                                """, (tieu_de_sua_cvd, trich_yeu_sua_cvd, ma_vach_sua_cvd, bg_sua['id']))
-                                db_s.commit(); db_s.close()
-                                st.success("✅ Đã cập nhật công văn đi")
-                                st.cache_data.clear()
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"❌ Lỗi: {e}")
-                    with col_xoa_cvd:
-                        if st.button("🗑️ Xóa công văn này", key=f"btn_xoa_cvd_{bg_sua['id']}", width='stretch', disabled=not can_edit()):
-                            try:
-                                db_x = st.session_state.db_engine.get_connection()
-                                c_x = db_x.cursor()
-                                c_x.execute("DELETE FROM cong_van_di WHERE id=%s", (bg_sua['id'],))
-                                db_x.commit(); db_x.close()
-                                st.success("✅ Đã xóa công văn đi")
-                                st.cache_data.clear()
-                                st.rerun()
-                            except Exception as e:
                                 st.error(f"❌ Lỗi: {e}")
 
-            # Nút xuất Excel
-            col_export1, col_export2, col_export3 = st.columns([1, 2, 1])
-            with col_export2:
-                if st.button("📥 Xuất Excel công văn đi", width='stretch', type="primary"):
-                    headers = ['so_cong_van', 'loai_cong_van', 'phong_phat_hanh', 'ngay_phat_hanh', 'tieu_de', 'trich_yeu', 'ghi_chu']
-                    col_widths = [20, 12, 20, 12, 35, 30, 25]
-                    title = f"BÁO CÁO CÔNG VĂN ĐI (Từ {tu_ngay_cv_di or '...'} đến {den_ngay_cv_di or '...'})"
-                    filename = f"Cong_van_di_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-                    
-                    excel_data = []
-                    for row in data_cv_di:
-                        excel_row = {}
-                        for key in headers:
-                            val = row.get(key)
-                            if key == 'ngay_phat_hanh' and val:
-                                val = format_date(val)
-                            if key == 'loai_cong_van':
-                                val = loai_name_map.get(val, val)
-                            excel_row[key] = val
-                        excel_data.append(excel_row)
-                    
-                    export_cong_van_excel(excel_data, filename, headers, col_widths, title)
-                    
-                    with open(filename, "rb") as f:
-                        st.download_button(
-                            label="📥 TẢI FILE EXCEL",
-                            data=f,
-                            file_name=filename,
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            width='stretch'
-                        )
-                    st.success(f"✅ Đã xuất {len(data_cv_di)} công văn đi")
+        # ── DANH SÁCH (mặc định) ──
         else:
-            st.info("📭 Không có công văn đi nào")
+            col_search1, col_search2 = st.columns([2, 1])
+            with col_search1:
+                search_text_cv_di = st.text_input("🔍 Tìm kiếm", placeholder="Theo số, tiêu đề, phòng...", key="search_cv_di")
+            with col_search2:
+                loai_filter = st.selectbox("Loại", ["Tất cả", "Quyết định", "Công văn", "Báo cáo", "Thông báo", "Tờ trình"], key="loai_filter_cv_di")
+            col_search3, col_search4 = st.columns(2)
+            with col_search3:
+                tu_ngay_cv_di = st.date_input("Từ ngày", value=None, key="tu_ngay_cv_di")
+            with col_search4:
+                den_ngay_cv_di = st.date_input("Đến ngày", value=None, key="den_ngay_cv_di")
+            
+            loai_map = {
+                "Tất cả": None,
+                "Quyết định": "QUYET_DINH",
+                "Công văn": "CONG_VAN",
+                "Báo cáo": "BAO_CAO",
+                "Thông báo": "THONG_BAO",
+                "Tờ trình": "TO_TRINH"
+            }
+            data_cv_di = get_cong_van_di(tu_ngay_cv_di, den_ngay_cv_di, search_text_cv_di, loai_map.get(loai_filter))
+            
+            if data_cv_di:
+                df_cv_di = pd.DataFrame(data_cv_di)
+                
+                for col in ['ngay_phat_hanh', 'created_at', 'updated_at']:
+                    if col in df_cv_di.columns:
+                        df_cv_di[col] = df_cv_di[col].apply(format_date)
+                
+                display_cols = ['so_cong_van', 'loai_cong_van', 'phong_phat_hanh', 'ngay_phat_hanh', 'tieu_de', 'trich_yeu', 'ma_vach_buu_dien', 'file_url', 'ghi_chu']
+                available_cols = [c for c in display_cols if c in df_cv_di.columns]
+                df_display = df_cv_di[available_cols]
+                
+                loai_name_map = {
+                    'QUYET_DINH': 'Quyết định',
+                    'CONG_VAN': 'Công văn',
+                    'BAO_CAO': 'Báo cáo',
+                    'THONG_BAO': 'Thông báo',
+                    'TO_TRINH': 'Tờ trình'
+                }
+                df_display['loai_cong_van'] = df_display['loai_cong_van'].map(loai_name_map)
+                
+                col_map = {
+                    'so_cong_van': 'Số công văn',
+                    'loai_cong_van': 'Loại',
+                    'phong_phat_hanh': 'Phòng phát hành',
+                    'ngay_phat_hanh': 'Ngày phát hành',
+                    'tieu_de': 'Tiêu đề',
+                    'trich_yeu': 'Trích yếu',
+                    'ma_vach_buu_dien': 'Mã vạch BĐ',
+                    'file_url': 'File',
+                    'ghi_chu': 'Ghi chú'
+                }
+                df_display.rename(columns=col_map, inplace=True)
+                
+                st.caption(f"📌 Tổng số: {len(data_cv_di)} công văn đi")
+                st.dataframe(df_display, width='stretch', hide_index=True, height=400)
+
+                # ----- Sửa / Xóa công văn đi -----
+                with st.expander("✏️ Sửa / 🗑️ Xóa công văn đi", expanded=False):
+                    tuy_chon_cvd = {f"{r['so_cong_van']} - {r.get('tieu_de') or ''}": r for r in data_cv_di}
+                    chon_cvd = st.selectbox("Chọn công văn đi:", ["-- Chọn --"] + list(tuy_chon_cvd.keys()), key="chon_sua_cvd")
+                    if chon_cvd != "-- Chọn --":
+                        bg_sua = tuy_chon_cvd[chon_cvd]
+                        col_s1, col_s2 = st.columns(2)
+                        with col_s1:
+                            tieu_de_sua_cvd = st.text_input("Tiêu đề:", value=bg_sua.get('tieu_de') or '', key=f"sua_td_cvd_{bg_sua['id']}")
+                            ma_vach_sua_cvd = st.text_input("Mã vạch Bưu điện:", value=bg_sua.get('ma_vach_buu_dien') or '', key=f"sua_mv_cvd_{bg_sua['id']}")
+                        with col_s2:
+                            trich_yeu_sua_cvd = st.text_area("Trích yếu:", value=bg_sua.get('trich_yeu') or '', key=f"sua_ty_cvd_{bg_sua['id']}", height=80)
+                        col_luu_cvd, col_xoa_cvd = st.columns(2)
+                        with col_luu_cvd:
+                            if st.button("💾 Lưu thay đổi", key=f"btn_luu_cvd_{bg_sua['id']}", type="primary", width='stretch', disabled=not can_edit()):
+                                try:
+                                    db_s = st.session_state.db_engine.get_connection()
+                                    c_s = db_s.cursor()
+                                    c_s.execute("""
+                                        UPDATE cong_van_di SET tieu_de=%s, trich_yeu=%s, ma_vach_buu_dien=%s
+                                        WHERE id=%s
+                                    """, (tieu_de_sua_cvd, trich_yeu_sua_cvd, ma_vach_sua_cvd, bg_sua['id']))
+                                    db_s.commit(); db_s.close()
+                                    st.success("✅ Đã cập nhật công văn đi")
+                                    st.cache_data.clear()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"❌ Lỗi: {e}")
+                        with col_xoa_cvd:
+                            if st.button("🗑️ Xóa công văn này", key=f"btn_xoa_cvd_{bg_sua['id']}", width='stretch', disabled=not can_edit()):
+                                try:
+                                    db_x = st.session_state.db_engine.get_connection()
+                                    c_x = db_x.cursor()
+                                    c_x.execute("DELETE FROM cong_van_di WHERE id=%s", (bg_sua['id'],))
+                                    db_x.commit(); db_x.close()
+                                    st.success("✅ Đã xóa công văn đi")
+                                    st.cache_data.clear()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"❌ Lỗi: {e}")
+
+                # Nút xuất Excel
+                col_export1, col_export2, col_export3 = st.columns([1, 2, 1])
+                with col_export2:
+                    if st.button("📥 Xuất Excel công văn đi", width='stretch', type="primary"):
+                        headers = ['so_cong_van', 'loai_cong_van', 'phong_phat_hanh', 'ngay_phat_hanh', 'tieu_de', 'trich_yeu', 'ghi_chu']
+                        col_widths = [20, 12, 20, 12, 35, 30, 25]
+                        title = f"BÁO CÁO CÔNG VĂN ĐI (Từ {tu_ngay_cv_di or '...'} đến {den_ngay_cv_di or '...'})"
+                        filename = f"Cong_van_di_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                        
+                        excel_data = []
+                        for row in data_cv_di:
+                            excel_row = {}
+                            for key in headers:
+                                val = row.get(key)
+                                if key == 'ngay_phat_hanh' and val:
+                                    val = format_date(val)
+                                if key == 'loai_cong_van':
+                                    val = loai_name_map.get(val, val)
+                                excel_row[key] = val
+                            excel_data.append(excel_row)
+                        
+                        export_cong_van_excel(excel_data, filename, headers, col_widths, title)
+                        
+                        with open(filename, "rb") as f:
+                            st.download_button(
+                                label="📥 TẢI FILE EXCEL",
+                                data=f,
+                                file_name=filename,
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                width='stretch'
+                            )
+                        st.success(f"✅ Đã xuất {len(data_cv_di)} công văn đi")
+            else:
+                st.info("📭 Không có công văn đi nào")
     
     # === TAB 3: HỢP ĐỒNG KINH TẾ ===
     with tab3:

@@ -3338,6 +3338,7 @@ def show_quan_ly_cong_van():
                                 width='stretch'
                             )
                         st.success(f"✅ Đã xuất {len(data_cv_den)} công văn đến")
+                        st.cache_data.clear()
             else:
                 st.info("📭 Không có công văn đến nào")
     
@@ -3595,6 +3596,7 @@ def show_quan_ly_cong_van():
                                 width='stretch'
                             )
                         st.success(f"✅ Đã xuất {len(data_cv_di)} công văn đi")
+                        st.cache_data.clear()
             else:
                 st.info("📭 Không có công văn đi nào")
     
@@ -3802,6 +3804,7 @@ def show_quan_ly_cong_van():
                                 width='stretch'
                             )
                         st.success(f"✅ Đã xuất {len(data_hd)} hợp đồng kinh tế")
+                        st.cache_data.clear()
             else:
                 st.info("📭 Không có hợp đồng kinh tế nào")
 
@@ -5438,6 +5441,7 @@ def show_super_admin_page():
     if _vua_tao:
         st.success(f"✅ Đã thêm khách hàng **{_vua_tao['ten_cty']}** (mã: **{_vua_tao['ma_cty']}**) "
                    f"và tự động chạy migration `schema.sql` thành công.")
+        st.cache_data.clear()
 
         if _vua_tao.get('loi_tao_admin'):
             st.error(
@@ -5621,14 +5625,14 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
             if st.button("🔄 Cập nhật trạng thái"):
                 if mst_toggle:
                     control_plane.update_tenant_status(mst_toggle, trang_thai_moi)
-                    st.success("✅ Đã cập nhật!"); st.rerun()
+                    st.success("✅ Đã cập nhật!"); st.cache_data.clear(); st.rerun()
         with col_b:
             mst_xoa = st.selectbox("Mã số thuế cần XOÁ vĩnh viễn khỏi hệ thống", _mst_options,
                                     format_func=_mst_format, key="mst_xoa_select")
             if st.button("🗑️ Xoá khách hàng", type="primary"):
                 if mst_xoa:
                     control_plane.delete_tenant(mst_xoa)
-                    st.success("✅ Đã xoá!"); st.rerun()
+                    st.success("✅ Đã xoá!"); st.cache_data.clear(); st.rerun()
 
         st.divider()
         st.markdown("##### 🌐 Đổi ngôn ngữ giao diện của 1 khách hàng đã có")
@@ -5645,7 +5649,7 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
             if mst_doi_ngon_ngu:
                 try:
                     control_plane.update_tenant_language(mst_doi_ngon_ngu, ngon_ngu_doi_thanh)
-                    st.success("✅ Đã cập nhật ngôn ngữ!"); st.rerun()
+                    st.success("✅ Đã cập nhật ngôn ngữ!"); st.cache_data.clear(); st.rerun()
                 except AttributeError:
                     st.error("❌ Chưa có hàm `update_tenant_language()` trong control_plane.py.")
             else:
@@ -5685,6 +5689,7 @@ Mỗi khách hàng cần **1 app Streamlit Cloud riêng** để vào thẳng mà
                         control_plane.update_tenant_logo(mst_logo.strip(), public_url)
                         st.success(f"✅ Đã upload logo và cập nhật cho khách hàng MST {mst_logo.strip()}. Link: {public_url}")
                         st.image(public_url, width=160)
+                        st.cache_data.clear()
                         st.rerun()
                     except AttributeError:
                         st.error("❌ Chưa có hàm `update_tenant_logo()` trong control_plane.py. "
@@ -5992,6 +5997,7 @@ if not st.session_state.logged_in:
                         st.session_state['qmk_buoc'] = 2
                         st.session_state['qmk_nv_id'] = nv_qmk['id']
                         st.success(f"✅ Đã gửi mã OTP về {nv_qmk['email_lien_he'][:3]}***@...")
+                        st.cache_data.clear()
                         st.rerun()
                     else:
                         st.error("❌ Gửi email thất bại. Vui lòng thử lại hoặc liên hệ Admin.")
@@ -6027,6 +6033,7 @@ if not st.session_state.logged_in:
                             c_v2.execute("UPDATE yeu_cau_reset_mk SET da_dung=TRUE WHERE id=%s", (yc['id'],))
                             db_v.commit(); db_v.close()
                             st.success("✅ Đặt lại mật khẩu thành công! Vui lòng đăng nhập lại.")
+                            st.cache_data.clear()
                             st.session_state.pop('qmk_buoc', None)
                             st.session_state.pop('qmk_nv_id', None)
                             st.rerun()
@@ -6087,6 +6094,7 @@ if st.session_state.get('phai_doi_mat_khau'):
                 db.close()
                 st.session_state.phai_doi_mat_khau = False
                 st.success("✅ Đổi mật khẩu thành công! Đang vào hệ thống...")
+                st.cache_data.clear()
                 st.rerun()
             except Exception as e:
                 st.error(f"❌ Lỗi khi đổi mật khẩu: {e}")
@@ -7296,6 +7304,7 @@ if menu == "📊 Dashboard":
                             server.quit()
                             
                             st.success(f"✅ Đã gửi lời chúc sinh nhật qua email cho {xung_ho} {selected_sn['ho_ten']}!")
+                            st.cache_data.clear()
                             
                             # Lưu lịch sử
                             db_log = st.session_state.db_engine.get_connection()
@@ -7366,9 +7375,11 @@ if menu == "📊 Dashboard":
 
                     if result["mode"] == "local":
                         st.success(f"✅ Đã backup xong! Thư mục: {result['dest_folder']}")
+                        st.cache_data.clear()
                     else:
                         st.success("✅ Đã backup xong! App đang chạy trên môi trường Cloud (không có ổ D: của bạn), "
                                     "nên kết quả được nén thành file zip — bấm nút bên dưới để tải về máy:")
+                        st.cache_data.clear()
                         st.download_button(
                             label="📥 TẢI FILE BACKUP (.zip)",
                             data=result["zip_bytes"],
@@ -7934,6 +7945,7 @@ elif menu == "👤 Ứng viên":
                             c.execute("INSERT INTO chuc_danh_ung_vien (ten_chuc_danh) VALUES (%s)", (ten_vt_moi,))
                             db.commit()
                             st.success(f"✅ Đã thêm: {ten_vt_moi}")
+                            st.cache_data.clear()
                             st.rerun()
                         else:
                             st.warning("Vị trí này đã tồn tại!")
@@ -7959,6 +7971,7 @@ elif menu == "👤 Ứng viên":
                             c.execute("DELETE FROM chuc_danh_ung_vien WHERE id=%s", (row[0],))
                             db.commit(); db.close()
                             st.success("🗑️ Đã xóa!")
+                            st.cache_data.clear()
                             st.rerun()
 
 # ========== NHÂN VIÊN ==========
@@ -8161,6 +8174,7 @@ elif menu == "✅ Nhân viên":
                             # toàn bộ widget (thu gọn expander, xóa sạch mọi giá trị đã nhập)
                             st.session_state.add_nv_reset_ctr += 1
                             st.success("✅ Đã thoát form thêm nhân viên")
+                            st.cache_data.clear()
                             st.rerun()                
                 st.divider()
 
@@ -8746,6 +8760,7 @@ elif menu == "✅ Nhân viên":
                                         if 'selected_nv_id' in st.session_state:
                                             del st.session_state['selected_nv_id']
                                         st.success("✅ Đã hủy sửa nhân viên")
+                                        st.cache_data.clear()
                                         st.rerun()
             
                     except Exception as e:
@@ -9314,6 +9329,7 @@ elif menu == "✅ Nhân viên":
         if _chedo_qdns == "➕ Tạo QĐNS mới":
             if st.session_state.get('qdns_last_file'):
                 st.success(f"✅ Đã tạo {st.session_state.get('qdns_last_label','Quyết định')} số {st.session_state.get('qdns_last_so')}")
+                st.cache_data.clear()
                 try:
                     with open(st.session_state['qdns_last_file'], "rb") as f:
                         st.download_button(
@@ -11083,6 +11099,7 @@ elif menu == "🕒 Chấm công":
                                         st.info("📨 Đã tạo yêu cầu điều chỉnh, chờ phê duyệt.")
                                     else:
                                         st.success("✅ Đã điều chỉnh và ghi log thành công.")
+                                        st.cache_data.clear()
                                     st.rerun()
                     else:
                         st.info(f"Không có dữ liệu chấm công ngày "
@@ -11610,6 +11627,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                                   (ten_chuan_hoa,))
                         db.commit(); db.close()
                         st.success(f"✅ Đã thêm: {ten_chuan_hoa}"); st.cache_data.clear(); st.rerun()
+                        st.cache_data.clear()
                     except Exception as e:
                         st.error(f"❌ Lỗi: {e}")
                 else:
@@ -11667,6 +11685,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                     db_ch.commit()
                     db_ch.close()
                     st.success(f"✅ Đã kiểm tra {len(rows_ch)} nhân viên, chuẩn hóa lại {so_da_sua} bản ghi.")
+                    st.cache_data.clear()
                     st.rerun()
 
         _quan_ly_danh_muc_don_gian("danh_muc_phong_ban", "ten_phong_ban", "Phòng ban", "VD: Kinh doanh")
@@ -11779,6 +11798,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                                 db.commit(); db.close()
                                 get_all_dieu_hop_dong.clear()
                                 st.success("✅ Đã khôi phục mặc định")
+                                st.cache_data.clear()
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Lỗi: {e}")
@@ -11792,6 +11812,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                                 db.commit(); db.close()
                                 get_all_dieu_hop_dong.clear()
                                 st.success("✅ Đã xoá Điều")
+                                st.cache_data.clear()
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Lỗi: {e}")
@@ -11821,6 +11842,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                         db.commit(); db.close()
                         get_all_dieu_hop_dong.clear()
                         st.success(f"✅ Đã thêm {ma_dieu_de_xuat} vào {loai_hd_chon}")
+                        st.cache_data.clear()
                         st.rerun()
                     except Exception as e:
                         st.error(f"❌ Lỗi: {e}")
@@ -11883,6 +11905,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                 set_cau_hinh('noi_lam_viec', noi_lam_viec_moi.strip(), 'Nơi làm việc mặc định')
                 set_cau_hinh('noi_cap_cccd', noi_cap_cccd_moi.strip(), 'Nơi cấp CCCD mặc định')
                 st.success("✅ Đã lưu thông tin công ty!")
+                st.cache_data.clear()
                 st.rerun()
 
 
@@ -11923,6 +11946,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
             _duong_dan_rieng = os.path.join(os.path.dirname(__file__), 'salary', f'salary_{_mst_hien_tai}.py')
             if os.path.exists(_duong_dan_rieng):
                 st.success(f"✅ Đang dùng công thức lương RIÊNG của công ty bạn: `salary/salary_{_mst_hien_tai}.py`")
+                st.cache_data.clear()
             else:
                 st.info(f"ℹ️ Công ty bạn chưa có công thức lương riêng (`salary/salary_{_mst_hien_tai}.py` chưa "
                         "tồn tại) — đang dùng công thức mặc định `salary/salary_demo.py`. Liên hệ đơn vị triển "
@@ -11993,6 +12017,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                     set_cau_hinh('cc_vai_tro_dieu_chinh_bcc', ','.join(ds_chon), 'Vai trò điều chỉnh BCC')
                     set_cau_hinh('cc_vai_tro_edit_bcc', ','.join(ds_chon), 'Vai trò nhập BCC')
                 st.success("✅ Đã lưu!")
+                st.cache_data.clear()
                 st.rerun()
 
         st.divider()
@@ -12212,6 +12237,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                     st.cache_data.clear()
                     st.session_state.pop('_cau_hinh_cache', None)
                     st.success(f"✅ Đã lưu {len(ds_luu)} địa điểm làm việc.")
+                    st.cache_data.clear()
                     st.rerun()
                 else:
                     st.error("❌ Lưu thất bại, thử lại.")
@@ -12334,6 +12360,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                         st.cache_data.clear()
                         st.session_state.pop('_cau_hinh_cache', None)
                         st.success("✅ Đã lưu cấu hình tăng ca theo phòng ban.")
+                        st.cache_data.clear()
                         st.rerun()
 
         except Exception as e:
@@ -12377,6 +12404,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                     st.cache_data.clear()
                     st.session_state.pop('_cau_hinh_cache', None)
                     st.success("✅ Đã lưu cấu hình chấm công!")
+                    st.cache_data.clear()
                     st.rerun()
                 else:
                     st.error("❌ Lưu thất bại, thử lại.")
@@ -12497,6 +12525,7 @@ elif menu == "📋 BHXH":
                 st.warning("💡 Hướng dẫn: Vào menu '✅ Nhân viên' -> chọn nhân viên -> sửa thông tin -> cập nhật 'Bắt đầu BH' và chuyển trạng thái BHXH thành 'ĐANG ĐÓNG'")
         else:
             st.success("✅ Tất cả lao động đã được đăng ký đóng BHXH!")
+            st.cache_data.clear()
     
     with t2:
         st.subheader("📝 Báo cáo tăng/giảm lao động tham gia BHXH (Mẫu D02-LT)")
@@ -12625,6 +12654,7 @@ elif menu == "📋 BHXH":
                             file_data = f.read()
                         
                         st.success(f"✅ Đã tạo báo cáo thành công! {len(tang_list)} lao động tăng, {len(giam_list)} lao động giảm.")
+                        st.cache_data.clear()
                         
                         st.download_button(
                             label="📥 TẢI FILE EXCEL D02-LT (Đúng mẫu BHXH)",
@@ -13151,6 +13181,7 @@ elif menu == "📋 Báo cáo định kỳ":
                                 width='stretch'
                             )
                         st.success(f"✅ Đã xuất báo cáo với {len(ds_lao_dong)} lao động")
+                        st.cache_data.clear()
                         pass
                     
             else:
@@ -13425,6 +13456,7 @@ elif menu == "📋 Báo cáo định kỳ":
                                 width='stretch'
                             )
                         st.success(f"✅ Đã xuất thống kê {len(ds_tk)} nhân viên với {len(selected_cols_sorted)} cột.")
+                        st.cache_data.clear()
 
 
     with tab_bc_tanggiam:
@@ -13603,6 +13635,7 @@ elif menu == "🔑 Quản lý MK":
                                    (new_hash_ts, st.session_state.nhan_vien_id))
                     db_dmk.commit(); db_dmk.close()
                     st.success("✅ Đổi mật khẩu thành công!")
+                    st.cache_data.clear()
 
     if st.session_state.role in ("admin", "xem_toan_bo"):
         with tab_admin_reset:
@@ -13633,6 +13666,7 @@ elif menu == "🔑 Quản lý MK":
                                          (new_hash_rst, nv_rst['id']))
                             db_r2.commit(); db_r2.close()
                             st.success(f"✅ Đã reset mật khẩu về SĐT ({nv_rst['dien_thoai']}). Thông báo cho nhân viên đăng nhập lại và đổi mật khẩu mới.")
+                            st.cache_data.clear()
                         except Exception as e:
                             st.error(f"❌ Không thể reset mật khẩu: {e}")
 
@@ -13809,6 +13843,7 @@ elif menu == "🔍 Audit Dashboard":
                 st.warning(f"⚠️ {so_bi_cat} chức danh ({nguoi_bi_cat} người) sẽ bị mất nếu SQL có LIMIT 10.")
             else:
                 st.success("✅ Tổng số chức danh ≤ 10, không có nguy cơ bị LIMIT cắt mất dữ liệu.")
+                st.cache_data.clear()
         else:
             st.info("Không có dữ liệu chức danh.")
         st.divider()

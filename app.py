@@ -1118,6 +1118,170 @@ CHATBOT_EMBED_MODEL = "voyage-4-lite"   # rẻ, đa ngôn ngữ, 200 triệu tok
 CHATBOT_EMBED_CACHE_FILE = os.path.join(CHATBOT_LAW_DIR, ".embeddings_cache.json")
 CHATBOT_EMBED_BATCH_SIZE = 100  # số đoạn văn bản nhúng mỗi lần gọi API
 
+# ---------- CẤU HÌNH THANH TOÁN CHATBOT ----------
+CHATBOT_PAYMENT = {
+    "bank_id": "970436",                    # Vietcombank (mã BIN VietQR)
+    "stk": "0101001101757",
+    "chu_tk": "NGUYEN VAN TUYEN",
+    "so_tien": 20000,
+    "credit_moi": 5,                        # số câu hỏi cho lần đăng ký đầu
+    "credit_mua_them": 10,                  # số câu khi mua thêm
+    "gia_mua_them": 30000,
+    "admin_email": "duhocanphuloc@gmail.com",
+}
+ 
+import random, string as _string, urllib.parse as _urlparse
+ 
+def _chatbot_ensure_table():
+    """Tạo bảng chatbot_dang_ky nếu chưa có (gọi 1 lần mỗi session)."""
+    if st.session_state.get('_chatbot_table_ok'):
+        return
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS chatbot_dang_ky (
+                id              SERIAL PRIMARY KEY,
+                ma_dang_ky      TEXT UNIQUE NOT NULL,
+                ho_ten          TEXT NOT NULL,
+                email           TEXT NOT NULL,
+                dien_thoai      TEXT NOT NULL,
+                cong_ty         TEXT,
+                so_credit       INT DEFAULT 0,
+                da_dung         INT DEFAULT 0,
+                trang_thai      TEXT DEFAULT 'CHO_THANH_TOAN',
+                anh_bill        TEXT,
+                ghi_chu_admin   TEXT,
+                created_at      TIMESTAMP DEFAULT NOW(),
+                duyet_luc       TIMESTAMP,
+                duyet_boi       TEXT
+            )
+        """)
+        # Index chống trùng email/SĐT
+        c.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_chatbot_dk_email
+            ON chatbot_dang_ky (LOWER(email))
+        """)
+        c.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_chatbot_dk_sdt
+            ON chatbot_dang_ky (dien_thoai)
+            WHERE dien_thoai IS NOT NULL AND dien_thoai != ''
+        """)
+        db.commit()
+        db.close()
+        st.session_state['_chatbot_table_ok'] = True
+    except Exception:
+        pass
+ 
+def _chatbot_sinh_ma():
+    """Sinh mã đăng ký duy nhất, VD: TVHCNS-A7K3M2"""
+    chars = _string.ascii_uppercase + _string.digits
+    return "TVHCNS-" + ''.join(random.choices(chars, k=6))
+ 
+def _chatbot_qr_url(ma_dang_ky, so_tien=None):
+    """Tạo URL ảnh QR thanh toán chuẩn VietQR (không cần API key)."""
+    cfg = CHATBOT_PAYMENT
+    amt = so_tien or cfg["so_tien"]
+    ten_encoded = _urlparse.quote(cfg["chu_tk"])
+    return (
+        f"https://img.vietqr.io/image/{cfg['bank_id']}-{cfg['stk']}-compact2.png"
+        f"?amount={amt}&addInfo={_urlparse.quote(ma_dang_ky)}&accountName={ten_encoded}"
+    )
+ 
+def _chatbot_tim_dang_ky(email_or_sdt):
+    """Tìm bản đăng ký theo email hoặc SĐT. Trả về dict hoặc None."""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        c.execute("""
+            SELECT * FROM chatbot_dang_ky
+            WHERE LOWER(email) = LOWER(%s) OR dien_thoai = %s
+            ORDER BY id DESC LIMIT 1
+        """, (email_or_sdt.strip(), email_or_sdt.strip()))
+        row = c.fetchone()
+        db.close()
+        return dict(row) if row else None
+    except Exception:
+        return None
+ 
+def _chatbot_tao_dang_ky(ho_ten, email, sdt, cong_ty=""):
+    """Tạo bản đăng ký mới. Trả về ma_dang_ky hoặc None nếu lỗi."""
+    ma = _chatbot_sinh_ma()
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("""
+            INSERT INTO chatbot_dang_ky (ma_dang_ky, ho_ten, email, dien_thoai, cong_ty)
+            VALUES (%s, %s, %s, %s, %s)
+        """, (ma, ho_ten.strip(), email.strip().lower(), sdt.strip(), cong_ty.strip()))
+        db.commit()
+        db.close()
+        return ma
+    except Exception as e:
+        if "idx_chatbot_dk_email" in str(e):
+            return "TRUNG_EMAIL"
+        if "idx_chatbot_dk_sdt" in str(e):
+            return "TRUNG_SDT"
+        return None
+ 
+def _chatbot_upload_bill(ma_dang_ky, uploaded_file):
+    """Upload ảnh bill CK lên Supabase Storage, cập nhật trạng thái."""
+    try:
+        sb = get_supabase_storage()
+        if not sb:
+            return False
+        safe_name = sanitize_storage_filename(uploaded_file.name)
+        path = f"chatbot_bills/{ma_dang_ky}/{safe_name}"
+        storage_path = upload_to_storage_unique(
+            sb, SUPABASE_BUCKET, path,
+            uploaded_file.getvalue(), uploaded_file.type
+        )
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("""
+            UPDATE chatbot_dang_ky
+            SET anh_bill = %s, trang_thai = 'DA_GUI_BILL'
+            WHERE ma_dang_ky = %s
+        """, (storage_path, ma_dang_ky))
+        db.commit()
+        db.close()
+        return True
+    except Exception:
+        return False
+ 
+def _chatbot_tru_credit(reg_id):
+    """Trừ 1 credit sau khi user gửi câu hỏi."""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("""
+            UPDATE chatbot_dang_ky SET da_dung = da_dung + 1
+            WHERE id = %s AND da_dung < so_credit
+        """, (reg_id,))
+        db.commit()
+        db.close()
+    except Exception:
+        pass
+ 
+def _chatbot_gui_thong_bao_admin(dk):
+    """Gửi email thông báo cho admin khi có đăng ký mới."""
+    try:
+        subject = f"[HRM Master] Đăng ký Chatbot mới: {dk['ho_ten']}"
+        body = f"""
+        <h3>Đăng ký thử nghiệm AI Tư vấn HCNS</h3>
+        <table border="1" cellpadding="6" style="border-collapse:collapse">
+            <tr><td><b>Mã ĐK</b></td><td>{dk['ma_dang_ky']}</td></tr>
+            <tr><td><b>Họ tên</b></td><td>{dk['ho_ten']}</td></tr>
+            <tr><td><b>Email</b></td><td>{dk['email']}</td></tr>
+            <tr><td><b>SĐT</b></td><td>{dk['dien_thoai']}</td></tr>
+            <tr><td><b>Công ty</b></td><td>{dk.get('cong_ty','')}</td></tr>
+        </table>
+        <p>Vào app → Chatbot Giải đáp → tab "📋 Quản lý đăng ký" để duyệt.</p>
+        """
+        gui_email_don(CHATBOT_PAYMENT["admin_email"], subject, body)
+    except Exception:
+        pass
+
 def _chatbot_get_voyage_api_key():
     try:
         return st.secrets.get("VOYAGE_API_KEY") or st.secrets.get("voyage", {}).get("api_key")
@@ -1248,15 +1412,42 @@ def _chatbot_search_laws(q, top_k=12):
         ket_qua = _chatbot_search_laws_keyword(q, top_k=top_k)
     return ket_qua
 
-def _chatbot_system_prompt(laws):
-    laws_text = "\n".join(f'[{l["id"]}] {l["ref"]}: "{l["text"]}"' for l in laws)
-    return f"""Bạn là chuyên gia tư vấn pháp luật hành chính nhân sự Việt Nam với 15+ năm kinh nghiệm. Tư vấn chuyên nghiệp, cụ thể, có căn cứ pháp lý.
-
-ĐIỀU LUẬT ĐÃ TRUY XUẤT:
+def _chatbot_system_prompt_v2(laws):
+    """System prompt mới — yêu cầu Claude trả lời Markdown (không JSON)."""
+    laws_text = "\n".join(
+        f'[{l["id"]}] {l["ref"]}: "{l["text"]}"' for l in laws
+    )
+    return f"""Bạn là CHUYÊN GIA TƯ VẤN pháp luật Hành chính - Nhân sự Việt Nam, có 15+ năm kinh nghiệm thực tiễn.
+ 
+NHIỆM VỤ: Tư vấn chuyên nghiệp, cụ thể, CÓ CĂN CỨ PHÁP LÝ cho câu hỏi của người dùng.
+ 
+CÁC ĐIỀU LUẬT LIÊN QUAN ĐÃ TRUY XUẤT TỪ CƠ SỞ DỮ LIỆU:
 {laws_text}
-
-Trả về JSON thuần (KHÔNG markdown, KHÔNG text ngoài JSON):
-{{"summary":"Tóm tắt 1-2 câu","analysis":"Phân tích chi tiết 3-5 câu","options":[{{"label":"Phương án A – tên ngắn","detail":"Mô tả cụ thể","risk":"Rủi ro hoặc rỗng","type":"recommended|alternative|risky"}}],"citations":["ID1","ID2"],"calculations":[{{"label":"Tên khoản","formula":"Công thức","result":"Kết quả nếu đủ số liệu"}}],"note":"Lưu ý quan trọng hoặc thông tin cần bổ sung"}}"""
+ 
+QUY TẮC TRẢ LỜI:
+1. Trả lời bằng tiếng Việt, dùng Markdown, cấu trúc rõ ràng theo các mục bên dưới.
+2. LUÔN viện dẫn điều luật cụ thể (số điều, tên luật/nghị định/thông tư) ngay trong câu phân tích.
+3. Nếu có số liệu cụ thể (lương, thời gian đóng BH...) → tính toán chi tiết, trình bày công thức.
+4. Nếu câu hỏi mơ hồ → nêu các trường hợp có thể xảy ra, mỗi trường hợp kèm căn cứ riêng.
+5. Giọng văn: chuyên nghiệp nhưng dễ hiểu, tránh hàn lâm.
+ 
+ĐỊNH DẠNG BẮT BUỘC:
+ 
+### 📋 Tóm tắt
+(1-2 câu trả lời ngắn gọn, đi thẳng vào vấn đề)
+ 
+### 📖 Phân tích chi tiết
+(Phân tích đầy đủ, viện dẫn điều luật cụ thể ngay trong từng luận điểm.
+Ví dụ: "Theo Điều 46 Bộ luật Lao động 2019, trợ cấp thôi việc được tính...")
+ 
+### 🔢 Tính toán (nếu có số liệu)
+(Trình bày công thức + kết quả cụ thể. Bỏ qua mục này nếu câu hỏi không liên quan đến tính toán)
+ 
+### ⚖️ Căn cứ pháp lý
+(Liệt kê các điều luật đã viện dẫn, mỗi điều 1 dòng, gồm: tên luật + số điều + nội dung tóm tắt)
+ 
+### 💡 Lưu ý
+(Cảnh báo rủi ro, trường hợp ngoại lệ, hoặc thông tin cần bổ sung để tư vấn chính xác hơn)"""
 
 def _chatbot_get_api_key():
     try:
@@ -1264,12 +1455,11 @@ def _chatbot_get_api_key():
     except Exception:
         return None
 
-def _chatbot_call_claude(system_prompt, history):
-    """Gọi Anthropic Messages API từ phía server (Streamlit backend), trả về dict đã parse JSON."""
+def _chatbot_call_claude_v2(system_prompt, history):
+    """Gọi Claude API, trả về text Markdown (không parse JSON)."""
     api_key = _chatbot_get_api_key()
     if not api_key:
-        return {"summary": "⚠️ Chưa cấu hình ANTHROPIC_API_KEY trong Secrets của app.", "analysis": "",
-                "options": [], "citations": [], "calculations": [], "note": "Vào Streamlit Cloud → Manage app → Secrets, thêm dòng: ANTHROPIC_API_KEY = \"sk-ant-...\""}
+        return "⚠️ **Chưa cấu hình ANTHROPIC_API_KEY.** Vào Streamlit Secrets, thêm: `ANTHROPIC_API_KEY = \"sk-ant-...\"`"
     try:
         resp = requests.post(
             "https://api.anthropic.com/v1/messages",
@@ -1280,25 +1470,19 @@ def _chatbot_call_claude(system_prompt, history):
             },
             json={
                 "model": "claude-sonnet-4-5-20250929",
-                "max_tokens": 1200,
+                "max_tokens": 3500,
                 "system": system_prompt,
                 "messages": history,
             },
-            timeout=30,
+            timeout=60,
         )
         data = resp.json()
         if "content" not in data:
-            err_msg = data.get("error", {}).get("message", str(data))
-            return {"summary": f"❌ Lỗi gọi API: {err_msg}", "analysis": "", "options": [],
-                    "citations": [], "calculations": [], "note": ""}
-        raw = "".join(b.get("text", "") for b in data["content"])
-        raw_clean = raw.replace("```json", "").replace("```", "").strip()
-        try:
-            return json.loads(raw_clean)
-        except Exception:
-            return {"summary": raw[:400], "analysis": "", "options": [], "citations": [], "calculations": [], "note": ""}
+            err = data.get("error", {}).get("message", str(data))
+            return f"❌ **Lỗi API:** {err}"
+        return "".join(b.get("text", "") for b in data["content"])
     except Exception as e:
-        return {"summary": f"❌ Lỗi kết nối: {e}", "analysis": "", "options": [], "citations": [], "calculations": [], "note": ""}
+        return f"❌ **Lỗi kết nối:** {e}"
 
 def _chatbot_badge_html(loai):
     return {
@@ -6398,40 +6582,34 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
                 st.rerun()
 
         with col_btn_action3:
-            if nv.get('trang_thai') == 'DANG_LAM':
-                if st.button("🖨️ IN HĐLĐ", width='stretch', key=f"print_hdld_card_{key_prefix}"):
-                    db = st.session_state.db_engine.get_connection()
-                    c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                    c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(nv['id']),))
-                    nv_full = c.fetchone()
-                    db.close()
-                    if nv_full:
-                        fp = tao_hop_dong(nv_full)
-                        with open(fp, "rb") as f:
+            if nv.get('trang_thai') in ('DANG_LAM', 'THU_VIEC'):
+                # Sinh file hợp đồng ngay → download 1 click
+                try:
+                    db_hd = st.session_state.db_engine.get_connection()
+                    c_hd = db_hd.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                    c_hd.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(nv['id']),))
+                    nv_full_hd = c_hd.fetchone()
+                    db_hd.close()
+                    if nv_full_hd:
+                        if nv.get('trang_thai') == 'DANG_LAM':
+                            fp_hd = tao_hop_dong(nv_full_hd)
+                            label_hd = "🖨️ IN HĐLĐ"
+                            fname_hd = f"HDLD_{nv_full_hd['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx"
+                        else:
+                            fp_hd = tao_hop_dong_thu_viec(nv_full_hd)
+                            label_hd = "🖨️ IN HĐTV"
+                            fname_hd = f"HDTV_{nv_full_hd['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx"
+                        with open(fp_hd, "rb") as f_hd:
                             st.download_button(
-                                label="📥 TẢI HĐLĐ",
-                                data=f,
-                                file_name=f"HDLD_{nv_full['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx",
+                                label=label_hd,
+                                data=f_hd,
+                                file_name=fname_hd,
                                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                key=f"download_hdld_{key_prefix}"
+                                key=f"dl_hd_{key_prefix}",
+                                width='stretch'
                             )
-            elif nv.get('trang_thai') == 'THU_VIEC':
-                if st.button("🖨️ IN HĐTV", width='stretch', key=f"print_hdtv_card_{key_prefix}"):
-                    db = st.session_state.db_engine.get_connection()
-                    c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-                    c.execute("SELECT * FROM nhan_vien WHERE id = %s", (int(nv['id']),))
-                    nv_full = c.fetchone()
-                    db.close()
-                    if nv_full:
-                        fp = tao_hop_dong_thu_viec(nv_full)
-                        with open(fp, "rb") as f:
-                            st.download_button(
-                                label="📥 TẢI HĐTV",
-                                data=f,
-                                file_name=f"HDTV_{nv_full['ho_ten']}_{datetime.now().strftime('%Y%m%d')}.docx",
-                                mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                key=f"download_hdtv_{key_prefix}"
-                            )
+                except Exception as e_hd:
+                    st.button("📄 LỖI TẠO HĐ", disabled=True, width='stretch', key=f"err_hd_{key_prefix}")
             else:
                 st.button("📄 KHÔNG THỂ IN HĐ", disabled=True, width='stretch', key=f"no_hd_{key_prefix}")
 
@@ -13524,81 +13702,413 @@ elif menu == "💬 Chat nội bộ":
 
 # ========== CHATBOT GIẢI ĐÁP ==========
 elif menu == "🤖 Chatbot Giải đáp":
-    st.title("🤖 AI Tư vấn Hành chính Nhân sự")
-    st.caption("BHXH · BHYT · Thuế TNCN · Lao động · Thai sản · Thất nghiệp — AI phân tích và trích dẫn điều luật cụ thể.")
-
-    _so_dieu_luat_da_nap = len(_chatbot_all_laws())
-    _semantic_bat = bool(_chatbot_get_voyage_api_key())
-    col_info_luat, col_btn_luat = st.columns([5, 1])
-    with col_info_luat:
-        if _so_dieu_luat_da_nap:
-            trang_thai = "🧠 Tìm kiếm ngữ nghĩa (semantic search)" if _semantic_bat else "🔤 Tìm kiếm theo từ khoá (chưa cấu hình VOYAGE_API_KEY)"
-            st.caption(f"📚 Đã nạp {_so_dieu_luat_da_nap} điều luật từ thư mục `luat_data/`. · {trang_thai}")
-        else:
-            st.warning(f"⚠️ Chưa có dữ liệu luật nào trong `{CHATBOT_LAW_DIR}`. Hãy copy các file `*_full.json` vào thư mục này.")
-    with col_btn_luat:
-        if st.button("🔄 Nạp lại dữ liệu luật", key="chatbot_reload_laws"):
-            _chatbot_load_all_laws.clear()
-            _chatbot_build_law_embeddings.clear()
-            st.rerun()
-
-    if "chatbot_history" not in st.session_state:
-        st.session_state.chatbot_history = []
-    if "chatbot_display" not in st.session_state:
-        st.session_state.chatbot_display = []
-
-    cau_hoi_bam = None
-    if not st.session_state.chatbot_display:
-        st.markdown("""
-        <div style="text-align:center;padding-top:10px;">
-            <div style="font-size:36px;margin-bottom:8px;">⚖️</div>
-            <h3 style="color:#1e3a5f;">Chào mừng đến với AI Tư vấn HCNS</h3>
-            <p style="font-size:13px;color:#6b7280;line-height:1.7;">Hỏi về quyền lợi BHXH, BHYT, thai sản, thất nghiệp,
-            thuế TNCN, hợp đồng lao động — tôi sẽ phân tích và trích dẫn điều luật cụ thể.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        cau_hoi_mau = [
-            ("🤰", "Chế độ thai sản", "Tôi đang mang thai, cần đóng BHXH bao lâu để hưởng thai sản? Nghỉ được mấy tháng và hưởng mức lương bao nhiêu?"),
-            ("💰", "Tính thuế TNCN", "Lương gross 20 triệu, có 1 người phụ thuộc, đóng BHXH 8%, thuế TNCN phải nộp bao nhiêu?"),
-            ("📋", "Trợ cấp thất nghiệp", "Tôi đã đóng BHTN được 3 năm liên tục, vừa mất việc. Được hưởng trợ cấp thất nghiệp bao nhiêu tháng và mức hưởng tính thế nào?"),
-            ("🏥", "BHXH ốm đau", "Nhân viên đã đóng BHXH 10 năm, bị ốm nghỉ 45 ngày liên tiếp trong năm. Mức hưởng BHXH ốm đau tính thế nào?"),
-            ("📝", "Hợp đồng lao động", "Công ty muốn chấm dứt hợp đồng với nhân viên đã làm 3 năm. Cần thực hiện đúng quy trình gì và có phải trả trợ cấp thôi việc không?"),
-            ("👨‍👩‍👧", "Giảm trừ gia cảnh", "Điều kiện và thủ tục đăng ký người phụ thuộc để giảm trừ gia cảnh thuế TNCN là gì? Hồ sơ gồm những gì?"),
-        ]
-        cols_q = st.columns(3)
-        for i, (icon, label, full_q) in enumerate(cau_hoi_mau):
-            with cols_q[i % 3]:
-                if st.button(f"{icon} {label}", key=f"chatbot_qb_{i}", width='stretch'):
-                    cau_hoi_bam = full_q
+    _chatbot_ensure_table()
+ 
+    # --- Admin thấy thêm tab Quản lý đăng ký ---
+    if st.session_state.role in ("admin", "xem_toan_bo"):
+        tab_chat, tab_admin_dk = st.tabs(["🤖 AI Tư vấn", "📋 Quản lý đăng ký"])
     else:
-        for msg in st.session_state.chatbot_display:
-            if msg["role"] == "user":
-                with st.chat_message("user"):
-                    st.markdown(msg["text"])
+        tab_chat = st.container()
+        tab_admin_dk = None
+ 
+    with tab_chat:
+        st.title("🤖 AI Tư vấn Hành chính Nhân sự")
+        st.caption("BHXH · BHYT · Thuế TNCN · Lao động · Thai sản · Thất nghiệp — Phân tích & trích dẫn điều luật cụ thể.")
+ 
+        # Hiển thị trạng thái dữ liệu luật
+        _so_dieu = len(_chatbot_all_laws())
+        _sem_on = bool(_chatbot_get_voyage_api_key())
+        col_info, col_reload = st.columns([5, 1])
+        with col_info:
+            if _so_dieu:
+                mode_txt = "🧠 Semantic search" if _sem_on else "🔤 Keyword search (chưa có VOYAGE_API_KEY)"
+                st.caption(f"📚 {_so_dieu} điều luật · {mode_txt}")
             else:
-                with st.chat_message("assistant", avatar="⚖️"):
-                    st.markdown(_chatbot_render_answer_html(msg["data"]), unsafe_allow_html=True)
-
-    cau_hoi_go = st.chat_input("Đặt câu hỏi về BHXH, thuế TNCN, thai sản, hợp đồng lao động...")
-    cau_hoi_cuoi = cau_hoi_bam or cau_hoi_go
-
-    if cau_hoi_cuoi:
-        st.session_state.chatbot_display.append({"role": "user", "text": cau_hoi_cuoi})
-        st.session_state.chatbot_history.append({"role": "user", "content": cau_hoi_cuoi})
-        with st.spinner("⚖️ Đang phân tích điều luật liên quan..."):
-            laws = _chatbot_search_laws(cau_hoi_cuoi)
-            system_prompt = _chatbot_system_prompt(laws)
-            ket_qua = _chatbot_call_claude(system_prompt, st.session_state.chatbot_history)
-        st.session_state.chatbot_history.append({"role": "assistant", "content": json.dumps(ket_qua, ensure_ascii=False)})
-        st.session_state.chatbot_display.append({"role": "ai", "data": ket_qua})
-        st.rerun()
-
-    st.caption("ℹ️ Kết quả tư vấn mang tính tham khảo. Vui lòng xác nhận với chuyên gia pháp lý cho các quyết định quan trọng.")
-    if st.session_state.chatbot_display:
-        if st.button("🗑️ Xoá lịch sử trò chuyện"):
-            st.session_state.chatbot_history = []
-            st.session_state.chatbot_display = []
-            st.rerun()
+                st.warning(f"⚠️ Chưa có dữ liệu luật trong `{CHATBOT_LAW_DIR}`.")
+        with col_reload:
+            if st.button("🔄 Nạp lại", key="chatbot_reload"):
+                _chatbot_load_all_laws.clear()
+                _chatbot_build_law_embeddings.clear()
+                st.rerun()
+ 
+        # ========== XÁC ĐỊNH TRẠNG THÁI USER ==========
+        # Kiểm tra user đã đăng ký chưa (qua session hoặc tìm trong DB)
+        reg = st.session_state.get('_chatbot_reg')
+ 
+        # Nếu chưa có trong session, thử tìm theo thông tin NV đang đăng nhập
+        if not reg:
+            nv_email = st.session_state.get('nhan_vien_email', '')
+            nv_sdt = st.session_state.get('nhan_vien_sdt', '') or st.session_state.get('username', '')
+            for val in [nv_email, nv_sdt]:
+                if val:
+                    found = _chatbot_tim_dang_ky(val)
+                    if found:
+                        reg = found
+                        st.session_state['_chatbot_reg'] = reg
+                        break
+ 
+        # ========== ROUTER THEO TRẠNG THÁI ==========
+ 
+        # --- TRẠNG THÁI: ĐÃ DUYỆT + CÒN CREDIT → CHAT ---
+        if reg and reg.get('trang_thai') == 'DA_DUYET' and reg.get('da_dung', 0) < reg.get('so_credit', 0):
+            con_lai = reg['so_credit'] - reg['da_dung']
+            st.success(f"🎫 Còn **{con_lai}/{reg['so_credit']}** câu hỏi · Xin chào **{reg['ho_ten']}**")
+ 
+            if "chatbot_history" not in st.session_state:
+                st.session_state.chatbot_history = []
+            if "chatbot_display" not in st.session_state:
+                st.session_state.chatbot_display = []
+ 
+            # Hiện lịch sử chat
+            for msg in st.session_state.chatbot_display:
+                if msg["role"] == "user":
+                    with st.chat_message("user"):
+                        st.markdown(msg["text"])
+                else:
+                    with st.chat_message("assistant", avatar="⚖️"):
+                        st.markdown(msg["text"])
+ 
+            # Ô nhập câu hỏi
+            cau_hoi = st.chat_input("Đặt câu hỏi về BHXH, thuế TNCN, thai sản, hợp đồng lao động...")
+ 
+            if cau_hoi:
+                # Trừ credit
+                _chatbot_tru_credit(reg['id'])
+                reg['da_dung'] += 1
+                st.session_state['_chatbot_reg'] = reg
+ 
+                st.session_state.chatbot_display.append({"role": "user", "text": cau_hoi})
+                st.session_state.chatbot_history.append({"role": "user", "content": cau_hoi})
+ 
+                with st.spinner("⚖️ Đang phân tích điều luật liên quan..."):
+                    laws = _chatbot_search_laws(cau_hoi)
+                    system_prompt = _chatbot_system_prompt_v2(laws)
+                    ket_qua = _chatbot_call_claude_v2(system_prompt, st.session_state.chatbot_history)
+ 
+                st.session_state.chatbot_history.append({"role": "assistant", "content": ket_qua})
+                st.session_state.chatbot_display.append({"role": "ai", "text": ket_qua})
+                st.rerun()
+ 
+            st.caption("ℹ️ Kết quả mang tính tham khảo. Vui lòng xác nhận với chuyên gia pháp lý cho các quyết định quan trọng.")
+            if st.session_state.chatbot_display:
+                if st.button("🗑️ Xoá lịch sử trò chuyện"):
+                    st.session_state.chatbot_history = []
+                    st.session_state.chatbot_display = []
+                    st.rerun()
+ 
+        # --- TRẠNG THÁI: HẾT CREDIT ---
+        elif reg and reg.get('trang_thai') == 'DA_DUYET' and reg.get('da_dung', 0) >= reg.get('so_credit', 0):
+            st.warning("🔒 **Bạn đã sử dụng hết lượt thử nghiệm.**")
+            st.markdown(f"""
+            Bạn đã dùng hết **{reg['so_credit']} câu hỏi** thử nghiệm.
+            Cảm ơn **{reg['ho_ten']}** đã trải nghiệm AI Tư vấn HCNS!
+            """)
+            col_mua, col_lienhe = st.columns(2)
+            with col_mua:
+                cfg = CHATBOT_PAYMENT
+                if st.button(f"🔄 Mua thêm {cfg['credit_mua_them']} câu — {cfg['gia_mua_them']:,.0f}đ", type="primary", width='stretch'):
+                    # Chuyển sang màn thanh toán mua thêm
+                    st.session_state['_chatbot_mua_them'] = True
+                    st.rerun()
+            with col_lienhe:
+                st.link_button("📞 Tư vấn gói Doanh nghiệp", "https://zalo.me/0961778150", use_container_width=True)
+ 
+            # Xử lý mua thêm
+            if st.session_state.get('_chatbot_mua_them'):
+                st.divider()
+                st.subheader("💳 Thanh toán mua thêm")
+                ma_dk = reg['ma_dang_ky']
+                qr = _chatbot_qr_url(f"{ma_dk}-MUATHEM", cfg['gia_mua_them'])
+                col_qr, col_info_pay = st.columns([1, 1])
+                with col_qr:
+                    st.image(qr, caption="Quét QR để thanh toán", width=280)
+                with col_info_pay:
+                    st.markdown(f"""
+                    **Ngân hàng:** Vietcombank  
+                    **STK:** `{cfg['stk']}`  
+                    **Chủ TK:** {cfg['chu_tk']}  
+                    **Số tiền:** {cfg['gia_mua_them']:,.0f}đ  
+                    **Nội dung CK:** `{ma_dk}-MUATHEM`
+                    """)
+                bill_mt = st.file_uploader("📸 Upload ảnh bill chuyển khoản", type=["png","jpg","jpeg"], key="bill_mua_them")
+                if bill_mt:
+                    if st.button("✅ Đã thanh toán — Gửi bill", type="primary"):
+                        ok = _chatbot_upload_bill(f"{ma_dk}-MUATHEM", bill_mt)
+                        if ok:
+                            st.success("✅ Đã gửi! Vui lòng chờ admin xác nhận (thường 5-15 phút).")
+                            st.session_state['_chatbot_mua_them'] = False
+                        else:
+                            st.error("❌ Lỗi upload. Vui lòng thử lại hoặc gửi bill qua Zalo.")
+ 
+        # --- TRẠNG THÁI: CHỜ THANH TOÁN hoặc CHỜ DUYỆT ---
+        elif reg and reg.get('trang_thai') in ('CHO_THANH_TOAN', 'DA_GUI_BILL'):
+            ma_dk = reg['ma_dang_ky']
+            if reg['trang_thai'] == 'DA_GUI_BILL':
+                st.info(f"""
+                ⏳ **Đang chờ xác nhận thanh toán**
+                
+                Mã đăng ký: `{ma_dk}`  
+                Chúng tôi sẽ xác nhận trong vòng **5-15 phút** (giờ hành chính).
+                Sau khi xác nhận, bạn quay lại đây và nhập email/SĐT để bắt đầu sử dụng.
+                """)
+                if st.button("🔄 Kiểm tra lại trạng thái"):
+                    st.session_state.pop('_chatbot_reg', None)
+                    st.rerun()
+            else:
+                # Chưa gửi bill → hiện QR thanh toán
+                st.subheader("💳 Thanh toán đăng ký")
+                cfg = CHATBOT_PAYMENT
+                qr = _chatbot_qr_url(ma_dk)
+                col_qr2, col_info2 = st.columns([1, 1])
+                with col_qr2:
+                    st.image(qr, caption="Quét QR để thanh toán", width=280)
+                with col_info2:
+                    st.markdown(f"""
+                    **Ngân hàng:** Vietcombank  
+                    **STK:** `{cfg['stk']}`  
+                    **Chủ TK:** {cfg['chu_tk']}  
+                    **Số tiền:** {cfg['so_tien']:,.0f}đ  
+                    **Nội dung CK:** `{ma_dk}`
+                    
+                    ---
+                    Sau khi chuyển khoản, upload ảnh bill bên dưới:
+                    """)
+                bill_file = st.file_uploader("📸 Upload ảnh bill chuyển khoản", type=["png","jpg","jpeg"], key="bill_dangky")
+                if bill_file:
+                    if st.button("✅ Đã thanh toán — Gửi bill xác nhận", type="primary"):
+                        ok = _chatbot_upload_bill(ma_dk, bill_file)
+                        if ok:
+                            reg['trang_thai'] = 'DA_GUI_BILL'
+                            st.session_state['_chatbot_reg'] = reg
+                            _chatbot_gui_thong_bao_admin(reg)
+                            st.success("✅ Đã gửi bill! Vui lòng chờ xác nhận (thường 5-15 phút).")
+                            st.rerun()
+                        else:
+                            st.error("❌ Lỗi upload. Thử lại hoặc gửi bill qua Zalo: 0961778150")
+ 
+        # --- TRẠNG THÁI: CHƯA ĐĂNG KÝ → LANDING PAGE + FORM ---
+        else:
+            # === LANDING PAGE ===
+            st.markdown("""
+            <div style="text-align:center; padding:20px 0 10px;">
+                <div style="font-size:48px; margin-bottom:8px;">⚖️</div>
+                <h2 style="color:#1e3a5f; margin-bottom:4px;">AI Tư vấn Hành chính Nhân sự</h2>
+                <p style="color:#6b7280; font-size:14px; line-height:1.7; max-width:600px; margin:0 auto;">
+                    Hỏi bất kỳ câu hỏi nào về <b>BHXH, BHYT, Thuế TNCN, Hợp đồng lao động, Thai sản, 
+                    Trợ cấp thất nghiệp</b> — AI sẽ phân tích và trích dẫn điều luật cụ thể.
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+ 
+            # Demo 1 câu hỏi mẫu (hardcode)
+            with st.expander("💬 Xem ví dụ câu hỏi & trả lời", expanded=False):
+                st.markdown("""
+**Câu hỏi:** *Tôi đã đóng BHXH 10 năm, nghỉ ốm 45 ngày. Mức hưởng tính thế nào?*
+ 
+### 📋 Tóm tắt
+Với 10 năm đóng BHXH, bạn được hưởng ốm đau 75% lương đóng BH, tối đa 30 ngày/năm trong điều kiện làm việc bình thường.
+ 
+### 📖 Phân tích chi tiết
+Theo **Điều 26 Luật BHXH 2014**, người lao động đóng BHXH từ đủ 15 năm trở xuống được nghỉ ốm tối đa **30 ngày/năm** (làm việc trong điều kiện bình thường). 15 ngày còn lại (45 - 30 = 15 ngày) nếu mắc bệnh dài ngày theo danh mục Bộ Y tế, bạn hưởng mức thấp hơn (50-65% tuỳ thời gian đóng)...
+ 
+### ⚖️ Căn cứ pháp lý
+- Điều 26 Luật BHXH 2014 — Thời gian hưởng chế độ ốm đau  
+- Điều 28 Luật BHXH 2014 — Mức hưởng chế độ ốm đau
+                """)
+ 
+            st.divider()
+ 
+            # Đăng nhập nếu đã có tài khoản
+            st.markdown("#### 🔑 Đã đăng ký? Nhập email hoặc SĐT để tiếp tục")
+            col_login, col_btn_login = st.columns([3, 1])
+            with col_login:
+                login_val = st.text_input("Email hoặc SĐT đã đăng ký", key="chatbot_login_input", label_visibility="collapsed", placeholder="Email hoặc SĐT đã đăng ký...")
+            with col_btn_login:
+                if st.button("→ Vào", key="chatbot_login_btn", width='stretch'):
+                    if login_val:
+                        found = _chatbot_tim_dang_ky(login_val)
+                        if found:
+                            st.session_state['_chatbot_reg'] = found
+                            st.rerun()
+                        else:
+                            st.error("Không tìm thấy. Vui lòng đăng ký mới bên dưới.")
+                    else:
+                        st.warning("Nhập email hoặc SĐT.")
+ 
+            st.divider()
+ 
+            # Form đăng ký mới
+            st.markdown(f"""
+            #### 🔓 Đăng ký thử nghiệm
+            **{CHATBOT_PAYMENT['so_tien']:,.0f}đ** · {CHATBOT_PAYMENT['credit_moi']} câu hỏi tư vấn AI có viện dẫn pháp luật
+            """)
+            with st.form("chatbot_register"):
+                col_r1, col_r2 = st.columns(2)
+                with col_r1:
+                    reg_ten = st.text_input("Họ và tên *", placeholder="Nguyễn Văn A")
+                    reg_email = st.text_input("Email *", placeholder="email@congty.vn")
+                with col_r2:
+                    reg_sdt = st.text_input("Số điện thoại *", placeholder="0912345678")
+                    reg_cty = st.text_input("Tên công ty (tuỳ chọn)", placeholder="Công ty ABC")
+ 
+                if st.form_submit_button("📝 Đăng ký & Thanh toán →", type="primary", use_container_width=True):
+                    # Validate
+                    loi = []
+                    if not reg_ten.strip():
+                        loi.append("Họ tên")
+                    if not reg_email.strip() or "@" not in reg_email:
+                        loi.append("Email")
+                    if not reg_sdt.strip() or len(reg_sdt.strip()) < 9:
+                        loi.append("SĐT")
+                    if loi:
+                        st.error(f"Vui lòng nhập đúng: {', '.join(loi)}")
+                    else:
+                        ma = _chatbot_tao_dang_ky(reg_ten, reg_email, reg_sdt, reg_cty)
+                        if ma == "TRUNG_EMAIL":
+                            st.error("Email này đã đăng ký. Nhập email ở ô phía trên để tiếp tục.")
+                        elif ma == "TRUNG_SDT":
+                            st.error("SĐT này đã đăng ký. Nhập SĐT ở ô phía trên để tiếp tục.")
+                        elif ma:
+                            new_reg = _chatbot_tim_dang_ky(reg_email)
+                            if new_reg:
+                                st.session_state['_chatbot_reg'] = new_reg
+                                st.success(f"✅ Đăng ký thành công! Mã: `{ma}`. Chuyển sang thanh toán...")
+                                st.rerun()
+                        else:
+                            st.error("Lỗi tạo đăng ký. Vui lòng thử lại.")
+ 
+    # ========== TAB ADMIN: QUẢN LÝ ĐĂNG KÝ ==========
+    if tab_admin_dk is not None:
+        with tab_admin_dk:
+            st.subheader("📋 Quản lý đăng ký Chatbot")
+            try:
+                db_adm = st.session_state.db_engine.get_connection()
+                c_adm = db_adm.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                c_adm.execute("""
+                    SELECT * FROM chatbot_dang_ky
+                    ORDER BY
+                        CASE trang_thai
+                            WHEN 'DA_GUI_BILL' THEN 1
+                            WHEN 'CHO_THANH_TOAN' THEN 2
+                            WHEN 'DA_DUYET' THEN 3
+                            ELSE 4
+                        END,
+                        created_at DESC
+                """)
+                ds_dk = c_adm.fetchall()
+                db_adm.close()
+            except Exception:
+                ds_dk = []
+ 
+            if not ds_dk:
+                st.info("Chưa có đăng ký nào.")
+            else:
+                # Thống kê nhanh
+                cho_duyet = sum(1 for d in ds_dk if d['trang_thai'] == 'DA_GUI_BILL')
+                da_duyet = sum(1 for d in ds_dk if d['trang_thai'] == 'DA_DUYET')
+                st.caption(f"📊 Tổng: {len(ds_dk)} · Chờ duyệt: {cho_duyet} · Đã duyệt: {da_duyet}")
+ 
+                for dk in ds_dk:
+                    trang_thai_icon = {
+                        'CHO_THANH_TOAN': '⏳ Chờ TT',
+                        'DA_GUI_BILL': '🔔 Chờ duyệt',
+                        'DA_DUYET': '✅ Đã duyệt',
+                        'TU_CHOI': '❌ Từ chối',
+                        'HET_CREDIT': '🔒 Hết credit',
+                    }.get(dk['trang_thai'], dk['trang_thai'])
+ 
+                    with st.expander(
+                        f"{trang_thai_icon} | {dk['ho_ten']} | {dk['email']} | {dk['ma_dang_ky']}"
+                        f" | Credit: {dk['da_dung']}/{dk['so_credit']}"
+                    ):
+                        col_dk1, col_dk2 = st.columns(2)
+                        with col_dk1:
+                            st.markdown(f"""
+                            **Họ tên:** {dk['ho_ten']}  
+                            **Email:** {dk['email']}  
+                            **SĐT:** {dk['dien_thoai']}  
+                            **Công ty:** {dk.get('cong_ty') or '—'}  
+                            **Đăng ký lúc:** {dk['created_at']}
+                            """)
+                        with col_dk2:
+                            # Hiện ảnh bill nếu có
+                            if dk.get('anh_bill'):
+                                try:
+                                    sb = get_supabase_storage()
+                                    if sb:
+                                        bill_bytes = sb.storage.from_(SUPABASE_BUCKET).download(dk['anh_bill'])
+                                        if bill_bytes:
+                                            st.image(bill_bytes, caption="Ảnh bill CK", width=250)
+                                except Exception:
+                                    st.caption("(Không tải được ảnh bill)")
+                            else:
+                                st.caption("Chưa có ảnh bill")
+ 
+                        # Nút hành động
+                        if dk['trang_thai'] == 'DA_GUI_BILL':
+                            col_a1, col_a2 = st.columns(2)
+                            with col_a1:
+                                credit_duyet = st.number_input(
+                                    "Số credit cấp", min_value=1, value=CHATBOT_PAYMENT['credit_moi'],
+                                    key=f"credit_{dk['id']}"
+                                )
+                                if st.button("✅ DUYỆT", key=f"duyet_{dk['id']}", type="primary",
+                                             width='stretch', disabled=not can_edit()):
+                                    try:
+                                        db_d = st.session_state.db_engine.get_connection()
+                                        c_d = db_d.cursor()
+                                        c_d.execute("""
+                                            UPDATE chatbot_dang_ky
+                                            SET trang_thai='DA_DUYET', so_credit=%s,
+                                                duyet_luc=NOW(), duyet_boi=%s
+                                            WHERE id=%s
+                                        """, (credit_duyet, st.session_state.get('username','admin'), dk['id']))
+                                        db_d.commit()
+                                        db_d.close()
+                                        st.success(f"✅ Đã duyệt {dk['ho_ten']} — {credit_duyet} credit")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Lỗi: {e}")
+                            with col_a2:
+                                if st.button("❌ Từ chối", key=f"tuchoi_{dk['id']}",
+                                             width='stretch', disabled=not can_edit()):
+                                    try:
+                                        db_tc = st.session_state.db_engine.get_connection()
+                                        c_tc = db_tc.cursor()
+                                        c_tc.execute("""
+                                            UPDATE chatbot_dang_ky
+                                            SET trang_thai='TU_CHOI', duyet_luc=NOW(), duyet_boi=%s
+                                            WHERE id=%s
+                                        """, (st.session_state.get('username','admin'), dk['id']))
+                                        db_tc.commit()
+                                        db_tc.close()
+                                        st.warning(f"Đã từ chối {dk['ho_ten']}")
+                                        st.rerun()
+                                    except Exception as e:
+                                        st.error(f"Lỗi: {e}")
+ 
+                        elif dk['trang_thai'] == 'DA_DUYET':
+                            # Cho phép admin cộng thêm credit
+                            them_credit = st.number_input(
+                                "Cộng thêm credit", min_value=1, value=5,
+                                key=f"them_cr_{dk['id']}"
+                            )
+                            if st.button(f"➕ Cộng {them_credit} credit", key=f"cong_{dk['id']}",
+                                         disabled=not can_edit()):
+                                try:
+                                    db_cc = st.session_state.db_engine.get_connection()
+                                    c_cc = db_cc.cursor()
+                                    c_cc.execute("""
+                                        UPDATE chatbot_dang_ky
+                                        SET so_credit = so_credit + %s
+                                        WHERE id = %s
+                                    """, (them_credit, dk['id']))
+                                    db_cc.commit()
+                                    db_cc.close()
+                                    st.success(f"✅ Đã cộng {them_credit} credit cho {dk['ho_ten']}")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Lỗi: {e}")
 
 elif menu == "📥 Nhập/Xuất Excel" and st.session_state.role in ("admin", "xem_toan_bo"):
     render_import_export_ui(

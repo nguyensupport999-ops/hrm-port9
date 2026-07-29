@@ -5071,18 +5071,21 @@ def tao_hop_dong(nv):
         r=p.add_run(f'{value}'); r.font.size=Pt(13)
     
     ten_ty = CC["ten_cong_ty"]
-    # Kiểm tra loại hình doanh nghiệp
-    if "Công ty cổ phần" in ten_ty:
+    # Kiểm tra loại hình doanh nghiệp (không phân biệt hoa/thường)
+    ten_ty_lower = ten_ty.lower()
+    if "công ty cổ phần" in ten_ty_lower:
         ten_doan1 = "CÔNG TY CỔ PHẦN"
-        ten_doan2 = ten_ty.replace("Công ty cổ phần", "").strip()
-    elif "Công ty TNHH" in ten_ty:
+        idx = ten_ty_lower.index("công ty cổ phần") + len("công ty cổ phần")
+        ten_doan2 = ten_ty[idx:].strip()
+    elif "công ty tnhh" in ten_ty_lower:
         ten_doan1 = "CÔNG TY TNHH"
-        ten_doan2 = ten_ty.replace("Công ty TNHH", "").strip()
-    elif "Hộ Kinh Doanh" in ten_ty:
+        idx = ten_ty_lower.index("công ty tnhh") + len("công ty tnhh")
+        ten_doan2 = ten_ty[idx:].strip()
+    elif "hộ kinh doanh" in ten_ty_lower:
         ten_doan1 = "HỘ KINH DOANH"
-        ten_doan2 = ten_ty.replace("Hộ Kinh Doanh", "").strip()
+        idx = ten_ty_lower.index("hộ kinh doanh") + len("hộ kinh doanh")
+        ten_doan2 = ten_ty[idx:].strip()
     else:
-        # Trường hợp khác, lấy toàn bộ làm dòng 1
         ten_doan1 = ten_ty.upper()
         ten_doan2 = ""
     
@@ -5119,9 +5122,19 @@ def tao_hop_dong(nv):
     r.bold = True
     r.font.size = Pt(18)
     force_center(p)
-    p2 = doc.add_paragraph('- Căn cứ thông tư 10/2020/TT-LĐTBXH ngày 12/11/2020 hướng dẫn thi hành một số điều của Bộ luật Lao động số 45/2019/QH14 ngày 20/11/2019 về nội dung của hợp đồng lao động;')
-    p2.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    p2 = doc.add_paragraph('- Căn cứ nhu cầu sử dụng lao động trong đơn vị.')
+    # ===== Lấy nội dung Điều từ DB (admin tuỳ chỉnh) hoặc mặc định =====
+    tuy_chinh_hdld = get_all_dieu_hop_dong('HDLD')
+    ngay_hieu_luc = nv.get("ngay_ky_hd") or nv.get("ngay_vao_lam")
+    ns2 = '.../.../..........'
+    if ngay_hieu_luc and hasattr(ngay_hieu_luc, 'day'):
+        ns2 = f'{ngay_hieu_luc.day} tháng {ngay_hieu_luc.month:02d} năm {ngay_hieu_luc.year}'
+    elif ngay_hieu_luc:
+        ns2 = str(ngay_hieu_luc)
+    ctx_hdld = {"vi_tri": nv.get("chuc_danh_nghe", ""), "ngay_hieu_luc": ns2, "ten_cong_ty": CC.get("ten_cong_ty", "")}
+    # --- Render "Căn cứ pháp lý" (từ template, trước BÊN A/B) ---
+    tieu_de_cc, noi_dung_cc = get_dieu_content("HDLD", "can_cu", tuy_chinh_hdld, DEFAULT_DIEU_HDLD)
+    if tieu_de_cc or noi_dung_cc:
+        render_dieu(doc, add_p, tieu_de_cc, noi_dung_cc, context=ctx_hdld)
     doc.add_paragraph('Chúng tôi gồm:')
     p=doc.add_paragraph(); r=p.add_run(f'BÊN A: {CC["ten_cong_ty"]} (Người sử dụng LĐ)'); r.bold=True
     al('Đại diện',f"Ông {CC['dai_dien']}"); al('Chức vụ',CC['chuc_vu']); al('Mã số thuế',CC['ma_so_thue'])
@@ -5137,16 +5150,10 @@ def tao_hop_dong(nv):
     al('Nơi cấp',nv.get('noi_cap_cccd','')); al('Số TKNH',sk)
     al('Điện thoại',nv.get('dien_thoai','')); al('Thường trú',nv.get('thuong_tru',''))
     doc.add_paragraph('Thoả thuận ký kết Hợp đồng lao động với những điều khoản dưới đây:')
-    ngay_hieu_luc = nv.get("ngay_ky_hd") or nv.get("ngay_vao_lam")
-    ns2 = '.../.../..........'
-    if ngay_hieu_luc and hasattr(ngay_hieu_luc, 'day'):
-        ns2 = f'{ngay_hieu_luc.day} tháng {ngay_hieu_luc.month:02d} năm {ngay_hieu_luc.year}'
-    elif ngay_hieu_luc:
-        ns2 = str(ngay_hieu_luc)
-    # ===== NỘI DUNG CÁC ĐIỀU: lấy bản admin đã tuỳ chỉnh (nếu có), fallback về mặc định =====
-    tuy_chinh_hdld = get_all_dieu_hop_dong('HDLD')
-    ctx_hdld = {"vi_tri": nv.get("chuc_danh_nghe", ""), "ngay_hieu_luc": ns2, "ten_cong_ty": CC.get("ten_cong_ty", "")}
+    # --- Render các Điều còn lại (bỏ qua can_cu vì đã render ở trên) ---
     for ma_dieu in get_ds_ma_dieu(tuy_chinh_hdld):
+        if ma_dieu == "can_cu":
+            continue
         tieu_de, noi_dung = get_dieu_content("HDLD", ma_dieu, tuy_chinh_hdld, DEFAULT_DIEU_HDLD)
         if not tieu_de and not noi_dung:
             continue
@@ -5193,19 +5200,21 @@ def tao_hop_dong_thu_viec(nv):
         r=p.add_run(f'{value}'); r.font.size=Pt(13)
         
     ten_ty = CC["ten_cong_ty"]
-    # Kiểm tra loại hình doanh nghiệp
+    # Kiểm tra loại hình doanh nghiệp (không phân biệt hoa/thường)
     ten_ty_lower = ten_ty.lower()
     if "công ty cổ phần" in ten_ty_lower:
         ten_doan1 = "CÔNG TY CỔ PHẦN"
-        ten_doan2 = ten_ty.replace("Công ty cổ phần", "").strip()
-    elif "Công ty TNHH" in ten_ty:
+        idx = ten_ty_lower.index("công ty cổ phần") + len("công ty cổ phần")
+        ten_doan2 = ten_ty[idx:].strip()
+    elif "công ty tnhh" in ten_ty_lower:
         ten_doan1 = "CÔNG TY TNHH"
-        ten_doan2 = ten_ty.replace("Công ty TNHH", "").strip()
-    elif "Hộ Kinh Doanh" in ten_ty:
+        idx = ten_ty_lower.index("công ty tnhh") + len("công ty tnhh")
+        ten_doan2 = ten_ty[idx:].strip()
+    elif "hộ kinh doanh" in ten_ty_lower:
         ten_doan1 = "HỘ KINH DOANH"
-        ten_doan2 = ten_ty.replace("Hộ Kinh Doanh", "").strip()
+        idx = ten_ty_lower.index("hộ kinh doanh") + len("hộ kinh doanh")
+        ten_doan2 = ten_ty[idx:].strip()
     else:
-        # Trường hợp khác, lấy toàn bộ làm dòng 1
         ten_doan1 = ten_ty.upper()
         ten_doan2 = ""
     
@@ -5240,9 +5249,16 @@ def tao_hop_dong_thu_viec(nv):
     r.bold = True
     r.font.size = Pt(18)
     force_center(p)
-    p2 = doc.add_paragraph('- Căn cứ thông tư 10/2020/TT-LĐTBXH ngày 12/11/2020 hướng dẫn thi hành một số điều của Bộ luật Lao động số 45/2019/QH14 ngày 20/11/2019 về nội dung của hợp đồng lao động;')
-    p2.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    doc.add_paragraph('- Căn cứ nhu cầu sử dụng lao động trong đơn vị.')
+    # ===== Lấy nội dung Điều từ DB (admin tuỳ chỉnh) hoặc mặc định =====
+    nkt = nk + timedelta(days=30) if (nk and hasattr(nk, 'day')) else None
+    ns_bd = f'{nk.day:02d}/{nk.month:02d}/{nk.year}' if (nk and hasattr(nk, 'day')) else '.../.../......'
+    ns_kt = f'{nkt.day:02d}/{nkt.month:02d}/{nkt.year}' if nkt else '.../.../......'
+    tuy_chinh_hdtv = get_all_dieu_hop_dong('HDTV')
+    ctx_hdtv = {"vi_tri": nv.get("chuc_danh_nghe", ""), "ngay_bat_dau": ns_bd, "ngay_ket_thuc": ns_kt, "ten_cong_ty": CC.get("ten_cong_ty", "")}
+    # --- Render "Căn cứ pháp lý" (từ template, trước BÊN A/B) ---
+    tieu_de_cc, noi_dung_cc = get_dieu_content("HDTV", "can_cu", tuy_chinh_hdtv, DEFAULT_DIEU_HDTV)
+    if tieu_de_cc or noi_dung_cc:
+        render_dieu(doc, add_p, tieu_de_cc, noi_dung_cc, context=ctx_hdtv)
     doc.add_paragraph('Chúng tôi gồm:')
     p=doc.add_paragraph(); r=p.add_run(f'BÊN A: {CC["ten_cong_ty"]} (Người sử dụng LĐ)'); r.bold=True
     al('Đại diện',f"Ông {CC['dai_dien']}"); al('Chức vụ',CC['chuc_vu']); al('Mã số thuế',CC['ma_so_thue'])
@@ -5258,13 +5274,10 @@ def tao_hop_dong_thu_viec(nv):
     al('Nơi cấp',nv.get('noi_cap_cccd','')); al('Số TKNH',sk)
     al('Điện thoại',nv.get('dien_thoai','')); al('Thường trú',nv.get('thuong_tru',''))
     doc.add_paragraph('Thoả thuận ký kết Hợp đồng Thử việc với những điều khoản dưới đây:')
-    nkt = nk + timedelta(days=30) if (nk and hasattr(nk, 'day')) else None
-    ns_bd = f'{nk.day:02d}/{nk.month:02d}/{nk.year}' if (nk and hasattr(nk, 'day')) else '.../.../......'
-    ns_kt = f'{nkt.day:02d}/{nkt.month:02d}/{nkt.year}' if nkt else '.../.../......'
-    # ===== NỘI DUNG CÁC ĐIỀU: lấy bản admin đã tuỳ chỉnh (nếu có), fallback về mặc định =====
-    tuy_chinh_hdtv = get_all_dieu_hop_dong('HDTV')
-    ctx_hdtv = {"vi_tri": nv.get("chuc_danh_nghe", ""), "ngay_bat_dau": ns_bd, "ngay_ket_thuc": ns_kt, "ten_cong_ty": CC.get("ten_cong_ty", "")}
+    # --- Render các Điều còn lại (bỏ qua can_cu vì đã render ở trên) ---
     for ma_dieu in get_ds_ma_dieu(tuy_chinh_hdtv):
+        if ma_dieu == "can_cu":
+            continue
         tieu_de, noi_dung = get_dieu_content("HDTV", ma_dieu, tuy_chinh_hdtv, DEFAULT_DIEU_HDTV)
         if not tieu_de and not noi_dung:
             continue
@@ -8684,6 +8697,7 @@ elif menu == "✅ Nhân viên":
                                 phsv = nd.get('phuong_nhan_hs', '')
                                 dhsv = nd.get('dia_chi_nhan_hs', '')
                                 dksv = nd.get('dang_ky_nhan_so', 'Có')
+                                nktv = format_date(nd.get('ngay_ket_thuc'))
                                 col_save, col_cancel = st.columns(2)
                                 with col_save:
                                     if st.form_submit_button("💾 CẬP NHẬT", width='stretch', disabled=not can_edit()):

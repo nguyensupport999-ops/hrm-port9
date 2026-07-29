@@ -3364,6 +3364,62 @@ def show_quan_ly_cong_van():
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Lỗi: {e}")
+                                
+        # Form nhập lại CV đi cũ (số CV do user nhập tay, không tự sinh)
+        with st.expander("📂 Nhập lại công văn đi cũ", expanded=False):
+            st.caption("Dùng để nhập lại các công văn đi đã phát hành trước đây. "
+                       "Số công văn do bạn tự nhập, hệ thống **không** tự sinh số mới.")
+            # Lấy danh sách loại công văn
+            db_loai2 = st.session_state.db_engine.get_connection()
+            c_loai2 = db_loai2.cursor()
+            c_loai2.execute("SELECT ma_loai, ten_loai FROM danh_muc_loai_cong_van WHERE trang_thai = TRUE ORDER BY thu_tu")
+            loai_cv_list2 = c_loai2.fetchall()
+            db_loai2.close()
+            loai_options2 = {f"{loai[1]} ({loai[0]})": loai[0] for loai in loai_cv_list2}
+            selected_loai2 = st.selectbox("Loại công văn *", list(loai_options2.keys()), key="cv_di_cu_loai")
+            loai_cv_cu = chuan_hoa_loai_cong_van(loai_options2[selected_loai2])
+
+            with st.form("add_cong_van_di_cu"):
+                so_cv_cu = st.text_input("Số công văn *", placeholder="VD: 05/2025/QĐ-CHL")
+                col1, col2 = st.columns(2)
+                with col1:
+                    ds_phong_ban_cv2 = get_phong_ban_options()
+                    phong_phat_hanh_cu = st.selectbox("Phòng phát hành *", [""] + ds_phong_ban_cv2, key="cv_di_cu_phong")
+                    ngay_phat_hanh_cu = st.date_input("Ngày phát hành *", value=date.today(), key="cv_di_cu_ngay")
+                    ma_vach_cu = st.text_input("📦 Mã vạch Bưu điện", placeholder="VD: EV123456789VN", key="cv_di_cu_mavach")
+                with col2:
+                    tieu_de_cu = st.text_input("Tiêu đề *", placeholder="Nhập tiêu đề công văn...", key="cv_di_cu_tieude")
+                    trich_yeu_cu = st.text_area("Trích yếu", placeholder="Tóm tắt nội dung chính...", height=80, key="cv_di_cu_trichyeu")
+                    ghi_chu_cu = st.text_area("Ghi chú", height=60, key="cv_di_cu_ghichu")
+
+                uploaded_file_cu = st.file_uploader("📎 Upload file", type=['pdf', 'doc', 'docx', 'jpg', 'png', 'jpeg'], key="cv_di_cu_upload")
+
+                col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+                with col_btn2:
+                    if st.form_submit_button("💾 Lưu công văn đi cũ", width='stretch', type="primary", disabled=not can_edit()):
+                        if not so_cv_cu.strip() or not phong_phat_hanh_cu or not tieu_de_cu:
+                            st.error("⚠️ Vui lòng nhập đầy đủ: Số công văn, Phòng phát hành, Tiêu đề")
+                        else:
+                            try:
+                                file_url_cu = None
+                                if uploaded_file_cu:
+                                    file_url_cu = upload_cong_van_file(uploaded_file_cu, "di")
+                                db = st.session_state.db_engine.get_connection()
+                                c = db.cursor()
+                                c.execute("""
+                                    INSERT INTO cong_van_di (so_cong_van, phong_phat_hanh, ngay_phat_hanh,
+                                    tieu_de, trich_yeu, file_url, loai_cong_van, ghi_chu, nguoi_tao, ma_vach_buu_dien)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                """, (so_cv_cu.strip(), phong_phat_hanh_cu, ngay_phat_hanh_cu, tieu_de_cu,
+                                      trich_yeu_cu, file_url_cu, loai_cv_cu, ghi_chu_cu,
+                                      st.session_state.username, ma_vach_cu))
+                                db.commit()
+                                db.close()
+                                st.success(f"✅ Đã nhập lại công văn đi cũ: {so_cv_cu.strip()}")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Lỗi: {e}")                    
         
         # Tìm kiếm và lọc
         st.divider()
@@ -4504,18 +4560,36 @@ def tao_quyet_dinh_nhan_su(nv, so_qd, ngay_qd, tieu_de, dieu1_lines, hieu_luc_te
     sec = doc.sections[0]; sec.top_margin = Cm(2); sec.bottom_margin = Cm(2)
     sec.left_margin = Cm(3); sec.right_margin = Cm(2)
 
-    ht = doc.add_table(rows=3, cols=2); ht.alignment = WD_TABLE_ALIGNMENT.CENTER; ht.autofit = False; remove_table_border(ht)
+    # -- Tách tên đơn vị thành 2 dòng (loại hình + tên riêng) --
+    ten_ty = CC.get('ten_cong_ty', 'CÔNG TY')
+    ten_ty_lower = ten_ty.lower()
+    if "công ty cổ phần" in ten_ty_lower:
+        ten_doan1 = "CÔNG TY CỔ PHẦN"
+        ten_doan2 = ten_ty[ten_ty_lower.index("công ty cổ phần") + len("công ty cổ phần"):].strip()
+    elif "công ty tnhh" in ten_ty_lower:
+        ten_doan1 = "CÔNG TY TNHH"
+        ten_doan2 = ten_ty[ten_ty_lower.index("công ty tnhh") + len("công ty tnhh"):].strip()
+    elif "hộ kinh doanh" in ten_ty_lower:
+        ten_doan1 = "HỘ KINH DOANH"
+        ten_doan2 = ten_ty[ten_ty_lower.index("hộ kinh doanh") + len("hộ kinh doanh"):].strip()
+    else:
+        ten_doan1 = ten_ty.upper()
+        ten_doan2 = ""
+
+    ht = doc.add_table(rows=4, cols=2); ht.alignment = WD_TABLE_ALIGNMENT.CENTER; ht.autofit = False; remove_table_border(ht)
     for row in ht.rows:
         row.cells[0].width = Cm(7); row.cells[1].width = Cm(10)
     c = ht.rows[0].cells[0]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run(CC.get('ten_cong_ty', 'CÔNG TY').upper()); r.bold = True; r.font.size = Pt(13)
+    r = p.add_run(ten_doan1); r.bold = True; r.font.size = Pt(13)
+    c = ht.rows[1].cells[0]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p.add_run(ten_doan2.upper()); r.bold = True; r.font.size = Pt(13)
     c = ht.rows[0].cells[1]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r = p.add_run('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'); r.bold = True; r.font.size = Pt(13)
-    c = ht.rows[1].cells[0]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run(f'Số: {so_qd}'); r.italic = True; r.font.size = Pt(12)
     c = ht.rows[1].cells[1]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     r = p.add_run('Độc lập - Tự do - Hạnh phúc'); r.bold = True; r.italic = True; r.font.size = Pt(13)
-    c = ht.rows[2].cells[1]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.RIGHT; p.paragraph_format.space_after = Pt(20)
+    c = ht.rows[2].cells[0]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p.add_run(f'Số: {so_qd}'); r.italic = True; r.font.size = Pt(12)
+    c = ht.rows[3].cells[1]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.RIGHT; p.paragraph_format.space_after = Pt(20)
     dia_diem = CC.get('dia_diem') or get_cau_hinh('dia_diem', 'Quảng Trị')
     ns = f'{dia_diem}, ngày {ngay_qd.day} tháng {ngay_qd.month:02d} năm {ngay_qd.year}' if hasattr(ngay_qd, 'day') else f'{dia_diem}, ngày ... tháng ... năm ......'
     r = p.add_run(ns); r.italic = True; r.font.size = Pt(13)
@@ -4527,11 +4601,15 @@ def tao_quyet_dinh_nhan_su(nv, so_qd, ngay_qd, tieu_de, dieu1_lines, hieu_luc_te
     r = p.add_run(f'Về việc: {tieu_de}'); r.bold = True; r.italic = True; r.font.size = Pt(14)
     force_center(p)
     p = doc.add_paragraph()
-    r = p.add_run(f"GIÁM ĐỐC {CC.get('ten_cong_ty', '').upper()}"); r.bold = True
+    chuc_vu_qdns = CC.get('chuc_vu', 'GIÁM ĐỐC').upper()
+    r = p.add_run(f"{chuc_vu_qdns} {ten_doan1} {ten_doan2}".strip().upper()); r.bold = True
     force_center(p)
 
     doc.add_paragraph('- Căn cứ Bộ luật Lao động số 45/2019/QH14 ngày 20/11/2019;')
-    doc.add_paragraph('- Căn cứ Điều lệ tổ chức và hoạt động của Công ty;')
+    if "hộ kinh doanh" in ten_ty_lower:
+        doc.add_paragraph('- Căn cứ Giấy chứng nhận đăng ký hộ kinh doanh;')
+    else:
+        doc.add_paragraph('- Căn cứ Điều lệ tổ chức và hoạt động của Công ty;')
     doc.add_paragraph('- Căn cứ nhu cầu công tác và năng lực cán bộ, nhân viên;')
     phong_to_chuc_ns = get_phong_to_chuc_nhan_su()
     doc.add_paragraph(f'- Xét đề nghị của {phong_to_chuc_ns},')
@@ -4722,6 +4800,9 @@ def ensure_chuc_danh_ung_vien_table():
 # Dòng bắt đầu bằng "## " sẽ được in đậm (tiêu đề phụ, VD "1. Nghĩa vụ:").
 # Có thể dùng {vi_tri}, {ngay_hieu_luc}, {ten_cong_ty} trong nội dung các Điều 1, 5 — sẽ tự thay bằng thông tin nhân viên.
 DEFAULT_DIEU_HDLD = {
+    "can_cu": ("Căn cứ pháp lý:",
+        "- Căn cứ Bộ luật Lao động số 45/2019/QH14 ngày 20/11/2019;\n"
+        "- Căn cứ nhu cầu công việc và sự thỏa thuận giữa hai bên."),
     "dieu1": ("Điều 1. Thời hạn và công việc hợp đồng:",
         "-    Bên B làm việc theo chế độ hợp đồng lao động không xác định thời hạn;\n"
         "-    Thời gian: Từ ngày {ngay_hieu_luc};\n"
@@ -4761,6 +4842,9 @@ DEFAULT_DIEU_HDLD = {
 }
 
 DEFAULT_DIEU_HDTV = {
+    "can_cu": ("Căn cứ pháp lý:",
+        "- Căn cứ Bộ luật Lao động số 45/2019/QH14 ngày 20/11/2019;\n"
+        "- Căn cứ nhu cầu công việc và sự thỏa thuận giữa hai bên."),
     "dieu1": ("Điều 1. Thời hạn và công việc hợp đồng:",
         "-    Bên B làm việc theo chế độ hợp đồng thử việc, có thời hạn 01 tháng;\n"
         "-    Bắt đầu: {ngay_bat_dau};\n"
@@ -4823,7 +4907,7 @@ def get_ds_ma_dieu(tuy_chinh):
     """Trả về danh sách mã Điều theo đúng thứ tự hiển thị/in ấn: 5 Điều mặc định (dieu1..dieu5)
     luôn giữ nguyên thứ tự gốc, cộng thêm các Điều admin tự thêm mới (không giới hạn số lượng)
     được sắp xếp chèn theo cột thu_tu."""
-    mac_dinh_keys = ["dieu1", "dieu2", "dieu3", "dieu4", "dieu5"]
+    mac_dinh_keys = ["can_cu", "dieu1", "dieu2", "dieu3", "dieu4", "dieu5"]
     them_moi = [(md, (info[2] if len(info) > 2 and info[2] else 999)) 
                 for md, info in tuy_chinh.items() if md not in mac_dinh_keys]
     them_moi.sort(key=lambda x: (x[1], x[0]))
@@ -5035,7 +5119,8 @@ def tao_hop_dong_thu_viec(nv):
         
     ten_ty = CC["ten_cong_ty"]
     # Kiểm tra loại hình doanh nghiệp
-    if "Công ty cổ phần" in ten_ty:
+    ten_ty_lower = ten_ty.lower()
+    if "công ty cổ phần" in ten_ty_lower:
         ten_doan1 = "CÔNG TY CỔ PHẦN"
         ten_doan2 = ten_ty.replace("Công ty cổ phần", "").strip()
     elif "Công ty TNHH" in ten_ty:
@@ -11541,7 +11626,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
 
         tuy_chinh_hien_tai = get_all_dieu_hop_dong(loai_hd_ma)
         ds_ma_dieu_hien_thi = get_ds_ma_dieu(tuy_chinh_hien_tai)
-        MAC_DINH_KEYS = ("dieu1", "dieu2", "dieu3", "dieu4", "dieu5")
+        MAC_DINH_KEYS = ("can_cu", "dieu1", "dieu2", "dieu3", "dieu4", "dieu5")
 
         for ma_dieu in ds_ma_dieu_hien_thi:
             la_mac_dinh = ma_dieu in MAC_DINH_KEYS

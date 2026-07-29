@@ -3165,9 +3165,15 @@ def show_quan_ly_cong_van():
     # === TAB 1: CÔNG VĂN ĐẾN ===
     with tab1:
         st.subheader("📥 Quản lý Công văn đến")
-        
-        # Form thêm mới
-        with st.expander("➕ Thêm công văn đến mới", expanded=False):
+
+        thao_tac_cvden = st.radio(
+            "Chọn thao tác:",
+            ["➕ Thêm CV đến mới", "📂 Nhập lại CV đến cũ", "🔍 Tra cứu"],
+            horizontal=True, key="cv_den_thao_tac"
+        )
+
+        # ── THÊM CV ĐẾN MỚI ──
+        if thao_tac_cvden == "➕ Thêm CV đến mới":
             with st.form("add_cong_van_den"):
                 col1, col2 = st.columns(2)
                 with col1:
@@ -3189,12 +3195,9 @@ def show_quan_ly_cong_van():
                             st.error("⚠️ Vui lòng nhập đầy đủ các trường bắt buộc (*)")
                         else:
                             try:
-                                # Upload file
                                 file_url = None
                                 if uploaded_file:
                                     file_url = upload_cong_van_file(uploaded_file, "den")
-                                
-                                # Lưu vào database
                                 db = st.session_state.db_engine.get_connection()
                                 c = db.cursor()
                                 c.execute("""
@@ -3205,87 +3208,123 @@ def show_quan_ly_cong_van():
                                       st.session_state.username, ma_vach))
                                 db.commit()
                                 db.close()
-                                
                                 st.success(f"✅ Đã thêm công văn đến: {so_cv}")
                                 st.cache_data.clear()
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Lỗi: {e}")
-        
-        # Tìm kiếm và lọc
-        st.divider()
-        col_search1, col_search2, col_search3 = st.columns([2, 1, 1])
-        with col_search1:
-            search_text_cv_den = st.text_input("🔍 Tìm kiếm", placeholder="Theo số, tiêu đề, cơ quan...", key="search_cv_den")
-        with col_search2:
-            tu_ngay_cv_den = st.date_input("Từ ngày", value=None, key="tu_ngay_cv_den")
-        with col_search3:
-            den_ngay_cv_den = st.date_input("Đến ngày", value=None, key="den_ngay_cv_den")
-        
-        # Lấy dữ liệu
-        data_cv_den = get_cong_van_den(tu_ngay_cv_den, den_ngay_cv_den, search_text_cv_den)
-        
-        # Hiển thị bảng
-        if data_cv_den:
-            df_cv_den = pd.DataFrame(data_cv_den)
-            
-            # Format ngày
-            for col in ['ngay_den', 'created_at', 'updated_at']:
-                if col in df_cv_den.columns:
-                    df_cv_den[col] = df_cv_den[col].apply(format_date)
-            
-            display_cols = ['so_cong_van', 'co_quan_phat_hanh', 'ngay_den', 'tieu_de', 'trich_yeu', 'ma_vach_buu_dien', 'file_url', 'ghi_chu']
-            available_cols = [c for c in display_cols if c in df_cv_den.columns]
-            df_display = df_cv_den[available_cols]
-            
-            col_map = {
-                'so_cong_van': 'Số công văn',
-                'co_quan_phat_hanh': 'Cơ quan phát hành',
-                'ngay_den': 'Ngày đến',
-                'tieu_de': 'Tiêu đề',
-                'trich_yeu': 'Trích yếu',
-                'ma_vach_buu_dien': 'Mã vạch BĐ',
-                'file_url': 'File',
-                'ghi_chu': 'Ghi chú'
-            }
-            df_display.rename(columns=col_map, inplace=True)
-            
-            st.caption(f"📌 Tổng số: {len(data_cv_den)} công văn đến")
-            st.dataframe(df_display, width='stretch', hide_index=True, height=400)
-            
-            # Nút xuất Excel
-            col_export1, col_export2, col_export3 = st.columns([1, 2, 1])
-            with col_export2:
-                if st.button("📥 Xuất Excel công văn đến", width='stretch', type="primary"):
-                    headers = ['so_cong_van', 'co_quan_phat_hanh', 'ngay_den', 'tieu_de', 'trich_yeu', 'ghi_chu']
-                    col_widths = [15, 25, 12, 35, 30, 25]
-                    title = f"BÁO CÁO CÔNG VĂN ĐẾN (Từ {tu_ngay_cv_den or '...'} đến {den_ngay_cv_den or '...'})"
-                    filename = f"Cong_van_den_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-                    
-                    # Chuyển đổi data cho Excel
-                    excel_data = []
-                    for row in data_cv_den:
-                        excel_row = {}
-                        for key in headers:
-                            val = row.get(key)
-                            if key == 'ngay_den' and val:
-                                val = format_date(val)
-                            excel_row[key] = val
-                        excel_data.append(excel_row)
-                    
-                    export_cong_van_excel(excel_data, filename, headers, col_widths, title)
-                    
-                    with open(filename, "rb") as f:
-                        st.download_button(
-                            label="📥 TẢI FILE EXCEL",
-                            data=f,
-                            file_name=filename,
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            width='stretch'
-                        )
-                    st.success(f"✅ Đã xuất {len(data_cv_den)} công văn đến")
+
+        # ── NHẬP LẠI CV ĐẾN CŨ (form giống hệt, chỉ khác key) ──
+        elif thao_tac_cvden == "📂 Nhập lại CV đến cũ":
+            st.caption("Nhập lại các công văn đến đã tiếp nhận trước đây vào hệ thống.")
+            with st.form("add_cong_van_den_cu"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    so_cv_cu = st.text_input("Số công văn *", placeholder="VD: 456/UBND-2024", key="cv_den_cu_socv")
+                    co_quan_cu = st.text_input("Cơ quan phát hành *", placeholder="VD: UBND tỉnh Nghệ An", key="cv_den_cu_coquan")
+                    ngay_den_cu = st.date_input("Ngày đến *", value=date.today(), key="cv_den_cu_ngay")
+                    ma_vach_cu = st.text_input("📦 Mã vạch Bưu điện", placeholder="VD: EV123456789VN", key="cv_den_cu_mavach")
+                with col2:
+                    tieu_de_cu = st.text_input("Tiêu đề *", placeholder="Nhập tiêu đề công văn...", key="cv_den_cu_tieude")
+                    trich_yeu_cu = st.text_area("Trích yếu", placeholder="Tóm tắt nội dung chính...", height=80, key="cv_den_cu_trichyeu")
+                    ghi_chu_cu = st.text_area("Ghi chú", height=60, key="cv_den_cu_ghichu")
+                
+                uploaded_file_cu = st.file_uploader("📎 Upload file", type=['pdf', 'doc', 'docx', 'jpg', 'png', 'jpeg'], key="cv_den_cu_upload")
+                
+                col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+                with col_btn2:
+                    if st.form_submit_button("💾 Lưu công văn đến cũ", width='stretch', type="primary", disabled=not can_edit()):
+                        if not so_cv_cu or not co_quan_cu or not tieu_de_cu:
+                            st.error("⚠️ Vui lòng nhập đầy đủ các trường bắt buộc (*)")
+                        else:
+                            try:
+                                file_url_cu = None
+                                if uploaded_file_cu:
+                                    file_url_cu = upload_cong_van_file(uploaded_file_cu, "den")
+                                db = st.session_state.db_engine.get_connection()
+                                c = db.cursor()
+                                c.execute("""
+                                    INSERT INTO cong_van_den (so_cong_van, co_quan_phat_hanh, ngay_den, 
+                                    tieu_de, trich_yeu, file_url, ghi_chu, nguoi_tao, ma_vach_buu_dien)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                """, (so_cv_cu, co_quan_cu, ngay_den_cu, tieu_de_cu, trich_yeu_cu, file_url_cu, ghi_chu_cu, 
+                                      st.session_state.username, ma_vach_cu))
+                                db.commit()
+                                db.close()
+                                st.success(f"✅ Đã nhập lại công văn đến cũ: {so_cv_cu}")
+                                st.cache_data.clear()
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"❌ Lỗi: {e}")
+
+        # ── TRA CỨU ──
         else:
-            st.info("📭 Không có công văn đến nào")
+            col_search1, col_search2, col_search3 = st.columns([2, 1, 1])
+            with col_search1:
+                search_text_cv_den = st.text_input("🔍 Tìm kiếm", placeholder="Theo số, tiêu đề, cơ quan...", key="search_cv_den")
+            with col_search2:
+                tu_ngay_cv_den = st.date_input("Từ ngày", value=None, key="tu_ngay_cv_den")
+            with col_search3:
+                den_ngay_cv_den = st.date_input("Đến ngày", value=None, key="den_ngay_cv_den")
+            
+            data_cv_den = get_cong_van_den(tu_ngay_cv_den, den_ngay_cv_den, search_text_cv_den)
+            
+            if data_cv_den:
+                df_cv_den = pd.DataFrame(data_cv_den)
+                for col in ['ngay_den', 'created_at', 'updated_at']:
+                    if col in df_cv_den.columns:
+                        df_cv_den[col] = df_cv_den[col].apply(format_date)
+                
+                display_cols = ['so_cong_van', 'co_quan_phat_hanh', 'ngay_den', 'tieu_de', 'trich_yeu', 'ma_vach_buu_dien', 'file_url', 'ghi_chu']
+                available_cols = [c for c in display_cols if c in df_cv_den.columns]
+                df_display = df_cv_den[available_cols]
+                
+                col_map = {
+                    'so_cong_van': 'Số công văn',
+                    'co_quan_phat_hanh': 'Cơ quan phát hành',
+                    'ngay_den': 'Ngày đến',
+                    'tieu_de': 'Tiêu đề',
+                    'trich_yeu': 'Trích yếu',
+                    'ma_vach_buu_dien': 'Mã vạch BĐ',
+                    'file_url': 'File',
+                    'ghi_chu': 'Ghi chú'
+                }
+                df_display.rename(columns=col_map, inplace=True)
+                
+                st.caption(f"📌 Tổng số: {len(data_cv_den)} công văn đến")
+                st.dataframe(df_display, width='stretch', hide_index=True, height=400)
+                
+                col_export1, col_export2, col_export3 = st.columns([1, 2, 1])
+                with col_export2:
+                    if st.button("📥 Xuất Excel công văn đến", width='stretch', type="primary"):
+                        headers = ['so_cong_van', 'co_quan_phat_hanh', 'ngay_den', 'tieu_de', 'trich_yeu', 'ghi_chu']
+                        col_widths = [15, 25, 12, 35, 30, 25]
+                        title = f"BÁO CÁO CÔNG VĂN ĐẾN (Từ {tu_ngay_cv_den or '...'} đến {den_ngay_cv_den or '...'})"
+                        filename = f"Cong_van_den_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                        
+                        excel_data = []
+                        for row in data_cv_den:
+                            excel_row = {}
+                            for key in headers:
+                                val = row.get(key)
+                                if key == 'ngay_den' and val:
+                                    val = format_date(val)
+                                excel_row[key] = val
+                            excel_data.append(excel_row)
+                        
+                        export_cong_van_excel(excel_data, filename, headers, col_widths, title)
+                        
+                        with open(filename, "rb") as f:
+                            st.download_button(
+                                label="📥 TẢI FILE EXCEL",
+                                data=f,
+                                file_name=filename,
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                width='stretch'
+                            )
+                        st.success(f"✅ Đã xuất {len(data_cv_den)} công văn đến")
+            else:
+                st.info("📭 Không có công văn đến nào")
     
     # === TAB 2: CÔNG VĂN ĐI ===
     with tab2:
@@ -3293,7 +3332,7 @@ def show_quan_ly_cong_van():
 
         thao_tac_cvd = st.radio(
             "Chọn thao tác:",
-            ["📋 Danh sách", "➕ Thêm CV đi mới", "📂 Nhập lại CV đi cũ"],
+            ["➕ Thêm CV đi mới", "📂 Nhập lại CV đi cũ", "🔍 Tra cứu"],
             horizontal=True, key="cv_di_thao_tac"
         )
 
@@ -3412,7 +3451,7 @@ def show_quan_ly_cong_van():
                             except Exception as e:
                                 st.error(f"❌ Lỗi: {e}")
 
-        # ── DANH SÁCH (mặc định) ──
+        # ── TRA CỨU ──
         else:
             col_search1, col_search2 = st.columns([2, 1])
             with col_search1:
@@ -3437,7 +3476,6 @@ def show_quan_ly_cong_van():
             
             if data_cv_di:
                 df_cv_di = pd.DataFrame(data_cv_di)
-                
                 for col in ['ngay_phat_hanh', 'created_at', 'updated_at']:
                     if col in df_cv_di.columns:
                         df_cv_di[col] = df_cv_di[col].apply(format_date)
@@ -3471,7 +3509,6 @@ def show_quan_ly_cong_van():
                 st.caption(f"📌 Tổng số: {len(data_cv_di)} công văn đi")
                 st.dataframe(df_display, width='stretch', hide_index=True, height=400)
 
-                # ----- Sửa / Xóa công văn đi -----
                 with st.expander("✏️ Sửa / 🗑️ Xóa công văn đi", expanded=False):
                     tuy_chon_cvd = {f"{r['so_cong_van']} - {r.get('tieu_de') or ''}": r for r in data_cv_di}
                     chon_cvd = st.selectbox("Chọn công văn đi:", ["-- Chọn --"] + list(tuy_chon_cvd.keys()), key="chon_sua_cvd")
@@ -3512,7 +3549,6 @@ def show_quan_ly_cong_van():
                                 except Exception as e:
                                     st.error(f"❌ Lỗi: {e}")
 
-                # Nút xuất Excel
                 col_export1, col_export2, col_export3 = st.columns([1, 2, 1])
                 with col_export2:
                     if st.button("📥 Xuất Excel công văn đi", width='stretch', type="primary"):
@@ -3550,9 +3586,15 @@ def show_quan_ly_cong_van():
     # === TAB 3: HỢP ĐỒNG KINH TẾ ===
     with tab3:
         st.subheader("📑 Quản lý Hợp đồng kinh tế")
-        
-        # Form thêm mới
-        with st.expander("➕ Thêm hợp đồng kinh tế mới", expanded=False):
+
+        thao_tac_hdkt = st.radio(
+            "Chọn thao tác:",
+            ["➕ Thêm HĐKT mới", "📂 Nhập lại HĐKT cũ", "🔍 Tra cứu"],
+            horizontal=True, key="hdkt_thao_tac"
+        )
+
+        # ── THÊM HĐKT MỚI (số tự sinh) ──
+        if thao_tac_hdkt == "➕ Thêm HĐKT mới":
             so_hd_xem_truoc, prefix_hdkt_dang_dung = preview_so_hdkt()
             st.info(
                 f"📄 **Số HĐKT dự kiến:** `{so_hd_xem_truoc}` (Prefix: **{prefix_hdkt_dang_dung}**) "
@@ -3580,16 +3622,10 @@ def show_quan_ly_cong_van():
                             st.error("⚠️ Vui lòng nhập đầy đủ các trường bắt buộc (*)")
                         else:
                             try:
-                                # Số hợp đồng: nếu admin nhập tay thì dùng số đó (không tăng số max),
-                                # nếu để trống thì cấp số CHÍNH THỨC theo cấu hình (và tăng số max)
                                 so_hd = so_hd_tuy_chinh.strip() if so_hd_tuy_chinh.strip() else generate_so_hdkt()
-
-                                # Upload file
                                 file_url = None
                                 if uploaded_file:
                                     file_url = upload_cong_van_file(uploaded_file, "hop_dong_kt")
-                                
-                                # Lưu vào database
                                 db = st.session_state.db_engine.get_connection()
                                 c = db.cursor()
                                 c.execute("""
@@ -3600,124 +3636,159 @@ def show_quan_ly_cong_van():
                                       st.session_state.username))
                                 db.commit()
                                 db.close()
-                                
                                 st.success(f"✅ Đã thêm hợp đồng: {so_hd}")
                                 st.cache_data.clear()
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Lỗi: {e}")
-        
-        # Tìm kiếm và lọc
-        st.divider()
-        col_search1, col_search2, col_search3 = st.columns([2, 1, 1])
-        with col_search1:
-            search_text_hd = st.text_input("🔍 Tìm kiếm", placeholder="Theo số HĐ, đối tác...", key="search_hd_kt")
-        with col_search2:
-            tu_ngay_hd = st.date_input("Từ ngày", value=None, key="tu_ngay_hd")
-        with col_search3:
-            den_ngay_hd = st.date_input("Đến ngày", value=None, key="den_ngay_hd")
-        
-        # Lấy dữ liệu
-        data_hd = get_hop_dong_kinh_te(tu_ngay_hd, den_ngay_hd, search_text_hd)
-        
-        # Hiển thị bảng
-        if data_hd:
-            df_hd = pd.DataFrame(data_hd)
-            
-            # Format ngày
-            for col in ['ngay_ky', 'created_at', 'updated_at']:
-                if col in df_hd.columns:
-                    df_hd[col] = df_hd[col].apply(format_date)
-            
-            display_cols = ['so_hop_dong', 'ten_doi_tac', 'ngay_ky', 'trich_yeu', 'file_url', 'ghi_chu']
-            available_cols = [c for c in display_cols if c in df_hd.columns]
-            df_display = df_hd[available_cols]
-            
-            col_map = {
-                'so_hop_dong': 'Số hợp đồng',
-                'ten_doi_tac': 'Đối tác',
-                'ngay_ky': 'Ngày ký',
-                'trich_yeu': 'Trích yếu',
-                'file_url': 'File',
-                'ghi_chu': 'Ghi chú'
-            }
-            df_display.rename(columns=col_map, inplace=True)
-            
-            st.caption(f"📌 Tổng số: {len(data_hd)} hợp đồng kinh tế")
-            st.dataframe(df_display, width='stretch', hide_index=True, height=400)
 
-            # ----- Sửa / Xóa hợp đồng kinh tế -----
-            with st.expander("✏️ Sửa / 🗑️ Xóa hợp đồng kinh tế", expanded=False):
-                tuy_chon_hd = {f"{r['so_hop_dong']} - {r.get('ten_doi_tac') or ''}": r for r in data_hd}
-                chon_hd = st.selectbox("Chọn hợp đồng:", ["-- Chọn --"] + list(tuy_chon_hd.keys()), key="chon_sua_hd")
-                if chon_hd != "-- Chọn --":
-                    hd_sua = tuy_chon_hd[chon_hd]
-                    col_s1, col_s2 = st.columns(2)
-                    with col_s1:
-                        ten_doi_tac_sua = st.text_input("Tên đối tác:", value=hd_sua.get('ten_doi_tac') or '', key=f"sua_dt_hd_{hd_sua['id']}")
-                    with col_s2:
-                        trich_yeu_sua_hd = st.text_area("Trích yếu:", value=hd_sua.get('trich_yeu') or '', key=f"sua_ty_hd_{hd_sua['id']}", height=80)
-                    col_luu_hd, col_xoa_hd = st.columns(2)
-                    with col_luu_hd:
-                        if st.button("💾 Lưu thay đổi", key=f"btn_luu_hd_{hd_sua['id']}", type="primary", width='stretch', disabled=not can_edit()):
+        # ── NHẬP LẠI HĐKT CŨ (số nhập tay, không tự sinh) ──
+        elif thao_tac_hdkt == "📂 Nhập lại HĐKT cũ":
+            st.caption("Nhập lại các hợp đồng kinh tế đã ký trước đây vào hệ thống. "
+                       "Số hợp đồng do bạn tự nhập.")
+            with st.form("add_hop_dong_kt_cu"):
+                col1, col2 = st.columns(2)
+                with col1:
+                    so_hd_cu = st.text_input("Số hợp đồng *", placeholder="VD: 02/2024/HĐKT-CHL", key="hdkt_cu_sohd")
+                    ten_doi_tac_cu = st.text_input("Tên đối tác *", placeholder="VD: Công ty TNHH ABC", key="hdkt_cu_doitac")
+                    ngay_ky_cu = st.date_input("Ngày ký *", value=date.today(), key="hdkt_cu_ngayky")
+                with col2:
+                    trich_yeu_cu = st.text_area("Trích yếu", placeholder="Tóm tắt nội dung hợp đồng...", height=80, key="hdkt_cu_trichyeu")
+                    ghi_chu_cu = st.text_area("Ghi chú", height=60, key="hdkt_cu_ghichu")
+                
+                uploaded_file_cu = st.file_uploader("📎 Upload file", type=['pdf', 'doc', 'docx', 'jpg', 'png', 'jpeg'], key="hd_kt_cu_upload")
+                
+                col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
+                with col_btn2:
+                    if st.form_submit_button("💾 Lưu HĐKT cũ", width='stretch', type="primary", disabled=not can_edit()):
+                        if not so_hd_cu.strip() or not ten_doi_tac_cu:
+                            st.error("⚠️ Vui lòng nhập đầy đủ: Số hợp đồng, Tên đối tác")
+                        else:
                             try:
-                                db_s = st.session_state.db_engine.get_connection()
-                                c_s = db_s.cursor()
-                                c_s.execute("""
-                                    UPDATE hop_dong_kinh_te SET ten_doi_tac=%s, trich_yeu=%s
-                                    WHERE id=%s
-                                """, (ten_doi_tac_sua, trich_yeu_sua_hd, hd_sua['id']))
-                                db_s.commit(); db_s.close()
-                                st.success("✅ Đã cập nhật hợp đồng")
-                                st.cache_data.clear()
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"❌ Lỗi: {e}")
-                    with col_xoa_hd:
-                        if st.button("🗑️ Xóa hợp đồng này", key=f"btn_xoa_hd_{hd_sua['id']}", width='stretch', disabled=not can_edit()):
-                            try:
-                                db_x = st.session_state.db_engine.get_connection()
-                                c_x = db_x.cursor()
-                                c_x.execute("DELETE FROM hop_dong_kinh_te WHERE id=%s", (hd_sua['id'],))
-                                db_x.commit(); db_x.close()
-                                st.success("✅ Đã xóa hợp đồng")
+                                file_url_cu = None
+                                if uploaded_file_cu:
+                                    file_url_cu = upload_cong_van_file(uploaded_file_cu, "hop_dong_kt")
+                                db = st.session_state.db_engine.get_connection()
+                                c = db.cursor()
+                                c.execute("""
+                                    INSERT INTO hop_dong_kinh_te (so_hop_dong, ten_doi_tac, ngay_ky, 
+                                    trich_yeu, file_url, ghi_chu, nguoi_tao)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                """, (so_hd_cu.strip(), ten_doi_tac_cu, ngay_ky_cu, trich_yeu_cu, file_url_cu, ghi_chu_cu, 
+                                      st.session_state.username))
+                                db.commit()
+                                db.close()
+                                st.success(f"✅ Đã nhập lại HĐKT cũ: {so_hd_cu.strip()}")
                                 st.cache_data.clear()
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"❌ Lỗi: {e}")
 
-            # Nút xuất Excel
-            col_export1, col_export2, col_export3 = st.columns([1, 2, 1])
-            with col_export2:
-                if st.button("📥 Xuất Excel hợp đồng", width='stretch', type="primary"):
-                    headers = ['so_hop_dong', 'ten_doi_tac', 'ngay_ky', 'trich_yeu', 'ghi_chu']
-                    col_widths = [20, 30, 12, 35, 25]
-                    title = f"BÁO CÁO HỢP ĐỒNG KINH TẾ (Từ {tu_ngay_hd or '...'} đến {den_ngay_hd or '...'})"
-                    filename = f"Hop_dong_kinh_te_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-                    
-                    excel_data = []
-                    for row in data_hd:
-                        excel_row = {}
-                        for key in headers:
-                            val = row.get(key)
-                            if key == 'ngay_ky' and val:
-                                val = format_date(val)
-                            excel_row[key] = val
-                        excel_data.append(excel_row)
-                    
-                    export_cong_van_excel(excel_data, filename, headers, col_widths, title)
-                    
-                    with open(filename, "rb") as f:
-                        st.download_button(
-                            label="📥 TẢI FILE EXCEL",
-                            data=f,
-                            file_name=filename,
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            width='stretch'
-                        )
-                    st.success(f"✅ Đã xuất {len(data_hd)} hợp đồng kinh tế")
+        # ── TRA CỨU ──
         else:
-            st.info("📭 Không có hợp đồng kinh tế nào")
+            col_search1, col_search2, col_search3 = st.columns([2, 1, 1])
+            with col_search1:
+                search_text_hd = st.text_input("🔍 Tìm kiếm", placeholder="Theo số HĐ, đối tác...", key="search_hd_kt")
+            with col_search2:
+                tu_ngay_hd = st.date_input("Từ ngày", value=None, key="tu_ngay_hd")
+            with col_search3:
+                den_ngay_hd = st.date_input("Đến ngày", value=None, key="den_ngay_hd")
+            
+            data_hd = get_hop_dong_kinh_te(tu_ngay_hd, den_ngay_hd, search_text_hd)
+            
+            if data_hd:
+                df_hd = pd.DataFrame(data_hd)
+                for col in ['ngay_ky', 'created_at', 'updated_at']:
+                    if col in df_hd.columns:
+                        df_hd[col] = df_hd[col].apply(format_date)
+                
+                display_cols = ['so_hop_dong', 'ten_doi_tac', 'ngay_ky', 'trich_yeu', 'file_url', 'ghi_chu']
+                available_cols = [c for c in display_cols if c in df_hd.columns]
+                df_display = df_hd[available_cols]
+                
+                col_map = {
+                    'so_hop_dong': 'Số hợp đồng',
+                    'ten_doi_tac': 'Đối tác',
+                    'ngay_ky': 'Ngày ký',
+                    'trich_yeu': 'Trích yếu',
+                    'file_url': 'File',
+                    'ghi_chu': 'Ghi chú'
+                }
+                df_display.rename(columns=col_map, inplace=True)
+                
+                st.caption(f"📌 Tổng số: {len(data_hd)} hợp đồng kinh tế")
+                st.dataframe(df_display, width='stretch', hide_index=True, height=400)
+
+                with st.expander("✏️ Sửa / 🗑️ Xóa hợp đồng kinh tế", expanded=False):
+                    tuy_chon_hd = {f"{r['so_hop_dong']} - {r.get('ten_doi_tac') or ''}": r for r in data_hd}
+                    chon_hd = st.selectbox("Chọn hợp đồng:", ["-- Chọn --"] + list(tuy_chon_hd.keys()), key="chon_sua_hd")
+                    if chon_hd != "-- Chọn --":
+                        hd_sua = tuy_chon_hd[chon_hd]
+                        col_s1, col_s2 = st.columns(2)
+                        with col_s1:
+                            ten_doi_tac_sua = st.text_input("Tên đối tác:", value=hd_sua.get('ten_doi_tac') or '', key=f"sua_dt_hd_{hd_sua['id']}")
+                        with col_s2:
+                            trich_yeu_sua_hd = st.text_area("Trích yếu:", value=hd_sua.get('trich_yeu') or '', key=f"sua_ty_hd_{hd_sua['id']}", height=80)
+                        col_luu_hd, col_xoa_hd = st.columns(2)
+                        with col_luu_hd:
+                            if st.button("💾 Lưu thay đổi", key=f"btn_luu_hd_{hd_sua['id']}", type="primary", width='stretch', disabled=not can_edit()):
+                                try:
+                                    db_s = st.session_state.db_engine.get_connection()
+                                    c_s = db_s.cursor()
+                                    c_s.execute("""
+                                        UPDATE hop_dong_kinh_te SET ten_doi_tac=%s, trich_yeu=%s
+                                        WHERE id=%s
+                                    """, (ten_doi_tac_sua, trich_yeu_sua_hd, hd_sua['id']))
+                                    db_s.commit(); db_s.close()
+                                    st.success("✅ Đã cập nhật hợp đồng")
+                                    st.cache_data.clear()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"❌ Lỗi: {e}")
+                        with col_xoa_hd:
+                            if st.button("🗑️ Xóa hợp đồng này", key=f"btn_xoa_hd_{hd_sua['id']}", width='stretch', disabled=not can_edit()):
+                                try:
+                                    db_x = st.session_state.db_engine.get_connection()
+                                    c_x = db_x.cursor()
+                                    c_x.execute("DELETE FROM hop_dong_kinh_te WHERE id=%s", (hd_sua['id'],))
+                                    db_x.commit(); db_x.close()
+                                    st.success("✅ Đã xóa hợp đồng")
+                                    st.cache_data.clear()
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"❌ Lỗi: {e}")
+
+                col_export1, col_export2, col_export3 = st.columns([1, 2, 1])
+                with col_export2:
+                    if st.button("📥 Xuất Excel hợp đồng", width='stretch', type="primary"):
+                        headers = ['so_hop_dong', 'ten_doi_tac', 'ngay_ky', 'trich_yeu', 'ghi_chu']
+                        col_widths = [20, 30, 12, 35, 25]
+                        title = f"BÁO CÁO HỢP ĐỒNG KINH TẾ (Từ {tu_ngay_hd or '...'} đến {den_ngay_hd or '...'})"
+                        filename = f"Hop_dong_kinh_te_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+                        
+                        excel_data = []
+                        for row in data_hd:
+                            excel_row = {}
+                            for key in headers:
+                                val = row.get(key)
+                                if key == 'ngay_ky' and val:
+                                    val = format_date(val)
+                                excel_row[key] = val
+                            excel_data.append(excel_row)
+                        
+                        export_cong_van_excel(excel_data, filename, headers, col_widths, title)
+                        
+                        with open(filename, "rb") as f:
+                            st.download_button(
+                                label="📥 TẢI FILE EXCEL",
+                                data=f,
+                                file_name=filename,
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                width='stretch'
+                            )
+                        st.success(f"✅ Đã xuất {len(data_hd)} hợp đồng kinh tế")
+            else:
+                st.info("📭 Không có hợp đồng kinh tế nào")
 
 # ========== KHỞI TẠO SESSION STATE ==========
 if 'logged_in' not in st.session_state:

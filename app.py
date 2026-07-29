@@ -2951,7 +2951,7 @@ def show_quan_ly_cong_van():
     
     # Cấu hình (chỉ Admin)
     if role == 'admin':
-        with st.expander("⚙️ Cấu hình đánh số công văn", expanded=False):
+        with st.expander("⚙️ Cấu hình đánh số Công văn & HĐKT", expanded=False):
             st.markdown("**Cấu hình cách đánh số công văn đi**")
             
             current_option = get_cv_danh_so_option()
@@ -3144,8 +3144,8 @@ def show_quan_ly_cong_van():
                         if update_cv_kieu_ngay(loai_key, 'DD_MM' if new_kieu else 'NAM'):
                             st.cache_data.clear()
                             st.rerun()
-
-        with st.expander("⚙️ Cấu hình đánh số Hợp đồng kinh tế (HĐKT)", expanded=False):
+            st.divider()
+            st.markdown("**📑 Cấu hình đánh số Hợp đồng kinh tế (HĐKT)**")
             st.caption("Số HĐKT tự sinh theo mẫu: **stt/năm/Prefix-ma_cty** (VD: 04/2026/HĐKT-CHL)")
             prefix_hdkt_hien_tai = get_hdkt_prefix()
             prefix_hdkt_moi = st.text_input(

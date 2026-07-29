@@ -27,10 +27,12 @@ NGUONG_NHOM_3 = 50_000_000_000_000   # 50 tỷ — dùng cho phân nhóm, thực
 
 # Tỷ lệ thuế theo ngành nghề (tham chiếu Thông tư 40/2021/TT-BTC)
 TY_LE_THUE_THEO_NGANH = {
-    "THUONG_MAI":   {"ten": "Phân phối, cung cấp hàng hóa",                      "gtgt": 1.0, "tncn": 0.5},
-    "DICH_VU":      {"ten": "Dịch vụ, xây dựng không bao thầu NVL",              "gtgt": 5.0, "tncn": 2.0},
-    "SAN_XUAT":     {"ten": "Sản xuất, vận tải, dịch vụ gắn hàng hóa, XD có NVL","gtgt": 3.0, "tncn": 1.5},
-    "KHAC":         {"ten": "Hoạt động kinh doanh khác",                          "gtgt": 2.0, "tncn": 1.0},
+    "THUONG_MAI":   {"ten": "Phân phối, cung cấp hàng hóa",                       "gtgt": 1.0, "tncn": 0.5},
+    "DICH_VU":      {"ten": "Dịch vụ, xây dựng không bao thầu NVL",               "gtgt": 5.0, "tncn": 2.0},
+    "SAN_XUAT":     {"ten": "Sản xuất, vận tải, dịch vụ gắn hàng hóa, XD có NVL", "gtgt": 3.0, "tncn": 1.5},
+    "CHO_THUE":     {"ten": "Cho thuê tài sản, BĐS; sản phẩm/dịch vụ nội dung số","gtgt": 5.0, "tncn": 5.0},
+    "DAI_LY":       {"ten": "Đại lý bảo hiểm, xổ số, bán hàng đa cấp",           "gtgt": 0.0, "tncn": 5.0},
+    "KHAC":         {"ten": "Hoạt động kinh doanh khác",                           "gtgt": 2.0, "tncn": 1.0},
 }
 
 THUE_SUAT_LOI_NHUAN = {
@@ -321,7 +323,7 @@ def _render_tab_cau_hinh(db_engine):
         st.metric("Tỷ lệ thuế GTGT", f"{ty_le_gtgt}%")
     with col_b:
         st.metric("Tỷ lệ thuế TNCN", f"{ty_le_tncn}%")
-    st.caption("📌 Tỷ lệ thuế theo Thông tư 40/2021/TT-BTC, tự động theo ngành nghề.")
+    st.caption("📌 Tỷ lệ thuế GTGT: Điều 12(2b) Luật Thuế GTGT 48/2024/QH15. Tỷ lệ thuế TNCN: Điều 7(3) Luật Thuế TNCN 109/2025/QH15.")
 
     # Phương pháp tính thuế: HKD 500tr–3tỷ được chọn 1 trong 2; nhóm khác fix theo luật
     phuong_phap_options = ["TY_LE_DOANH_THU", "LOI_NHUAN"]

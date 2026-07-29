@@ -7960,8 +7960,10 @@ elif menu == "✅ Nhân viên":
         if st.session_state.pop('_reset_snv_dang_lam', False):
             st.session_state['snv_dang_lam'] = ''
         if st.session_state.role in ("admin", "xem_toan_bo"):
+            _chedo_nv = st.radio("Chọn thao tác:", ["➕ Thêm NV mới", "🔍 Tra cứu/Danh sách"],
+                                 horizontal=True, key="nv_dang_lam_thao_tac")
             st.session_state.setdefault('add_nv_reset_ctr', 0)
-            with st.expander("➕ THÊM NHÂN VIÊN MỚI", expanded=False, key=f"add_nv_expander_{st.session_state.add_nv_reset_ctr}"):
+            with st.expander("➕ THÊM NHÂN VIÊN MỚI", expanded=(_chedo_nv == "➕ Thêm NV mới"), key=f"add_nv_expander_{st.session_state.add_nv_reset_ctr}"):
                 lhd = st.selectbox("Loại HĐ *", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"], key="lhd")
                 with st.form(f"add_nv_{st.session_state.add_nv_reset_ctr}"):
                     st.markdown("**Nhập thông tin nhân viên mới**")
@@ -9277,6 +9279,8 @@ elif menu == "✅ Nhân viên":
     # ===== TAB: QUYẾT ĐỊNH NHÂN SỰ =====
     with tab_qdns:
         st.caption("📜 Ra các Quyết định nhân sự: Bổ nhiệm, Miễn nhiệm, Thay đổi chức danh, Điều chuyển công tác, Chấm dứt HĐTV/HĐLĐ")
+        _chedo_qdns = st.radio("Chọn thao tác:", ["➕ Tạo QĐNS mới", "🔍 Tra cứu lịch sử"],
+                               horizontal=True, key="qdns_thao_tac")
 
         # Thông báo file vừa tạo (nếu có), hiển thị TRƯỚC form để không bị mất sau khi rerun
         if st.session_state.get('qdns_last_file'):
@@ -9749,6 +9753,8 @@ elif menu == "✅ Nhân viên":
                     st.error(f"❌ Lỗi khi tạo quyết định: {e}")
 
         # ===== Lịch sử các quyết định nhân sự đã ban hành =====
+        if _chedo_qdns != "🔍 Tra cứu lịch sử":
+            st.stop()
         st.divider()
         st.subheader("📚 Lịch sử Quyết định nhân sự")
         search_qd = st.text_input("🔍 Tìm Quyết định (theo Số QĐ, Mã NV, Họ tên, Nội dung):", key="search_qdns")

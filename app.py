@@ -254,7 +254,22 @@ def format_thang_nam(d):
     if hasattr(d, 'strftime'):
         return d.strftime('%m/%Y')
     return str(d)
-    
+
+def tinh_ngay_ket_thuc(loai_hop_dong, ngay_vao_lam):
+    """Tự động tính ngày kết thúc HĐ theo loại hợp đồng.
+    - Thử việc: +2 tháng (tối đa theo Điều 25 BLLĐ 2019)
+    - Xác định thời hạn: +12 tháng (mặc định, có thể sửa sau qua Cập nhật NV)
+    - Không xác định thời hạn: None (không có ngày kết thúc)
+    """
+    if not ngay_vao_lam:
+        return None
+    if loai_hop_dong == "Thử việc":
+        return ngay_vao_lam + relativedelta(months=2) - timedelta(days=1)
+    elif loai_hop_dong == "Xác định thời hạn":
+        return ngay_vao_lam + relativedelta(months=12) - timedelta(days=1)
+    else:  # Không xác định thời hạn
+        return None
+
 CHAM_CONG_MA_OPTIONS = [""] + list(KY_HIEU_CHAM_CONG.keys())
 KY_HIEU_CAN_PHE_DUYET = [ma for ma, tt in KY_HIEU_CHAM_CONG.items() if tt.get("can_duyet")]
 
@@ -7442,7 +7457,11 @@ elif menu == "👤 Ứng viên":
         db_chuc.close()
         dpb_chuyen = get_phong_ban_options()
         
-        loai_hd_chuyen = st.selectbox("Loại HĐ *", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"], key="loai_hd_chuyen_uv")
+        _col_lhd_c1, _col_lhd_c2 = st.columns(2)
+        with _col_lhd_c1:
+            ngay_vao_lam_chuyen = st.text_input("Ngày vào làm (dd/mm/yyyy) *", value=format_date(uv_data.get('ngay_vao_lam', date.today())), placeholder="dd/mm/yyyy", max_chars=10, key="nvl_chuyen_uv")
+        with _col_lhd_c2:
+            loai_hd_chuyen = st.selectbox("Loại HĐ *", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"], key="loai_hd_chuyen_uv")
         
         with st.form("chuyen_uv_to_nv_form"):
             st.markdown(f"**Ứng viên:** {uv_data.get('ho_ten', '')}")
@@ -7472,22 +7491,20 @@ elif menu == "👤 Ứng viên":
                 anh_ho_so_nv = st.file_uploader("Ảnh hồ sơ", type=["png", "jpg", "jpeg"], key="anh_ho_so_chuyen")
             
             st.divider()
-            st.caption("💼 Hợp đồng & BHXH")
+            st.caption("💼 Bảo hiểm xã hội")
             col4, col5, col6 = st.columns(3)
             la_thu_viec_chuyen = loai_hd_chuyen == "Thử việc"
             with col4:
-                ngay_vao_lam_chuyen = st.date_input("Ngày vào làm", value=uv_data.get('ngay_vao_lam', date.today()))
-                ngay_ket_thuc_chuyen = st.text_input("Ngày kết thúc (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
                 ma_bhxh_chuyen = st.text_input("Mã BHXH", disabled=la_thu_viec_chuyen)
-            with col5:
                 luong_bh_chuyen = st.text_input("Lương BH")
                 he_so_luong_chuyen = st.text_input("Hệ số lương")
                 pc_chuc_vu_chuyen = st.text_input("PC chức vụ")
+            with col5:
                 pc_tnvk_chuyen = st.text_input("PC TNVK (%)")
                 pc_tnn_chuyen = st.text_input("PC TNN (%)")
-            with col6:
                 muc_huong_bhyt_chuyen = st.selectbox("Mức hưởng BHYT", ["80%", "95%", "100%"])
                 ty_le_dong_chuyen = st.text_input("Tỷ lệ đóng (%)")
+            with col6:
                 muc_tien_dong_chuyen = st.text_input("Mức tiền đóng")
                 phuong_thuc_dong_chuyen = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"])
                 nhom_bhxh_chuyen = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"])
@@ -7524,8 +7541,8 @@ elif menu == "👤 Ứng viên":
                             ngay_loi.append("Ngày sinh")
                         if ngay_cap_cccd_nv and not parse_date(ngay_cap_cccd_nv): 
                             ngay_loi.append("Ngày cấp CCCD")
-                        if ngay_ket_thuc_chuyen and not parse_date(ngay_ket_thuc_chuyen): 
-                            ngay_loi.append("Ngày kết thúc")
+                        if ngay_vao_lam_chuyen and not parse_date(ngay_vao_lam_chuyen):
+                            ngay_loi.append("Ngày vào làm")
                         if ngay_loi:
                             st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
                         else:
@@ -7543,7 +7560,7 @@ elif menu == "👤 Ứng viên":
                                 ma_nv = sinh_ma_nv_moi(c)
                                 c.execute("SELECT COALESCE(MAX(STT),0)+1 FROM nhan_vien")
                                                                 
-                                nhl = ngay_vao_lam_chuyen
+                                nhl = parse_date(ngay_vao_lam_chuyen) or date.today()
 
                                 # Mã công ty của TENANT ĐANG ĐĂNG NHẬP (không phải luôn là "CHL" của Hòn La)
                                 ma_cty_hd = st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL'
@@ -7585,10 +7602,10 @@ elif menu == "👤 Ứng viên":
                                     stt_moi, ma_nv, so_hd, ho_ten_nv, chuc_danh_nv,
                                     parse_date(ngay_sinh_nv), gioi_tinh_nv, so_cccd_nv, parse_date(ngay_cap_cccd_nv), noi_cap_cccd_nv,
                                     nguyen_quan_nv, thuong_tru_nv, (dien_thoai_nv.strip() or None) if dien_thoai_nv else None, email_nv, email_nv, ho_so_chuyen,
-                                    luong_bh_chuyen, ma_bhxh_chuyen, ngay_vao_lam_chuyen, noi_lam_viec_nv,
-                                    stk_chuyen, chi_nhanh_nh_chuyen, ngay_vao_lam_chuyen, loai_hd_chuyen,
-                                    nhom_bhxh_chuyen, tbd_val, parse_date(ngay_ket_thuc_chuyen), trang_thai_nv, trang_thai_bhxh,
-                                    phong_ban_nv, parse_date(ngay_ket_thuc_chuyen), quoc_tich_nv, dan_toc_nv,
+                                    luong_bh_chuyen, ma_bhxh_chuyen, nhl, noi_lam_viec_nv,
+                                    stk_chuyen, chi_nhanh_nh_chuyen, nhl, loai_hd_chuyen,
+                                    nhom_bhxh_chuyen, tbd_val, tinh_ngay_ket_thuc(loai_hd_chuyen, nhl), trang_thai_nv, trang_thai_bhxh,
+                                    phong_ban_nv, tinh_ngay_ket_thuc(loai_hd_chuyen, nhl), quoc_tich_nv, dan_toc_nv,
                                     to_float_or_none(he_so_luong_chuyen), to_float_or_none(pc_chuc_vu_chuyen),
                                     to_float_or_none(pc_tnvk_chuyen), to_float_or_none(pc_tnn_chuyen),
                                     muc_huong_bhyt_chuyen, to_float_or_none(ty_le_dong_chuyen), to_float_or_none(muc_tien_dong_chuyen),
@@ -7968,7 +7985,11 @@ elif menu == "✅ Nhân viên":
         if _chedo_nv == "➕ Thêm NV mới" and st.session_state.role in ("admin", "xem_toan_bo"):
             st.session_state.setdefault('add_nv_reset_ctr', 0)
             with st.expander("➕ THÊM NHÂN VIÊN MỚI", expanded=True, key=f"add_nv_expander_{st.session_state.add_nv_reset_ctr}"):
-                lhd = st.selectbox("Loại HĐ *", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"], key="lhd")
+                _col_lhd1, _col_lhd2 = st.columns(2)
+                with _col_lhd1:
+                    nvl = st.text_input("Ngày vào làm (dd/mm/yyyy) *", placeholder="dd/mm/yyyy", max_chars=10, key="nvl")
+                with _col_lhd2:
+                    lhd = st.selectbox("Loại HĐ *", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"], key="lhd")
                 with st.form(f"add_nv_{st.session_state.add_nv_reset_ctr}"):
                     st.markdown("**Nhập thông tin nhân viên mới**")
                     db = st.session_state.db_engine.get_connection()
@@ -8001,22 +8022,20 @@ elif menu == "✅ Nhân viên":
                         nlv = get_cau_hinh('noi_lam_viec', 'Cảng THQT Hòn La')  # Nơi làm việc: đã bỏ khỏi UI, dùng cấu hình chung của công ty
                         anh_ho_so_moi = st.file_uploader("Ảnh hồ sơ", type=["png", "jpg", "jpeg"], key="anh_ho_so_add")
                     st.divider()
-                    st.caption("💼 Hợp đồng & BHXH")
+                    st.caption("💼 Bảo hiểm xã hội")
                     la_thu_viec_add = lhd == "Thử việc"
                     c4, c5, c6 = st.columns(3)
                     with c4:
-                        nvl = st.text_input("Ngày vào làm (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10, key="nvl")
-                        nkt = st.text_input("Ngày kết thúc", placeholder="dd/mm/yyyy", max_chars=10, key="nkt")
                         mbh = st.text_input("Mã BHXH", key="mbh", disabled=la_thu_viec_add)
-                    with c5:
                         lbh = st.text_input("Lương BH", key="lbh")
                         hsl = st.text_input("Hệ số lương", key="hsl")
                         pcv = st.text_input("PC chức vụ", key="pcv")
+                    with c5:
                         ptv = st.text_input("PC TNVK (%)", key="ptv")
                         ptn = st.text_input("PC TNN (%)", key="ptn")
-                    with c6:
                         mhb = st.selectbox("Mức hưởng BHYT", ["80%", "95%", "100%"], key="mhb")
                         tld = st.text_input("Tỷ lệ đóng (%)", key="tld")
+                    with c6:
                         mtd = st.text_input("Mức tiền đóng", key="mtd")
                         ptd = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"], key="ptd")
                         nbh = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"], key="nbh")
@@ -8102,7 +8121,7 @@ elif menu == "✅ Nhân viên":
                                                 %s, %s) RETURNING id""",
                                                 (stt_moi, ma_nv, so_hd, htn, cdn, parse_date(nsn), gtn, scc, parse_date(ncc), ncc2, nqn, ttn,
                                                  (dtn2.strip() or None) if dtn2 else None, emn, emn, hso, to_float_or_none(lbh), mbh, parse_date(nvl), nlv, stk, cnh, parse_date(nvl), lhd,
-                                                 nbh, tbd_val, None, ttnv, ttbh, pbn_chuan, parse_date(nkt), qtn, dtn, 
+                                                 nbh, tbd_val, None, ttnv, ttbh, pbn_chuan, tinh_ngay_ket_thuc(lhd, parse_date(nvl)), qtn, dtn, 
                                                  to_float_or_none(hsl), to_float_or_none(pcv), to_float_or_none(ptv), to_float_or_none(ptn),
                                                  mhb, to_float_or_none(tld), to_float_or_none(mtd), ptd, ths, phs, dhs, tkb, nkb, dks,
                                                  ten_don_vi_thu_huong, trinh_do_moi, so_luong_npt,
@@ -8567,8 +8586,12 @@ elif menu == "✅ Nhân viên":
                     
                         if nd:
                             st.subheader(f"✏️ Cập nhật: {nd.get('ho_ten', '')} ({nd.get('ma_nv', '')})")
-                            # Đặt Loại HĐ NGOÀI form để đổi giá trị → rerun ngay → disable Mã BHXH & Phương án
-                            lhdv = st.selectbox("Loại HĐ", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"], index=["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"].index(nd.get('loai_hop_dong', 'Thử việc')) if nd.get('loai_hop_dong') in ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"] else 0, key="lhdv_edit_outside")
+                            # Đặt Loại HĐ + Ngày vào làm NGOÀI form để đổi giá trị → rerun ngay → disable Mã BHXH & Phương án
+                            _col_lhd_e1, _col_lhd_e2 = st.columns(2)
+                            with _col_lhd_e1:
+                                nvlv = st.text_input("Ngày vào làm (dd/mm/yyyy)", value=format_date(nd.get('ngay_vao_lam')), placeholder="dd/mm/yyyy", max_chars=10, key="nvlv_edit_outside")
+                            with _col_lhd_e2:
+                                lhdv = st.selectbox("Loại HĐ", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"], index=["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"].index(nd.get('loai_hop_dong', 'Thử việc')) if nd.get('loai_hop_dong') in ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"] else 0, key="lhdv_edit_outside")
                             la_thu_viec_edit = lhdv == "Thử việc"
                             with st.form("edit_nv"):
                                 col1, col2, col3 = st.columns(3)
@@ -8600,11 +8623,9 @@ elif menu == "✅ Nhân viên":
                                     anh_ho_so_v = st.file_uploader("Đổi ảnh hồ sơ (bỏ trống nếu giữ nguyên)", key=f"anh_ho_so_edit_{nid}")
                             
                                 st.divider()
-                                st.caption("💼 Hợp đồng & BHXH")
+                                st.caption("💼 Bảo hiểm xã hội")
                                 col4, col5, col6 = st.columns(3)
                                 with col4:
-                                    nvlv = st.text_input("Ngày vào làm (dd/mm/yyyy)", value=format_date(nd.get('ngay_vao_lam')), placeholder="dd/mm/yyyy", max_chars=10)
-                                    nktv = st.text_input("Ngày kết thúc (dd/mm/yyyy)", value=format_date(nd.get('ngay_ket_thuc')), placeholder="dd/mm/yyyy", max_chars=10)
                                     mbhv = st.text_input("Mã BHXH", value=nd.get('ma_so_bhxh', ''), disabled=la_thu_viec_edit)
                                     # Phương án điều chỉnh BHXH
                                     pa_hien_tai = nd.get('phuong_an_dieu_chinh', '')
@@ -8615,14 +8636,14 @@ elif menu == "✅ Nhân viên":
                                             break
                                     pa_index = ([""] + PHUONG_AN_ALL).index(pa_label_hien_tai) if pa_label_hien_tai in PHUONG_AN_ALL else 0
                                     pa_edit = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_ALL, index=pa_index, key="pa_edit", disabled=la_thu_viec_edit)
-                                with col5:
                                     lbhv = st.text_input("Lương BH", value=nd.get('luong_bao_hiem', ''))
                                     hslv = st.text_input("Hệ số lương", value=str(nd.get('he_so_luong', '')))
+                                with col5:
                                     pcvv = st.text_input("PC chức vụ", value=str(nd.get('phu_cap_chuc_vu', '')))
                                     ptvv = st.text_input("PC TNVK (%)", value=str(nd.get('phu_cap_tnvk', '')))
                                     ptnv = st.text_input("PC TNN (%)", value=str(nd.get('phu_cap_tnn', '')))
-                                with col6:
                                     mhbv = st.selectbox("Mức hưởng BHYT", ["80%", "95%", "100%"], index=["80%", "95%", "100%"].index(nd.get('muc_huong_bhyt', '80%')) if nd.get('muc_huong_bhyt') in ["80%", "95%", "100%"] else 0)
+                                with col6:
                                     tldv = st.text_input("Tỷ lệ đóng (%)", value=str(nd.get('ty_le_dong', '')))
                                     mtdv = st.text_input("Mức tiền đóng", value=str(nd.get('muc_tien_dong', '')))
                                     ptdv = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"], index=["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"].index(nd.get('phuong_thuc_dong', 'Hàng tháng')) if nd.get('phuong_thuc_dong') in ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"] else 0)

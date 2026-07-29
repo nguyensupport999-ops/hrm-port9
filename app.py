@@ -7954,16 +7954,16 @@ elif menu == "✅ Nhân viên":
     tab_dang_lam, tab_da_nghi, tab_qtct, tab_qdns, tab_co_cau = st.tabs(["📌 ĐANG LÀM VIỆC", "📋 ĐÃ NGHỈ VIỆC", "📜 LỊCH SỬ CÔNG TÁC", "📜 QUYẾT ĐỊNH NHÂN SỰ", "🏢 CƠ CẤU PHÒNG BAN"])
     
     with tab_dang_lam:
-        st.caption("👥 Danh sách nhân viên đang làm việc (bao gồm thử việc)")
+        #st.caption("👥 Danh sách nhân viên đang làm việc (bao gồm thử việc)")
         # Xử lý yêu cầu reset ô tìm kiếm (đến từ nút "Đóng" của card thông tin nhân viên)
         # Phải làm TRƯỚC khi widget text_input được khởi tạo, nếu không Streamlit sẽ báo lỗi
         if st.session_state.pop('_reset_snv_dang_lam', False):
             st.session_state['snv_dang_lam'] = ''
         if st.session_state.role in ("admin", "xem_toan_bo"):
-            _chedo_nv = st.radio("Chọn thao tác:", ["➕ Thêm NV mới", "🔍 Tra cứu/Danh sách"],
+            _chedo_nv = st.radio("Chọn thao tác:", ["➕ Thêm NV mới", "🔍 Danh sách nhân viên đang làm việc (bao gồm thử việc)"],
                                  horizontal=True, key="nv_dang_lam_thao_tac")
         else:
-            _chedo_nv = "🔍 Tra cứu/Danh sách"
+            _chedo_nv = "🔍 Danh sách nhân viên đang làm việc (bao gồm thử việc)"
 
         if _chedo_nv == "➕ Thêm NV mới" and st.session_state.role in ("admin", "xem_toan_bo"):
             st.session_state.setdefault('add_nv_reset_ctr', 0)
@@ -8146,7 +8146,7 @@ elif menu == "✅ Nhân viên":
                 st.divider()
 
 
-        if _chedo_nv == "🔍 Tra cứu/Danh sách":
+        if _chedo_nv == "🔍 Danh sách nhân viên đang làm việc (bao gồm thử việc)":
             sn = st.text_input("🔍 Tìm kiếm", key="snv_dang_lam")
 
         

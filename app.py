@@ -8760,7 +8760,6 @@ elif menu == "✅ Nhân viên":
                                         if 'selected_nv_id' in st.session_state:
                                             del st.session_state['selected_nv_id']
                                         st.success("✅ Đã hủy sửa nhân viên")
-                                        st.cache_data.clear()
                                         st.rerun()
             
                     except Exception as e:

@@ -54,7 +54,46 @@ import numpy as np
 import cv2
 from streamlit_webrtc import webrtc_streamer
 import face_id_cham_cong
+import bao_cao_bhxh
 
+# Gợi ý lương BH theo chức danh — hiện tooltip khi nhập trường Lương BH
+GOI_Y_LUONG_BH = {
+    "Công nhân Lái máy đào": [4430000, 4650000],
+    "Giám đốc Tài Chính": [12000000],
+    "Lái cẩu điện ở cảng": [4650000],
+    "Lái máy ủi": [4430000],
+    "Lái máy xúc dung tích gầu dưới 4 m3": [4430000],
+    "Lao động phổ thông": [4140000],
+    "Nhân viên Kĩ Thuật": [4650000, 5300000],
+    "Nhân viên Lái xe tải": [5681700],
+    "Nhân viên điều độ cảng": [4650000],
+    "Nhân viên hành chính": [4430000, 4650000],
+    "Nhân viên kế toán": [4650000],
+    "Nhân viên kinh doanh": [4430000, 4650000],
+    "Nhân viên tạp vụ": [4140000],
+    "Nhân viên vận hành băng tải": [4650000],
+    "Phó tổng Giám đốc": [7000000],
+    "Phụ trách kế toán": [7000000],
+    "Quản lý công nhân": [5310000],
+    "Sửa chữa cần cẩu, máy tại cảng": [4650000],
+    "Tổ trưởng nhân công": [4650000],
+}
+def _build_goi_y_luong_bh_text(chuc_danh_dang_chon=""):
+    """Tạo text gợi ý lương BH. Nếu có chức danh phù hợp → highlight."""
+    lines = []
+    # Nếu trùng chức danh → hiện ngay ở đầu
+    if chuc_danh_dang_chon:
+        cd_lower = chuc_danh_dang_chon.strip().lower()
+        for cd, ds_luong in GOI_Y_LUONG_BH.items():
+            if cd.lower() == cd_lower or cd_lower in cd.lower():
+                luong_str = " / ".join(f"{l:,.0f}" for l in ds_luong)
+                lines.append(f"👉 {cd}: {luong_str}")
+    # Hiện toàn bộ danh sách
+    lines.append("─── Bảng tham khảo ───")
+    for cd, ds_luong in sorted(GOI_Y_LUONG_BH.items()):
+        luong_str = " / ".join(f"{l:,.0f}" for l in ds_luong)
+        lines.append(f"• {cd}: {luong_str}")
+    return "\n".join(lines)
 
 try:
     from config import COMPANY_CONFIG, BHXH_CONFIG, EMAIL_CONFIG, TELEGRAM_CONFIG, USERS
@@ -7752,7 +7791,20 @@ elif menu == "👤 Ứng viên":
             la_thu_viec_chuyen = loai_hd_chuyen == "Thử việc"
             with col4:
                 ma_bhxh_chuyen = st.text_input("Mã BHXH", disabled=la_thu_viec_chuyen)
-                luong_bh_chuyen = st.text_input("Lương BH")
+                _cd_chuyen = st.session_state.get("chuc_danh_nv", "") if "chuc_danh_nv" in st.session_state else ""
+                        _goi_y_lines_c = ["── Gợi ý lương BH ──"]
+                        _goi_y_nhanh_c = ""
+                        for _cd_k, _ds_l in GOI_Y_LUONG_BH.items():
+                            _l_str = " / ".join(f"{int(l):,}đ" for l in _ds_l)
+                            if _cd_chuyen and _cd_chuyen.strip().lower() in _cd_k.lower():
+                                _goi_y_lines_c.insert(1, f"👉 {_cd_k}: {_l_str}")
+                                _goi_y_nhanh_c = _l_str
+                            else:
+                                _goi_y_lines_c.append(f"• {_cd_k}: {_l_str}")
+                        luong_bh_chuyen = st.text_input("Lương BH",
+                                                        help="\n".join(_goi_y_lines_c))
+                        if _goi_y_nhanh_c:
+                            st.caption(f"💡 Gợi ý: {_goi_y_nhanh_c}")
                 he_so_luong_chuyen = st.text_input("Hệ số lương")
                 pc_chuc_vu_chuyen = st.text_input("PC chức vụ")
             with col5:
@@ -7761,7 +7813,21 @@ elif menu == "👤 Ứng viên":
                 muc_huong_bhyt_chuyen = st.selectbox("Mức hưởng BHYT", ["80%", "95%", "100%"])
                 ty_le_dong_chuyen = st.text_input("Tỷ lệ đóng (%)")
             with col6:
-                muc_tien_dong_chuyen = st.text_input("Mức tiền đóng")
+                _lbh_c = 0
+                        _tld_c = 0
+                        try:
+                            _lbh_c = int(str(st.session_state.get("luong_bh_chuyen", "0")).replace(".", "").replace(",", "").strip() or "0")
+                        except (ValueError, TypeError):
+                            pass
+                        try:
+                            _tld_c = float(str(st.session_state.get("tld_chuyen", "0")).replace(",", ".").strip() or "0")
+                        except (ValueError, TypeError):
+                            pass
+                        _mtd_c = round(_lbh_c * _tld_c / 100) if _lbh_c > 0 and _tld_c > 0 else 0
+                        muc_tien_dong_chuyen = st.text_input("Mức tiền đóng",
+                                                              help=f"= {_lbh_c:,} × {_tld_c}% = {_mtd_c:,}đ" if _mtd_c > 0 else "Nhập Lương BH và Tỷ lệ đóng trước")
+                        if _mtd_c > 0:
+                            st.caption(f"💡 Tự tính: {_mtd_c:,}đ")
                 phuong_thuc_dong_chuyen = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"])
                 nhom_bhxh_chuyen = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"])
                 phuong_an_chuyen = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_chuyen", disabled=la_thu_viec_chuyen)
@@ -8285,7 +8351,20 @@ elif menu == "✅ Nhân viên":
                     c4, c5, c6 = st.columns(3)
                     with c4:
                         mbh = st.text_input("Mã BHXH", key="mbh", disabled=la_thu_viec_add)
-                        lbh = st.text_input("Lương BH", key="lbh")
+                        _cd_chon = st.session_state.get("cdn", "")
+                        _goi_y_lines = ["── Gợi ý lương BH theo chức danh ──"]
+                        _goi_y_nhanh = ""
+                        for _cd_k, _ds_l in GOI_Y_LUONG_BH.items():
+                            _l_str = " / ".join(f"{int(l):,}đ" for l in _ds_l)
+                            if _cd_chon and _cd_chon.strip().lower() in _cd_k.lower():
+                                _goi_y_lines.insert(1, f"👉 {_cd_k}: {_l_str}")
+                                _goi_y_nhanh = _l_str
+                            else:
+                                _goi_y_lines.append(f"• {_cd_k}: {_l_str}")
+                        lbh = st.text_input("Lương BH", key="lbh",
+                                            help="\n".join(_goi_y_lines))
+                        if _goi_y_nhanh:
+                            st.caption(f"💡 Gợi ý: {_goi_y_nhanh}")
                         hsl = st.text_input("Hệ số lương", key="hsl")
                         pcv = st.text_input("PC chức vụ", key="pcv")
                     with c5:
@@ -8294,7 +8373,22 @@ elif menu == "✅ Nhân viên":
                         mhb = st.selectbox("Mức hưởng BHYT", ["80%", "95%", "100%"], key="mhb")
                         tld = st.text_input("Tỷ lệ đóng (%)", key="tld")
                     with c6:
-                        mtd = st.text_input("Mức tiền đóng", key="mtd")
+                        _lbh_val = 0
+                        _tld_val = 0
+                        try:
+                            _lbh_val = int(str(st.session_state.get("lbh", "0")).replace(".", "").replace(",", "").strip() or "0")
+                        except (ValueError, TypeError):
+                            pass
+                        try:
+                            _tld_val = float(str(st.session_state.get("tld", "0")).replace(",", ".").strip() or "0")
+                        except (ValueError, TypeError):
+                            pass
+                        _mtd_auto = round(_lbh_val * _tld_val / 100) if _lbh_val > 0 and _tld_val > 0 else 0
+                        _mtd_help = f"= {_lbh_val:,} × {_tld_val}% = {_mtd_auto:,}đ" if _mtd_auto > 0 else "Nhập Lương BH và Tỷ lệ đóng trước"
+                        mtd = st.text_input("Mức tiền đóng", key="mtd",
+                                            help=_mtd_help)
+                        if _mtd_auto > 0:
+                            st.caption(f"💡 Tự tính: {_mtd_auto:,}đ")
                         ptd = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"], key="ptd")
                         nbh = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"], key="nbh")
                         pa_add = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_add", disabled=la_thu_viec_add)
@@ -8895,7 +8989,20 @@ elif menu == "✅ Nhân viên":
                                             break
                                     pa_index = ([""] + PHUONG_AN_ALL).index(pa_label_hien_tai) if pa_label_hien_tai in PHUONG_AN_ALL else 0
                                     pa_edit = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_ALL, index=pa_index, key="pa_edit", disabled=la_thu_viec_edit)
-                                    lbhv = st.text_input("Lương BH", value=nd.get('luong_bao_hiem', ''))
+                                    _cd_edit = st.session_state.get("cdnv", "") if "cdnv" in st.session_state else ""
+                                    _goi_y_lines_e = ["── Gợi ý lương BH ──"]
+                                    _goi_y_nhanh_e = ""
+                                    for _cd_k, _ds_l in GOI_Y_LUONG_BH.items():
+                                        _l_str = " / ".join(f"{int(l):,}đ" for l in _ds_l)
+                                        if _cd_edit and _cd_edit.strip().lower() in _cd_k.lower():
+                                            _goi_y_lines_e.insert(1, f"👉 {_cd_k}: {_l_str}")
+                                            _goi_y_nhanh_e = _l_str
+                                        else:
+                                            _goi_y_lines_e.append(f"• {_cd_k}: {_l_str}")
+                                    lbhv = st.text_input("Lương BH", value=nd.get('luong_bao_hiem', ''),
+                                                         help="\n".join(_goi_y_lines_e))
+                                    if _goi_y_nhanh_e:
+                                        st.caption(f"💡 Gợi ý: {_goi_y_nhanh_e}")
                                     hslv = st.text_input("Hệ số lương", value=str(nd.get('he_so_luong', '')))
                                 with col5:
                                     pcvv = st.text_input("PC chức vụ", value=str(nd.get('phu_cap_chuc_vu', '')))
@@ -8904,7 +9011,21 @@ elif menu == "✅ Nhân viên":
                                     mhbv = st.selectbox("Mức hưởng BHYT", ["80%", "95%", "100%"], index=["80%", "95%", "100%"].index(nd.get('muc_huong_bhyt', '80%')) if nd.get('muc_huong_bhyt') in ["80%", "95%", "100%"] else 0)
                                 with col6:
                                     tldv = st.text_input("Tỷ lệ đóng (%)", value=str(nd.get('ty_le_dong', '')))
-                                    mtdv = st.text_input("Mức tiền đóng", value=str(nd.get('muc_tien_dong', '')))
+                                    _lbh_e = 0
+                                    _tld_e = 0
+                                    try:
+                                        _lbh_e = int(str(st.session_state.get("lbhv", "0")).replace(".", "").replace(",", "").strip() or "0")
+                                    except (ValueError, TypeError):
+                                        pass
+                                    try:
+                                        _tld_e = float(str(st.session_state.get("tldv", "0")).replace(",", ".").strip() or "0")
+                                    except (ValueError, TypeError):
+                                        pass
+                                    _mtd_e = round(_lbh_e * _tld_e / 100) if _lbh_e > 0 and _tld_e > 0 else 0
+                                    mtdv = st.text_input("Mức tiền đóng", value=str(nd.get('muc_tien_dong', '')),
+                                                         help=f"= {_lbh_e:,} × {_tld_e}% = {_mtd_e:,}đ" if _mtd_e > 0 else "Nhập Lương BH và Tỷ lệ đóng trước")
+                                    if _mtd_e > 0:
+                                        st.caption(f"💡 Tự tính: {_mtd_e:,}đ")
                                     ptdv = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"], index=["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"].index(nd.get('phuong_thuc_dong', 'Hàng tháng')) if nd.get('phuong_thuc_dong') in ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"] else 0)
                                     nbhv = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"], index=["", "Văn phòng", "Lao động trực tiếp"].index(nd.get('nhom_bhxh', '')) if nd.get('nhom_bhxh') in ["Văn phòng", "Lao động trực tiếp"] else 0)
                             
@@ -12701,7 +12822,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
 elif menu == "📋 BHXH":
     st.markdown(f"# {i18n.tm('📋 Quản lý BHXH')}", unsafe_allow_html=True)
     
-    t1, t2, t3 = st.tabs(["📊 Tổng quan", "📝 Báo cáo tăng/giảm D02-LT", "💰 Dự toán đóng BHXH"])
+    t1, t2, t3 = st.tabs(["📊 Tổng quan", "📝 Báo cáo tăng/giảm D02-LT", "📥 Xuất BC trích nộp BH"])
     
     with t1:
         st.subheader("📊 Tổng quan tình hình đóng BHXH")
@@ -12922,65 +13043,7 @@ elif menu == "📋 BHXH":
                 st.warning("⚠️ Không có biến động lao động (tăng hoặc giảm) trong kỳ để xuất báo cáo!")
     
     with t3:
-        st.subheader("💰 DỰ TOÁN ĐÓNG BHXH")
-        st.caption("Tính toán các khoản phải nộp Bảo hiểm xã hội, Bảo hiểm y tế, Bảo hiểm thất nghiệp")
-        
-        st.info("""
-        ### 🚧 Tính năng đang hoàn thiện
-        
-        Nội dung đang được phát triển. Các tính năng sắp ra mắt:
-        - ✅ Tính toán mức đóng BHXH theo lương cơ sở
-        - ✅ Tính toán các khoản phụ cấp tính đóng BHXH
-        - ✅ Bảng kê chi tiết từng nhân viên
-        - ✅ Xuất báo cáo kê khai BHXH theo mẫu quy định
-        - ✅ Tổng hợp số tiền phải nộp theo tháng/quý/năm
-        
-        ⏳ **Dự kiến hoàn thành: Quý 3/2026**
-        """)
-        
-        # Thêm một số thông tin tham khảo
-        with st.expander("📌 Thông tin tham khảo về tỷ lệ đóng BHXH hiện hành"):
-            st.markdown("""
-            **Tỷ lệ trích BHXH, BHYT, BHTN theo quy định hiện hành:**
-            
-            | Loại | Doanh nghiệp | Người lao động | Tổng |
-            |------|-------------|----------------|------|
-            | BHXH | 17.5% | 8% | 25.5% |
-            | BHYT | 3% | 1.5% | 4.5% |
-            | BHTN | 1% | 1% | 2% |
-            | BHTNLĐ-BNN | 0.5% | 0% | 0.5% |
-            | **Tổng cộng** | **22%** | **10.5%** | **32.5%** |
-            
-            *Lưu ý: Tỷ lệ có thể thay đổi theo quy định mới của Nhà nước.*
-            """)
-        
-        # Thêm form nhập thử nghiệm (có thể comment lại sau)
-        with st.expander("🧪 Thử nghiệm tính toán (Demo)"):
-            col_demo1, col_demo2 = st.columns(2)
-            with col_demo1:
-                luong_demo = st.number_input("Lương tháng (VNĐ)", min_value=0, value=5000000, step=500000)
-            with col_demo2:
-                chon_ty_le = st.selectbox("Áp dụng tỷ lệ", ["Theo quy định", "Tùy chỉnh"])
-            
-            if chon_ty_le == "Theo quy định":
-                ty_le_nld = 10.5
-                ty_le_nsdl = 22.0
-            else:
-                col_ty1, col_ty2 = st.columns(2)
-                with col_ty1:
-                    ty_le_nld = st.number_input("Tỷ lệ NLĐ (%)", min_value=0.0, max_value=50.0, value=10.5, step=0.5)
-                with col_ty2:
-                    ty_le_nsdl = st.number_input("Tỷ lệ NSDLĐ (%)", min_value=0.0, max_value=50.0, value=22.0, step=0.5)
-            
-            tien_nld = luong_demo * ty_le_nld / 100
-            tien_nsdl = luong_demo * ty_le_nsdl / 100
-            tong_tien = tien_nld + tien_nsdl
-            
-            st.markdown("---")
-            col_kq1, col_kq2, col_kq3 = st.columns(3)
-            col_kq1.metric("NLĐ đóng", f"{tien_nld:,.0f} VNĐ", f"({ty_le_nld}%)")
-            col_kq2.metric("NSDLĐ đóng", f"{tien_nsdl:,.0f} VNĐ", f"({ty_le_nsdl}%)")
-            col_kq3.metric("Tổng tiền", f"{tong_tien:,.0f} VNĐ", "cả 2 bên")
+        render_xuat_bao_cao_bhxh(st.session_state.db_engine)
         
 # ========== BÁO CÁO TÌNH HÌNH SỬ DỤNG LAO ĐỘNG MẪU 01/PLI (EXCEL) ==========
 elif menu == "📋 Báo cáo định kỳ":

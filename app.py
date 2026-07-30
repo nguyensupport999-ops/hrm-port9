@@ -7792,19 +7792,19 @@ elif menu == "👤 Ứng viên":
             with col4:
                 ma_bhxh_chuyen = st.text_input("Mã BHXH", disabled=la_thu_viec_chuyen)
                 _cd_chuyen = st.session_state.get("chuc_danh_nv", "") if "chuc_danh_nv" in st.session_state else ""
-                        _goi_y_lines_c = ["── Gợi ý lương BH ──"]
-                        _goi_y_nhanh_c = ""
-                        for _cd_k, _ds_l in GOI_Y_LUONG_BH.items():
-                            _l_str = " / ".join(f"{int(l):,}đ" for l in _ds_l)
-                            if _cd_chuyen and _cd_chuyen.strip().lower() in _cd_k.lower():
-                                _goi_y_lines_c.insert(1, f"👉 {_cd_k}: {_l_str}")
-                                _goi_y_nhanh_c = _l_str
-                            else:
-                                _goi_y_lines_c.append(f"• {_cd_k}: {_l_str}")
-                        luong_bh_chuyen = st.text_input("Lương BH",
-                                                        help="\n".join(_goi_y_lines_c))
-                        if _goi_y_nhanh_c:
-                            st.caption(f"💡 Gợi ý: {_goi_y_nhanh_c}")
+                _goi_y_lines_c = ["── Gợi ý lương BH ──"]
+                _goi_y_nhanh_c = ""
+                for _cd_k, _ds_l in GOI_Y_LUONG_BH.items():
+                    _l_str = " / ".join(f"{int(l):,}đ" for l in _ds_l)
+                    if _cd_chuyen and _cd_chuyen.strip().lower() in _cd_k.lower():
+                        _goi_y_lines_c.insert(1, f"👉 {_cd_k}: {_l_str}")
+                        _goi_y_nhanh_c = _l_str
+                    else:
+                        _goi_y_lines_c.append(f"• {_cd_k}: {_l_str}")
+                luong_bh_chuyen = st.text_input("Lương BH",
+                                                help="\n".join(_goi_y_lines_c))
+                if _goi_y_nhanh_c:
+                    st.caption(f"💡 Gợi ý: {_goi_y_nhanh_c}")
                 he_so_luong_chuyen = st.text_input("Hệ số lương")
                 pc_chuc_vu_chuyen = st.text_input("PC chức vụ")
             with col5:

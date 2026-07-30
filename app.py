@@ -7814,20 +7814,20 @@ elif menu == "👤 Ứng viên":
                 ty_le_dong_chuyen = st.text_input("Tỷ lệ đóng (%)")
             with col6:
                 _lbh_c = 0
-                        _tld_c = 0
-                        try:
-                            _lbh_c = int(str(st.session_state.get("luong_bh_chuyen", "0")).replace(".", "").replace(",", "").strip() or "0")
-                        except (ValueError, TypeError):
-                            pass
-                        try:
-                            _tld_c = float(str(st.session_state.get("tld_chuyen", "0")).replace(",", ".").strip() or "0")
-                        except (ValueError, TypeError):
-                            pass
-                        _mtd_c = round(_lbh_c * _tld_c / 100) if _lbh_c > 0 and _tld_c > 0 else 0
-                        muc_tien_dong_chuyen = st.text_input("Mức tiền đóng",
-                                                              help=f"= {_lbh_c:,} × {_tld_c}% = {_mtd_c:,}đ" if _mtd_c > 0 else "Nhập Lương BH và Tỷ lệ đóng trước")
-                        if _mtd_c > 0:
-                            st.caption(f"💡 Tự tính: {_mtd_c:,}đ")
+                _tld_c = 0
+                try:
+                    _lbh_c = int(str(st.session_state.get("luong_bh_chuyen", "0")).replace(".", "").replace(",", "").strip() or "0")
+                except (ValueError, TypeError):
+                    pass
+                try:
+                    _tld_c = float(str(st.session_state.get("tld_chuyen", "0")).replace(",", ".").strip() or "0")
+                except (ValueError, TypeError):
+                    pass
+                _mtd_c = round(_lbh_c * _tld_c / 100) if _lbh_c > 0 and _tld_c > 0 else 0
+                muc_tien_dong_chuyen = st.text_input("Mức tiền đóng",
+                                                      help=f"= {_lbh_c:,} × {_tld_c}% = {_mtd_c:,}đ" if _mtd_c > 0 else "Nhập Lương BH và Tỷ lệ đóng trước")
+                if _mtd_c > 0:
+                    st.caption(f"💡 Tự tính: {_mtd_c:,}đ")
                 phuong_thuc_dong_chuyen = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"])
                 nhom_bhxh_chuyen = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"])
                 phuong_an_chuyen = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_chuyen", disabled=la_thu_viec_chuyen)

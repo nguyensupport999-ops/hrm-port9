@@ -6674,19 +6674,19 @@ if _tenant.get("loai_hinh") in ("HKD", "HO_KINH_DOANH") and menu in (
 ):
     if menu == "📊 Tổng quan HKD":
         from thue_hkd import render_dashboard_hkd
-        render_dashboard_hkd(db_engine)
+        render_dashboard_hkd(st.session_state.db_engine)
     elif menu == "💰 Doanh thu & Chi phí":
         from thue_hkd import render_doanh_thu_chi_phi
-        render_doanh_thu_chi_phi(db_engine)
+        render_doanh_thu_chi_phi(st.session_state.db_engine)
     elif menu == "🧾 Kê khai Thuế":
         from thue_hkd import render_thue_hkd
-        render_thue_hkd(db_engine)
+        render_thue_hkd(st.session_state.db_engine)
     elif menu == "⚙️ Cấu hình HKD":
         from thue_hkd import render_cau_hinh_hkd
-        render_cau_hinh_hkd(db_engine)
+        render_cau_hinh_hkd(st.session_state.db_engine)
     elif menu == "👤 Chủ hộ & Nhân sự":
         from thue_hkd import render_chu_ho_nhan_su
-        render_chu_ho_nhan_su(db_engine)
+        render_chu_ho_nhan_su(st.session_state.db_engine)
 elif menu == "💵 Tính thu nhập":
     tinh_thu_nhap.show_tinh_thu_nhap()
    

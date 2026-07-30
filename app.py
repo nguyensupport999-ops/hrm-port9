@@ -7802,7 +7802,7 @@ elif menu == "👤 Ứng viên":
                     else:
                         _goi_y_lines_c.append(f"• {_cd_k}: {_l_str}")
                 luong_bh_chuyen = st.text_input("Lương BH",
-                                                help="\n".join(_goi_y_lines_c))
+                                                help="\n\n".join(_goi_y_lines_c))
                 if _goi_y_nhanh_c:
                     st.caption(f"💡 Gợi ý: {_goi_y_nhanh_c}")
                 he_so_luong_chuyen = st.text_input("Hệ số lương")
@@ -7813,21 +7813,16 @@ elif menu == "👤 Ứng viên":
                 muc_huong_bhyt_chuyen = st.selectbox("Mức hưởng BHYT", ["80%", "95%", "100%"])
                 ty_le_dong_chuyen = st.text_input("Tỷ lệ đóng (%)")
             with col6:
-                _lbh_c = 0
-                _tld_c = 0
-                try:
-                    _lbh_c = int(str(st.session_state.get("luong_bh_chuyen", "0")).replace(".", "").replace(",", "").strip() or "0")
-                except (ValueError, TypeError):
-                    pass
-                try:
-                    _tld_c = float(str(st.session_state.get("tld_chuyen", "0")).replace(",", ".").strip() or "0")
-                except (ValueError, TypeError):
-                    pass
-                _mtd_c = round(_lbh_c * _tld_c / 100) if _lbh_c > 0 and _tld_c > 0 else 0
-                muc_tien_dong_chuyen = st.text_input("Mức tiền đóng",
-                                                      help=f"= {_lbh_c:,} × {_tld_c}% = {_mtd_c:,}đ" if _mtd_c > 0 else "Nhập Lương BH và Tỷ lệ đóng trước")
-                if _mtd_c > 0:
-                    st.caption(f"💡 Tự tính: {_mtd_c:,}đ")
+                _lbh_val = 0
+                        try:
+                            _lbh_val = int(str(st.session_state.get("lbh", "0")).replace(".", "").replace(",", "").strip() or "0")
+                        except (ValueError, TypeError):
+                            pass
+                        _mtd_auto = round(_lbh_val * 10.5 / 100) if _lbh_val > 0 else 0
+                        mtd = st.text_input("Mức tiền đóng (NLĐ 10,5%)", key="mtd",
+                                            help=f"= Lương BH × 10,5% = {_lbh_val:,} × 10,5% = {_mtd_auto:,}đ" if _mtd_auto > 0 else "Nhập Lương BH trước")
+                        if _mtd_auto > 0:
+                            st.caption(f"💡 Tự tính: {_mtd_auto:,}đ")
                 phuong_thuc_dong_chuyen = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"])
                 nhom_bhxh_chuyen = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"])
                 phuong_an_chuyen = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_chuyen", disabled=la_thu_viec_chuyen)
@@ -8362,7 +8357,7 @@ elif menu == "✅ Nhân viên":
                             else:
                                 _goi_y_lines.append(f"• {_cd_k}: {_l_str}")
                         lbh = st.text_input("Lương BH", key="lbh",
-                                            help="\n".join(_goi_y_lines))
+                                            help="\n\n".join(_goi_y_lines))
                         if _goi_y_nhanh:
                             st.caption(f"💡 Gợi ý: {_goi_y_nhanh}")
                         hsl = st.text_input("Hệ số lương", key="hsl")
@@ -8374,19 +8369,13 @@ elif menu == "✅ Nhân viên":
                         tld = st.text_input("Tỷ lệ đóng (%)", key="tld")
                     with c6:
                         _lbh_val = 0
-                        _tld_val = 0
                         try:
                             _lbh_val = int(str(st.session_state.get("lbh", "0")).replace(".", "").replace(",", "").strip() or "0")
                         except (ValueError, TypeError):
                             pass
-                        try:
-                            _tld_val = float(str(st.session_state.get("tld", "0")).replace(",", ".").strip() or "0")
-                        except (ValueError, TypeError):
-                            pass
-                        _mtd_auto = round(_lbh_val * _tld_val / 100) if _lbh_val > 0 and _tld_val > 0 else 0
-                        _mtd_help = f"= {_lbh_val:,} × {_tld_val}% = {_mtd_auto:,}đ" if _mtd_auto > 0 else "Nhập Lương BH và Tỷ lệ đóng trước"
-                        mtd = st.text_input("Mức tiền đóng", key="mtd",
-                                            help=_mtd_help)
+                        _mtd_auto = round(_lbh_val * 10.5 / 100) if _lbh_val > 0 else 0
+                        mtd = st.text_input("Mức tiền đóng (NLĐ 10,5%)", key="mtd",
+                                            help=f"= Lương BH × 10,5% = {_lbh_val:,} × 10,5% = {_mtd_auto:,}đ" if _mtd_auto > 0 else "Nhập Lương BH trước")
                         if _mtd_auto > 0:
                             st.caption(f"💡 Tự tính: {_mtd_auto:,}đ")
                         ptd = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"], key="ptd")
@@ -9000,7 +8989,7 @@ elif menu == "✅ Nhân viên":
                                         else:
                                             _goi_y_lines_e.append(f"• {_cd_k}: {_l_str}")
                                     lbhv = st.text_input("Lương BH", value=nd.get('luong_bao_hiem', ''),
-                                                         help="\n".join(_goi_y_lines_e))
+                                                         help="\n\n".join(_goi_y_lines_e))
                                     if _goi_y_nhanh_e:
                                         st.caption(f"💡 Gợi ý: {_goi_y_nhanh_e}")
                                     hslv = st.text_input("Hệ số lương", value=str(nd.get('he_so_luong', '')))
@@ -9012,18 +9001,13 @@ elif menu == "✅ Nhân viên":
                                 with col6:
                                     tldv = st.text_input("Tỷ lệ đóng (%)", value=str(nd.get('ty_le_dong', '')))
                                     _lbh_e = 0
-                                    _tld_e = 0
                                     try:
                                         _lbh_e = int(str(st.session_state.get("lbhv", "0")).replace(".", "").replace(",", "").strip() or "0")
                                     except (ValueError, TypeError):
                                         pass
-                                    try:
-                                        _tld_e = float(str(st.session_state.get("tldv", "0")).replace(",", ".").strip() or "0")
-                                    except (ValueError, TypeError):
-                                        pass
-                                    _mtd_e = round(_lbh_e * _tld_e / 100) if _lbh_e > 0 and _tld_e > 0 else 0
-                                    mtdv = st.text_input("Mức tiền đóng", value=str(nd.get('muc_tien_dong', '')),
-                                                         help=f"= {_lbh_e:,} × {_tld_e}% = {_mtd_e:,}đ" if _mtd_e > 0 else "Nhập Lương BH và Tỷ lệ đóng trước")
+                                    _mtd_e = round(_lbh_e * 10.5 / 100) if _lbh_e > 0 else 0
+                                    mtdv = st.text_input("Mức tiền đóng (NLĐ 10,5%)", value=str(nd.get('muc_tien_dong', '')),
+                                                         help=f"= {_lbh_e:,} × 10,5% = {_mtd_e:,}đ" if _mtd_e > 0 else "Nhập Lương BH trước")
                                     if _mtd_e > 0:
                                         st.caption(f"💡 Tự tính: {_mtd_e:,}đ")
                                     ptdv = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"], index=["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"].index(nd.get('phuong_thuc_dong', 'Hàng tháng')) if nd.get('phuong_thuc_dong') in ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"] else 0)

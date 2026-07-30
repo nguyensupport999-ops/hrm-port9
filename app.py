@@ -7820,9 +7820,9 @@ elif menu == "👤 Ứng viên":
                     pass
                 _mtd_auto = round(_lbh_val * 10.5 / 100) if _lbh_val > 0 else 0
                 mtd = st.text_input("Mức tiền đóng (NLĐ 10,5%)", key="mtd",
-                                    help=f"= Lương BH × 10,5% = {_lbh_val:,} × 10,5% = {_mtd_auto:,}đ" if _mtd_auto > 0 else "Nhập Lương BH trước")
-                if _mtd_auto > 0:
-                    st.caption(f"💡 Tự tính: {_mtd_auto:,}đ")
+                                    value=str(_mtd_auto) if _mtd_auto > 0 else "",
+                                    disabled=True,
+                                    help=f"= {_lbh_val:,} × 10,5% (tự tính từ Lương BH)" if _mtd_auto > 0 else "Nhập Lương BH trước")
                 phuong_thuc_dong_chuyen = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"])
                 nhom_bhxh_chuyen = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"])
                 phuong_an_chuyen = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_chuyen", disabled=la_thu_viec_chuyen)
@@ -8375,9 +8375,9 @@ elif menu == "✅ Nhân viên":
                             pass
                         _mtd_auto = round(_lbh_val * 10.5 / 100) if _lbh_val > 0 else 0
                         mtd = st.text_input("Mức tiền đóng (NLĐ 10,5%)", key="mtd",
-                                            help=f"= Lương BH × 10,5% = {_lbh_val:,} × 10,5% = {_mtd_auto:,}đ" if _mtd_auto > 0 else "Nhập Lương BH trước")
-                        if _mtd_auto > 0:
-                            st.caption(f"💡 Tự tính: {_mtd_auto:,}đ")
+                                            value=str(_mtd_auto) if _mtd_auto > 0 else "",
+                                            disabled=True,
+                                            help=f"= {_lbh_val:,} × 10,5% (tự tính từ Lương BH)" if _mtd_auto > 0 else "Nhập Lương BH trước")
                         ptd = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"], key="ptd")
                         nbh = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"], key="nbh")
                         pa_add = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_add", disabled=la_thu_viec_add)
@@ -9006,10 +9006,10 @@ elif menu == "✅ Nhân viên":
                                     except (ValueError, TypeError):
                                         pass
                                     _mtd_e = round(_lbh_e * 10.5 / 100) if _lbh_e > 0 else 0
-                                    mtdv = st.text_input("Mức tiền đóng (NLĐ 10,5%)", value=str(nd.get('muc_tien_dong', '')),
-                                                         help=f"= {_lbh_e:,} × 10,5% = {_mtd_e:,}đ" if _mtd_e > 0 else "Nhập Lương BH trước")
-                                    if _mtd_e > 0:
-                                        st.caption(f"💡 Tự tính: {_mtd_e:,}đ")
+                                    mtdv = st.text_input("Mức tiền đóng (NLĐ 10,5%)",
+                                                         value=str(_mtd_e) if _mtd_e > 0 else str(nd.get('muc_tien_dong', '')),
+                                                         disabled=True,
+                                                         help=f"= {_lbh_e:,} × 10,5% (tự tính)" if _mtd_e > 0 else "Nhập Lương BH trước")
                                     ptdv = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"], index=["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"].index(nd.get('phuong_thuc_dong', 'Hàng tháng')) if nd.get('phuong_thuc_dong') in ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"] else 0)
                                     nbhv = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"], index=["", "Văn phòng", "Lao động trực tiếp"].index(nd.get('nhom_bhxh', '')) if nd.get('nhom_bhxh') in ["Văn phòng", "Lao động trực tiếp"] else 0)
                             

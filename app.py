@@ -6344,23 +6344,53 @@ else:  # 'nhan_vien' thường (mặc định) hoặc bất kỳ vai trò nào k
     menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"]
 # ── Phân luồng menu theo loại hình tenant (DN / HKD) ──
 _tenant = st.session_state.get("tenant") or {}
-if _tenant.get("loai_hinh") == "HO_KINH_DOANH":
-    _menu_bo_hkd = {
-        "👤 Ứng viên",
-        "📋 Báo cáo định kỳ",
+if _tenant.get("loai_hinh") == "HKD":
+    # HKD All-in-One: thay toàn bộ menu bằng bộ menu riêng cho Hộ kinh doanh
+    _menu_hkd_full = [
+        "📊 Tổng quan HKD",
+        "👤 Chủ hộ & Nhân sự",
+        "💰 Doanh thu & Chi phí",
+        "🧾 Kê khai Thuế",
+        "📋 BHXH",
+        "🕒 Chấm công",
+        "💵 Tính thu nhập",
         "📄 Quản lý Công văn & HĐ kinh tế",
         "💬 Chat nội bộ",
-        "🖼️ Tạo ảnh thẻ NV",
-        "🔍 Audit Dashboard",
+        "🤖 Chatbot Giải đáp",
+        "⚙️ Cấu hình HKD",
+        "🔑 Quản lý MK",
+        "📘 Hướng dẫn sử dụng",
+    ]
+    # Lọc theo role: chỉ giữ lại menu mà role hiện tại cũng có quyền tương ứng
+    # (dựa trên menu_options đã gán ở trên theo role)
+    _menu_dn_hien_tai = set(menu_options)  # menu DN đã gán cho role này
+    # Map: menu HKD → menu DN tương ứng (để kiểm tra quyền)
+    _map_hkd_sang_dn = {
+        "📊 Tổng quan HKD": "📊 Dashboard",
+        "👤 Chủ hộ & Nhân sự": "✅ Nhân viên",
+        "💰 Doanh thu & Chi phí": None,        # menu mới, chỉ admin/hr/kt_luong
+        "🧾 Kê khai Thuế": None,                # menu mới, chỉ admin/hr/kt_luong
+        "⚙️ Cấu hình HKD": "⚙️ Danh mục",      # quyền tương đương Danh mục
+        "💵 Tính thu nhập": "💰 Tính thu nhập",
     }
-    menu_options = [m for m in menu_options if m not in _menu_bo_hkd]
-    # Thêm menu Thuế HKD — chèn sau 💰 Tính thu nhập (nếu có) hoặc cuối
-    if "🧾 Thuế HKD" not in menu_options:
-        if "💰 Tính thu nhập" in menu_options:
-            _vi_tri = menu_options.index("💰 Tính thu nhập") + 1
-        else:
-            _vi_tri = len(menu_options) - 1
-        menu_options.insert(_vi_tri, "🧾 Thuế HKD")
+    # Role được dùng menu thuế/DT: admin, admin_bcc, hr, kt_luong, xem_toan_bo, demo_readonly
+    _role_thue = {"admin", "admin_bcc", "hr", "kt_luong", "xem_toan_bo", "demo_readonly"}
+
+    menu_options_hkd = []
+    for m in _menu_hkd_full:
+        dn_tuong_ung = _map_hkd_sang_dn.get(m, m)  # None = menu mới HKD
+        if dn_tuong_ung is None:
+            # Menu mới chỉ của HKD → cho phép nếu role nằm trong nhóm thuế
+            if st.session_state.role in _role_thue:
+                menu_options_hkd.append(m)
+        elif dn_tuong_ung in _menu_dn_hien_tai:
+            # Menu có tương ứng bên DN và role có quyền → cho phép
+            menu_options_hkd.append(m)
+        elif m in _menu_dn_hien_tai:
+            # Menu dùng chung, tên giống hệt (Chat, BHXH, Chấm công...) → cho phép
+            menu_options_hkd.append(m)
+
+    menu_options = menu_options_hkd if menu_options_hkd else _menu_hkd_full
 menu = st.sidebar.radio(i18n.t("📋 Menu"), menu_options, format_func=i18n.t)
 st.sidebar.divider()
 st.sidebar.caption(f"👤 {st.session_state.get('ho_ten_dang_nhap', st.session_state.username)} ({st.session_state.role})")
@@ -6637,9 +6667,32 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
                     on_close()
                 st.rerun()
 
+# ========== XỬ LÝ MENU HKD ==========
+if _tenant.get("loai_hinh") == "HKD" and menu in (
+    "📊 Tổng quan HKD", "💰 Doanh thu & Chi phí", "🧾 Kê khai Thuế",
+    "⚙️ Cấu hình HKD", "👤 Chủ hộ & Nhân sự", "💵 Tính thu nhập",
+):
+    if menu == "📊 Tổng quan HKD":
+        from thue_hkd import render_dashboard_hkd
+        render_dashboard_hkd(db_engine)
+    elif menu == "💰 Doanh thu & Chi phí":
+        from thue_hkd import render_doanh_thu_chi_phi
+        render_doanh_thu_chi_phi(db_engine)
+    elif menu == "🧾 Kê khai Thuế":
+        from thue_hkd import render_thue_hkd
+        render_thue_hkd(db_engine)
+    elif menu == "⚙️ Cấu hình HKD":
+        from thue_hkd import render_cau_hinh_hkd
+        render_cau_hinh_hkd(db_engine)
+    elif menu == "👤 Chủ hộ & Nhân sự":
+        from thue_hkd import render_chu_ho_nhan_su
+        render_chu_ho_nhan_su(db_engine)
+    elif menu == "💵 Tính thu nhập":
+        from thue_hkd import render_thue_hkd
+        render_thue_hkd(db_engine)
 
 # ========== DASHBOARD ==========
-if menu == "📊 Dashboard":
+elif menu == "📊 Dashboard":
     st.markdown(f"# {i18n.tm('📊 Dashboard')}", unsafe_allow_html=True)
     
     # Lấy dữ liệu từ cache

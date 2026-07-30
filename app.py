@@ -6670,7 +6670,7 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
 # ========== XỬ LÝ MENU HKD ==========
 if _tenant.get("loai_hinh") in ("HKD", "HO_KINH_DOANH") and menu in (
     "📊 Tổng quan HKD", "💰 Doanh thu & Chi phí", "🧾 Kê khai Thuế",
-    "⚙️ Cấu hình HKD", "👤 Chủ hộ & Nhân sự",
+    "⚙️ Cấu hình HKD", "👤 Chủ hộ & Nhân sự", "📋 BHXH",
 ):
     if menu == "📊 Tổng quan HKD":
         from thue_hkd import render_dashboard_hkd
@@ -6687,6 +6687,9 @@ if _tenant.get("loai_hinh") in ("HKD", "HO_KINH_DOANH") and menu in (
     elif menu == "👤 Chủ hộ & Nhân sự":
         from thue_hkd import render_chu_ho_nhan_su
         render_chu_ho_nhan_su(st.session_state.db_engine)
+    elif menu == "📋 BHXH":
+        from thue_hkd import render_bhxh_chu_ho
+        render_bhxh_chu_ho(st.session_state.db_engine)    
 elif menu == "💵 Tính thu nhập":
     tinh_thu_nhap.show_tinh_thu_nhap()
    

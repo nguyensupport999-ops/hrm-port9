@@ -16,6 +16,9 @@ Cách dùng trong app.py:
 
 import datetime
 import streamlit as st
+import io
+import openpyxl
+from openpyxl.styles import Font, Alignment, Border, Side, PatternFill, numbers
 
 # ═══════════════════════════════════════════════════════════════════
 #  HẰNG SỐ
@@ -138,6 +141,96 @@ def _han_ke_khai(ky_thue):
         nam = int(ky_thue)
         return datetime.date(nam + 1, 1, 31)
 
+def _lay_doanh_thu_theo_nganh(conn, ky_thue):
+    """Lấy doanh thu từ bảng doanh_thu_hkd, nhóm theo ngành nghề.
+    ky_thue = 'Q1/2026' → lấy tháng 01,02,03/2026
+    ky_thue = '2026' → lấy cả năm 2026
+    Trả về dict: {nhom_nganh: tong_doanh_thu}
+    """
+    c = conn.cursor()
+    if "/" in ky_thue:
+        # Quý: Q1/2026 → tháng 01,02,03
+        quy_str, nam_str = ky_thue.split("/")
+        quy_num = int(quy_str.replace("Q", ""))
+        thang_bat_dau = (quy_num - 1) * 3 + 1
+        ds_thang = [f"{m:02d}/{nam_str}" for m in range(thang_bat_dau, thang_bat_dau + 3)]
+        placeholders = ",".join(["%s"] * len(ds_thang))
+        c.execute(f"""
+            SELECT nhom_nganh, COALESCE(SUM(doanh_thu), 0) as tong
+            FROM doanh_thu_hkd
+            WHERE thang IN ({placeholders})
+            GROUP BY nhom_nganh
+        """, ds_thang)
+    else:
+        # Cả năm
+        c.execute("""
+            SELECT nhom_nganh, COALESCE(SUM(doanh_thu), 0) as tong
+            FROM doanh_thu_hkd
+            WHERE thang LIKE %s
+            GROUP BY nhom_nganh
+        """, (f"%/{ky_thue}",))
+
+    result = {}
+    for row in c.fetchall():
+        result[row[0]] = float(row[1])
+    return result
+
+
+def _lay_chi_phi_ky(conn, ky_thue):
+    """Lấy tổng chi phí được trừ thuế từ bảng chi_phi_hkd theo kỳ.
+    Trả về (tong_chi_phi, tong_duoc_tru)
+    """
+    c = conn.cursor()
+    if "/" in ky_thue:
+        quy_str, nam_str = ky_thue.split("/")
+        quy_num = int(quy_str.replace("Q", ""))
+        thang_bat_dau = (quy_num - 1) * 3 + 1
+        ds_thang = [f"{m:02d}/{nam_str}" for m in range(thang_bat_dau, thang_bat_dau + 3)]
+        placeholders = ",".join(["%s"] * len(ds_thang))
+        c.execute(f"""
+            SELECT COALESCE(SUM(so_tien), 0),
+                   COALESCE(SUM(CASE WHEN duoc_tru_thue THEN so_tien ELSE 0 END), 0)
+            FROM chi_phi_hkd
+            WHERE thang IN ({placeholders})
+        """, ds_thang)
+    else:
+        c.execute("""
+            SELECT COALESCE(SUM(so_tien), 0),
+                   COALESCE(SUM(CASE WHEN duoc_tru_thue THEN so_tien ELSE 0 END), 0)
+            FROM chi_phi_hkd
+            WHERE thang LIKE %s
+        """, (f"%/{ky_thue}",))
+
+    row = c.fetchone()
+    return (float(row[0]), float(row[1])) if row else (0, 0)
+
+
+def _tinh_thue_chi_tiet_theo_nganh(dt_theo_nganh):
+    """Tính thuế GTGT + TNCN chi tiết theo từng ngành nghề.
+    Trả về dict: {nhom_nganh: {doanh_thu, thue_gtgt, thue_tncn, ty_le_gtgt, ty_le_tncn}}
+    """
+    result = {}
+    tong_gtgt = 0
+    tong_tncn = 0
+    tong_dt = 0
+    for nganh, dt in dt_theo_nganh.items():
+        if dt <= 0:
+            continue
+        info = TY_LE_THUE_THEO_NGANH.get(nganh, TY_LE_THUE_THEO_NGANH["KHAC"])
+        gtgt = round(dt * info["gtgt"] / 100)
+        tncn = round(dt * info["tncn"] / 100)
+        result[nganh] = {
+            "ten": info["ten"],
+            "doanh_thu": dt,
+            "ty_le_gtgt": info["gtgt"],
+            "ty_le_tncn": info["tncn"],
+            "thue_gtgt": gtgt,
+            "thue_tncn": tncn,
+        }
+        tong_gtgt += gtgt
+        tong_tncn += tncn
+        tong_dt += dt
+    return result, tong_dt, tong_gtgt, tong_tncn
 
 # ═══════════════════════════════════════════════════════════════════
 #  DB HELPERS
@@ -445,8 +538,7 @@ def _render_tab_cau_hinh(db_engine):
 # ═══════════════════════════════════════════════════════════════════
 
 def _render_tab_theo_doi(db_engine):
-    """Tab nhập doanh thu theo kỳ, tự động tính thuế."""
-    # Đọc cấu hình
+    """Tab kê khai thuế theo kỳ — tích hợp DT chi tiết theo ngành từ bảng doanh_thu_hkd."""
     conn = db_engine.get_connection()
     try:
         cfg = _get_cau_hinh(conn)
@@ -454,14 +546,13 @@ def _render_tab_theo_doi(db_engine):
         conn.close()
 
     if not cfg:
-        st.warning("⚠️ Chưa có cấu hình HKD. Vui lòng vào tab **⚙️ Cấu hình HKD** để thiết lập trước.")
+        st.warning("⚠️ Chưa có cấu hình HKD. Vui lòng vào **⚙️ Cấu hình HKD** để thiết lập trước.")
         return
 
     nam_hien_tai = datetime.date.today().year
     nam = st.selectbox("Năm", [nam_hien_tai - 1, nam_hien_tai, nam_hien_tai + 1],
                        index=1, key="hkd_nam_theodoi")
 
-    # Đọc danh sách kỳ thuế đã nhập
     conn = db_engine.get_connection()
     try:
         ds_thue = _get_ds_thue(conn, nam)
@@ -470,11 +561,13 @@ def _render_tab_theo_doi(db_engine):
 
     ky_da_nhap = {d["ky_thue"] for d in ds_thue}
 
+    # ══════════════════════════════════════════════
+    # PHẦN 1: Tạo kê khai kỳ mới
+    # ══════════════════════════════════════════════
     st.divider()
-    st.subheader("➕ Nhập doanh thu kỳ mới")
+    st.subheader("➕ Kê khai kỳ thuế mới")
 
-    # Tạo danh sách kỳ có thể nhập
-    if cfg["ky_ke_khai"] == "QUY":
+    if cfg.get("ky_ke_khai") == "QUY":
         ky_chon_list = [f"Q{i}/{nam}" for i in range(1, 5)]
     else:
         ky_chon_list = [str(nam)]
@@ -482,101 +575,129 @@ def _render_tab_theo_doi(db_engine):
     ky_chua_nhap = [k for k in ky_chon_list if k not in ky_da_nhap]
 
     if not ky_chua_nhap:
-        st.info("✅ Đã nhập đủ các kỳ thuế trong năm này.")
+        st.info("✅ Đã kê khai đủ các kỳ thuế trong năm này.")
     else:
         ky_thue = st.selectbox("Chọn kỳ thuế", ky_chua_nhap, key="hkd_ky_moi")
 
-        col1, col2 = st.columns(2)
-        with col1:
-            _dt_text = st.text_input("Doanh thu kỳ này (VNĐ)", value="0", key="hkd_dt_ky")
-            try:
-                doanh_thu_ky = int(_dt_text.replace(".", "").replace(",", "").strip())
-                if doanh_thu_ky < 0:
-                    doanh_thu_ky = 0
-                # Hiển thị lại dạng có dấu chấm để user thấy
-                if doanh_thu_ky > 0:
-                    st.caption(f"= {_fmt_tien(doanh_thu_ky)}đ")
-            except ValueError:
-                doanh_thu_ky = 0
-                st.caption("⚠️ Nhập số, VD: 150.000.000")
-        with col2:
-            _is_loi_nhuan = cfg["phuong_phap_tinh_thue"] == "LOI_NHUAN"
-            _cp_text = st.text_input(
-                "Chi phí kỳ này (VNĐ)",
-                value="0",
-                key="hkd_cp_ky",
-                disabled=not _is_loi_nhuan,
-            )
-            if _is_loi_nhuan:
+        # ── Tự động lấy DT từ bảng doanh_thu_hkd theo kỳ ──
+        conn = db_engine.get_connection()
+        try:
+            dt_theo_nganh = _lay_doanh_thu_theo_nganh(conn, ky_thue)
+            chi_phi_ky_tong, chi_phi_duoc_tru = _lay_chi_phi_ky(conn, ky_thue)
+        finally:
+            conn.close()
+
+        if not dt_theo_nganh:
+            st.warning(f"⚠️ Chưa có doanh thu nào trong kỳ **{ky_thue}**. "
+                       f"Vui lòng vào **💰 Doanh thu & Chi phí** nhập DT trước.")
+            # Cho phép nhập tay fallback
+            st.caption("Hoặc nhập tay doanh thu tổng:")
+            col_fb1, col_fb2 = st.columns(2)
+            with col_fb1:
+                _dt_text = st.text_input("Doanh thu kỳ (VNĐ)", value="0", key="hkd_dt_fb")
                 try:
-                    chi_phi_ky = int(_cp_text.replace(".", "").replace(",", "").strip())
-                    if chi_phi_ky < 0:
-                        chi_phi_ky = 0
-                    if chi_phi_ky > 0:
-                        st.caption(f"= {_fmt_tien(chi_phi_ky)}đ")
+                    dt_nhap_tay = int(_dt_text.replace(".", "").replace(",", "").strip())
                 except ValueError:
-                    chi_phi_ky = 0
-                    st.caption("⚠️ Nhập số, VD: 80.000.000")
-            else:
-                chi_phi_ky = 0
+                    dt_nhap_tay = 0
+            with col_fb2:
+                nganh_fb = st.selectbox("Ngành nghề", list(TY_LE_THUE_THEO_NGANH.keys()),
+                                        format_func=lambda k: TY_LE_THUE_THEO_NGANH[k]["ten"],
+                                        key="hkd_nganh_fb")
+            if dt_nhap_tay > 0:
+                dt_theo_nganh = {nganh_fb: dt_nhap_tay}
 
-        # Tính doanh thu lũy kế
-        dt_luy_ke = sum(d.get("doanh_thu_ky", 0) or 0 for d in ds_thue) + doanh_thu_ky
+        # ── Hiển thị bảng DT chi tiết theo ngành ──
+        if dt_theo_nganh:
+            chi_tiet, tong_dt, tong_gtgt, tong_tncn = _tinh_thue_chi_tiet_theo_nganh(dt_theo_nganh)
 
-        # Phân nhóm
-        nhom = _phan_nhom_doanh_thu(dt_luy_ke)
+            st.markdown("#### 📊 Doanh thu & Thuế theo ngành nghề")
 
-        # Tính thuế
-        if cfg["phuong_phap_tinh_thue"] == "LOI_NHUAN" and nhom != "MIEN_THUE":
-            thue_tncn = _tinh_thue_loi_nhuan(doanh_thu_ky, chi_phi_ky, nhom)
-            thue_gtgt = round((doanh_thu_ky - NGUONG_MIEN_THUE / 4 if "/" in ky_thue else doanh_thu_ky - NGUONG_MIEN_THUE) * float(cfg["ty_le_thue_gtgt"]) / 100)
-            thue_gtgt = max(0, thue_gtgt)
-        elif nhom != "MIEN_THUE":
-            thue_gtgt, thue_tncn = _tinh_thue_ty_le_doanh_thu(
-                doanh_thu_ky, float(cfg["ty_le_thue_gtgt"]), float(cfg["ty_le_thue_tncn"])
-            )
-        else:
-            thue_gtgt, thue_tncn = 0, 0
+            # Bảng chi tiết
+            header = "| Ngành nghề | Doanh thu | GTGT (%) | Thuế GTGT | TNCN (%) | Thuế TNCN |"
+            sep = "|---|---:|:---:|---:|:---:|---:|"
+            rows = []
+            for nganh, info in chi_tiet.items():
+                rows.append(
+                    f"| {info['ten']} | {_fmt_tien(info['doanh_thu'])}đ | "
+                    f"{info['ty_le_gtgt']}% | {_fmt_tien(info['thue_gtgt'])}đ | "
+                    f"{info['ty_le_tncn']}% | {_fmt_tien(info['thue_tncn'])}đ |"
+                )
+            rows.append(f"| **TỔNG** | **{_fmt_tien(tong_dt)}đ** | | **{_fmt_tien(tong_gtgt)}đ** | | **{_fmt_tien(tong_tncn)}đ** |")
+            st.markdown("\n".join([header, sep] + rows))
 
-        han = _han_ke_khai(ky_thue)
+            # ── Xử lý phương pháp thuế TNCN theo lợi nhuận ──
+            phuong_phap = cfg.get("phuong_phap_tinh_thue", "TY_LE_DOANH_THU")
+            thue_tncn_final = tong_tncn
 
-        # Hiển thị kết quả tính
-        st.markdown(f"""
-        | Chỉ tiêu | Giá trị |
-        |---|---|
-        | Doanh thu lũy kế năm {nam} | **{_fmt_tien(dt_luy_ke)}đ** |
-        | Nhóm doanh thu | **{_ten_nhom_doanh_thu(nhom)}** |
-        | Thuế GTGT phải nộp | **{_fmt_tien(thue_gtgt)}đ** |
-        | Thuế TNCN phải nộp | **{_fmt_tien(thue_tncn)}đ** |
-        | **Tổng thuế** | **{_fmt_tien(thue_gtgt + thue_tncn)}đ** |
-        | Hạn kê khai | **{han.strftime('%d/%m/%Y')}** |
-        """)
+            if phuong_phap == "LOI_NHUAN":
+                st.markdown("#### 💼 Thuế TNCN theo lợi nhuận")
+                st.markdown(f"""
+| Chỉ tiêu | Giá trị |
+|---|---:|
+| Doanh thu kỳ | {_fmt_tien(tong_dt)}đ |
+| Chi phí được trừ (từ module Chi phí) | {_fmt_tien(chi_phi_duoc_tru)}đ |
+| **Lợi nhuận tính thuế** | **{_fmt_tien(max(0, tong_dt - chi_phi_duoc_tru))}đ** |
+                """)
+                # Tính lại TNCN theo lợi nhuận
+                dt_luy_ke_nam = sum(d.get("doanh_thu_ky", 0) or 0 for d in ds_thue) + tong_dt
+                nhom_nam = _phan_nhom_doanh_thu(dt_luy_ke_nam)
+                thue_tncn_final = _tinh_thue_loi_nhuan(tong_dt, chi_phi_duoc_tru, nhom_nam)
+                st.info(f"Thuế TNCN theo lợi nhuận: **{_fmt_tien(thue_tncn_final)}đ** "
+                        f"(thay vì {_fmt_tien(tong_tncn)}đ theo tỷ lệ)")
 
-        if st.button("💾 Lưu kỳ thuế", disabled=not _can_edit(), type="primary", key="hkd_luu_ky"):
-            data = {
-                "ky_thue": ky_thue,
-                "doanh_thu_ky": doanh_thu_ky,
-                "doanh_thu_luy_ke_nam": dt_luy_ke,
-                "chi_phi_ky": chi_phi_ky,
-                "nhom_doanh_thu": nhom,
-                "thue_gtgt_phai_nop": thue_gtgt,
-                "thue_tncn_phai_nop": thue_tncn,
-                "trang_thai": "CHUA_KE_KHAI",
-                "han_ke_khai": han,
-                "ngay_ke_khai": None,
-                "ngay_nop": None,
-                "ghi_chu": "",
-            }
-            try:
-                conn = db_engine.get_connection()
-                _luu_ky_thue(conn, data)
-                conn.close()
-                st.success(f"✅ Đã lưu kỳ thuế {ky_thue}!")
-                st.rerun()
-            except Exception as e:
-                st.error(f"❌ Lỗi: {e}")
+            # ── DT lũy kế + Nhóm ──
+            dt_luy_ke = sum(d.get("doanh_thu_ky", 0) or 0 for d in ds_thue) + tong_dt
+            nhom = _phan_nhom_doanh_thu(dt_luy_ke)
+            han = _han_ke_khai(ky_thue)
 
-    # Hiển thị danh sách kỳ đã nhập
+            st.divider()
+            st.markdown(f"""
+#### 📋 Tổng hợp kỳ {ky_thue}
+| Chỉ tiêu | Giá trị |
+|---|---:|
+| Doanh thu kỳ (tất cả ngành) | **{_fmt_tien(tong_dt)}đ** |
+| DT lũy kế năm {nam} | {_fmt_tien(dt_luy_ke)}đ |
+| Nhóm doanh thu | {_ten_nhom_doanh_thu(nhom)} |
+| Thuế GTGT | **{_fmt_tien(tong_gtgt)}đ** |
+| Thuế TNCN | **{_fmt_tien(thue_tncn_final)}đ** |
+| **Tổng thuế phải nộp** | **{_fmt_tien(tong_gtgt + thue_tncn_final)}đ** |
+| Hạn kê khai | {han.strftime('%d/%m/%Y')} |
+            """)
+
+            # Cảnh báo vượt ngưỡng
+            if nhom == "MIEN_THUE":
+                st.success("✅ DT lũy kế ≤ 500 triệu — miễn thuế GTGT & TNCN.")
+            if nhom != "MIEN_THUE" and dt_luy_ke > 1_000_000_000:
+                st.warning("⚠️ DT > 1 tỷ — bắt buộc sử dụng hóa đơn điện tử (NĐ 68/2026)")
+
+            # ── Nút Lưu ──
+            if st.button("💾 Lưu kỳ thuế", disabled=not _can_edit(), type="primary", key="hkd_luu_ky"):
+                data = {
+                    "ky_thue": ky_thue,
+                    "doanh_thu_ky": tong_dt,
+                    "doanh_thu_luy_ke_nam": dt_luy_ke,
+                    "chi_phi_ky": chi_phi_duoc_tru,
+                    "nhom_doanh_thu": nhom,
+                    "thue_gtgt_phai_nop": tong_gtgt,
+                    "thue_tncn_phai_nop": thue_tncn_final,
+                    "trang_thai": "CHUA_KE_KHAI",
+                    "han_ke_khai": han,
+                    "ngay_ke_khai": None,
+                    "ngay_nop": None,
+                    "ghi_chu": "",
+                }
+                try:
+                    conn = db_engine.get_connection()
+                    _luu_ky_thue(conn, data)
+                    conn.close()
+                    st.success(f"✅ Đã lưu kỳ thuế {ky_thue}!")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"❌ Lỗi: {e}")
+
+    # ══════════════════════════════════════════════
+    # PHẦN 2: Danh sách kỳ đã kê khai (giữ nguyên logic cũ)
+    # ══════════════════════════════════════════════
     if ds_thue:
         st.divider()
         st.subheader(f"📋 Các kỳ thuế năm {nam}")
@@ -595,15 +716,14 @@ def _render_tab_theo_doi(db_engine):
                 f"{trang_thai_ten}"
             ):
                 st.markdown(f"""
-                - **Doanh thu kỳ:** {_fmt_tien(d.get('doanh_thu_ky', 0))}đ
-                - **DT lũy kế năm:** {_fmt_tien(d.get('doanh_thu_luy_ke_nam', 0))}đ
-                - **Nhóm:** {_ten_nhom_doanh_thu(d.get('nhom_doanh_thu', ''))}
-                - **Thuế GTGT:** {_fmt_tien(d.get('thue_gtgt_phai_nop', 0))}đ
-                - **Thuế TNCN:** {_fmt_tien(d.get('thue_tncn_phai_nop', 0))}đ
-                - **Hạn kê khai:** {d.get('han_ke_khai', '')}
+- **Doanh thu kỳ:** {_fmt_tien(d.get('doanh_thu_ky', 0))}đ
+- **DT lũy kế năm:** {_fmt_tien(d.get('doanh_thu_luy_ke_nam', 0))}đ
+- **Nhóm:** {_ten_nhom_doanh_thu(d.get('nhom_doanh_thu', ''))}
+- **Thuế GTGT:** {_fmt_tien(d.get('thue_gtgt_phai_nop', 0))}đ
+- **Thuế TNCN:** {_fmt_tien(d.get('thue_tncn_phai_nop', 0))}đ
+- **Hạn kê khai:** {d.get('han_ke_khai', '')}
                 """)
 
-                # Cập nhật trạng thái
                 col_s1, col_s2, col_s3 = st.columns(3)
                 with col_s1:
                     if d.get("trang_thai") == "CHUA_KE_KHAI":
@@ -1269,6 +1389,788 @@ def render_chu_ho_nhan_su(db_engine):
         st.caption("Nếu HKD có NLĐ, thêm/quản lý nhân viên tại menu tương ứng trong app.")
         # TODO Phase 3: tích hợp trực tiếp danh sách NV vào đây  
 
+def render_bhxh_chu_ho(db_engine):
+    """Module BHXH cho chủ hộ kinh doanh — theo dõi đóng BHXH hàng tháng."""
+    ensure_hkd_tables(db_engine)
+    st.title("📋 BHXH Hộ kinh doanh")
+
+    tab_chu_ho, tab_nld = st.tabs(["🏪 BHXH Chủ hộ", "👥 BHXH Người lao động"])
+
+    with tab_chu_ho:
+        _render_bhxh_chu_ho_tab(db_engine)
+
+    with tab_nld:
+        st.info("👥 BHXH cho người lao động của HKD — dùng chung module BHXH của HRM Master.")
+        st.caption("Nếu HKD có NLĐ, quản lý BHXH tại module BHXH chính của app.")
+
+
+def _render_bhxh_chu_ho_tab(db_engine):
+    """Tab BHXH chủ hộ: tạo bản ghi hàng tháng, theo dõi đóng/chưa đóng."""
+
+    # Đọc cấu hình
+    conn = db_engine.get_connection()
+    try:
+        cfg = _get_cau_hinh(conn)
+    finally:
+        conn.close()
+
+    if not cfg:
+        st.warning("⚠️ Chưa cấu hình HKD. Vào **⚙️ Cấu hình HKD** trước.")
+        return
+
+    if not cfg.get("chu_ho_dong_bhxh"):
+        st.info("ℹ️ Chủ hộ chưa đăng ký tham gia BHXH bắt buộc. "
+                "Vào **⚙️ Cấu hình HKD** để bật.")
+        return
+
+    muc_luong = int(cfg.get("muc_luong_dong_bhxh_chu_ho", MUC_THAM_CHIEU_BHXH))
+    phuong_thuc = cfg.get("phuong_thuc_dong_bhxh", "HANG_THANG")
+    pt_label = {"HANG_THANG": "hàng tháng", "3_THANG": "3 tháng/lần", "6_THANG": "6 tháng/lần"}.get(phuong_thuc, phuong_thuc)
+
+    # Thông tin tổng quan
+    tien_bhxh = round(muc_luong * 0.25)
+    tien_bhyt = round(muc_luong * 0.045)
+    tong_thang = tien_bhxh + tien_bhyt
+
+    col_i1, col_i2, col_i3, col_i4 = st.columns(4)
+    col_i1.metric("Mức lương đóng", _fmt_tien(muc_luong) + "đ")
+    col_i2.metric("BHXH (25%)", _fmt_tien(tien_bhxh) + "đ/tháng")
+    col_i3.metric("BHYT (4,5%)", _fmt_tien(tien_bhyt) + "đ/tháng")
+    col_i4.metric("Tổng đóng", _fmt_tien(tong_thang) + "đ/tháng")
+    st.caption(f"Phương thức đóng: **{pt_label}** | Đóng cả năm: **{_fmt_tien(tong_thang * 12)}đ**")
+
+    st.divider()
+
+    # ── Tạo bản ghi BHXH cho các tháng trong năm ──
+    nam = datetime.date.today().year
+    st.subheader(f"📅 Theo dõi đóng BHXH năm {nam}")
+
+    # Đọc dữ liệu đã có
+    conn = db_engine.get_connection()
+    try:
+        c = conn.cursor()
+        c.execute("""SELECT * FROM bhxh_chu_ho WHERE thang LIKE %s ORDER BY thang""",
+                  (f"%/{nam}",))
+        cols = [desc[0] for desc in c.description]
+        ds_bhxh = [dict(zip(cols, r)) for r in c.fetchall()]
+    finally:
+        conn.close()
+
+    thang_da_co = {d["thang"] for d in ds_bhxh}
+
+    # Nút tạo bản ghi cho cả năm (12 tháng)
+    if len(ds_bhxh) < 12:
+        if st.button(f"📋 Tạo bản ghi BHXH cho {12 - len(ds_bhxh)} tháng còn thiếu trong năm {nam}",
+                     disabled=not _can_edit(), key="bhxh_tao_nam"):
+            try:
+                conn = db_engine.get_connection()
+                c = conn.cursor()
+                for m in range(1, 13):
+                    thang_str = f"{m:02d}/{nam}"
+                    if thang_str not in thang_da_co:
+                        so_bhxh = round(muc_luong * 0.25)
+                        so_bhyt = round(muc_luong * 0.045)
+                        c.execute("""
+                            INSERT INTO bhxh_chu_ho (thang, muc_luong_dong, ty_le_bhxh, ty_le_bhyt,
+                                                     so_tien_bhxh, so_tien_bhyt, tong_phai_dong)
+                            VALUES (%s, %s, 25, 4.5, %s, %s, %s)
+                            ON CONFLICT (thang) DO NOTHING
+                        """, (thang_str, muc_luong, so_bhxh, so_bhyt, so_bhxh + so_bhyt))
+                conn.commit()
+                conn.close()
+                st.success(f"✅ Đã tạo bản ghi BHXH cho năm {nam}")
+                st.rerun()
+            except Exception as e:
+                st.error(f"❌ Lỗi: {e}")
+
+    # ── Hiển thị bảng BHXH ──
+    if ds_bhxh:
+        # Tổng hợp
+        da_dong_count = sum(1 for d in ds_bhxh if d.get("da_dong"))
+        chua_dong_count = sum(1 for d in ds_bhxh if not d.get("da_dong"))
+        tong_da_dong = sum(d.get("tong_phai_dong", 0) or 0 for d in ds_bhxh if d.get("da_dong"))
+        tong_chua_dong = sum(d.get("tong_phai_dong", 0) or 0 for d in ds_bhxh if not d.get("da_dong"))
+
+        col_t1, col_t2, col_t3, col_t4 = st.columns(4)
+        col_t1.metric("✅ Đã đóng", f"{da_dong_count} tháng")
+        col_t2.metric("⏳ Chưa đóng", f"{chua_dong_count} tháng")
+        col_t3.metric("Tổng đã đóng", _fmt_tien(tong_da_dong) + "đ")
+        col_t4.metric("Còn phải đóng", _fmt_tien(tong_chua_dong) + "đ")
+
+        st.divider()
+
+        for d in ds_bhxh:
+            thang_label = d["thang"]
+            da_dong = d.get("da_dong", False)
+            icon = "✅" if da_dong else "⏳"
+            tong = d.get("tong_phai_dong", 0) or 0
+
+            col_a, col_b, col_c = st.columns([2, 1, 1])
+            with col_a:
+                st.markdown(f"{icon} **Tháng {thang_label}** — {_fmt_tien(tong)}đ"
+                            + (f" — đóng ngày {d['ngay_dong']}" if da_dong and d.get('ngay_dong') else ""))
+            with col_b:
+                if not da_dong:
+                    if st.button("✅ Đã đóng", key=f"bhxh_dong_{thang_label}",
+                                 disabled=not _can_edit()):
+                        conn = db_engine.get_connection()
+                        c = conn.cursor()
+                        c.execute("""UPDATE bhxh_chu_ho SET da_dong = true, ngay_dong = %s,
+                                     updated_at = now() WHERE thang = %s""",
+                                  (datetime.date.today(), thang_label))
+                        conn.commit()
+                        conn.close()
+                        st.rerun()
+            with col_c:
+                if da_dong:
+                    if st.button("↩️ Hủy đóng", key=f"bhxh_huy_{thang_label}",
+                                 disabled=not _can_edit()):
+                        conn = db_engine.get_connection()
+                        c = conn.cursor()
+                        c.execute("""UPDATE bhxh_chu_ho SET da_dong = false, ngay_dong = NULL,
+                                     updated_at = now() WHERE thang = %s""",
+                                  (thang_label,))
+                        conn.commit()
+                        conn.close()
+                        st.rerun()
+    else:
+        st.info("Chưa có bản ghi BHXH. Nhấn nút phía trên để tạo.")
+
+def _xuat_to_khai_01cnkd(cfg, ky_thue, dt_theo_nganh, chi_tiet_thue, tong_dt, tong_gtgt, tong_tncn, chi_phi_duoc_tru=0):
+    """Tạo file Excel tờ khai thuế mẫu 01/CNKD (TT 18/2026).
+    Trả về bytes của file Excel.
+    """
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "01-CNKD"
+
+    # ── Styles ──
+    font_title = Font(name="Times New Roman", size=13, bold=True)
+    font_header = Font(name="Times New Roman", size=11, bold=True)
+    font_normal = Font(name="Times New Roman", size=11)
+    font_small = Font(name="Times New Roman", size=9, italic=True)
+    align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    align_left = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    align_right = Alignment(horizontal="right", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin")
+    )
+    fill_header = PatternFill(start_color="D9E1F2", end_color="D9E1F2", fill_type="solid")
+    fill_yellow = PatternFill(start_color="FFFF99", end_color="FFFF99", fill_type="solid")
+
+    # ── Cột width ──
+    ws.column_dimensions["A"].width = 8
+    ws.column_dimensions["B"].width = 40
+    ws.column_dimensions["C"].width = 12
+    ws.column_dimensions["D"].width = 18
+    ws.column_dimensions["E"].width = 18
+
+    # ── Header ──
+    row = 1
+    ws.merge_cells("A1:E1")
+    ws["A1"] = "CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM"
+    ws["A1"].font = font_header
+    ws["A1"].alignment = align_center
+
+    row = 2
+    ws.merge_cells("A2:E2")
+    ws["A2"] = "Độc lập - Tự do - Hạnh phúc"
+    ws["A2"].font = font_normal
+    ws["A2"].alignment = align_center
+
+    row = 4
+    ws.merge_cells("A4:E4")
+    ws["A4"] = "TỜ KHAI THUẾ"
+    ws["A4"].font = Font(name="Times New Roman", size=14, bold=True)
+    ws["A4"].alignment = align_center
+
+    row = 5
+    ws.merge_cells("A5:E5")
+    ws["A5"] = "Đối với hộ kinh doanh, cá nhân kinh doanh"
+    ws["A5"].font = font_normal
+    ws["A5"].alignment = align_center
+
+    row = 6
+    ws.merge_cells("A6:E6")
+    ws["A6"] = f"(Mẫu số 01/CNKD — TT 18/2026/TT-BTC)"
+    ws["A6"].font = font_small
+    ws["A6"].alignment = align_center
+
+    # ── Thông tin HKD ──
+    row = 8
+    ws["A8"] = "[01]"
+    ws["A8"].font = font_normal
+    ws["B8"] = f"Kỳ tính thuế: {ky_thue}"
+    ws["B8"].font = font_header
+
+    row = 9
+    ws["A9"] = "[02]"
+    ws["A9"].font = font_normal
+    ws["B9"] = f"Tên HKD: {cfg.get('ten_hkd', '')}"
+    ws["B9"].font = font_normal
+
+    row = 10
+    ws["A10"] = "[03]"
+    ws["B10"] = f"Mã số thuế: {cfg.get('ma_so_thue', '')}"
+    ws["B10"].font = font_normal
+
+    row = 11
+    ws["A11"] = "[04]"
+    ws["B11"] = f"Địa chỉ kinh doanh: {cfg.get('dia_chi', '')}"
+    ws["B11"].font = font_normal
+
+    row = 12
+    ws["A12"] = "[05]"
+    ws["B12"] = f"Chủ hộ: {cfg.get('chu_ho_ten', '')} — CCCD: {cfg.get('chu_ho_cccd', '')}"
+    ws["B12"].font = font_normal
+
+    phuong_phap = cfg.get("phuong_phap_tinh_thue", "TY_LE_DOANH_THU")
+    pp_label = "Tỷ lệ % trên doanh thu" if phuong_phap == "TY_LE_DOANH_THU" else "Thu nhập tính thuế (DT - CP)"
+    row = 13
+    ws["A13"] = "[06]"
+    ws["B13"] = f"Phương pháp tính thuế TNCN: {pp_label}"
+    ws["B13"].font = font_normal
+
+    # ── Phần I: Hoạt động SXKD ──
+    row = 15
+    ws.merge_cells("A15:E15")
+    ws["A15"] = "I. HOẠT ĐỘNG SẢN XUẤT, KINH DOANH HÀNG HÓA, CUNG CẤP DỊCH VỤ"
+    ws["A15"].font = font_header
+
+    # Header bảng
+    row = 17
+    headers = ["STT", "Ngành nghề kinh doanh", "Tỷ lệ\nGTGT (%)", "Doanh thu\n(VNĐ)", "Thuế GTGT\n(VNĐ)"]
+    for col_idx, h in enumerate(headers, 1):
+        cell = ws.cell(row=row, column=col_idx, value=h)
+        cell.font = font_header
+        cell.alignment = align_center
+        cell.border = thin_border
+        cell.fill = fill_header
+
+    # Thêm cột TNCN
+    headers2 = ["STT", "Ngành nghề kinh doanh", "Tỷ lệ\nTNCN (%)", "Doanh thu\n(VNĐ)", "Thuế TNCN\n(VNĐ)"]
+
+    # Dữ liệu theo ngành
+    row = 18
+    stt = 1
+    for nganh, info in chi_tiet_thue.items():
+        ws.cell(row=row, column=1, value=stt).font = font_normal
+        ws.cell(row=row, column=1).alignment = align_center
+        ws.cell(row=row, column=1).border = thin_border
+
+        ws.cell(row=row, column=2, value=info["ten"]).font = font_normal
+        ws.cell(row=row, column=2).alignment = align_left
+        ws.cell(row=row, column=2).border = thin_border
+
+        ws.cell(row=row, column=3, value=f"{info['ty_le_gtgt']}%").font = font_normal
+        ws.cell(row=row, column=3).alignment = align_center
+        ws.cell(row=row, column=3).border = thin_border
+
+        ws.cell(row=row, column=4, value=info["doanh_thu"]).font = font_normal
+        ws.cell(row=row, column=4).alignment = align_right
+        ws.cell(row=row, column=4).border = thin_border
+        ws.cell(row=row, column=4).number_format = '#,##0'
+
+        ws.cell(row=row, column=5, value=info["thue_gtgt"]).font = font_normal
+        ws.cell(row=row, column=5).alignment = align_right
+        ws.cell(row=row, column=5).border = thin_border
+        ws.cell(row=row, column=5).number_format = '#,##0'
+
+        stt += 1
+        row += 1
+
+    # Dòng tổng GTGT
+    ws.cell(row=row, column=1).border = thin_border
+    ws.cell(row=row, column=2, value="TỔNG CỘNG THUẾ GTGT").font = font_header
+    ws.cell(row=row, column=2).border = thin_border
+    ws.cell(row=row, column=3).border = thin_border
+    ws.cell(row=row, column=4, value=tong_dt).font = font_header
+    ws.cell(row=row, column=4).alignment = align_right
+    ws.cell(row=row, column=4).border = thin_border
+    ws.cell(row=row, column=4).number_format = '#,##0'
+    ws.cell(row=row, column=5, value=tong_gtgt).font = font_header
+    ws.cell(row=row, column=5).alignment = align_right
+    ws.cell(row=row, column=5).border = thin_border
+    ws.cell(row=row, column=5).number_format = '#,##0'
+    ws.cell(row=row, column=5).fill = fill_yellow
+    row += 2
+
+    # ── Phần thuế TNCN ──
+    ws.merge_cells(f"A{row}:E{row}")
+    ws[f"A{row}"] = "II. THUẾ THU NHẬP CÁ NHÂN"
+    ws[f"A{row}"].font = font_header
+    row += 1
+
+    if phuong_phap == "TY_LE_DOANH_THU":
+        # Tỷ lệ % trên DT — hiển thị theo ngành
+        headers_tncn = ["STT", "Ngành nghề kinh doanh", "Tỷ lệ\nTNCN (%)", "Doanh thu\n(VNĐ)", "Thuế TNCN\n(VNĐ)"]
+        row += 1
+        for col_idx, h in enumerate(headers_tncn, 1):
+            cell = ws.cell(row=row, column=col_idx, value=h)
+            cell.font = font_header
+            cell.alignment = align_center
+            cell.border = thin_border
+            cell.fill = fill_header
+        row += 1
+
+        stt = 1
+        for nganh, info in chi_tiet_thue.items():
+            ws.cell(row=row, column=1, value=stt).font = font_normal
+            ws.cell(row=row, column=1).alignment = align_center
+            ws.cell(row=row, column=1).border = thin_border
+            ws.cell(row=row, column=2, value=info["ten"]).font = font_normal
+            ws.cell(row=row, column=2).border = thin_border
+            ws.cell(row=row, column=3, value=f"{info['ty_le_tncn']}%").font = font_normal
+            ws.cell(row=row, column=3).alignment = align_center
+            ws.cell(row=row, column=3).border = thin_border
+            ws.cell(row=row, column=4, value=info["doanh_thu"]).font = font_normal
+            ws.cell(row=row, column=4).alignment = align_right
+            ws.cell(row=row, column=4).border = thin_border
+            ws.cell(row=row, column=4).number_format = '#,##0'
+            ws.cell(row=row, column=5, value=info["thue_tncn"]).font = font_normal
+            ws.cell(row=row, column=5).alignment = align_right
+            ws.cell(row=row, column=5).border = thin_border
+            ws.cell(row=row, column=5).number_format = '#,##0'
+            stt += 1
+            row += 1
+
+        # Tổng TNCN
+        ws.cell(row=row, column=2, value="TỔNG CỘNG THUẾ TNCN").font = font_header
+        ws.cell(row=row, column=2).border = thin_border
+        ws.cell(row=row, column=5, value=tong_tncn).font = font_header
+        ws.cell(row=row, column=5).alignment = align_right
+        ws.cell(row=row, column=5).border = thin_border
+        ws.cell(row=row, column=5).number_format = '#,##0'
+        ws.cell(row=row, column=5).fill = fill_yellow
+        for c in [1, 3, 4]:
+            ws.cell(row=row, column=c).border = thin_border
+    else:
+        # Phương pháp lợi nhuận
+        row += 1
+        labels = [
+            ("[07]", "Tổng doanh thu", tong_dt),
+            ("[08]", "Tổng chi phí được trừ", chi_phi_duoc_tru),
+            ("[09]", "Thu nhập tính thuế (= [07] - [08])", max(0, tong_dt - chi_phi_duoc_tru)),
+            ("[10]", "Thuế TNCN phải nộp", tong_tncn),
+        ]
+        for code, label, val in labels:
+            ws.cell(row=row, column=1, value=code).font = font_normal
+            ws.cell(row=row, column=1).border = thin_border
+            ws.cell(row=row, column=2, value=label).font = font_normal
+            ws.cell(row=row, column=2).border = thin_border
+            ws.merge_cells(f"D{row}:E{row}")
+            ws.cell(row=row, column=4, value=val).font = font_header
+            ws.cell(row=row, column=4).alignment = align_right
+            ws.cell(row=row, column=4).border = thin_border
+            ws.cell(row=row, column=4).number_format = '#,##0'
+            ws.cell(row=row, column=3).border = thin_border
+            if code == "[10]":
+                ws.cell(row=row, column=4).fill = fill_yellow
+            row += 1
+
+    row += 2
+
+    # ── Tổng hợp ──
+    ws.merge_cells(f"A{row}:E{row}")
+    ws[f"A{row}"] = "III. TỔNG SỐ THUẾ PHẢI NỘP"
+    ws[f"A{row}"].font = font_header
+    row += 1
+
+    summary = [
+        ("Thuế GTGT", tong_gtgt),
+        ("Thuế TNCN", tong_tncn),
+        ("TỔNG CỘNG", tong_gtgt + tong_tncn),
+    ]
+    for label, val in summary:
+        ws.cell(row=row, column=2, value=label).font = font_header if label == "TỔNG CỘNG" else font_normal
+        ws.cell(row=row, column=2).border = thin_border
+        ws.merge_cells(f"D{row}:E{row}")
+        ws.cell(row=row, column=4, value=val).font = Font(name="Times New Roman", size=12, bold=True)
+        ws.cell(row=row, column=4).alignment = align_right
+        ws.cell(row=row, column=4).border = thin_border
+        ws.cell(row=row, column=4).number_format = '#,##0'
+        ws.cell(row=row, column=1).border = thin_border
+        ws.cell(row=row, column=3).border = thin_border
+        if label == "TỔNG CỘNG":
+            ws.cell(row=row, column=4).fill = fill_yellow
+        row += 1
+
+    # ── Ký tên ──
+    row += 2
+    ws.merge_cells(f"C{row}:E{row}")
+    ws[f"C{row}"] = f"Ngày ..... tháng ..... năm {datetime.date.today().year}"
+    ws[f"C{row}"].font = font_normal
+    ws[f"C{row}"].alignment = align_center
+    row += 1
+    ws.merge_cells(f"C{row}:E{row}")
+    ws[f"C{row}"] = "NGƯỜI NỘP THUẾ"
+    ws[f"C{row}"].font = font_header
+    ws[f"C{row}"].alignment = align_center
+    row += 1
+    ws.merge_cells(f"C{row}:E{row}")
+    ws[f"C{row}"] = "(Ký, ghi rõ họ tên)"
+    ws[f"C{row}"].font = font_small
+    ws[f"C{row}"].alignment = align_center
+
+    # ── Xuất bytes ──
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+    
+def _xuat_bao_cao_tong_hop_nam(db_engine, cfg, nam):
+    """Tạo file Excel báo cáo tổng hợp DT-CP-Thuế-BHXH theo năm.
+    Trả về bytes của file Excel.
+    """
+    wb = openpyxl.Workbook()
+
+    # ── Styles ──
+    font_title = Font(name="Arial", size=13, bold=True)
+    font_header = Font(name="Arial", size=10, bold=True)
+    font_normal = Font(name="Arial", size=10)
+    align_center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    align_right = Alignment(horizontal="right", vertical="center")
+    thin_border = Border(
+        left=Side(style="thin"), right=Side(style="thin"),
+        top=Side(style="thin"), bottom=Side(style="thin")
+    )
+    fill_header = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    font_header_white = Font(name="Arial", size=10, bold=True, color="FFFFFF")
+    fill_total = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
+
+    # ══════════════════════════════════════════
+    # SHEET 1: DOANH THU THEO THÁNG & NGÀNH
+    # ══════════════════════════════════════════
+    ws1 = wb.active
+    ws1.title = "Doanh thu"
+    ws1.column_dimensions["A"].width = 12
+    for col_letter in ["B", "C", "D", "E", "F", "G", "H"]:
+        ws1.column_dimensions[col_letter].width = 18
+
+    ws1.merge_cells("A1:H1")
+    ws1["A1"] = f"BÁO CÁO DOANH THU THEO THÁNG — NĂM {nam}"
+    ws1["A1"].font = font_title
+    ws1["A1"].alignment = align_center
+
+    ws1.merge_cells("A2:H2")
+    ws1["A2"] = f"{cfg.get('ten_hkd', '')} — MST: {cfg.get('ma_so_thue', '')}"
+    ws1["A2"].font = font_normal
+    ws1["A2"].alignment = align_center
+
+    # Header
+    nganh_list = list(TY_LE_THUE_THEO_NGANH.keys())
+    headers_dt = ["Tháng"] + [TY_LE_THUE_THEO_NGANH[n]["ten"][:20] for n in nganh_list] + ["TỔNG"]
+    for col_idx, h in enumerate(headers_dt, 1):
+        cell = ws1.cell(row=4, column=col_idx, value=h)
+        cell.font = font_header_white
+        cell.alignment = align_center
+        cell.border = thin_border
+        cell.fill = fill_header
+
+    # Lấy dữ liệu
+    conn = db_engine.get_connection()
+    try:
+        c = conn.cursor()
+        c.execute("""
+            SELECT thang, nhom_nganh, SUM(doanh_thu) as tong
+            FROM doanh_thu_hkd WHERE thang LIKE %s
+            GROUP BY thang, nhom_nganh ORDER BY thang
+        """, (f"%/{nam}",))
+        dt_rows = c.fetchall()
+    finally:
+        conn.close()
+
+    # Pivot: {thang: {nganh: dt}}
+    dt_pivot = {}
+    for thang, nganh, tong in dt_rows:
+        if thang not in dt_pivot:
+            dt_pivot[thang] = {}
+        dt_pivot[thang][nganh] = float(tong)
+
+    row = 5
+    tong_col = {n: 0 for n in nganh_list}
+    tong_tong = 0
+    for m in range(1, 13):
+        thang_str = f"{m:02d}/{nam}"
+        ws1.cell(row=row, column=1, value=thang_str).font = font_normal
+        ws1.cell(row=row, column=1).alignment = align_center
+        ws1.cell(row=row, column=1).border = thin_border
+
+        dt_thang = dt_pivot.get(thang_str, {})
+        tong_thang_m = 0
+        for col_idx, nganh in enumerate(nganh_list, 2):
+            val = dt_thang.get(nganh, 0)
+            ws1.cell(row=row, column=col_idx, value=val if val else "").font = font_normal
+            ws1.cell(row=row, column=col_idx).alignment = align_right
+            ws1.cell(row=row, column=col_idx).border = thin_border
+            ws1.cell(row=row, column=col_idx).number_format = '#,##0'
+            tong_col[nganh] += val
+            tong_thang_m += val
+
+        ws1.cell(row=row, column=len(nganh_list) + 2, value=tong_thang_m if tong_thang_m else "").font = font_normal
+        ws1.cell(row=row, column=len(nganh_list) + 2).alignment = align_right
+        ws1.cell(row=row, column=len(nganh_list) + 2).border = thin_border
+        ws1.cell(row=row, column=len(nganh_list) + 2).number_format = '#,##0'
+        tong_tong += tong_thang_m
+        row += 1
+
+    # Dòng tổng
+    ws1.cell(row=row, column=1, value="TỔNG NĂM").font = font_header
+    ws1.cell(row=row, column=1).border = thin_border
+    ws1.cell(row=row, column=1).fill = fill_total
+    for col_idx, nganh in enumerate(nganh_list, 2):
+        ws1.cell(row=row, column=col_idx, value=tong_col[nganh]).font = font_header
+        ws1.cell(row=row, column=col_idx).alignment = align_right
+        ws1.cell(row=row, column=col_idx).border = thin_border
+        ws1.cell(row=row, column=col_idx).number_format = '#,##0'
+        ws1.cell(row=row, column=col_idx).fill = fill_total
+    ws1.cell(row=row, column=len(nganh_list) + 2, value=tong_tong).font = font_header
+    ws1.cell(row=row, column=len(nganh_list) + 2).alignment = align_right
+    ws1.cell(row=row, column=len(nganh_list) + 2).border = thin_border
+    ws1.cell(row=row, column=len(nganh_list) + 2).number_format = '#,##0'
+    ws1.cell(row=row, column=len(nganh_list) + 2).fill = fill_total
+
+    # ══════════════════════════════════════════
+    # SHEET 2: CHI PHÍ THEO THÁNG
+    # ══════════════════════════════════════════
+    ws2 = wb.create_sheet("Chi phi")
+    ws2.column_dimensions["A"].width = 12
+    for col_letter in ["B", "C", "D", "E", "F", "G", "H", "I"]:
+        ws2.column_dimensions[col_letter].width = 16
+
+    ws2.merge_cells("A1:I1")
+    ws2["A1"] = f"BÁO CÁO CHI PHÍ THEO THÁNG — NĂM {nam}"
+    ws2["A1"].font = font_title
+    ws2["A1"].alignment = align_center
+
+    loai_cp_list = ["NVL", "NHAN_CONG", "THUE_PHI", "DIEN_NUOC", "KHAU_HAO", "VAN_PHONG", "KHAC"]
+    loai_cp_ten = {"NVL": "NVL", "NHAN_CONG": "Nhân công", "THUE_PHI": "Thuế/phí",
+                   "DIEN_NUOC": "Điện nước", "KHAU_HAO": "Khấu hao",
+                   "VAN_PHONG": "Văn phòng", "KHAC": "Khác"}
+
+    headers_cp = ["Tháng"] + [loai_cp_ten.get(l, l) for l in loai_cp_list] + ["TỔNG"]
+    for col_idx, h in enumerate(headers_cp, 1):
+        cell = ws2.cell(row=3, column=col_idx, value=h)
+        cell.font = font_header_white
+        cell.alignment = align_center
+        cell.border = thin_border
+        cell.fill = fill_header
+
+    conn = db_engine.get_connection()
+    try:
+        c = conn.cursor()
+        c.execute("""
+            SELECT thang, loai_chi_phi, SUM(so_tien) as tong
+            FROM chi_phi_hkd WHERE thang LIKE %s
+            GROUP BY thang, loai_chi_phi ORDER BY thang
+        """, (f"%/{nam}",))
+        cp_rows = c.fetchall()
+    finally:
+        conn.close()
+
+    cp_pivot = {}
+    for thang, loai, tong in cp_rows:
+        if thang not in cp_pivot:
+            cp_pivot[thang] = {}
+        cp_pivot[thang][loai] = float(tong)
+
+    row2 = 4
+    for m in range(1, 13):
+        thang_str = f"{m:02d}/{nam}"
+        ws2.cell(row=row2, column=1, value=thang_str).font = font_normal
+        ws2.cell(row=row2, column=1).alignment = align_center
+        ws2.cell(row=row2, column=1).border = thin_border
+        cp_thang = cp_pivot.get(thang_str, {})
+        tong_m = 0
+        for col_idx, loai in enumerate(loai_cp_list, 2):
+            val = cp_thang.get(loai, 0)
+            ws2.cell(row=row2, column=col_idx, value=val if val else "").font = font_normal
+            ws2.cell(row=row2, column=col_idx).alignment = align_right
+            ws2.cell(row=row2, column=col_idx).border = thin_border
+            ws2.cell(row=row2, column=col_idx).number_format = '#,##0'
+            tong_m += val
+        ws2.cell(row=row2, column=len(loai_cp_list) + 2, value=tong_m if tong_m else "").font = font_normal
+        ws2.cell(row=row2, column=len(loai_cp_list) + 2).alignment = align_right
+        ws2.cell(row=row2, column=len(loai_cp_list) + 2).border = thin_border
+        ws2.cell(row=row2, column=len(loai_cp_list) + 2).number_format = '#,##0'
+        row2 += 1
+
+    # ══════════════════════════════════════════
+    # SHEET 3: THUẾ & BHXH
+    # ══════════════════════════════════════════
+    ws3 = wb.create_sheet("Thue va BHXH")
+    ws3.column_dimensions["A"].width = 30
+    ws3.column_dimensions["B"].width = 20
+    ws3.column_dimensions["C"].width = 20
+
+    ws3.merge_cells("A1:C1")
+    ws3["A1"] = f"TỔNG HỢP THUẾ & BHXH — NĂM {nam}"
+    ws3["A1"].font = font_title
+    ws3["A1"].alignment = align_center
+
+    # Lấy dữ liệu thuế
+    conn = db_engine.get_connection()
+    try:
+        ds_thue = _get_ds_thue(conn, nam)
+        c = conn.cursor()
+        c.execute("""SELECT thang, tong_phai_dong, da_dong FROM bhxh_chu_ho
+                     WHERE thang LIKE %s ORDER BY thang""", (f"%/{nam}",))
+        bhxh_cols = [desc[0] for desc in c.description]
+        ds_bhxh = [dict(zip(bhxh_cols, r)) for r in c.fetchall()]
+    finally:
+        conn.close()
+
+    row3 = 3
+    ws3.cell(row=row3, column=1, value="CHỈ TIÊU").font = font_header_white
+    ws3.cell(row=row3, column=1).fill = fill_header
+    ws3.cell(row=row3, column=1).border = thin_border
+    ws3.cell(row=row3, column=2, value="SỐ TIỀN (VNĐ)").font = font_header_white
+    ws3.cell(row=row3, column=2).fill = fill_header
+    ws3.cell(row=row3, column=2).border = thin_border
+    ws3.cell(row=row3, column=2).alignment = align_center
+    ws3.cell(row=row3, column=3, value="GHI CHÚ").font = font_header_white
+    ws3.cell(row=row3, column=3).fill = fill_header
+    ws3.cell(row=row3, column=3).border = thin_border
+
+    tong_thue_gtgt = sum(d.get("thue_gtgt_phai_nop", 0) or 0 for d in ds_thue)
+    tong_thue_tncn = sum(d.get("thue_tncn_phai_nop", 0) or 0 for d in ds_thue)
+    tong_dt_nam = sum(d.get("doanh_thu_ky", 0) or 0 for d in ds_thue)
+    tong_cp_nam = sum(d.get("chi_phi_ky", 0) or 0 for d in ds_thue)
+    bhxh_da_dong = sum(d.get("tong_phai_dong", 0) or 0 for d in ds_bhxh if d.get("da_dong"))
+    bhxh_chua_dong = sum(d.get("tong_phai_dong", 0) or 0 for d in ds_bhxh if not d.get("da_dong"))
+
+    data_rows = [
+        ("A. DOANH THU & CHI PHÍ", "", ""),
+        ("Tổng doanh thu năm", tong_dt_nam, ""),
+        ("Tổng chi phí năm", tong_cp_nam, ""),
+        ("Lợi nhuận (DT - CP)", max(0, tong_dt_nam - tong_cp_nam), ""),
+        ("", "", ""),
+        ("B. THUẾ", "", ""),
+        ("Thuế GTGT đã kê khai", tong_thue_gtgt, f"{len(ds_thue)} kỳ"),
+        ("Thuế TNCN đã kê khai", tong_thue_tncn, ""),
+        ("Tổng thuế", tong_thue_gtgt + tong_thue_tncn, ""),
+        ("", "", ""),
+        ("C. BHXH CHỦ HỘ", "", ""),
+        ("Đã đóng", bhxh_da_dong, f"{sum(1 for d in ds_bhxh if d.get('da_dong'))} tháng"),
+        ("Chưa đóng", bhxh_chua_dong, f"{sum(1 for d in ds_bhxh if not d.get('da_dong'))} tháng"),
+        ("Tổng BHXH năm", bhxh_da_dong + bhxh_chua_dong, ""),
+        ("", "", ""),
+        ("D. TỔNG CHI PHÍ PHÁP LÝ", "", ""),
+        ("Thuế + BHXH", tong_thue_gtgt + tong_thue_tncn + bhxh_da_dong + bhxh_chua_dong, ""),
+    ]
+
+    row3 = 4
+    for label, val, note in data_rows:
+        is_header = label.startswith(("A.", "B.", "C.", "D."))
+        cell_a = ws3.cell(row=row3, column=1, value=label)
+        cell_a.font = font_header if is_header else font_normal
+        cell_a.border = thin_border
+        cell_b = ws3.cell(row=row3, column=2, value=val if val else "")
+        cell_b.font = font_header if is_header or "Tổng" in label else font_normal
+        cell_b.alignment = align_right
+        cell_b.border = thin_border
+        cell_b.number_format = '#,##0'
+        if "Tổng" in label:
+            cell_b.fill = fill_total
+        cell_c = ws3.cell(row=row3, column=3, value=note)
+        cell_c.font = font_normal
+        cell_c.border = thin_border
+        row3 += 1
+
+    # ── Xuất bytes ──
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer.getvalue()
+    
+def _render_tab_xuat_bao_cao(db_engine):
+    """Tab xuất tờ khai thuế + báo cáo tổng hợp năm ra Excel."""
+    conn = db_engine.get_connection()
+    try:
+        cfg = _get_cau_hinh(conn)
+    finally:
+        conn.close()
+
+    if not cfg:
+        st.warning("⚠️ Chưa cấu hình HKD.")
+        return
+
+    nam = datetime.date.today().year
+
+    st.subheader("🧾 Xuất tờ khai thuế 01/CNKD")
+    st.caption("Mẫu 01/CNKD theo TT 18/2026/TT-BTC — Tờ khai thuế quý/năm cho HKD có DT > 500 triệu")
+
+    conn = db_engine.get_connection()
+    try:
+        ds_thue = _get_ds_thue(conn, nam)
+    finally:
+        conn.close()
+
+    if not ds_thue:
+        st.info("Chưa có kỳ thuế nào. Vào tab **📊 Kê khai theo kỳ** để tạo trước.")
+    else:
+        ky_list = [d["ky_thue"] for d in ds_thue]
+        ky_chon = st.selectbox("Chọn kỳ thuế để xuất", ky_list, key="xuat_ky")
+
+        if st.button("📥 Xuất tờ khai 01/CNKD", type="primary", key="btn_xuat_01cnkd"):
+            # Lấy dữ liệu chi tiết theo ngành cho kỳ
+            conn = db_engine.get_connection()
+            try:
+                dt_theo_nganh = _lay_doanh_thu_theo_nganh(conn, ky_chon)
+                _, chi_phi_duoc_tru = _lay_chi_phi_ky(conn, ky_chon)
+            finally:
+                conn.close()
+
+            if not dt_theo_nganh:
+                # Fallback: dùng DT tổng từ bảng theo_doi_thue_hkd
+                d_chon = next((d for d in ds_thue if d["ky_thue"] == ky_chon), None)
+                if d_chon:
+                    nganh = cfg.get("nganh_nghe", "THUONG_MAI")
+                    dt_theo_nganh = {nganh: float(d_chon.get("doanh_thu_ky", 0) or 0)}
+                    chi_phi_duoc_tru = float(d_chon.get("chi_phi_ky", 0) or 0)
+
+            chi_tiet, tong_dt, tong_gtgt, tong_tncn = _tinh_thue_chi_tiet_theo_nganh(dt_theo_nganh)
+
+            # Nếu phương pháp lợi nhuận, tính lại TNCN
+            if cfg.get("phuong_phap_tinh_thue") == "LOI_NHUAN":
+                nhom = _phan_nhom_doanh_thu(tong_dt)
+                tong_tncn = _tinh_thue_loi_nhuan(tong_dt, chi_phi_duoc_tru, nhom)
+
+            excel_bytes = _xuat_to_khai_01cnkd(
+                cfg, ky_chon, dt_theo_nganh, chi_tiet,
+                tong_dt, tong_gtgt, tong_tncn, chi_phi_duoc_tru
+            )
+
+            ten_file = f"01_CNKD_{ky_chon.replace('/', '_')}_{cfg.get('ma_so_thue', 'HKD')}.xlsx"
+            st.download_button(
+                label=f"⬇️ Tải {ten_file}",
+                data=excel_bytes,
+                file_name=ten_file,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+            st.success(f"✅ Đã tạo tờ khai {ky_chon}!")
+
+    st.divider()
+
+    # ── Báo cáo tổng hợp năm ──
+    st.subheader(f"📊 Báo cáo tổng hợp năm {nam}")
+    st.caption("Gồm 3 sheet: Doanh thu theo tháng & ngành, Chi phí theo tháng, Tổng hợp Thuế & BHXH")
+
+    nam_xuat = st.selectbox("Năm xuất báo cáo", [nam - 1, nam], index=1, key="xuat_nam")
+
+    if st.button("📥 Xuất báo cáo tổng hợp", type="primary", key="btn_xuat_tonghop"):
+        excel_bytes = _xuat_bao_cao_tong_hop_nam(db_engine, cfg, nam_xuat)
+        ten_file = f"BaoCao_TongHop_{nam_xuat}_{cfg.get('ma_so_thue', 'HKD')}.xlsx"
+        st.download_button(
+            label=f"⬇️ Tải {ten_file}",
+            data=excel_bytes,
+            file_name=ten_file,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        st.success(f"✅ Đã tạo báo cáo năm {nam_xuat}!")
+        
+
 # ═══════════════════════════════════════════════════════════════════
 #  HÀM CHÍNH — gọi từ app.py
 # ═══════════════════════════════════════════════════════════════════
@@ -1279,14 +2181,14 @@ def render_thue_hkd(db_engine):
     st.title("🧾 Kê khai Thuế")
 
     tab1, tab2, tab3 = st.tabs([
-        "⚙️ Cấu hình HKD",
-        "📊 Theo dõi Doanh thu & Thuế",
+        "📊 Kê khai theo kỳ",
         "📋 Tổng hợp & Cảnh báo",
+        "📥 Xuất báo cáo",
     ])
 
     with tab1:
-        _render_tab_cau_hinh(db_engine)
-    with tab2:
         _render_tab_theo_doi(db_engine)
-    with tab3:
+    with tab2:
         _render_tab_tong_hop(db_engine)
+    with tab3:
+        _render_tab_xuat_bao_cao(db_engine)

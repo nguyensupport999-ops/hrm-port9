@@ -6344,8 +6344,7 @@ else:  # 'nhan_vien' thường (mặc định) hoặc bất kỳ vai trò nào k
     menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"]
 # ── Phân luồng menu theo loại hình tenant (DN / HKD) ──
 _tenant = st.session_state.get("tenant") or {}
-st.sidebar.warning(f"DEBUG loai_hinh = [{_tenant.get('loai_hinh')}]")
-if _tenant.get("loai_hinh") == "HKD":
+if _tenant.get("loai_hinh") in ("HKD", "HO_KINH_DOANH"):
     # HKD All-in-One: thay toàn bộ menu bằng bộ menu riêng cho Hộ kinh doanh
     _menu_hkd_full = [
         "📊 Tổng quan HKD",
@@ -6669,7 +6668,7 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
                 st.rerun()
 
 # ========== XỬ LÝ MENU HKD ==========
-if _tenant.get("loai_hinh") == "HKD" and menu in (
+if _tenant.get("loai_hinh") in ("HKD", "HO_KINH_DOANH") and menu in (
     "📊 Tổng quan HKD", "💰 Doanh thu & Chi phí", "🧾 Kê khai Thuế",
     "⚙️ Cấu hình HKD", "👤 Chủ hộ & Nhân sự", "💵 Tính thu nhập",
 ):

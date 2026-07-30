@@ -54,7 +54,7 @@ import numpy as np
 import cv2
 from streamlit_webrtc import webrtc_streamer
 import face_id_cham_cong
-import bao_cao_bhxh
+from bao_cao_bhxh import xuat_bao_cao_trich_nop_bhxh, render_xuat_bao_cao_bhxh
 
 # Gợi ý lương BH theo chức danh — hiện tooltip khi nhập trường Lương BH
 GOI_Y_LUONG_BH = {

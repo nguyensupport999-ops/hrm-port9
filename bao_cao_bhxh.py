@@ -41,43 +41,47 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     conn = db_engine.get_connection()
     try:
         c = conn.cursor()
-
-        # Lấy danh sách cột thực tế của bảng nhan_vien
         c.execute("""
-            SELECT column_name FROM information_schema.columns
-            WHERE table_name = 'nhan_vien'
-        """)
-        ds_cot = {r[0] for r in c.fetchall()}
-
-        # Build SELECT an toàn — chỉ lấy cột tồn tại
-        cot_chon = ["ho_ten"]
-        cot_chon.append("ngay_bat_dau_bh" if "ngay_bat_dau_bh" in ds_cot else "NULL AS ngay_bat_dau_bh")
-        cot_chon.append("luong_bao_hiem")
-        cot_chon.append("so_hdld" if "so_hdld" in ds_cot else "NULL AS so_hdld")
-        cot_chon.append("ma_bhxh" if "ma_bhxh" in ds_cot else "NULL AS ma_bhxh")
-        cot_chon.append("so_cccd" if "so_cccd" in ds_cot else "NULL AS so_cccd")
-        cot_chon.append("ngay_cap_cccd" if "ngay_cap_cccd" in ds_cot else "NULL AS ngay_cap_cccd")
-        cot_chon.append("chuc_danh_nghe" if "chuc_danh_nghe" in ds_cot else ("chuc_danh" if "chuc_danh" in ds_cot else "NULL AS chuc_danh_nghe"))
-        cot_chon.append("noi_dang_ky_kcb" if "noi_dang_ky_kcb" in ds_cot else "NULL AS noi_dang_ky_kcb")
-        cot_chon.append("ghi_chu" if "ghi_chu" in ds_cot else "NULL AS ghi_chu")
-
-        cot_sort = "phong_ban_lam_viec" if "phong_ban_lam_viec" in ds_cot else "ho_ten"
-
-        sql = f"""
-            SELECT {', '.join(cot_chon)}
+            SELECT
+                ho_ten,
+                luong_bao_hiem,
+                so_hdld,
+                ma_bhxh,
+                so_cccd,
+                chuc_danh_nghe,
+                phong_ban_lam_viec,
+                ngay_bat_dau_bh,
+                ngay_cap_cccd,
+                noi_dang_ky_kcb,
+                ghi_chu
             FROM nhan_vien
             WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
               AND luong_bao_hiem IS NOT NULL
               AND luong_bao_hiem != ''
               AND CAST(luong_bao_hiem AS NUMERIC) > 0
-            ORDER BY {cot_sort}, ho_ten
-        """
-        c.execute(sql)
+            ORDER BY phong_ban_lam_viec, ho_ten
+        """)
         col_names = [desc[0] for desc in c.description]
         rows = [dict(zip(col_names, r)) for r in c.fetchall()]
-    except Exception as e:
-        conn.close()
-        raise e
+    except Exception:
+        # Nếu lỗi cột — thử query tối giản chỉ với cột chắc chắn có
+        try:
+            conn.close()
+        except Exception:
+            pass
+        conn = db_engine.get_connection()
+        c = conn.cursor()
+        c.execute("""
+            SELECT ho_ten, luong_bao_hiem, chuc_danh_nghe
+            FROM nhan_vien
+            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+              AND luong_bao_hiem IS NOT NULL
+              AND luong_bao_hiem != ''
+              AND CAST(luong_bao_hiem AS NUMERIC) > 0
+            ORDER BY ho_ten
+        """)
+        col_names = [desc[0] for desc in c.description]
+        rows = [dict(zip(col_names, r)) for r in c.fetchall()]
     finally:
         try:
             conn.close()

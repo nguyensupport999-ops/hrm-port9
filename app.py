@@ -8360,6 +8360,7 @@ elif menu == "✅ Nhân viên":
                                             help="\n\n".join(_goi_y_lines))
                         if _goi_y_nhanh:
                             st.caption(f"💡 Gợi ý: {_goi_y_nhanh}")
+                        st.caption("ℹ️ Nhập xong Lương BH → nhấn Tab để tự tính Mức tiền đóng")
                         hsl = st.text_input("Hệ số lương", key="hsl")
                         pcv = st.text_input("PC chức vụ", key="pcv")
                     with c5:

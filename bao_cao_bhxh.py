@@ -44,14 +44,15 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
                 ma_bhxh,
                 so_cccd,
                 ngay_cap_cccd,
-                chuc_danh,
+                chuc_danh_nghe,
                 noi_dang_ky_kcb,
                 ghi_chu,
                 phong_ban_lam_viec
             FROM nhan_vien
             WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
               AND luong_bao_hiem IS NOT NULL
-              AND luong_bao_hiem > 0
+              AND luong_bao_hiem != ''
+              AND CAST(luong_bao_hiem AS NUMERIC) > 0
             ORDER BY phong_ban_lam_viec, ho_ten
         """)
         cols = [desc[0] for desc in c.description]
@@ -191,7 +192,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
             r.get("ma_bhxh", ""),
             r.get("so_cccd", ""),
             ngay_cap,
-            r.get("chuc_danh", ""),
+            r.get("chuc_danh_nghe", ""),
             r.get("noi_dang_ky_kcb", ""),
             r.get("ghi_chu", ""),
         ]

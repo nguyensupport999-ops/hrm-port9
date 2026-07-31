@@ -14044,7 +14044,8 @@ Theo **Điều 26 Luật BHXH 2014**, người lao động đóng BHXH từ đ�
             # Form đăng ký mới
             st.markdown(f"""
             #### 🔓 Đăng ký thử nghiệm
-            **{CHATBOT_PAYMENT['so_tien']:,.0f}đ** · {CHATBOT_PAYMENT['credit_moi']} câu hỏi tư vấn AI có viện dẫn pháp luật
+            **{CHATBOT_PAYMENT['so_tien']:,.0f}đ** · {CHATBOT_PAYMENT['credit_moi']} câu hỏi tư vấn AI có viện dẫn pháp luật\n\n
+            Với mức thu tượng trung nhằm tránh tình trạng Spam câu hỏi, nếu bạn không hải lòng với kết quả tư vấn - vui lòng chụp lại kết quả đó và gửi qua cho chúng tôi, chúng tôi sẽ hoàn trả phí ngay sau đó.
             """)
             with st.form("chatbot_register"):
                 col_r1, col_r2 = st.columns(2)

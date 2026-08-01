@@ -43,50 +43,69 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
         c = conn.cursor()
         # Query đầy đủ các trường cần thiết
         c.execute("""
-            SELECT 
-                ho_ten, 
-                luong_bao_hiem, 
-                chuc_danh_nghe,
+            SELECT
+                ho_ten,
+                luong_bao_hiem,
+                so_hdld,
                 ma_so_bhxh,
                 so_cccd,
-                so_hdld,
+                chuc_danh_nghe,
+                phong_ban_lam_viec,
                 thang_bat_dau_bh,
                 ngay_cap_cccd,
                 noi_dang_ky_kcb,
                 ghi_chu,
                 phuong_an_dieu_chinh,
                 thang_phuong_an,
-                trang_thai_bhxh,
-                phong_ban_lam_viec  -- Thêm cột này nếu có
+                trang_thai_bhxh
             FROM nhan_vien
             WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
               AND luong_bao_hiem IS NOT NULL
               AND luong_bao_hiem != ''
               AND CAST(luong_bao_hiem AS NUMERIC) > 0
-            ORDER BY ho_ten
+            ORDER BY so_hdld ASC
         """)
         col_names = [desc[0] for desc in c.description]
         rows = [dict(zip(col_names, r)) for r in c.fetchall()]
     except Exception as e:
         st.warning(f"Lỗi khi truy vấn dữ liệu: {e}")
-        # Fallback: lấy ít cột hơn
+        # Fallback - GIỮ NGUYÊN ĐIỀU KIỆN LỌC
         try:
             conn.close()
         except Exception:
             pass
         conn = db_engine.get_connection()
         c = conn.cursor()
-        c.execute("""
-            SELECT ho_ten, luong_bao_hiem, chuc_danh_nghe
-            FROM nhan_vien
-            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
-              AND luong_bao_hiem IS NOT NULL
-              AND luong_bao_hiem != ''
-              AND CAST(luong_bao_hiem AS NUMERIC) > 0
-            ORDER BY ho_ten
-        """)
-        col_names = [desc[0] for desc in c.description]
-        rows = [dict(zip(col_names, r)) for r in c.fetchall()]
+        try:
+            # SỬA: Lấy đủ các cột và GIỮ NGUYÊN điều kiện WHERE
+            c.execute("""
+                SELECT 
+                    ho_ten, 
+                    luong_bao_hiem, 
+                    chuc_danh_nghe,
+                    ma_so_bhxh,
+                    so_cccd,
+                    so_hdld,
+                    thang_bat_dau_bh,
+                    ngay_cap_cccd,
+                    noi_dang_ky_kcb,
+                    ghi_chu,
+                    phuong_an_dieu_chinh,
+                    thang_phuong_an,
+                    trang_thai_bhxh,
+                    phong_ban_lam_viec
+                FROM nhan_vien
+                WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+                  AND luong_bao_hiem IS NOT NULL
+                  AND luong_bao_hiem != ''
+                  AND CAST(luong_bao_hiem AS NUMERIC) > 0
+                ORDER BY so_hdld ASC
+            """)
+            col_names = [desc[0] for desc in c.description]
+            rows = [dict(zip(col_names, r)) for r in c.fetchall()]
+        except Exception as e2:
+            st.error(f"Lỗi fallback: {e2}")
+            rows = []
     finally:
         try:
             conn.close()

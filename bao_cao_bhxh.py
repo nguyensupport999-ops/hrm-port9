@@ -48,6 +48,19 @@ def _extract_so_hd(so_hdld):
         return 0
 
 
+def _is_hop_dong_thu_viec(so_hdld):
+    """Kiểm tra xem số HĐLĐ có phải là hợp đồng thử việc không"""
+    if not so_hdld:
+        return False
+    try:
+        # Kiểm tra nếu số HĐ có chứa 'HĐTV' hoặc 'HDTV'
+        if 'HĐTV' in str(so_hdld) or 'HDTV' in str(so_hdld):
+            return True
+        return False
+    except:
+        return False
+
+
 def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     """Xuất báo cáo trích nộp BHXH.
     Trả về (excel_bytes, so_nv).
@@ -55,7 +68,8 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     conn = db_engine.get_connection()
     try:
         c = conn.cursor()
-        # Query lấy tất cả nhân viên (bao gồm NGHI_VIEC) và xử lý lương NULL
+        # Query lấy tất cả nhân viên (bao gồm NGHI_VIEC) 
+        # và LOẠI BỎ: so_hdld = NULL, so_hdld rỗng, hợp đồng thử việc
         c.execute("""
             SELECT
                 ho_ten,
@@ -75,6 +89,10 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
                 trang_thai
             FROM nhan_vien
             WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC', 'NGHI_VIEC')
+              AND so_hdld IS NOT NULL
+              AND so_hdld != ''
+              AND so_hdld NOT LIKE '%HĐTV%'
+              AND so_hdld NOT LIKE '%HDTV%'
             ORDER BY 
                 CAST(SUBSTRING(so_hdld FROM '^([0-9]+)/') AS INTEGER) ASC
         """)
@@ -109,6 +127,10 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
                     phong_ban_lam_viec
                 FROM nhan_vien
                 WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC', 'NGHI_VIEC')
+                  AND so_hdld IS NOT NULL
+                  AND so_hdld != ''
+                  AND so_hdld NOT LIKE '%HĐTV%'
+                  AND so_hdld NOT LIKE '%HDTV%'
                 ORDER BY 
                     CAST(SUBSTRING(so_hdld FROM '^([0-9]+)/') AS INTEGER) ASC
             """)
@@ -166,7 +188,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     # Column widths - THÊM cột KPCĐ 2% và cột Trạng thái
     col_widths = {"A": 5, "B": 24, "C": 16, "D": 16, "E": 18, "F": 16, "G": 16,
                   "H": 18,  # KPCĐ 2%
-                  "I": 14, "J": 14, "K": 16, "L": 16,  # CCCD
+                  "I": 16, "J": 14, "K": 16, "L": 16,  # CCCD
                   "M": 24, "N": 20, "O": 16, "P": 14}  # Chức vụ, Nơi ĐK KCB, Ghi chú, Trạng thái
     for col, w in col_widths.items():
         ws.column_dimensions[col].width = w

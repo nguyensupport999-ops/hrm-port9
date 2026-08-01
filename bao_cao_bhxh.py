@@ -34,6 +34,20 @@ def _safe_date_format(val, fmt="%d/%m/%Y"):
     return str(val)
 
 
+def _extract_so_hd(so_hdld):
+    """Trích xuất số thứ tự từ số HĐLĐ (ví dụ: 05/2026/HĐLĐ-CHL -> 5)"""
+    if not so_hdld:
+        return 0
+    try:
+        import re
+        match = re.search(r'^(\d+)/', str(so_hdld))
+        if match:
+            return int(match.group(1))
+        return 0
+    except:
+        return 0
+
+
 def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     """Xuất báo cáo trích nộp BHXH.
     Trả về (excel_bytes, so_nv).
@@ -41,7 +55,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     conn = db_engine.get_connection()
     try:
         c = conn.cursor()
-        # Query đầy đủ các trường cần thiết
+        # Query lấy tất cả nhân viên (bao gồm NGHI_VIEC) và xử lý lương NULL
         c.execute("""
             SELECT
                 ho_ten,
@@ -57,21 +71,18 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
                 ghi_chu,
                 phuong_an_dieu_chinh,
                 thang_phuong_an,
-                trang_thai_bhxh
+                trang_thai_bhxh,
+                trang_thai
             FROM nhan_vien
-            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
-              AND luong_bao_hiem IS NOT NULL
-              AND luong_bao_hiem != ''
-              AND CAST(luong_bao_hiem AS NUMERIC) > 0
+            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC', 'NGHI_VIEC')
             ORDER BY 
-                -- Lấy số thứ tự từ đầu chuỗi (ví dụ: 05/2026/HĐLĐ-CHL -> 5)
                 CAST(SUBSTRING(so_hdld FROM '^([0-9]+)/') AS INTEGER) ASC
         """)
         col_names = [desc[0] for desc in c.description]
         rows = [dict(zip(col_names, r)) for r in c.fetchall()]
     except Exception as e:
         st.warning(f"Lỗi khi truy vấn dữ liệu: {e}")
-        # Fallback
+        # Fallback query
         try:
             conn.close()
         except Exception:
@@ -94,12 +105,10 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
                     phuong_an_dieu_chinh,
                     thang_phuong_an,
                     trang_thai_bhxh,
+                    trang_thai,
                     phong_ban_lam_viec
                 FROM nhan_vien
-                WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
-                  AND luong_bao_hiem IS NOT NULL
-                  AND luong_bao_hiem != ''
-                  AND CAST(luong_bao_hiem AS NUMERIC) > 0
+                WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC', 'NGHI_VIEC')
                 ORDER BY 
                     CAST(SUBSTRING(so_hdld FROM '^([0-9]+)/') AS INTEGER) ASC
             """)
@@ -154,16 +163,16 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     fill_header = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     fill_total = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
 
-    # Column widths - THÊM cột KPCĐ 2%
+    # Column widths - THÊM cột KPCĐ 2% và cột Trạng thái
     col_widths = {"A": 5, "B": 24, "C": 16, "D": 16, "E": 18, "F": 16, "G": 16,
                   "H": 18,  # KPCĐ 2%
                   "I": 14, "J": 14, "K": 16, "L": 16,  # CCCD
-                  "M": 24, "N": 20, "O": 16}  # Chức vụ, Nơi ĐK KCB, Ghi chú
+                  "M": 24, "N": 20, "O": 16, "P": 14}  # Chức vụ, Nơi ĐK KCB, Ghi chú, Trạng thái
     for col, w in col_widths.items():
         ws.column_dimensions[col].width = w
 
-    # Title (mở rộng đến cột O)
-    ws.merge_cells("A1:O1")
+    # Title (mở rộng đến cột P)
+    ws.merge_cells("A1:P1")
     ws["A1"] = "DANH SÁCH LAO ĐỘNG NỘP BẢO HIỂM"
     ws["A1"].font = font_title
     ws["A1"].alignment = align_center
@@ -174,19 +183,19 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     else:
         ky_label = f"Kỳ: {datetime.date.today().strftime('%m/%Y')}"
     if ky_label:
-        ws.merge_cells("A2:O2")
+        ws.merge_cells("A2:P2")
         ws["A2"] = ky_label
         ws["A2"].font = font_normal
         ws["A2"].alignment = align_center
 
-    # Header - THÊM cột KPCĐ 2%
+    # Header - THÊM cột KPCĐ 2% và cột Trạng thái
     headers = [
         "STT", "HỌ VÀ TÊN", "THÁNG\nBẮT ĐẦU\nNỘP BH", "TIỀN\nLƯƠNG\nNỘP BH",
         "SỐ TIỀN\nBH PHẢI\nNỘP/THÁNG\n32%",
         "DN PHẢI\nNỘP\n21,5%", "NLĐ PHẢI\nNỘP\n10,5%",
         "KINH PHÍ\nCÔNG ĐOÀN\n2%",  # Cột mới
         "SỐ HĐLĐ", "MÃ SỐ BH", "CCCD", "NGÀY CẤP\nCCCD",
-        "CHỨC VỤ", "NƠI ĐK\nKCB", "GHI CHÚ"
+        "CHỨC VỤ", "NƠI ĐK\nKCB", "GHI CHÚ", "TRẠNG\nTHÁI"
     ]
 
     header_row = 4
@@ -205,13 +214,16 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     tong_dn = 0
     tong_nld = 0
     tong_kpcd = 0
+    tong_nv_hop_le = 0  # Đếm số NV có lương > 0 và đang làm
 
     # Lấy tháng/năm hiện tại của kỳ báo cáo
     ky_thang = tu_ngay.month if tu_ngay else datetime.date.today().month
     ky_nam = tu_ngay.year if tu_ngay else datetime.date.today().year
 
     for idx, r in enumerate(rows, 1):
+        # Lấy lương, nếu NULL hoặc rỗng thì = 0
         luong_bh = _safe_float(r.get("luong_bao_hiem", 0))
+        trang_thai = r.get("trang_thai", "")
         phuong_an = r.get("phuong_an_dieu_chinh", "") or ""
         thang_phuong_an = r.get("thang_phuong_an", "") or ""
         
@@ -245,8 +257,14 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
             tinh_chi_phi_cong_doan = True
             tinh_binh_thuong = False
         
-        # Tính toán dựa trên logic
-        if tat_ca_bang_0:
+        # Xử lý nhân viên nghỉ việc hoặc lương = 0
+        if trang_thai == 'NGHI_VIEC' or luong_bh == 0:
+            so_tien_32 = 0
+            dn_215 = 0
+            nld_105 = 0
+            kpcd_2 = 0
+            # Không tính vào tổng nếu lương = 0 hoặc nghỉ việc
+        elif tat_ca_bang_0:
             so_tien_32 = 0
             dn_215 = 0
             nld_105 = 0
@@ -263,16 +281,26 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
             nld_105 = round(luong_bh * 0.105)
             kpcd_2 = round(luong_bh * 0.02)
 
-        tong_luong += luong_bh
-        tong_32 += so_tien_32
-        tong_dn += dn_215
-        tong_nld += nld_105
-        tong_kpcd += kpcd_2
+        # Chỉ tính tổng cho nhân viên có lương > 0 và đang làm
+        if luong_bh > 0 and trang_thai != 'NGHI_VIEC':
+            tong_luong += luong_bh
+            tong_32 += so_tien_32
+            tong_dn += dn_215
+            tong_nld += nld_105
+            tong_kpcd += kpcd_2
+            tong_nv_hop_le += 1
 
         # Format ngày tháng bắt đầu nộp BH: chỉ lấy tháng/năm
         ngay_bh_str = _safe_date_format(r.get("thang_bat_dau_bh"), "%m/%Y")
         # Format ngày cấp CCCD: đầy đủ ngày/tháng/năm
         ngay_cap_str = _safe_date_format(r.get("ngay_cap_cccd"), "%d/%m/%Y")
+        
+        # Hiển thị trạng thái tiếng Việt
+        trang_thai_display = {
+            'DANG_LAM': 'Đang làm',
+            'THU_VIEC': 'Thử việc',
+            'NGHI_VIEC': 'Nghỉ việc'
+        }.get(trang_thai, trang_thai)
 
         values = [
             idx,
@@ -290,6 +318,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
             r.get("chuc_danh_nghe", "") or "",
             r.get("noi_dang_ky_kcb", "") or "",
             r.get("ghi_chu", "") or "",
+            trang_thai_display,
         ]
 
         for col_idx, val in enumerate(values, 1):
@@ -301,14 +330,14 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
             elif col_idx in (4, 5, 6, 7, 8):  # Các cột số (thêm KPCĐ)
                 cell.alignment = align_right
                 cell.number_format = '#,##0'
-            elif col_idx in (3, 9, 10, 11, 12):
+            elif col_idx in (3, 9, 10, 11, 12, 16):  # Các cột center (thêm trạng thái)
                 cell.alignment = align_center
             else:
                 cell.alignment = align_left
 
         data_row += 1
 
-    # Dòng tổng (mở rộng đến cột H)
+    # Dòng tổng (mở rộng đến cột C)
     ws.merge_cells(f"A{data_row}:C{data_row}")
     cell_tong = ws.cell(row=data_row, column=1, value="TỔNG CỘNG")
     cell_tong.font = font_header
@@ -329,27 +358,31 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
         cell.number_format = '#,##0'
         cell.fill = fill_total
 
-    for col_idx in range(9, 16):
+    for col_idx in range(9, 17):
         ws.cell(row=data_row, column=col_idx).border = thin_border
         ws.cell(row=data_row, column=col_idx).fill = fill_total
 
-    # Ghi chú (cập nhật thêm KPCĐ)
+    # Ghi chú
     data_row += 2
-    ws.merge_cells(f"A{data_row}:O{data_row}")
+    ws.merge_cells(f"A{data_row}:P{data_row}")
     ws[f"A{data_row}"] = "Ghi chú: DN phải nộp 21,5% = BHXH 14% + BHYT 3% + BHTN 1% + BHTNLĐ-BNN 0,5% + Quỹ HT 3%"
     ws[f"A{data_row}"].font = font_note
     data_row += 1
-    ws.merge_cells(f"A{data_row}:O{data_row}")
+    ws.merge_cells(f"A{data_row}:P{data_row}")
     ws[f"A{data_row}"] = "         NLĐ phải nộp 10,5% = BHXH 8% + BHYT 1,5% + BHTN 1%"
     ws[f"A{data_row}"].font = font_note
     data_row += 1
-    ws.merge_cells(f"A{data_row}:O{data_row}")
+    ws.merge_cells(f"A{data_row}:P{data_row}")
     ws[f"A{data_row}"] = "         DN phải nộp Kinh phí công đoàn 2%"
+    ws[f"A{data_row}"].font = font_note
+    data_row += 1
+    ws.merge_cells(f"A{data_row}:P{data_row}")
+    ws[f"A{data_row}"] = f"         Tổng số nhân viên đang tham gia BH: {tong_nv_hop_le}"
     ws[f"A{data_row}"].font = font_note
 
     # Ký tên
     data_row += 2
-    ws.merge_cells(f"I{data_row}:O{data_row}")
+    ws.merge_cells(f"I{data_row}:P{data_row}")
     ws[f"I{data_row}"] = f"Ngày ..... tháng ..... năm {datetime.date.today().year}"
     ws[f"I{data_row}"].font = font_normal
     ws[f"I{data_row}"].alignment = align_center
@@ -358,7 +391,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     ws[f"A{data_row}"] = "KẾ TOÁN"
     ws[f"A{data_row}"].font = font_header
     ws[f"A{data_row}"].alignment = align_center
-    ws.merge_cells(f"I{data_row}:O{data_row}")
+    ws.merge_cells(f"I{data_row}:P{data_row}")
     ws[f"I{data_row}"] = "GIÁM ĐỐC"
     ws[f"I{data_row}"].font = font_header
     ws[f"I{data_row}"].alignment = align_center

@@ -41,6 +41,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     conn = db_engine.get_connection()
     try:
         c = conn.cursor()
+        # Query đầy đủ các trường cần thiết
         c.execute("""
             SELECT
                 ho_ten,
@@ -63,8 +64,9 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
         """)
         col_names = [desc[0] for desc in c.description]
         rows = [dict(zip(col_names, r)) for r in c.fetchall()]
-    except Exception:
-        # Nếu lỗi cột — thử query tối giản chỉ với cột chắc chắn có
+    except Exception as e:
+        st.warning(f"Lỗi khi truy vấn dữ liệu: {e}")
+        # Fallback: lấy ít cột hơn
         try:
             conn.close()
         except Exception:
@@ -128,14 +130,16 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     fill_header = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
     fill_total = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
 
-    # Column widths
-    col_widths = {"A": 5, "B": 22, "C": 14, "D": 16, "E": 16, "F": 16, "G": 16,
-                  "H": 14, "I": 14, "J": 15, "K": 14, "L": 20, "M": 16, "N": 16}
+    # Column widths - THÊM cột KPCĐ 2%
+    col_widths = {"A": 5, "B": 24, "C": 16, "D": 16, "E": 18, "F": 16, "G": 16,
+                  "H": 18,  # KPCĐ 2%
+                  "I": 14, "J": 14, "K": 16, "L": 16,  # CCCD
+                  "M": 24, "N": 20, "O": 16}  # Chức vụ, Nơi ĐK KCB, Ghi chú
     for col, w in col_widths.items():
         ws.column_dimensions[col].width = w
 
-    # Title
-    ws.merge_cells("A1:N1")
+    # Title (mở rộng đến cột O)
+    ws.merge_cells("A1:O1")
     ws["A1"] = "DANH SÁCH LAO ĐỘNG NỘP BẢO HIỂM"
     ws["A1"].font = font_title
     ws["A1"].alignment = align_center
@@ -143,17 +147,20 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     ky_label = ""
     if tu_ngay and den_ngay:
         ky_label = f"Kỳ: từ {tu_ngay.strftime('%d/%m/%Y')} đến {den_ngay.strftime('%d/%m/%Y')}"
+    else:
+        ky_label = f"Kỳ: {datetime.date.today().strftime('%m/%Y')}"
     if ky_label:
-        ws.merge_cells("A2:N2")
+        ws.merge_cells("A2:O2")
         ws["A2"] = ky_label
         ws["A2"].font = font_normal
         ws["A2"].alignment = align_center
 
-    # Header
+    # Header - THÊM cột KPCĐ 2%
     headers = [
         "STT", "HỌ VÀ TÊN", "THÁNG\nBẮT ĐẦU\nNỘP BH", "TIỀN\nLƯƠNG\nNỘP BH",
         "SỐ TIỀN\nBH PHẢI\nNỘP/THÁNG\n32%",
         "DN PHẢI\nNỘP\n21,5%", "NLĐ PHẢI\nNỘP\n10,5%",
+        "KINH PHÍ\nCÔNG ĐOÀN\n2%",  # Cột mới
         "SỐ HĐLĐ", "MÃ SỐ BH", "CCCD", "NGÀY CẤP\nCCCD",
         "CHỨC VỤ", "NƠI ĐK\nKCB", "GHI CHÚ"
     ]
@@ -173,19 +180,24 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     tong_32 = 0
     tong_dn = 0
     tong_nld = 0
+    tong_kpcd = 0
 
     for idx, r in enumerate(rows, 1):
         luong_bh = _safe_float(r.get("luong_bao_hiem", 0))
         so_tien_32 = round(luong_bh * 0.32)
         dn_215 = round(luong_bh * 0.215)
         nld_105 = round(luong_bh * 0.105)
+        kpcd_2 = round(luong_bh * 0.02)  # Kinh phí công đoàn 2%
 
         tong_luong += luong_bh
         tong_32 += so_tien_32
         tong_dn += dn_215
         tong_nld += nld_105
+        tong_kpcd += kpcd_2
 
+        # Format ngày tháng bắt đầu nộp BH: chỉ lấy tháng/năm
         ngay_bh_str = _safe_date_format(r.get("ngay_bat_dau_bh"), "%m/%Y")
+        # Format ngày cấp CCCD: đầy đủ ngày/tháng/năm
         ngay_cap_str = _safe_date_format(r.get("ngay_cap_cccd"), "%d/%m/%Y")
 
         values = [
@@ -196,6 +208,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
             so_tien_32,
             dn_215,
             nld_105,
+            kpcd_2,  # KPCĐ 2%
             r.get("so_hdld", "") or "",
             r.get("ma_bhxh", "") or "",
             r.get("so_cccd", "") or "",
@@ -211,17 +224,17 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
             cell.border = thin_border
             if col_idx == 1:
                 cell.alignment = align_center
-            elif col_idx in (4, 5, 6, 7):
+            elif col_idx in (4, 5, 6, 7, 8):  # Các cột số (thêm KPCĐ)
                 cell.alignment = align_right
                 cell.number_format = '#,##0'
-            elif col_idx in (3, 8, 9, 10, 11):
+            elif col_idx in (3, 9, 10, 11, 12):
                 cell.alignment = align_center
             else:
                 cell.alignment = align_left
 
         data_row += 1
 
-    # Dòng tổng
+    # Dòng tổng (mở rộng đến cột H)
     ws.merge_cells(f"A{data_row}:C{data_row}")
     cell_tong = ws.cell(row=data_row, column=1, value="TỔNG CỘNG")
     cell_tong.font = font_header
@@ -232,7 +245,9 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     for mc in [2, 3]:
         ws.cell(row=data_row, column=mc).border = thin_border
 
-    for col_idx, val in [(4, tong_luong), (5, tong_32), (6, tong_dn), (7, tong_nld)]:
+    # Các cột tổng từ D đến H (bao gồm KPCĐ)
+    for col_idx, val in [(4, tong_luong), (5, tong_32), (6, tong_dn), 
+                         (7, tong_nld), (8, tong_kpcd)]:
         cell = ws.cell(row=data_row, column=col_idx, value=val)
         cell.font = font_header
         cell.alignment = align_right
@@ -240,23 +255,27 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
         cell.number_format = '#,##0'
         cell.fill = fill_total
 
-    for col_idx in range(8, 15):
+    for col_idx in range(9, 16):
         ws.cell(row=data_row, column=col_idx).border = thin_border
         ws.cell(row=data_row, column=col_idx).fill = fill_total
 
-    # Ghi chú
+    # Ghi chú (cập nhật thêm KPCĐ)
     data_row += 2
-    ws.merge_cells(f"A{data_row}:N{data_row}")
+    ws.merge_cells(f"A{data_row}:O{data_row}")
     ws[f"A{data_row}"] = "Ghi chú: DN phải nộp 21,5% = BHXH 14% + BHYT 3% + BHTN 1% + BHTNLĐ-BNN 0,5% + Quỹ HT 3%"
     ws[f"A{data_row}"].font = font_note
     data_row += 1
-    ws.merge_cells(f"A{data_row}:N{data_row}")
+    ws.merge_cells(f"A{data_row}:O{data_row}")
     ws[f"A{data_row}"] = "         NLĐ phải nộp 10,5% = BHXH 8% + BHYT 1,5% + BHTN 1%"
+    ws[f"A{data_row}"].font = font_note
+    data_row += 1
+    ws.merge_cells(f"A{data_row}:O{data_row}")
+    ws[f"A{data_row}"] = "         DN phải nộp Kinh phí công đoàn 2%"
     ws[f"A{data_row}"].font = font_note
 
     # Ký tên
     data_row += 2
-    ws.merge_cells(f"I{data_row}:N{data_row}")
+    ws.merge_cells(f"I{data_row}:O{data_row}")
     ws[f"I{data_row}"] = f"Ngày ..... tháng ..... năm {datetime.date.today().year}"
     ws[f"I{data_row}"].font = font_normal
     ws[f"I{data_row}"].alignment = align_center
@@ -265,7 +284,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     ws[f"A{data_row}"] = "KẾ TOÁN"
     ws[f"A{data_row}"].font = font_header
     ws[f"A{data_row}"].alignment = align_center
-    ws.merge_cells(f"I{data_row}:N{data_row}")
+    ws.merge_cells(f"I{data_row}:O{data_row}")
     ws[f"I{data_row}"] = "GIÁM ĐỐC"
     ws[f"I{data_row}"].font = font_header
     ws[f"I{data_row}"].alignment = align_center
@@ -280,7 +299,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
 def render_xuat_bao_cao_bhxh(db_engine):
     """UI xuất báo cáo trích nộp BHXH."""
     st.subheader("📥 Xuất báo cáo trích nộp BHXH")
-    st.caption("Mẫu: Danh sách lao động nộp bảo hiểm (32% = DN 21,5% + NLĐ 10,5%)")
+    st.caption("Mẫu: Danh sách lao động nộp bảo hiểm (32% = DN 21,5% + NLĐ 10,5%) + Kinh phí công đoàn 2%")
 
     col1, col2 = st.columns(2)
     with col1:
@@ -296,21 +315,22 @@ def render_xuat_bao_cao_bhxh(db_engine):
 
     if st.button("📥 Xuất báo cáo", type="primary", key="btn_xuat_bc_bhxh"):
         try:
-            if loc_tat_ca:
-                excel_bytes, so_nv = xuat_bao_cao_trich_nop_bhxh(db_engine)
-            else:
-                excel_bytes, so_nv = xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay, den_ngay)
+            with st.spinner("Đang tạo báo cáo..."):
+                if loc_tat_ca:
+                    excel_bytes, so_nv = xuat_bao_cao_trich_nop_bhxh(db_engine)
+                else:
+                    excel_bytes, so_nv = xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay, den_ngay)
 
-            if so_nv == 0:
-                st.warning("⚠️ Không có NV nào thỏa điều kiện.")
-            else:
-                ten_file = f"DS_Nop_BH_{datetime.date.today().strftime('%Y%m%d')}.xlsx"
-                st.download_button(
-                    label=f"⬇️ Tải {ten_file} ({so_nv} người)",
-                    data=excel_bytes,
-                    file_name=ten_file,
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                )
-                st.success(f"✅ Đã tạo báo cáo cho {so_nv} NV!")
+                if so_nv == 0:
+                    st.warning("⚠️ Không có NV nào thỏa điều kiện.")
+                else:
+                    ten_file = f"DS_Nop_BH_{datetime.date.today().strftime('%Y%m%d')}.xlsx"
+                    st.download_button(
+                        label=f"⬇️ Tải {ten_file} ({so_nv} người)",
+                        data=excel_bytes,
+                        file_name=ten_file,
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    )
+                    st.success(f"✅ Đã tạo báo cáo cho {so_nv} NV!")
         except Exception as e:
             st.error(f"❌ Lỗi: {e}")

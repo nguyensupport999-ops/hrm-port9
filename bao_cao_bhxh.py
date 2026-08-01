@@ -43,27 +43,27 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
         c = conn.cursor()
         # Query đầy đủ các trường cần thiết
         c.execute("""
-            SELECT
-                ho_ten,
-                luong_bao_hiem,
-                so_hdld,
+            SELECT 
+                ho_ten, 
+                luong_bao_hiem, 
+                chuc_danh_nghe,
                 ma_so_bhxh,
                 so_cccd,
-                chuc_danh_nghe,
-                phong_ban_lam_viec,
+                so_hdld,
                 thang_bat_dau_bh,
                 ngay_cap_cccd,
                 noi_dang_ky_kcb,
                 ghi_chu,
                 phuong_an_dieu_chinh,
                 thang_phuong_an,
-                trang_thai_bhxh
+                trang_thai_bhxh,
+                phong_ban_lam_viec  -- Thêm cột này nếu có
             FROM nhan_vien
             WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
               AND luong_bao_hiem IS NOT NULL
               AND luong_bao_hiem != ''
               AND CAST(luong_bao_hiem AS NUMERIC) > 0
-            ORDER BY phong_ban_lam_viec, ho_ten
+            ORDER BY ho_ten
         """)
         col_names = [desc[0] for desc in c.description]
         rows = [dict(zip(col_names, r)) for r in c.fetchall()]

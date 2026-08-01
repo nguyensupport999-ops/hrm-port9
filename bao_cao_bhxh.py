@@ -47,14 +47,17 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
                 ho_ten,
                 luong_bao_hiem,
                 so_hdld,
-                ma_bhxh,
+                ma_so_bhxh,
                 so_cccd,
                 chuc_danh_nghe,
                 phong_ban_lam_viec,
-                ngay_bat_dau_bh,
+                thang_bat_dau_bh,
                 ngay_cap_cccd,
                 noi_dang_ky_kcb,
-                ghi_chu
+                ghi_chu,
+                phuong_an_dieu_chinh,
+                thang_phuong_an,
+                trang_thai_bhxh
             FROM nhan_vien
             WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
               AND luong_bao_hiem IS NOT NULL
@@ -94,7 +97,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     if tu_ngay or den_ngay:
         filtered = []
         for r in rows:
-            ngay_bh = r.get("ngay_bat_dau_bh")
+            ngay_bh = r.get("thang_bat_dau_bh")
             if ngay_bh:
                 if isinstance(ngay_bh, str):
                     try:
@@ -182,12 +185,62 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     tong_nld = 0
     tong_kpcd = 0
 
+    # Lấy tháng/năm hiện tại của kỳ báo cáo
+    ky_thang = tu_ngay.month if tu_ngay else datetime.date.today().month
+    ky_nam = tu_ngay.year if tu_ngay else datetime.date.today().year
+
     for idx, r in enumerate(rows, 1):
         luong_bh = _safe_float(r.get("luong_bao_hiem", 0))
-        so_tien_32 = round(luong_bh * 0.32)
-        dn_215 = round(luong_bh * 0.215)
-        nld_105 = round(luong_bh * 0.105)
-        kpcd_2 = round(luong_bh * 0.02)  # Kinh phí công đoàn 2%
+        phuong_an = r.get("phuong_an_dieu_chinh", "") or ""
+        thang_phuong_an = r.get("thang_phuong_an", "") or ""
+        
+        # Mặc định tính bình thường
+        tinh_binh_thuong = True
+        tinh_chi_phi_cong_doan = False
+        tat_ca_bang_0 = False
+        
+        # LOGIC XỬ LÝ PHƯƠNG ÁN ĐIỀU CHỈNH
+        if phuong_an == "GH" and thang_phuong_an:
+            # GH (Giảm hẳn): Kiểm tra tháng điều chỉnh
+            try:
+                # Parse thang_phuong_an (định dạng MM/YYYY hoặc YYYY-MM-DD)
+                if "/" in thang_phuong_an:
+                    pa_thang, pa_nam = map(int, thang_phuong_an.split("/"))
+                else:
+                    # Nếu là DATE, lấy tháng/năm
+                    pa_date = datetime.datetime.strptime(thang_phuong_an[:10], "%Y-%m-%d").date()
+                    pa_thang, pa_nam = pa_date.month, pa_date.year
+                
+                # So sánh với kỳ báo cáo
+                if pa_nam < ky_nam or (pa_nam == ky_nam and pa_thang < ky_thang):
+                    tat_ca_bang_0 = True
+                else:
+                    tinh_binh_thuong = True
+            except:
+                tinh_binh_thuong = True
+        elif phuong_an and phuong_an != "GH":
+            # Các phương án khác (TD, TM, TC, KL, OF, TS, ON...)
+            # Chỉ tính công đoàn, các chỉ tiêu khác = 0
+            tinh_chi_phi_cong_doan = True
+            tinh_binh_thuong = False
+        
+        # Tính toán dựa trên logic
+        if tat_ca_bang_0:
+            so_tien_32 = 0
+            dn_215 = 0
+            nld_105 = 0
+            kpcd_2 = 0
+        elif tinh_chi_phi_cong_doan:
+            so_tien_32 = 0
+            dn_215 = 0
+            nld_105 = 0
+            kpcd_2 = round(luong_bh * 0.02)  # Chỉ tính công đoàn
+        else:
+            # Tính bình thường
+            so_tien_32 = round(luong_bh * 0.32)
+            dn_215 = round(luong_bh * 0.215)
+            nld_105 = round(luong_bh * 0.105)
+            kpcd_2 = round(luong_bh * 0.02)
 
         tong_luong += luong_bh
         tong_32 += so_tien_32
@@ -196,7 +249,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
         tong_kpcd += kpcd_2
 
         # Format ngày tháng bắt đầu nộp BH: chỉ lấy tháng/năm
-        ngay_bh_str = _safe_date_format(r.get("ngay_bat_dau_bh"), "%m/%Y")
+        ngay_bh_str = _safe_date_format(r.get("thang_bat_dau_bh"), "%m/%Y")
         # Format ngày cấp CCCD: đầy đủ ngày/tháng/năm
         ngay_cap_str = _safe_date_format(r.get("ngay_cap_cccd"), "%d/%m/%Y")
 
@@ -210,7 +263,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
             nld_105,
             kpcd_2,  # KPCĐ 2%
             r.get("so_hdld", "") or "",
-            r.get("ma_bhxh", "") or "",
+            r.get("ma_so_bhxh", "") or "",
             r.get("so_cccd", "") or "",
             ngay_cap_str,
             r.get("chuc_danh_nghe", "") or "",

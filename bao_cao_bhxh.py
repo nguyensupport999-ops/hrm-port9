@@ -63,13 +63,15 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
               AND luong_bao_hiem IS NOT NULL
               AND luong_bao_hiem != ''
               AND CAST(luong_bao_hiem AS NUMERIC) > 0
-            ORDER BY so_hdld ASC
+            ORDER BY 
+                -- Lấy số thứ tự từ đầu chuỗi (ví dụ: 05/2026/HĐLĐ-CHL -> 5)
+                CAST(SUBSTRING(so_hdld FROM '^([0-9]+)/') AS INTEGER) ASC
         """)
         col_names = [desc[0] for desc in c.description]
         rows = [dict(zip(col_names, r)) for r in c.fetchall()]
     except Exception as e:
         st.warning(f"Lỗi khi truy vấn dữ liệu: {e}")
-        # Fallback - GIỮ NGUYÊN ĐIỀU KIỆN LỌC
+        # Fallback
         try:
             conn.close()
         except Exception:
@@ -77,7 +79,6 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
         conn = db_engine.get_connection()
         c = conn.cursor()
         try:
-            # SỬA: Lấy đủ các cột và GIỮ NGUYÊN điều kiện WHERE
             c.execute("""
                 SELECT 
                     ho_ten, 
@@ -99,7 +100,8 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
                   AND luong_bao_hiem IS NOT NULL
                   AND luong_bao_hiem != ''
                   AND CAST(luong_bao_hiem AS NUMERIC) > 0
-                ORDER BY so_hdld ASC
+                ORDER BY 
+                    CAST(SUBSTRING(so_hdld FROM '^([0-9]+)/') AS INTEGER) ASC
             """)
             col_names = [desc[0] for desc in c.description]
             rows = [dict(zip(col_names, r)) for r in c.fetchall()]

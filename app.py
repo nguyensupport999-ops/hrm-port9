@@ -9882,11 +9882,32 @@ elif menu == "✅ Nhân viên":
 
                 elif loai_qd == 'CHAM_DUT_HD':
                     loai_hd_hien_tai = nv_qd.get('loai_hop_dong') or ''
-                    if loai_hd_hien_tai == 'Thử việc':
+                    la_thu_viec_cd_ui = (loai_hd_hien_tai == 'Thử việc')
+                    if la_thu_viec_cd_ui:
                         nhan_hd = "Hợp đồng thử việc (HĐTV)"
                     else:
                         nhan_hd = "Hợp đồng lao động (HĐLĐ)"
                     st.info(f"🔎 Loại hợp đồng hiện tại: **{loai_hd_hien_tai or 'Chưa xác định'}** → Sẽ ban hành: **QĐ Chấm dứt {nhan_hd}**")
+
+                    if la_thu_viec_cd_ui:
+                        # NV thử việc chưa từng tham gia BHXH -> không cần/không được chọn lý do báo giảm
+                        ly_do_giam_bhxh = ""
+                        st.caption("ℹ️ NV thử việc chưa tham gia BHXH nên không cần chọn lý do báo giảm BHXH.")
+                    else:
+                        LY_DO_GIAM_BHXH = {
+                            "GH1 - Giảm hẳn (chấm dứt HĐLĐ/chuyển công tác)": "GH1",
+                            "GH2 - Giảm hẳn (nghỉ hưu)": "GH2",
+                            "GH3 - Giảm hẳn (khi đang nghỉ thai sản/không lương)": "GH3",
+                            "GH4 - Giảm hẳn (bị chết)": "GH4",
+                        }
+                        ly_do_giam_label = st.selectbox(
+                            "📋 Lý do báo giảm BHXH:",
+                            list(LY_DO_GIAM_BHXH.keys()),
+                            key="qdns_ly_do_giam_bhxh",
+                            help="Chọn đúng mã báo giảm theo quy định BHXH — dùng để điền phương án điều chỉnh cho báo cáo D02-LT"
+                        )
+                        ly_do_giam_bhxh = LY_DO_GIAM_BHXH[ly_do_giam_label]
+
                     ly_do_cd = st.text_area("📝 Lý do chấm dứt:", key="qdns_lydo_cd", height=80,
                                               placeholder="VD: Hết hạn hợp đồng, Xin nghỉ theo nguyện vọng cá nhân, Chuyển công tác...")
                     tieu_de = f"Chấm dứt {nhan_hd} - {nv_qd['ho_ten']}"
@@ -10028,7 +10049,11 @@ elif menu == "✅ Nhân viên":
                         
                             # Chỉ set GH nếu HĐLĐ không phải Thử việc
                             loai_hd_hien_tai = nv_qd.get('loai_hop_dong', '')
-                            pa_giam = 'GH' if loai_hd_hien_tai != 'Thử việc' else ''
+                            la_thu_viec_cd = (loai_hd_hien_tai == 'Thử việc')
+
+                            # Lấy đúng mã GH1/GH2/GH3/GH4 người dùng đã chọn ở dropdown "Lý do báo
+                            # giảm BHXH" phía trên; fallback GH1 nếu vì lý do gì đó biến rỗng.
+                            pa_giam = '' if la_thu_viec_cd else (ly_do_giam_bhxh or 'GH1')
                             thang_pa_giam = ngay_qd.strftime('%m/%Y') if ngay_qd and pa_giam else None
                         
                             c_s.execute("""

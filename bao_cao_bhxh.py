@@ -8,7 +8,18 @@ import datetime
 import streamlit as st
 import openpyxl
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+import base64
 
+def _auto_download_excel(file_data: bytes, filename: str):
+    """Tự động kích hoạt tải file Excel ngay khi vừa tạo xong — không cần bấm thêm nút Tải."""
+    b64 = base64.b64encode(file_data).decode()
+    dl_html = f"""
+    <html><body>
+    <a id="auto_dl_link" href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="{filename}"></a>
+    <script>document.getElementById('auto_dl_link').click();</script>
+    </body></html>
+    """
+    st.components.v1.html(dl_html, height=0, width=0)
 
 def _safe_float(val):
     """Chuyển giá trị (có thể là str/None) sang float an toàn."""
@@ -474,12 +485,7 @@ def render_xuat_bao_cao_bhxh(db_engine):
                     st.warning("⚠️ Không có NV nào thỏa điều kiện.")
                 else:
                     ten_file = f"DS_Nop_BH_{nam_chon}{thang_chon:02d}.xlsx"
-                    st.download_button(
-                        label=f"⬇️ Tải {ten_file} ({so_nv} người)",
-                        data=excel_bytes,
-                        file_name=ten_file,
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    )
-                    st.success(f"✅ Đã tạo báo cáo cho {so_nv} NV!")
+                    st.success(f"✅ Đã tạo báo cáo cho {so_nv} NV! Đang tự động tải file...")
+                    _auto_download_excel(excel_bytes, ten_file)
         except Exception as e:
             st.error(f"❌ Lỗi: {e}")

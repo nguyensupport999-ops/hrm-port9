@@ -55,7 +55,19 @@ import cv2
 from streamlit_webrtc import webrtc_streamer
 import face_id_cham_cong
 from bao_cao_bhxh import xuat_bao_cao_trich_nop_bhxh, render_xuat_bao_cao_bhxh
+import base64
 
+def _auto_download_excel(file_data: bytes, filename: str):
+    """Tự động kích hoạt tải file Excel ngay khi vừa tạo xong — không cần bấm thêm nút Tải."""
+    b64 = base64.b64encode(file_data).decode()
+    dl_html = f"""
+    <html><body>
+    <a id="auto_dl_link" href="data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{b64}" download="{filename}"></a>
+    <script>document.getElementById('auto_dl_link').click();</script>
+    </body></html>
+    """
+    st.components.v1.html(dl_html, height=0, width=0)
+    
 # Gợi ý lương BH theo chức danh — hiện tooltip khi nhập trường Lương BH
 GOI_Y_LUONG_BH = {
     "Công nhân Lái máy đào": [4430000, 4650000],
@@ -12977,6 +12989,7 @@ elif menu == "📋 BHXH":
                 nv.ly_do_nghi
             FROM nhan_vien nv
             WHERE nv.trang_thai = 'NGHI_VIEC'
+            AND nv.loai_hop_dong IS DISTINCT FROM 'Thử việc'
             AND COALESCE(nv.thang_ket_thuc_bh, nv.ngay_ket_thuc) BETWEEN %s AND %s
             ORDER BY COALESCE(nv.thang_ket_thuc_bh, nv.ngay_ket_thuc) ASC
         """, (tu_ngay, den_ngay))
@@ -13032,21 +13045,15 @@ elif menu == "📋 BHXH":
                             COMPANY_CONFIG.get("ma_don_vi_BHXH", "4400000000")
                         )
                         
-                        # Đọc file và tải xuống
+                        # Đọc file
                         with open(filename, "rb") as f:
                             file_data = f.read()
                         
-                        st.success(f"✅ Đã tạo báo cáo thành công! {len(tang_list)} lao động tăng, {len(giam_list)} lao động giảm.")
+                        st.success(f"✅ Đã tạo báo cáo thành công! {len(tang_list)} lao động tăng, {len(giam_list)} lao động giảm. Đang tự động tải file...")
                         st.cache_data.clear()
                         
-                        st.download_button(
-                            label="📥 TẢI FILE EXCEL D02-LT (Đúng mẫu BHXH)",
-                            data=file_data,
-                            file_name=filename,
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            width='stretch',
-                            key="download_d02_lt"
-                        )
+                        # Tự động tải file ngay — không cần bấm thêm nút "Tải file"
+                        _auto_download_excel(file_data, filename)
                         
                         # Xóa file tạm sau khi đã đọc
                         import os

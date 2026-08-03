@@ -80,6 +80,8 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
                 chuc_danh_nghe,
                 phong_ban_lam_viec,
                 thang_bat_dau_bh,
+                thang_ket_thuc_bh,
+                ngay_ket_thuc,
                 ngay_cap_cccd,
                 noi_dang_ky_kcb,
                 ghi_chu,
@@ -117,6 +119,8 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
                     so_cccd,
                     so_hdld,
                     thang_bat_dau_bh,
+                    thang_ket_thuc_bh,
+                    ngay_ket_thuc,
                     ngay_cap_cccd,
                     noi_dang_ky_kcb,
                     ghi_chu,
@@ -146,21 +150,35 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
             pass
 
     # Lọc theo khoảng thời gian (nếu có)
+    def _to_date(val):
+        if val is None:
+            return None
+        if isinstance(val, datetime.datetime):
+            return val.date()
+        if isinstance(val, datetime.date):
+            return val
+        if isinstance(val, str) and len(val) >= 10:
+            try:
+                return datetime.datetime.strptime(val[:10], "%Y-%m-%d").date()
+            except Exception:
+                return None
+        return None
+
+    # Lọc: giữ lại NV "đang tham gia BHXH trong kỳ" = đã bắt đầu BH từ kỳ này
+    # trở về trước, VÀ (chưa kết thúc BH hoặc kết thúc BH từ kỳ này trở về sau).
+    # Dùng CHUNG 2 mốc thang_bat_dau_bh / thang_ket_thuc_bh (fallback ngay_ket_thuc)
+    # với báo cáo D02-LT để đảm bảo số NV tăng/giảm giữa 2 báo cáo khớp nhau.
     if tu_ngay or den_ngay:
         filtered = []
         for r in rows:
-            ngay_bh = r.get("thang_bat_dau_bh")
-            if ngay_bh:
-                if isinstance(ngay_bh, str):
-                    try:
-                        ngay_bh = datetime.datetime.strptime(ngay_bh[:10], "%Y-%m-%d").date()
-                    except Exception:
-                        ngay_bh = None
-                if ngay_bh:
-                    if tu_ngay and ngay_bh < tu_ngay:
-                        continue
-                    if den_ngay and ngay_bh > den_ngay:
-                        continue
+            ngay_bd = _to_date(r.get("thang_bat_dau_bh"))
+            if den_ngay and ngay_bd and ngay_bd > den_ngay:
+                continue  # BH bắt đầu sau kỳ báo cáo
+
+            ngay_kt = _to_date(r.get("thang_ket_thuc_bh")) or _to_date(r.get("ngay_ket_thuc"))
+            if tu_ngay and ngay_kt and ngay_kt < tu_ngay:
+                continue  # Đã kết thúc BH trước kỳ báo cáo
+
             filtered.append(r)
         rows = filtered
 
@@ -201,7 +219,10 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
 
     ky_label = ""
     if tu_ngay and den_ngay:
-        ky_label = f"Kỳ: từ {tu_ngay.strftime('%d/%m/%Y')} đến {den_ngay.strftime('%d/%m/%Y')}"
+        if tu_ngay.year == den_ngay.year and tu_ngay.month == den_ngay.month:
+            ky_label = f"Kỳ: Tháng {tu_ngay.month:02d}/{tu_ngay.year}"
+        else:
+            ky_label = f"Kỳ: từ {tu_ngay.strftime('%d/%m/%Y')} đến {den_ngay.strftime('%d/%m/%Y')}"
     else:
         ky_label = f"Kỳ: {datetime.date.today().strftime('%m/%Y')}"
     if ky_label:
@@ -432,28 +453,27 @@ def render_xuat_bao_cao_bhxh(db_engine):
 
     col1, col2 = st.columns(2)
     with col1:
-        tu_ngay = st.date_input("Từ ngày (tháng bắt đầu nộp BH)",
-                                value=datetime.date(datetime.date.today().year, 1, 1),
-                                key="bhxh_bc_tu")
+        thang_chon = st.selectbox("📅 Tháng:", list(range(1, 13)),
+                                   index=datetime.date.today().month - 1,
+                                   key="bhxh_bc_thang")
     with col2:
-        den_ngay = st.date_input("Đến ngày",
-                                 value=datetime.date.today(),
-                                 key="bhxh_bc_den")
+        nam_chon = st.selectbox("📅 Năm:",
+                                 list(range(datetime.date.today().year - 2, datetime.date.today().year + 2)),
+                                 index=2, key="bhxh_bc_nam")
 
-    loc_tat_ca = st.checkbox("Xuất tất cả NV đang đóng BH (bỏ lọc ngày)", value=True, key="bhxh_bc_all")
+    import calendar
+    tu_ngay = datetime.date(nam_chon, thang_chon, 1)
+    den_ngay = datetime.date(nam_chon, thang_chon, calendar.monthrange(nam_chon, thang_chon)[1])
 
     if st.button("📥 Xuất báo cáo", type="primary", key="btn_xuat_bc_bhxh"):
         try:
             with st.spinner("Đang tạo báo cáo..."):
-                if loc_tat_ca:
-                    excel_bytes, so_nv = xuat_bao_cao_trich_nop_bhxh(db_engine)
-                else:
-                    excel_bytes, so_nv = xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay, den_ngay)
+                excel_bytes, so_nv = xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay, den_ngay)
 
                 if so_nv == 0:
                     st.warning("⚠️ Không có NV nào thỏa điều kiện.")
                 else:
-                    ten_file = f"DS_Nop_BH_{datetime.date.today().strftime('%Y%m%d')}.xlsx"
+                    ten_file = f"DS_Nop_BH_{nam_chon}{thang_chon:02d}.xlsx"
                     st.download_button(
                         label=f"⬇️ Tải {ten_file} ({so_nv} người)",
                         data=excel_bytes,

@@ -12882,15 +12882,22 @@ elif menu == "📋 BHXH":
         st.subheader("📝 Báo cáo tăng/giảm lao động tham gia BHXH (Mẫu D02-LT)")
         st.caption("Theo Quyết định 595/QĐ-BHXH và mẫu D02-LT - Dùng để kê khai tăng/giảm lao động tham gia BHXH, BHYT, BHTN")
         
-        col_from, col_to = st.columns(2)
-        with col_from:
-            tu_ngay = st.date_input("📅 Từ ngày (theo tháng bắt đầu/kết thúc BHXH):", 
-                                    value=date(date.today().year, 1, 1), 
-                                    key="d02_tu")
-        with col_to:
-            den_ngay = st.date_input("📅 Đến ngày:", 
-                                    value=date.today(), 
-                                    key="d02_den")
+        col_thang, col_nam = st.columns(2)
+        with col_thang:
+            thang_chon = st.selectbox("📅 Tháng:", 
+                                      list(range(1, 13)), 
+                                      index=date.today().month - 1, 
+                                      key="d02_thang")
+        with col_nam:
+            nam_chon = st.selectbox("📅 Năm:", 
+                                    list(range(date.today().year - 2, date.today().year + 2)), 
+                                    index=2, 
+                                    key="d02_nam")
+        
+        # Tự tính từ ngày / đến ngày theo tháng-năm đã chọn (giữ nguyên logic truy vấn phía dưới)
+        import calendar
+        tu_ngay = date(nam_chon, thang_chon, 1)
+        den_ngay = date(nam_chon, thang_chon, calendar.monthrange(nam_chon, thang_chon)[1])
         
         # Nút xuất báo cáo - ĐẶT NGAY PHÍA DƯỚI BỘ LỌC NGÀY
         col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])

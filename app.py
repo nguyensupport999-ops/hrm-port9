@@ -600,9 +600,10 @@ def tao_bao_cao_bhxh_d02_lt(tang_list, giam_list, tu_ngay, den_ngay, ten_cong_ty
         (4, 4, "Loại phương án"), (5, 5, "Mã loại PA"), (6, 6, "Loại ngày sinh"),
         (7, 7, "Ngày Sinh"), (8, 8, "Giới tính"), (9, 9, "Số CMND/ CCCD/Hộ chiếu"),
         (10, 10, "Cấp bậc, chức vụ, chức danh nghề"), (11, 11, "Phòng ban làm việc"),
-        (12, 12, "Nơi Làm Việc"), (13, 17, "Tiền lương"), (18, 19, "Ngành nghề nặng nhọc, độc hại"),
-        (20, 24, "Loại và hiệu lực hợp đồng"), (25, 25, "Thời điểm bắt đầu đóng BHXH"),
-        (26, 26, "Thời điểm kết thúc đóng BHXH")
+        (12, 12, "Nơi Làm Việc"), (13, 19, "Tiền lương và phụ cấp"),
+        (20, 21, "Phương án điều chỉnh"), (22, 23, "Thời điểm đóng BHXH"),
+        (24, 24, "Nghỉ ốm đau/Thai sản/không lương"), (25, 25, "Ghi chú"),
+        (26, 26, "Số sổ BHXH")
     ]
     
     # Dòng header chính
@@ -622,9 +623,10 @@ def tao_bao_cao_bhxh_d02_lt(tang_list, giam_list, tu_ngay, den_ngay, ten_cong_ty
     sub_headers = {
         13: "Mức lương", 14: "Phụ cấp lương", 15: "Các khoản bổ sung",
         16: "Hệ số lương", 17: "Phụ cấp CV", 18: "Phụ cấp TNVK (%)",
-        19: "Phụ cấp TN nghề (%)", 20: "Loại HĐLĐ", 21: "Hiệu lực từ ngày",
-        22: "Hiệu lực đến ngày", 23: "Ngày bắt đầu", 24: "Ngày kết thúc",
-        25: "Thời điểm bắt đầu", 26: "Thời điểm kết thúc"
+        19: "Phụ cấp TN nghề (%)",
+        20: "Phương án điều chỉnh", 21: "Mã PA",
+        22: "Thời điểm bắt đầu", 23: "Thời điểm kết thúc",
+        24: "Nghỉ ốm đau/TS/không lương", 25: "Ghi chú", 26: "Số sổ BHXH"
     }
     
     for col, value in sub_headers.items():

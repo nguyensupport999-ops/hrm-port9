@@ -287,37 +287,37 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
         tat_ca_bang_0 = False
         
         # LOGIC XỬ LÝ PHƯƠNG ÁN ĐIỀU CHỈNH
-        if phuong_an == "GH" and thang_phuong_an:
-            # GH (Giảm hẳn): Kiểm tra tháng điều chỉnh
+        # GH1/GH2/GH3/GH4 đều là "Giảm hẳn" -> so sánh KỲ ĐANG BÁO CÁO với THÁNG QĐNS
+        # (thang_phuong_an): kỳ TRƯỚC tháng QĐNS -> NV vẫn đang đóng BH bình thường
+        # trong kỳ đó -> tính bình thường; kỳ BẰNG/SAU tháng QĐNS -> đã giảm hẳn -> = 0.
+        if phuong_an.startswith("GH") and thang_phuong_an:
             try:
-                # Parse thang_phuong_an (định dạng MM/YYYY hoặc YYYY-MM-DD)
                 if "/" in thang_phuong_an:
                     pa_thang, pa_nam = map(int, thang_phuong_an.split("/"))
                 else:
-                    # Nếu là DATE, lấy tháng/năm
                     pa_date = datetime.datetime.strptime(thang_phuong_an[:10], "%Y-%m-%d").date()
                     pa_thang, pa_nam = pa_date.month, pa_date.year
                 
-                # So sánh với kỳ báo cáo
-                if pa_nam < ky_nam or (pa_nam == ky_nam and pa_thang < ky_thang):
-                    tat_ca_bang_0 = True
-                else:
+                if (ky_nam, ky_thang) < (pa_nam, pa_thang):
                     tinh_binh_thuong = True
+                else:
+                    tat_ca_bang_0 = True
             except:
                 tinh_binh_thuong = True
-        elif phuong_an and phuong_an != "GH":
+        elif phuong_an and not phuong_an.startswith("GH"):
             # Các phương án khác (TD, TM, TC, KL, OF, TS, ON...)
             # Chỉ tính công đoàn, các chỉ tiêu khác = 0
             tinh_chi_phi_cong_doan = True
             tinh_binh_thuong = False
         
-        # Xử lý nhân viên nghỉ việc hoặc lương = 0
-        if trang_thai == 'NGHI_VIEC' or luong_bh == 0:
+        # Lương = 0 thì luôn = 0, KHÔNG gộp chung điều kiện với trang_thai nữa — trạng
+        # thái hiện tại không còn quyết định được có tính tiền hay không (đã chuyển hẳn
+        # sang xét tat_ca_bang_0 ở trên, dựa theo KỲ so với tháng phương án).
+        if luong_bh == 0:
             so_tien_32 = 0
             dn_215 = 0
             nld_105 = 0
             kpcd_2 = 0
-            # Không tính vào tổng nếu lương = 0 hoặc nghỉ việc
         elif tat_ca_bang_0:
             so_tien_32 = 0
             dn_215 = 0
@@ -335,8 +335,9 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
             nld_105 = round(luong_bh * 0.105)
             kpcd_2 = round(luong_bh * 0.02)
 
-        # Chỉ tính tổng cho nhân viên có lương > 0 và đang làm
-        if luong_bh > 0 and trang_thai != 'NGHI_VIEC':
+        # Chỉ tính tổng cho NV thực sự đang đóng BH bình thường/công đoàn TRONG KỲ NÀY
+        # (dùng tat_ca_bang_0 đã xét theo kỳ, KHÔNG dùng trạng thái hiện tại nữa)
+        if luong_bh > 0 and not tat_ca_bang_0:
             tong_luong += luong_bh
             tong_32 += so_tien_32
             tong_dn += dn_215
@@ -349,12 +350,16 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
         # Format ngày cấp CCCD: đầy đủ ngày/tháng/năm
         ngay_cap_str = _safe_date_format(r.get("ngay_cap_cccd"), "%d/%m/%Y")
         
-        # Hiển thị trạng thái tiếng Việt
-        trang_thai_display = {
-            'DANG_LAM': 'Đang làm',
-            'THU_VIEC': 'Thử việc',
-            'NGHI_VIEC': 'Nghỉ việc'
-        }.get(trang_thai, trang_thai)
+        # Hiển thị trạng thái tiếng Việt — PHẢI phản ánh đúng trạng thái TẠI KỲ báo cáo,
+        # không phải trạng thái HIỆN TẠI trong hồ sơ. NV đã báo giảm GH1-4 nhưng kỳ báo
+        # cáo còn TRƯỚC tháng phương án thì tại kỳ đó vẫn đang đóng BH bình thường ->
+        # không được hiện "Nghỉ việc" (sẽ gây hiểu nhầm khi đối chiếu với cột tiền khác 0).
+        if tat_ca_bang_0:
+            trang_thai_display = 'Nghỉ việc'
+        elif trang_thai == 'THU_VIEC':
+            trang_thai_display = 'Thử việc'
+        else:
+            trang_thai_display = 'Đang làm'
 
         values = [
             idx,

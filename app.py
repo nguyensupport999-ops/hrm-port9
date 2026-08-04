@@ -289,14 +289,58 @@ def tinh_thang_bat_dau_bh(ngay_vao_lam_hoac_chuyen, so_ngay_lam_viec_tuan=6):
                 so_ngay_lv_con_lai += 1
     
     if so_ngay_lv_con_lai < 14:
-        # Tháng tiếp theo
+        # Chưa đủ 14 ngày làm việc trong tháng -> dời sang tháng sau. Chưa có ngày cụ
+        # thể ở tháng sau (NV chưa làm ngày nào ở đó) nên mặc định ngày 1 đầu tháng.
         if ngay.month == 12:
             return date(ngay.year + 1, 1, 1)
         else:
             return date(ngay.year, ngay.month + 1, 1)
     else:
-        # Tháng hiện tại
-        return date(ngay.year, ngay.month, 1)
+        # Đủ >= 14 ngày làm việc trong tháng -> BH tính đủ NGAY TỪ NGÀY VÀO LÀM thực tế,
+        # KHÔNG được làm tròn về ngày 1 (nếu không sẽ ra tình huống vô lý: ngày bắt đầu BH
+        # đứng trước cả ngày vào làm thực tế).
+        return ngay
+
+def tinh_thang_ket_thuc_bh(ngay_qd, so_ngay_lam_viec_tuan=6):
+    """Tính tháng KẾT THÚC đóng BHXH theo quy tắc 14 ngày (Khoản 5 Điều 33 Luật BHXH 2024)
+    — ĐỐI XỨNG với tinh_thang_bat_dau_bh(), áp dụng khi báo giảm (GH1/GH2/GH3/GH4).
+    
+    Logic: Đếm số ngày làm việc TỪ ĐẦU THÁNG đến ngày QĐ (bao gồm ngày QĐ).
+    Nếu >= 14 ngày làm việc -> đã đóng đủ tháng này -> tháng kết thúc BH = tháng SAU.
+    Nếu < 14 ngày -> tháng này chưa đóng đủ -> tháng kết thúc BH = tháng hiện tại (ngay QĐ).
+    
+    Args:
+        ngay_qd: date - ngày QĐ chấm dứt/nghỉ hưu/nghỉ chết có hiệu lực
+        so_ngay_lam_viec_tuan: int - số ngày làm việc/tuần (mặc định 6, T2-T7)
+    Returns:
+        date - ngày 1 của tháng kết thúc BH (kiểu DATE, hiển thị mm/yyyy)
+    """
+    if not ngay_qd:
+        return None
+    
+    ngay = ngay_qd
+    so_ngay_lv_da_lam = 0
+    for d in range(1, ngay.day + 1):
+        ngay_check = date(ngay.year, ngay.month, d)
+        weekday = ngay_check.weekday()  # 0=T2, 6=CN
+        
+        if so_ngay_lam_viec_tuan == 6:
+            if weekday < 6:  # T2-T7
+                so_ngay_lv_da_lam += 1
+        elif so_ngay_lam_viec_tuan == 5:
+            if weekday < 5:  # T2-T6
+                so_ngay_lv_da_lam += 1
+    
+    if so_ngay_lv_da_lam >= 14:
+        # Đã làm đủ 14 ngày trong tháng -> đóng đủ tháng này -> kết thúc BH kể từ ĐẦU
+        # tháng SAU (chưa có ngày cụ thể ở tháng sau nên mặc định ngày 1).
+        if ngay.month == 12:
+            return date(ngay.year + 1, 1, 1)
+        return date(ngay.year, ngay.month + 1, 1)
+    else:
+        # Chưa đủ 14 ngày -> tháng này chưa tính đóng đủ -> kết thúc BH NGAY từ đúng
+        # ngày QĐ (không làm tròn về ngày 1, đối xứng với tinh_thang_bat_dau_bh).
+        return ngay
 
 def format_thang_nam(d):
     """Hiển thị date thành mm/yyyy. VD: date(2026,8,1) → '08/2026'"""
@@ -10066,7 +10110,11 @@ elif menu == "✅ Nhân viên":
                             # Lấy đúng mã GH1/GH2/GH3/GH4 người dùng đã chọn ở dropdown "Lý do báo
                             # giảm BHXH" phía trên; fallback GH1 nếu vì lý do gì đó biến rỗng.
                             pa_giam = '' if la_thu_viec_cd else (ly_do_giam_bhxh or 'GH1')
-                            thang_pa_giam = ngay_qd.strftime('%m/%Y') if ngay_qd and pa_giam else None
+                            # Áp dụng quy tắc 14 ngày (đối xứng với lúc bắt đầu BH) để xác định
+                            # ĐÚNG tháng báo giảm — không lấy thẳng tháng của ngày QĐ.
+                            thang_ket_thuc_bh_val = None if la_thu_viec_cd else tinh_thang_ket_thuc_bh(ngay_qd)
+                            thang_pa_giam = format_thang_nam(thang_ket_thuc_bh_val) if thang_ket_thuc_bh_val and pa_giam else None
+                            trang_thai_bhxh_val = 'CHUA_DONG' if la_thu_viec_cd else 'DA_BAO_GIAM'
                         
                             c_s.execute("""
                                 UPDATE nhan_vien
@@ -12969,7 +13017,10 @@ elif menu == "📋 BHXH":
                 nv.tinh_kcb, nv.noi_dang_ky_kcb, nv.dang_ky_nhan_so,
                 nv.ngay_ky_hd, nv.ngay_ket_thuc, nv.ten_don_vi_thu_huong
             FROM nhan_vien nv
-            WHERE nv.trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            -- Lấy cả NGHI_VIEC: "Tăng" là sự kiện LỊCH SỬ theo thang_bat_dau_bh, không phụ
+            -- thuộc trạng thái HIỆN TẠI của NV (nếu sau này họ nghỉ việc, sự kiện tăng ở
+            -- tháng trước đó vẫn phải giữ nguyên trong báo cáo của tháng đó).
+            WHERE nv.trang_thai IN ('DANG_LAM', 'THU_VIEC', 'NGHI_VIEC')
             AND nv.thang_bat_dau_bh IS NOT NULL
             AND nv.thang_bat_dau_bh BETWEEN %s AND %s
             ORDER BY nv.thang_bat_dau_bh ASC

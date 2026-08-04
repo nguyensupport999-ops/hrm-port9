@@ -290,7 +290,18 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
         # GH1/GH2/GH3/GH4 đều là "Giảm hẳn" -> so sánh KỲ ĐANG BÁO CÁO với THÁNG QĐNS
         # (thang_phuong_an): kỳ TRƯỚC tháng QĐNS -> NV vẫn đang đóng BH bình thường
         # trong kỳ đó -> tính bình thường; kỳ BẰNG/SAU tháng QĐNS -> đã giảm hẳn -> = 0.
-        if phuong_an.startswith("GH") and thang_phuong_an:
+        # ===== QUY TẮC TÍNH THEO PHƯƠNG ÁN ĐIỀU CHỈNH (đã chốt theo luật BHXH) =====
+        # - GH1/GH2/GH3/GH4 và KL/OF (nghỉ không lương): 0 HOÀN TOÀN kể từ tháng phương
+        #   án trở đi (tính bình thường ở các tháng TRƯỚC đó).
+        # - TS (thai sản) và TNLD (tai nạn lao động): LUÔN tính bình thường, không bao
+        #   giờ zero, bất kể thang_phuong_an là tháng nào.
+        # - Phương án khác (TD/TM/TC/ON) hoặc để trống: mặc định tính bình thường.
+        PHUONG_AN_GIAM_HAN = ("GH1", "GH2", "GH3", "GH4", "KL", "OF")
+        PHUONG_AN_LUON_BINH_THUONG = ("TS", "TNLD")
+
+        if phuong_an in PHUONG_AN_LUON_BINH_THUONG:
+            tinh_binh_thuong = True
+        elif phuong_an in PHUONG_AN_GIAM_HAN and thang_phuong_an:
             try:
                 if "/" in thang_phuong_an:
                     pa_thang, pa_nam = map(int, thang_phuong_an.split("/"))
@@ -304,11 +315,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
                     tat_ca_bang_0 = True
             except:
                 tinh_binh_thuong = True
-        elif phuong_an and not phuong_an.startswith("GH"):
-            # Các phương án khác (TD, TM, TC, KL, OF, TS, ON...)
-            # Chỉ tính công đoàn, các chỉ tiêu khác = 0
-            tinh_chi_phi_cong_doan = True
-            tinh_binh_thuong = False
+        # else: giữ mặc định tinh_binh_thuong = True (TD/TM/TC/ON hoặc phuong_an trống)
         
         # Lương = 0 thì luôn = 0, KHÔNG gộp chung điều kiện với trang_thai nữa — trạng
         # thái hiện tại không còn quyết định được có tính tiền hay không (đã chuyển hẳn
@@ -355,7 +362,12 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
         # cáo còn TRƯỚC tháng phương án thì tại kỳ đó vẫn đang đóng BH bình thường ->
         # không được hiện "Nghỉ việc" (sẽ gây hiểu nhầm khi đối chiếu với cột tiền khác 0).
         if tat_ca_bang_0:
-            trang_thai_display = 'Nghỉ việc'
+            if phuong_an == 'KL':
+                trang_thai_display = 'Nghỉ không lương (KL)'
+            elif phuong_an == 'OF':
+                trang_thai_display = 'Nghỉ ốm dài ngày (OF)'
+            else:
+                trang_thai_display = 'Nghỉ việc'
         elif trang_thai == 'THU_VIEC':
             trang_thai_display = 'Thử việc'
         else:

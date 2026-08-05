@@ -10573,6 +10573,7 @@ elif menu == "✅ Nhân viên":
 # ========== CHẤM CÔNG ==========
 elif menu == "🕒 Chấm công":
     st.markdown(f"# {i18n.tm('🕒 Chấm công')}", unsafe_allow_html=True)
+    st.write("🔍 DEBUG session_state:", dict(st.session_state))  # XOÁ DÒNG NÀY SAU KHI DÒ XONG
 
     # Đọc phương thức chấm công từ cấu hình tenant
     _MAP_PT = {'THU_CONG': 'manual', 'MAY_VAN_TAY': 'fingerprint', 'FACE_ID': 'faceid'}

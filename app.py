@@ -56,6 +56,7 @@ from streamlit_webrtc import webrtc_streamer
 import face_id_cham_cong
 from bao_cao_bhxh import xuat_bao_cao_trich_nop_bhxh, render_xuat_bao_cao_bhxh
 import base64
+import cham_cong_thu_cong_honla as cc_honla
 
 def _auto_download_excel(file_data: bytes, filename: str):
     """Tự động kích hoạt tải file Excel ngay khi vừa tạo xong — không cần bấm thêm nút Tải."""
@@ -10594,6 +10595,14 @@ elif menu == "🕒 Chấm công":
 
     st.divider()
     st.caption("💡 Thay đổi phương thức chấm công → vào **⚙️ Danh mục** > tab **🕒 Chấm công**")
+
+    # ========== TRƯỞNG PHÒNG CHẤM CÔNG (module riêng cc_honla) ==========
+    if phuong_thuc_cfg == 'THU_CONG':
+        with st.expander("🧑‍💼 Trưởng phòng chấm công (chấm công nhanh cho phòng mình)", expanded=False):
+            cc_honla.render_tab_thu_cong(
+                nhan_vien_hien_tai=cc_honla.lay_nhan_vien_dang_dang_nhap(),
+                ma_so_thue_hien_tai=st.session_state.get("ma_so_thue_hien_tai", ""),
+            )
 
     # ========== BCC LUÔN HIỂN THỊ (không phụ thuộc phương thức) ==========
     ensure_cham_cong_table()

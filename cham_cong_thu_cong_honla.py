@@ -6,85 +6,98 @@ Module riêng cho tenant CÔNG TY CỔ PHẦN CẢNG HÒN LA (Mã số thuế: 0
 
 MỤC TIÊU (theo yêu cầu trong Hoàn_thiện_menu_Chấm_Công.txt):
   Hoàn thiện Tab "📝 Thủ công" trong menu "🕒 Chấm công" để:
-  1. Trưởng phòng chấm công cho nhân viên trong phòng mình quản lý (theo ngày).
-  2. Với phòng được cấu hình cho phép tăng ca (OT): Trưởng phòng chọn số giờ OT,
-     phân biệt ca ngày / ca đêm.
+  1. Người được ADMIN phân công phụ trách chấm công cho 1 hoặc nhiều phòng/ban
+     có thể chấm công cho toàn bộ nhân viên thuộc (các) phòng/ban đó (theo ngày).
+  2. Với phòng được cấu hình cho phép tăng ca (OT): người phụ trách chọn số
+     giờ OT, phân biệt ca ngày / ca đêm.
   3. Báo cơm ngày hôm sau: mặc định TẤT CẢ nhân viên được BÁO ăn 3 bữa
-     (sáng / trưa / tối). Trưởng phòng CHỈ cần bấm "Báo cắt" cho nhân viên nào
-     nghỉ (off) ngày hôm sau — không cần tick chọn từng bữa khi ăn bình thường.
+     (sáng / trưa / tối). Người phụ trách CHỈ cần bấm "Báo cắt" cho nhân viên
+     nào nghỉ (off) ngày hôm sau — không cần tick chọn từng bữa khi ăn bình thường.
   4. Dữ liệu chấm công/OT ghi vào bảng `cham_cong` dùng chung toàn hệ thống.
      Dữ liệu báo cơm ghi vào bảng `bao_com` — bảng này CHỈ tạo/dùng cho tenant
      Hòn La (theo đúng yêu cầu: "bảng báo cơm trước mắt chỉ add cho ma_cty Hòn La").
   5. admin_bcc xem bảng tổng hợp báo cơm hàng ngày (toàn công ty) để theo dõi.
 
-QUY ƯỚC / GIẢ ĐỊNH (đối chiếu context.md, memory.md, TASK_CHAM_CONG_FACE_ID.md):
-  - Bảng `nhan_vien`: id, ma_nv, ho_ten, chuc_danh_nghe, phong_ban_lam_viec,
-    trang_thai, so_hdld, ...
-  - Bảng `phong_ban`: id, ten_phong_ban, truong_phong_id (FK -> nhan_vien.id).
-    (Cột truong_phong_id đã được nêu trong memory.md mục 5.5 — nếu DB thật của
-    bạn chưa có cột này, xem hàm `ensure_cot_truong_phong()` bên dưới.)
+================================================================================
+QUYẾT ĐỊNH THIẾT KẾ QUAN TRỌNG — PHÂN QUYỀN "NGƯỜI PHỤ TRÁCH CHẤM CÔNG"
+================================================================================
+KHÔNG dùng khái niệm "Trưởng phòng" cứng (không có cột truong_phong_id, không
+suy luận qua chức vụ/chức danh). Thay vào đó:
+
+  - ADMIN vào "⚙️ Danh mục > 🕒 Chấm công" gán TƯỜNG MINH: 1 nhân viên bất kỳ
+    được phụ trách chấm công cho 1 hoặc NHIỀU phòng/ban (VD: gán Văn thư phụ
+    trách chấm công cho toàn khối "Bộ phận văn phòng"; gán 1 người khác phụ
+    trách chấm công cho TẤT CẢ các phòng công nhân).
+  - 1 nhân viên có thể vừa giữ vai trò hệ thống khác (VD: admin_bcc) VỪA được
+    gán thêm là người phụ trách chấm công — 2 việc này độc lập nhau, không
+    xung đột, không cần đổi `role` trong bảng nhan_vien.
+  - Việc gán này lưu trong bảng mới `nguoi_phu_trach_cham_cong`
+    (nhan_vien_id, ten_phong_ban) — quan hệ NHIỀU-NHIỀU.
+  - Vai trò hệ thống `admin` (quản trị cấp cao nhất) mặc định được xem TOÀN
+    BỘ phòng ban (để hỗ trợ/khắc phục sự cố), không cần gán riêng.
+
+QUY ƯỚC / GIẢ ĐỊNH KHÁC (đã xác nhận qua Supabase — KHÔNG còn là giả định):
+  - Bảng phòng ban thật: `danh_muc_phong_ban` (id, ten_phong_ban, thu_tu,
+    trang_thai, created_at, updated_at) — đã XÁC NHẬN qua information_schema.
+  - Bảng `nhan_vien`: id, ma_nv, ho_ten, chuc_danh_nghe, chuc_vu, vi_tri_id,
+    phong_ban_lam_viec, trang_thai, so_hdld, ...
   - Bảng `cham_cong`: id, nhan_vien_id, ngay, ma_cong, gio_tang_ca,
     gio_tang_ca_dem, loai_ngay_tang_ca, nguon, created_by, updated_at, ...
-  - Hàm `get_cau_hinh_tang_ca_theo_phong(ten_phong_ban)` đã có sẵn trong app.py
-    (trả về dict gồm khoá 'cho_phep_tang_ca', 'cach_tinh_tang_ca',
-    'he_so_tc_thuong', 'don_gia_tc_thuong'...) — import lại từ app.py.
-  - `st.session_state.db_engine.get_connection()` dùng để lấy kết nối Postgres
-    của đúng tenant đang đăng nhập (đã resolve qua control_plane.py).
-  - `st.session_state.username`: username đang đăng nhập (dùng cho created_by).
-  - Thông tin nhân viên hiện tại (id, mã NV, vai trò...) giả định lưu ở
-    `st.session_state.nv_hien_tai` dạng dict — NẾU project của bạn dùng tên
-    biến khác, chỉ cần sửa lại hàm `lay_nhan_vien_dang_dang_nhap()` bên dưới,
-    KHÔNG cần sửa phần còn lại của file.
+  - Hàm `get_cau_hinh_tang_ca_theo_phong(ten_phong_ban)` đã có sẵn trong app.py.
+  - session_state THẬT (đã xác nhận qua debug thực tế):
+        st.session_state.nhan_vien_id      -> id nhân viên đang đăng nhập
+        st.session_state.role              -> vai trò hệ thống (admin/hr/
+                                               admin_bcc/nhan_vien...)
+        st.session_state.tenant['ma_so_thue'] -> mã số thuế tenant hiện tại
+        st.session_state.db_engine.get_connection() -> kết nối DB tenant
 
 CÁCH TÍCH HỢP VÀO app.py:
   1. Đặt file này cùng thư mục với app.py.
-  2. Thêm dòng import ở đầu app.py (cạnh các import module khác):
+  2. Thêm dòng import ở đầu app.py:
          import cham_cong_thu_cong_honla as cc_honla
-  3. Trong khối xử lý menu "🕒 Chấm công", đoạn có 3 nút phương thức
-     (📝 Thủ công / 📥 Máy vân tay / 👤 Face ID), thêm 1 st.tabs con để
-     tách "BCC tháng" (đã có) và "Trưởng phòng chấm công hôm nay" (mới):
+
+  3. TRONG MENU "🕒 Chấm công" (nơi trước đó anh đã chèn khối expander):
+         st.divider()
+         st.caption("💡 Thay đổi phương thức chấm công → vào **⚙️ Danh mục** > tab **🕒 Chấm công**")
 
          if phuong_thuc_cfg == 'THU_CONG':
-             sub_tab_bcc, sub_tab_tp = st.tabs(["📅 Bảng chấm công tháng", "🧑‍💼 Trưởng phòng chấm công"])
-             with sub_tab_tp:
+             with st.expander("🧑‍💼 Chấm công theo phòng/ban (người phụ trách)", expanded=False):
                  cc_honla.render_tab_thu_cong(
                      nhan_vien_hien_tai=cc_honla.lay_nhan_vien_dang_dang_nhap(),
-                     ma_so_thue_hien_tai=st.session_state.get("ma_so_thue_hien_tai", ""),
+                     ma_so_thue_hien_tai=cc_honla.lay_ma_so_thue_hien_tai(),
                  )
-             with sub_tab_bcc:
-                 ... (giữ nguyên toàn bộ code BCC tháng hiện có) ...
 
-     (Vị trí chính xác: ngay sau đoạn `st.caption("💡 Thay đổi phương thức...")`
-      và trước dòng `ensure_cham_cong_table()`.)
+  4. TRONG MENU "⚙️ Danh mục" > tab "🕒 Chấm công" (nơi đang cấu hình
+     cc_phuong_thuc, cc_gio_vao, cc_gio_ra...), thêm 1 khu vực mới để ADMIN
+     gán người phụ trách chấm công:
+         st.divider()
+         cc_honla.render_quan_ly_nguoi_phu_trach_cham_cong()
 
-  4. Nếu admin_bcc cần xem tổng hợp báo cơm, gọi thêm:
+     (Chỉ admin/hr mới nên thấy khu vực này — có thể bọc thêm
+      `if st.session_state.get("role") in ("admin", "hr"):` tuỳ quy ước
+      phân quyền hiện có trong app.py của anh.)
+
+  5. Nếu admin_bcc cần xem tổng hợp báo cơm:
          cc_honla.render_bang_tong_hop_bao_com_admin()
-     ở trang/menu phù hợp (VD: cuối tab "📋 Báo cáo định kỳ").
 """
 
 import psycopg2
 import psycopg2.extras
 import streamlit as st
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta
 
 # ============================================================
 # HẰNG SỐ
 # ============================================================
 
-# Mã số thuế của Cảng Hòn La — dùng để bật/tắt tính năng "Báo cơm"
 HON_LA_MA_SO_THUE = "0108872052"
 
-# Danh sách 3 bữa ăn trong ngày (khoá lưu DB : nhãn hiển thị)
 DANH_SACH_BUA_AN = [
     ("an_sang", "🌅 Sáng"),
     ("an_trua", "🍚 Trưa"),
     ("an_toi", "🌙 Tối"),
 ]
 
-# Các mã chấm công nhanh mà Trưởng phòng có thể chọn trực tiếp (không cần
-# quy trình xin phép/duyệt). Các mã cần duyệt (P, OD, KL, Ro, NB, CÔ...) KHÔNG
-# đưa vào đây — Trưởng phòng phải hướng dẫn nhân viên xin phép qua "💬 Chat nội bộ"
-# như đã thiết kế trong TASK_CHAM_CONG_FACE_ID.md mục 5.3.
 MA_CHAM_CONG_NHANH = {
     "x": "✅ Đi làm (đủ công)",
     "x/2": "🌗 Đi làm nửa ngày",
@@ -92,12 +105,11 @@ MA_CHAM_CONG_NHANH = {
     "": "⬜ Chưa chấm / để trống",
 }
 
-# Ca tăng ca
 CA_TANG_CA = {"NGAY": "☀️ Ca ngày", "DEM": "🌙 Ca đêm"}
 
 
 # ============================================================
-# TIỆN ÍCH KẾT NỐI DB
+# TIỆN ÍCH KẾT NỐI DB & SESSION
 # ============================================================
 
 def _get_conn():
@@ -107,43 +119,73 @@ def _get_conn():
 
 def lay_nhan_vien_dang_dang_nhap():
     """
-    Trả về dict thông tin nhân viên đang đăng nhập, tối thiểu gồm:
-        {'id': int, 'ma_nv': str, 'ho_ten': str, 'vai_tro': str}
+    Trả về dict thông tin nhân viên đang đăng nhập:
+        {'id': int, 'ma_nv': str, 'ho_ten': str, 'phong_ban_lam_viec': str,
+         'vai_tro': str}
 
-    GHI CHÚ: hàm này giả định project đã lưu sẵn thông tin này ở
-    st.session_state.nv_hien_tai. Nếu project của bạn lưu ở nơi khác
-    (VD: st.session_state.user_id + truy vấn lại), hãy sửa DUY NHẤT hàm này.
+    ĐÃ KHỚP session_state thực tế:
+        st.session_state.nhan_vien_id -> id nhân viên
+        st.session_state.role         -> vai trò hệ thống
     """
-    nv = st.session_state.get("nv_hien_tai")
-    if nv:
-        return nv
-
-    # Phương án dự phòng: nếu chỉ có user_id, tự truy vấn nhan_vien
-    user_id = st.session_state.get("user_id")
-    if not user_id:
+    nv_id = st.session_state.get("nhan_vien_id")
+    if not nv_id:
         return None
+
     db = _get_conn()
     c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     c.execute(
-        "SELECT id, ma_nv, ho_ten, vai_tro, phong_ban_lam_viec FROM nhan_vien WHERE id = %s",
-        (user_id,),
+        "SELECT id, ma_nv, ho_ten, phong_ban_lam_viec FROM nhan_vien WHERE id = %s",
+        (nv_id,),
     )
     row = c.fetchone()
     c.close()
     db.close()
-    return dict(row) if row else None
+    if not row:
+        return None
+
+    ket_qua = dict(row)
+    ket_qua["vai_tro"] = st.session_state.get("role", "nhan_vien")
+    return ket_qua
+
+
+def lay_ma_so_thue_hien_tai():
+    """Lấy mã số thuế tenant hiện tại từ st.session_state.tenant['ma_so_thue']."""
+    tenant = st.session_state.get("tenant") or {}
+    return tenant.get("ma_so_thue", "")
 
 
 # ============================================================
-# ĐẢM BẢO SCHEMA (chạy an toàn nhiều lần — CREATE TABLE IF NOT EXISTS)
+# ĐẢM BẢO SCHEMA (an toàn khi chạy nhiều lần)
 # ============================================================
+
+def ensure_bang_phan_cong_cham_cong():
+    """
+    Tạo bảng `nguoi_phu_trach_cham_cong` — quan hệ NHIỀU-NHIỀU giữa nhân viên
+    và phòng/ban mà họ được ADMIN phân công phụ trách chấm công.
+    Bảng này dùng chung cho MỌI tenant (không riêng Hòn La), vì đây là cơ chế
+    phân quyền chấm công tổng quát.
+    """
+    db = _get_conn()
+    c = db.cursor()
+    c.execute(
+        """
+        CREATE TABLE IF NOT EXISTS nguoi_phu_trach_cham_cong (
+            id              SERIAL PRIMARY KEY,
+            nhan_vien_id    INT4 NOT NULL REFERENCES nhan_vien(id),
+            ten_phong_ban   TEXT NOT NULL,
+            created_at      TIMESTAMP NOT NULL DEFAULT NOW(),
+            created_by      TEXT,
+            UNIQUE (nhan_vien_id, ten_phong_ban)
+        )
+        """
+    )
+    db.commit()
+    c.close()
+    db.close()
+
 
 def ensure_bao_com_table(ma_so_thue_hien_tai: str):
-    """
-    Tạo bảng `bao_com` NẾU tenant hiện tại là Hòn La.
-    KHÔNG tạo bảng cho các tenant khác — đúng yêu cầu "trước mắt chỉ add cho
-    ma_cty Hòn la thôi".
-    """
+    """Tạo bảng `bao_com` NẾU tenant hiện tại là Hòn La. Không tạo cho tenant khác."""
     if (ma_so_thue_hien_tai or "").strip() != HON_LA_MA_SO_THUE:
         return
 
@@ -158,7 +200,7 @@ def ensure_bao_com_table(ma_so_thue_hien_tai: str):
             an_sang         BOOLEAN NOT NULL DEFAULT TRUE,
             an_trua         BOOLEAN NOT NULL DEFAULT TRUE,
             an_toi          BOOLEAN NOT NULL DEFAULT TRUE,
-            trang_thai      TEXT NOT NULL DEFAULT 'BAO',   -- 'BAO' | 'CAT'
+            trang_thai      TEXT NOT NULL DEFAULT 'BAO',
             ly_do_cat       TEXT,
             phong_ban       TEXT,
             nguoi_bao       TEXT,
@@ -173,58 +215,185 @@ def ensure_bao_com_table(ma_so_thue_hien_tai: str):
     db.close()
 
 
-def ensure_cot_truong_phong():
+# ============================================================
+# TRUY VẤN: DANH MỤC PHÒNG BAN / NHÂN VIÊN (dùng chung)
+# ============================================================
+
+def lay_danh_sach_ten_phong_ban_he_thong():
     """
-    Đảm bảo bảng `phong_ban` có cột `truong_phong_id` (đã quyết định trong
-    memory.md mục 5.5, dùng chung cho cả tính năng "phê duyệt vị trí chấm công"
-    và tính năng Trưởng phòng chấm công ở đây). An toàn khi chạy nhiều lần.
+    Danh sách tên phòng ban của tenant — ưu tiên lấy từ `danh_muc_phong_ban`
+    (bảng danh mục chính thức). Nếu bảng trống, fallback lấy DISTINCT từ cột
+    `phong_ban_lam_viec` trong `nhan_vien` để không bị chặn thao tác.
     """
     db = _get_conn()
     c = db.cursor()
+    c.execute("SELECT ten_phong_ban FROM danh_muc_phong_ban ORDER BY thu_tu, ten_phong_ban")
+    ds = [r[0] for r in c.fetchall()]
+    if not ds:
+        c.execute(
+            """SELECT DISTINCT phong_ban_lam_viec FROM nhan_vien
+               WHERE phong_ban_lam_viec IS NOT NULL AND phong_ban_lam_viec != ''
+               ORDER BY phong_ban_lam_viec"""
+        )
+        ds = [r[0] for r in c.fetchall()]
+    c.close()
+    db.close()
+    return ds
+
+
+def lay_danh_sach_nhan_vien_toan_bo():
+    """Danh sách toàn bộ nhân viên đang làm việc — dùng cho ADMIN chọn khi gán phân công."""
+    db = _get_conn()
+    c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     c.execute(
-        """
-        ALTER TABLE phong_ban
-        ADD COLUMN IF NOT EXISTS truong_phong_id INT4 REFERENCES nhan_vien(id)
-        """
+        """SELECT id, ma_nv, ho_ten, phong_ban_lam_viec FROM nhan_vien
+           WHERE trang_thai IN ('DANG_LAM','THU_VIEC')
+           ORDER BY ho_ten ASC"""
     )
+    ds = c.fetchall()
+    c.close()
+    db.close()
+    return ds
+
+
+# ============================================================
+# PHÂN QUYỀN: NGƯỜI PHỤ TRÁCH CHẤM CÔNG (ADMIN quản lý)
+# ============================================================
+
+def gan_nguoi_phu_trach(nhan_vien_id: int, danh_sach_ten_phong_ban: list, nguoi_gan: str):
+    """Gán 1 nhân viên phụ trách chấm công cho danh sách phòng/ban (nhiều-nhiều)."""
+    if not danh_sach_ten_phong_ban:
+        return 0
+    db = _get_conn()
+    c = db.cursor()
+    n = 0
+    for ten_pb in danh_sach_ten_phong_ban:
+        c.execute(
+            """INSERT INTO nguoi_phu_trach_cham_cong (nhan_vien_id, ten_phong_ban, created_by)
+               VALUES (%s, %s, %s)
+               ON CONFLICT (nhan_vien_id, ten_phong_ban) DO NOTHING""",
+            (nhan_vien_id, ten_pb, nguoi_gan),
+        )
+        n += 1
+    db.commit()
+    c.close()
+    db.close()
+    return n
+
+
+def xoa_phan_cong(id_phan_cong: int):
+    db = _get_conn()
+    c = db.cursor()
+    c.execute("DELETE FROM nguoi_phu_trach_cham_cong WHERE id = %s", (id_phan_cong,))
     db.commit()
     c.close()
     db.close()
 
 
-# ============================================================
-# TRUY VẤN NGHIỆP VỤ
-# ============================================================
-
-def lay_danh_sach_phong_ban_quan_ly(nhan_vien_id: int, vai_tro: str = ""):
-    """
-    Trả về danh sách tên phòng ban mà nhân viên này là Trưởng phòng.
-    Với vai trò admin/hr/admin_bcc: trả về TOÀN BỘ phòng ban (để có thể xem/hỗ trợ
-    chấm công thay khi cần), có đánh dấu riêng để UI hiển thị khác.
-    """
+def lay_bang_phan_cong_hien_tai():
+    """Danh sách phân công hiện có, kèm tên nhân viên — hiển thị cho admin xem/xoá."""
     db = _get_conn()
-    c = db.cursor()
-    if vai_tro in ("admin", "hr", "admin_bcc"):
-        c.execute(
-            """SELECT DISTINCT phong_ban_lam_viec FROM nhan_vien
-               WHERE trang_thai IN ('DANG_LAM','THU_VIEC')
-                 AND phong_ban_lam_viec IS NOT NULL AND phong_ban_lam_viec != ''
-               ORDER BY phong_ban_lam_viec"""
-        )
-        ten_phong_bans = [r[0] for r in c.fetchall()]
-    else:
-        c.execute(
-            "SELECT ten_phong_ban FROM phong_ban WHERE truong_phong_id = %s ORDER BY ten_phong_ban",
-            (nhan_vien_id,),
-        )
-        ten_phong_bans = [r[0] for r in c.fetchall()]
+    c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    c.execute(
+        """SELECT pc.id, pc.nhan_vien_id, nv.ma_nv, nv.ho_ten, pc.ten_phong_ban, pc.created_at
+           FROM nguoi_phu_trach_cham_cong pc
+           JOIN nhan_vien nv ON nv.id = pc.nhan_vien_id
+           ORDER BY nv.ho_ten, pc.ten_phong_ban"""
+    )
+    ds = c.fetchall()
     c.close()
     db.close()
-    return ten_phong_bans
+    return ds
 
+
+def lay_danh_sach_phong_ban_quan_ly(nhan_vien_hien_tai: dict):
+    """
+    Trả về danh sách tên phòng ban mà nhân viên hiện tại ĐƯỢC PHÉP chấm công thay.
+    - role = 'admin': toàn bộ phòng ban của tenant (hỗ trợ/khắc phục sự cố).
+    - Còn lại: CHỈ theo bảng `nguoi_phu_trach_cham_cong` (ADMIN đã gán tường minh).
+    """
+    vai_tro = nhan_vien_hien_tai.get("vai_tro", "")
+    if vai_tro == "admin":
+        return lay_danh_sach_ten_phong_ban_he_thong()
+
+    db = _get_conn()
+    c = db.cursor()
+    c.execute(
+        "SELECT ten_phong_ban FROM nguoi_phu_trach_cham_cong WHERE nhan_vien_id = %s ORDER BY ten_phong_ban",
+        (nhan_vien_hien_tai["id"],),
+    )
+    ds = [r[0] for r in c.fetchall()]
+    c.close()
+    db.close()
+    return ds
+
+
+# ============================================================
+# GIAO DIỆN ADMIN: GÁN NGƯỜI PHỤ TRÁCH CHẤM CÔNG
+# (đặt trong ⚙️ Danh mục > tab 🕒 Chấm công)
+# ============================================================
+
+def render_quan_ly_nguoi_phu_trach_cham_cong():
+    """UI để ADMIN gán 1 nhân viên phụ trách chấm công cho 1 hoặc nhiều phòng/ban."""
+    ensure_bang_phan_cong_cham_cong()
+
+    st.markdown("### 🧑‍💼 Người phụ trách chấm công theo phòng/ban")
+    st.caption(
+        "Gán 1 nhân viên bất kỳ được phép chấm công thay cho 1 hoặc nhiều phòng/ban. "
+        "1 người có thể vừa giữ vai trò khác (VD: admin_bcc) vừa được gán thêm ở đây — "
+        "2 việc độc lập nhau. VD: gán Văn thư phụ trách toàn bộ khối Văn phòng; "
+        "gán 1 người khác phụ trách toàn bộ các phòng công nhân."
+    )
+
+    ds_nhan_vien = lay_danh_sach_nhan_vien_toan_bo()
+    ds_phong_ban = lay_danh_sach_ten_phong_ban_he_thong()
+
+    if not ds_nhan_vien or not ds_phong_ban:
+        st.warning("Chưa có đủ dữ liệu nhân viên/phòng ban để gán.")
+        return
+
+    map_nv = {f"{nv['ho_ten']} ({nv['ma_nv']})": nv["id"] for nv in ds_nhan_vien}
+
+    with st.form("form_gan_nguoi_phu_trach_cham_cong", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            nv_chon_label = st.selectbox("Chọn nhân viên", list(map_nv.keys()))
+        with col2:
+            phong_ban_chon = st.multiselect("Phụ trách phòng/ban", ds_phong_ban)
+
+        submit = st.form_submit_button("➕ Gán phụ trách", type="primary")
+        if submit:
+            if not phong_ban_chon:
+                st.warning("Vui lòng chọn ít nhất 1 phòng/ban.")
+            else:
+                nv_id = map_nv[nv_chon_label]
+                nguoi_gan = st.session_state.get("username", "admin")
+                so_luong = gan_nguoi_phu_trach(nv_id, phong_ban_chon, nguoi_gan)
+                st.success(f"✅ Đã gán {nv_chon_label} phụ trách chấm công cho {so_luong} phòng/ban.")
+                st.rerun()
+
+    st.divider()
+    st.markdown("#### 📋 Danh sách đang phân công")
+    ds_hien_tai = lay_bang_phan_cong_hien_tai()
+    if not ds_hien_tai:
+        st.info("Chưa có phân công nào.")
+        return
+
+    for row in ds_hien_tai:
+        cols = st.columns([3, 3, 2, 1])
+        cols[0].write(f"**{row['ho_ten']}** (`{row['ma_nv']}`)")
+        cols[1].write(row["ten_phong_ban"])
+        cols[2].write(row["created_at"].strftime("%d/%m/%Y") if row["created_at"] else "")
+        if cols[3].button("🗑️", key=f"xoa_phancong_{row['id']}"):
+            xoa_phan_cong(row["id"])
+            st.rerun()
+
+
+# ============================================================
+# TRUY VẤN NGHIỆP VỤ CHẤM CÔNG / BÁO CƠM
+# ============================================================
 
 def lay_danh_sach_nhan_vien_theo_phong(ten_phong_ban: str):
-    """Danh sách nhân viên đang làm việc thuộc 1 phòng ban."""
     db = _get_conn()
     c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     c.execute(
@@ -242,7 +411,6 @@ def lay_danh_sach_nhan_vien_theo_phong(ten_phong_ban: str):
 
 
 def lay_cham_cong_ngay(nhan_vien_ids, ngay: date):
-    """Dữ liệu cham_cong hiện có của danh sách NV cho đúng 1 ngày."""
     if not nhan_vien_ids:
         return {}
     db = _get_conn()
@@ -259,7 +427,6 @@ def lay_cham_cong_ngay(nhan_vien_ids, ngay: date):
 
 
 def lay_bao_com_ngay(nhan_vien_ids, ngay: date):
-    """Dữ liệu bao_com hiện có của danh sách NV cho đúng 1 ngày (Hòn La)."""
     if not nhan_vien_ids:
         return {}
     db = _get_conn()
@@ -276,13 +443,8 @@ def lay_bao_com_ngay(nhan_vien_ids, ngay: date):
 
 
 def _lay_cau_hinh_tang_ca_an_toan(ten_phong_ban: str):
-    """
-    Gọi hàm get_cau_hinh_tang_ca_theo_phong() đã có sẵn trong app.py (đã import
-    ở nơi gọi module này). Nếu vì lý do nào đó chưa import được, trả về mặc định
-    KHÔNG cho phép tăng ca để tránh lỗi vỡ trang.
-    """
     try:
-        from app import get_cau_hinh_tang_ca_theo_phong  # import trễ, tránh vòng lặp import
+        from app import get_cau_hinh_tang_ca_theo_phong
         return get_cau_hinh_tang_ca_theo_phong(ten_phong_ban)
     except Exception:
         return {"cho_phep_tang_ca": False}
@@ -292,30 +454,7 @@ def _lay_cau_hinh_tang_ca_an_toan(ten_phong_ban: str):
 # GHI DỮ LIỆU
 # ============================================================
 
-def luu_cham_cong_va_bao_com(
-    ten_phong_ban: str,
-    ngay_cham_cong: date,
-    du_lieu_nv: dict,
-    is_hon_la: bool,
-    nguoi_luu: str,
-):
-    """
-    Ghi dữ liệu chấm công/OT (bảng cham_cong) + báo cơm (bảng bao_com, chỉ Hòn La)
-    cho toàn bộ nhân viên trong `du_lieu_nv`.
-
-    du_lieu_nv: dict {
-        nhan_vien_id: {
-            'ma_cong': str,             # '' | 'x' | 'x/2' | 'CT' ...
-            'gio_tang_ca': float,       # số giờ OT ca ngày
-            'gio_tang_ca_dem': float,   # số giờ OT ca đêm
-            'bao_com_trang_thai': 'BAO' | 'CAT',   # chỉ có khi is_hon_la=True
-            'ly_do_cat': str,
-        },
-        ...
-    }
-
-    Trả về: số nhân viên đã lưu chấm công, số nhân viên đã lưu báo cơm.
-    """
+def luu_cham_cong_va_bao_com(ten_phong_ban, ngay_cham_cong, du_lieu_nv, is_hon_la, nguoi_luu):
     db = _get_conn()
     c = db.cursor()
     n_cham_cong = 0
@@ -323,7 +462,6 @@ def luu_cham_cong_va_bao_com(
     ngay_bao_com = ngay_cham_cong + timedelta(days=1)
 
     for nv_id, d in du_lieu_nv.items():
-        # ---- 1) Ghi chấm công + OT ----
         ma_cong = (d.get("ma_cong") or "").strip()
         gio_tc = float(d.get("gio_tang_ca") or 0)
         gio_tc_dem = float(d.get("gio_tang_ca_dem") or 0)
@@ -348,12 +486,9 @@ def luu_cham_cong_va_bao_com(
             )
             n_cham_cong += 1
 
-        # ---- 2) Ghi báo cơm ngày hôm sau (chỉ Hòn La) ----
         if is_hon_la:
             trang_thai_bc = d.get("bao_com_trang_thai", "BAO")
-            an_sang = trang_thai_bc == "BAO"
-            an_trua = trang_thai_bc == "BAO"
-            an_toi = trang_thai_bc == "BAO"
+            an = trang_thai_bc == "BAO"
             ly_do_cat = d.get("ly_do_cat") or None
 
             c.execute(
@@ -372,8 +507,7 @@ def luu_cham_cong_va_bao_com(
                     nguoi_bao = EXCLUDED.nguoi_bao,
                     updated_at = NOW()
                 """,
-                (nv_id, ngay_bao_com, an_sang, an_trua, an_toi,
-                 trang_thai_bc, ly_do_cat, ten_phong_ban, nguoi_luu),
+                (nv_id, ngay_bao_com, an, an, an, trang_thai_bc, ly_do_cat, ten_phong_ban, nguoi_luu),
             )
             n_bao_com += 1
 
@@ -384,50 +518,41 @@ def luu_cham_cong_va_bao_com(
 
 
 # ============================================================
-# GIAO DIỆN CHÍNH — DÀNH CHO TRƯỞNG PHÒNG
+# GIAO DIỆN CHÍNH — NGƯỜI PHỤ TRÁCH CHẤM CÔNG
 # ============================================================
 
 def render_tab_thu_cong(nhan_vien_hien_tai: dict, ma_so_thue_hien_tai: str):
-    """
-    Giao diện Trưởng phòng chấm công + OT + báo cơm ngày hôm sau.
-    Gọi hàm này bên trong tab con "🧑‍💼 Trưởng phòng chấm công" (xem hướng dẫn
-    tích hợp ở đầu file).
-    """
     if not nhan_vien_hien_tai:
         st.warning("⚠️ Không xác định được thông tin nhân viên đang đăng nhập.")
         return
 
     is_hon_la = (ma_so_thue_hien_tai or "").strip() == HON_LA_MA_SO_THUE
-    ensure_cot_truong_phong()
+    ensure_bang_phan_cong_cham_cong()
     if is_hon_la:
         ensure_bao_com_table(ma_so_thue_hien_tai)
 
-    vai_tro = nhan_vien_hien_tai.get("vai_tro", "")
-    danh_sach_phong = lay_danh_sach_phong_ban_quan_ly(nhan_vien_hien_tai["id"], vai_tro)
+    danh_sach_phong = lay_danh_sach_phong_ban_quan_ly(nhan_vien_hien_tai)
 
     if not danh_sach_phong:
-        st.info("ℹ️ Bạn hiện không được gán làm Trưởng phòng của phòng ban nào, "
-                 "nên không có quyền chấm công thay nhân viên tại đây.")
+        st.info(
+            "ℹ️ Bạn hiện chưa được ADMIN phân công phụ trách chấm công cho phòng/ban nào. "
+            "Liên hệ Admin để được gán qua **⚙️ Danh mục > 🕒 Chấm công**."
+        )
         return
 
-    st.markdown("### 🧑‍💼 Chấm công cho nhân viên phòng bạn quản lý")
+    st.markdown("### 🧑‍💼 Chấm công cho phòng/ban bạn phụ trách")
 
     col_chon1, col_chon2 = st.columns([1, 2])
     with col_chon1:
-        ngay_cham = st.date_input(
-            "Ngày cần chấm công", value=date.today(), key="cc_tp_ngay_cham"
-        )
+        ngay_cham = st.date_input("Ngày cần chấm công", value=date.today(), key="cc_tp_ngay_cham")
     with col_chon2:
-        ten_phong_chon = st.selectbox(
-            "Phòng ban", danh_sach_phong, key="cc_tp_phong_chon"
-        )
+        ten_phong_chon = st.selectbox("Phòng ban", danh_sach_phong, key="cc_tp_phong_chon")
 
     if is_hon_la:
         ngay_bao_com_hien_thi = ngay_cham + timedelta(days=1)
         st.caption(
-            f"🍚 Báo cơm áp dụng cho ngày **{ngay_bao_com_hien_thi.strftime('%d/%m/%Y')}** "
-            f"(ngày hôm sau của ngày chấm công đã chọn). Mặc định TẤT CẢ được BÁO ĂN — "
-            f"chỉ cần bấm **Báo cắt** cho nhân viên nghỉ."
+            f"🍚 Báo cơm áp dụng cho ngày **{ngay_bao_com_hien_thi.strftime('%d/%m/%Y')}**. "
+            f"Mặc định TẤT CẢ được BÁO ĂN — chỉ cần bấm **Báo cắt** cho nhân viên nghỉ."
         )
 
     ds_nv = lay_danh_sach_nhan_vien_theo_phong(ten_phong_chon)
@@ -444,13 +569,12 @@ def render_tab_thu_cong(nhan_vien_hien_tai: dict, ma_so_thue_hien_tai: str):
 
     st.divider()
 
-    # Header của "bảng"
     if cho_phep_tang_ca and is_hon_la:
-        so_cot = [3, 2, 2, 2, 2]
-        tieu_de = ["Nhân viên", "Đi làm hôm nay", "Tăng ca (giờ / ca)", "", "🍚 Báo cơm hôm sau"]
+        so_cot = [3, 2, 2, 2]
+        tieu_de = ["Nhân viên", "Đi làm hôm nay", "Tăng ca (giờ)", "🍚 Báo cơm hôm sau"]
     elif cho_phep_tang_ca:
         so_cot = [3, 3, 3]
-        tieu_de = ["Nhân viên", "Đi làm hôm nay", "Tăng ca (giờ / ca)"]
+        tieu_de = ["Nhân viên", "Đi làm hôm nay", "Tăng ca (giờ)"]
     elif is_hon_la:
         so_cot = [3, 3, 3]
         tieu_de = ["Nhân viên", "Đi làm hôm nay", "🍚 Báo cơm hôm sau"]
@@ -462,7 +586,6 @@ def render_tab_thu_cong(nhan_vien_hien_tai: dict, ma_so_thue_hien_tai: str):
     for col, tt in zip(header_cols, tieu_de):
         col.markdown(f"**{tt}**")
 
-    # Dữ liệu tạm giữ trong session_state để giữ lựa chọn khi rerun
     key_state = f"cc_tp_data_{ten_phong_chon}_{ngay_cham}"
     if key_state not in st.session_state:
         st.session_state[key_state] = {}
@@ -483,12 +606,10 @@ def render_tab_thu_cong(nhan_vien_hien_tai: dict, ma_so_thue_hien_tai: str):
         cols = st.columns(so_cot)
         cidx = 0
 
-        # --- Cột tên nhân viên ---
         with cols[cidx]:
             st.markdown(f"**{nv['ho_ten']}**  \n`{nv['ma_nv']}` · {nv.get('chuc_danh_nghe') or ''}")
         cidx += 1
 
-        # --- Cột chấm công nhanh ---
         with cols[cidx]:
             ma_chon = st.selectbox(
                 "Trạng thái", list(MA_CHAM_CONG_NHANH.keys()),
@@ -501,7 +622,6 @@ def render_tab_thu_cong(nhan_vien_hien_tai: dict, ma_so_thue_hien_tai: str):
             gia_tri_luu["ma_cong"] = ma_chon
         cidx += 1
 
-        # --- Cột OT (nếu phòng cho phép) ---
         if cho_phep_tang_ca:
             with cols[cidx]:
                 sub1, sub2 = st.columns(2)
@@ -521,10 +641,9 @@ def render_tab_thu_cong(nhan_vien_hien_tai: dict, ma_so_thue_hien_tai: str):
                         label_visibility="collapsed",
                     )
                     gia_tri_luu["gio_tang_ca_dem"] = gio_dem
-                st.caption("☀️ Ca ngày · 🌙 Ca đêm (giờ)")
+                st.caption("☀️ Ngày · 🌙 Đêm (giờ)")
             cidx += 1
 
-        # --- Cột báo cơm (chỉ Hòn La) ---
         if is_hon_la:
             with cols[cidx]:
                 dang_bao = gia_tri_luu["bao_com_trang_thai"] == "BAO"
@@ -553,8 +672,7 @@ def render_tab_thu_cong(nhan_vien_hien_tai: dict, ma_so_thue_hien_tai: str):
                                  type="primary", use_container_width=True)
     with col_luu2:
         if is_hon_la:
-            so_bao = sum(1 for v in st.session_state[key_state].values()
-                         if v["bao_com_trang_thai"] == "BAO")
+            so_bao = sum(1 for v in st.session_state[key_state].values() if v["bao_com_trang_thai"] == "BAO")
             so_cat = len(st.session_state[key_state]) - so_bao
             st.caption(f"🍚 Đang báo ăn: **{so_bao}** người · 🚫 Báo cắt: **{so_cat}** người")
 
@@ -579,11 +697,6 @@ def render_tab_thu_cong(nhan_vien_hien_tai: dict, ma_so_thue_hien_tai: str):
 # ============================================================
 
 def render_bang_tong_hop_bao_com_admin(ngay_xem: date = None):
-    """
-    Bảng tổng hợp số suất ăn (sáng/trưa/tối) theo phòng ban cho 1 ngày,
-    dùng cho admin_bcc theo dõi hàng ngày. Chỉ hiển thị dữ liệu nếu bảng
-    bao_com đã tồn tại (tức tenant hiện tại là Hòn La).
-    """
     if ngay_xem is None:
         ngay_xem = date.today() + timedelta(days=1)
 

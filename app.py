@@ -10573,7 +10573,6 @@ elif menu == "✅ Nhân viên":
 # ========== CHẤM CÔNG ==========
 elif menu == "🕒 Chấm công":
     st.markdown(f"# {i18n.tm('🕒 Chấm công')}", unsafe_allow_html=True)
-    st.write("🔍 DEBUG session_state:", dict(st.session_state))  # XOÁ DÒNG NÀY SAU KHI DÒ XONG
 
     # Đọc phương thức chấm công từ cấu hình tenant
     _MAP_PT = {'THU_CONG': 'manual', 'MAY_VAN_TAY': 'fingerprint', 'FACE_ID': 'faceid'}
@@ -10597,12 +10596,12 @@ elif menu == "🕒 Chấm công":
     st.divider()
     st.caption("💡 Thay đổi phương thức chấm công → vào **⚙️ Danh mục** > tab **🕒 Chấm công**")
 
-    # ========== TRƯỞNG PHÒNG CHẤM CÔNG (module riêng cc_honla) ==========
+    # ========== NGƯỜI PHỤ TRÁCH CHẤM CÔNG (module riêng cc_honla) ==========
     if phuong_thuc_cfg == 'THU_CONG':
-        with st.expander("🧑‍💼 Trưởng phòng chấm công (chấm công nhanh cho phòng mình)", expanded=False):
+        with st.expander("🧑‍💼 Chấm công theo phòng/ban (người phụ trách)", expanded=False):
             cc_honla.render_tab_thu_cong(
                 nhan_vien_hien_tai=cc_honla.lay_nhan_vien_dang_dang_nhap(),
-                ma_so_thue_hien_tai=st.session_state.get("ma_so_thue_hien_tai", ""),
+                ma_so_thue_hien_tai=cc_honla.lay_ma_so_thue_hien_tai(),
             )
 
     # ========== BCC LUÔN HIỂN THỊ (không phụ thuộc phương thức) ==========
@@ -12856,7 +12855,10 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
                     st.rerun()
                 else:
                     st.error("❌ Lưu thất bại, thử lại.")
-    
+
+        st.divider()
+        cc_honla.render_quan_ly_nguoi_phu_trach_cham_cong()
+
     st.divider()
     with st.expander("🏷️ Ký hiệu Mã nhân viên riêng của công ty"):
         st.caption(

@@ -10742,9 +10742,7 @@ elif menu == "🕒 Chấm công":
                 disabled=(da_khoa or not st.session_state.get('cc_edit_mode', False) or not can_edit_bcc())
             )
         with col_h5:
-            if st.button("📤 Xuất", key="cc_export_btn", use_container_width=True):
-                st.session_state.cc_export_trigger = True
-                st.rerun()
+            cc_export_placeholder = st.empty()
         with col_h6:
             # Nút khoá/mở khoá — chỉ admin
             if can_khoa_thang_bcc():
@@ -10921,6 +10919,19 @@ elif menu == "🕒 Chấm công":
             CC_HEADER_H = 38
             MAX_VISIBLE = 25  # tối đa 25 dòng hiện cùng lúc, scroll nếu nhiều hơn
             table_height = CC_HEADER_H + CC_ROW_HEIGHT * min(len(df_month) + 2, MAX_VISIBLE)
+            
+            # --- Điền nút Xuất Excel vào chỗ đã giữ sẵn ở col_h5 ---
+            excel_bytes_bcc = cc_xay_dung_file_excel_bcc(df_month, thang_v, nam_v, sunday_cols, holiday_cols)
+            cc_export_placeholder.download_button(
+                label="📤 Xuất",
+                data=excel_bytes_bcc,
+                file_name=f"BCC_{thang_v}_{nam_v}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                key="cc_export_btn",
+            )
+
+            # --- CHẾ ĐỘ XEM ---
 
     # ========== 2. TRÍCH XUẤT TỪ MÁY CHẤM VÂN TAY ==========
     if phuong_thuc_cfg == 'MAY_VAN_TAY':

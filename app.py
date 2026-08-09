@@ -10658,7 +10658,12 @@ elif menu == "🕒 Chấm công":
                 nhan_vien_hien_tai=cc_honla.lay_nhan_vien_dang_dang_nhap(),
                 ma_so_thue_hien_tai=cc_honla.lay_ma_so_thue_hien_tai(),
             )
-
+    
+    if (st.session_state.get("role") in ("admin", "hr", "admin_bcc")
+            and cc_honla.lay_ma_so_thue_hien_tai() == cc_honla.HON_LA_MA_SO_THUE):
+        with st.expander("🍚 Tổng hợp báo cơm (dành cho admin_bcc)", expanded=False):
+            cc_honla.render_bang_tong_hop_bao_com_admin()
+    
     # ========== BCC LUÔN HIỂN THỊ (không phụ thuộc phương thức) ==========
     ensure_cham_cong_table()
 

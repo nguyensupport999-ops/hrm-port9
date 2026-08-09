@@ -5471,7 +5471,7 @@ def tao_hop_dong(nv):
     # --- Render "Căn cứ pháp lý" (từ template, trước BÊN A/B) ---
     tieu_de_cc, noi_dung_cc = get_dieu_content("HDLD", "can_cu", tuy_chinh_hdld, DEFAULT_DIEU_HDLD)
     if tieu_de_cc or noi_dung_cc:
-        render_dieu(doc, add_p, tieu_de_cc, noi_dung_cc, context=ctx_hdld)
+        render_dieu(doc, add_p, "", noi_dung_cc, context=ctx_hdld)
     doc.add_paragraph('Chúng tôi gồm:')
     p=doc.add_paragraph(); r=p.add_run(f'BÊN A: {CC["ten_cong_ty"]} (Người sử dụng LĐ)'); r.bold=True
     al('Đại diện',f"Ông {CC['dai_dien']}"); al('Chức vụ',CC['chuc_vu']); al('Mã số thuế',CC['ma_so_thue'])
@@ -10043,7 +10043,18 @@ elif menu == "✅ Nhân viên":
                     try:
                         so_qd = generate_so_cong_van('QUYET_DINH')
 
-                        file_path = tao_quyet_dinh_nhan_su(nv_qd, so_qd, ngay_qd, tieu_de, dieu1_lines, hieu_luc_text)
+                        # QĐ Chuyển chính thức: nv_qd vẫn là dữ liệu CŨ (hồ sơ Thử việc, ngay_ky_hd
+                        # thường NULL) vì UPDATE nhan_vien chỉ chạy ở phía dưới, sau khi file đã in.
+                        # Tạo bản sao có ghi đè đúng ngày ký/số HĐ/loại HĐ MỚI trước khi in, để không
+                        # phải đảo thứ tự UPDATE (tránh rủi ro ảnh hưởng các bước tính toán phía sau).
+                        nv_qd_in = nv_qd
+                        if loai_qd == 'CHUYEN_CHINH_THUC':
+                            nv_qd_in = dict(nv_qd)
+                            nv_qd_in['ngay_ky_hd'] = ngay_qd
+                            nv_qd_in['so_hdld'] = so_hd_moi_ct
+                            nv_qd_in['loai_hop_dong'] = loai_hop_dong_luu_ct
+
+                        file_path = tao_quyet_dinh_nhan_su(nv_qd_in, so_qd, ngay_qd, tieu_de, dieu1_lines, hieu_luc_text)
                         file_url = None
                         # (File Word được tạo để tải về ngay lập tức; bản ghi vẫn được lưu để tra cứu)
 

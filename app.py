@@ -10982,23 +10982,34 @@ elif menu == "🕒 Chấm công":
                 df_view = df_month.drop(columns=["Chấm công full"], errors='ignore')
 
                 view_col_cfg = {
-                    "Mã NV": cc_pin_col(st.column_config.TextColumn, width="small"),
-                    "Họ tên": cc_pin_col(st.column_config.TextColumn, width=170),
-                    "Loại": cc_pin_col(st.column_config.TextColumn, width="small"),
+                    "Mã NV": st.column_config.TextColumn(width="small"),
+                    "Họ tên": st.column_config.TextColumn(width=170),
+                    "Loại": st.column_config.TextColumn(width="small"),
                     "Công": st.column_config.NumberColumn(width="small", format="%.1f"),
                     "Phép": st.column_config.NumberColumn(width="small", format="%.1f"),
                     "TC(h)": st.column_config.NumberColumn(width="small", format="%.1f"),
                 }
-                styled = (
-                    df_view.style
-                    .apply(_highlight_special, axis=0)
-                    .set_properties(**{"text-align": "center", "vertical-align": "middle"})
-                    .hide(axis="index")
-                )
-                cc_render_grid(
-                    styled, edit=False, use_container_width=True, height=table_height,
-                    column_config=view_col_cfg,
-                )
+                
+                # Kiểm tra dữ liệu trước khi render
+                if df_view.empty:
+                    st.info("Không có dữ liệu để hiển thị.")
+                else:
+                    # Ép kiểu Loại thành string
+                    df_view["Loại"] = df_view["Loại"].astype(str)
+                    
+                    styled = (
+                        df_view.style
+                        .apply(_highlight_special, axis=0)
+                        .set_properties(**{"text-align": "center", "vertical-align": "middle"})
+                        .hide(axis="index")
+                    )
+                    # Dùng st.dataframe thay vì cc_render_grid
+                    st.dataframe(
+                        styled,
+                        use_container_width=True,
+                        height=table_height,
+                        column_config=view_col_cfg,
+                    )
 
                 # Tổng hợp cuối bảng
                 tong_cong_all = sum(th.get('tong_cong', 0) for th in tong_hop_all.values())
@@ -11021,21 +11032,25 @@ elif menu == "🕒 Chấm công":
             # --- CHẾ ĐỘ SỬA ---
             else:
                 col_cfg = {
-                    "Mã NV": cc_pin_col(st.column_config.TextColumn, disabled=True, width="small"),
-                    "Họ tên": cc_pin_col(st.column_config.TextColumn, disabled=True, width=170),
-                    "Loại": cc_pin_col(st.column_config.TextColumn, disabled=True, width="small"),
+                    "Mã NV": st.column_config.TextColumn(disabled=True, width="small"),
+                    "Họ tên": st.column_config.TextColumn(disabled=True, width=170),
+                    "Loại": st.column_config.TextColumn(disabled=True, width="small"),
                     "Công": st.column_config.NumberColumn(disabled=True, width="small", format="%.1f"),
                     "Phép": st.column_config.NumberColumn(disabled=True, width="small", format="%.1f"),
                     "TC(h)": st.column_config.NumberColumn(disabled=True, width="small", format="%.1f"),
-                    "Chấm công full": cc_pin_col(st.column_config.CheckboxColumn, width="small"),
+                    "Chấm công full": st.column_config.CheckboxColumn(width="small"),
                 }
                 for t in col_titles:
                     col_cfg[t] = st.column_config.TextColumn(width="small", validate=CHAM_CONG_CELL_REGEX)
 
                 edit_key = f"cc_editor_{thang_v}_{nam_v}_{'-'.join(bp_v) if bp_v else 'all'}"
 
+                # Ép kiểu dữ liệu trước khi editor
+                df_edit = df_month.copy()
+                df_edit["Loại"] = df_edit["Loại"].astype(str)
+                
                 edited_df = st.data_editor(
-                    df_month,
+                    df_edit,
                     column_config=col_cfg,
                     hide_index=True,
                     num_rows="fixed",

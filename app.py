@@ -6477,41 +6477,6 @@ if not st.session_state.get('_da_quet_canh_bao_thieu_gio_ra'):
         pass  # không để lỗi quét cảnh báo làm sập cả trang
     st.session_state['_da_quet_canh_bao_thieu_gio_ra'] = True
 
-# Menu theo role — 4 vai trò cố định: admin / hr / kt_luong / viewer (+ 'nhan_vien' tự phục vụ)
-if st.session_state.role == "admin":
-    # Toàn quyền
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📥 Nhập/Xuất Excel","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","🔍 Audit Dashboard","📘 Hướng dẫn sử dụng",]
-elif st.session_state.role in ["văn thư", "hr"]:
-    # HR: như admin trừ Upload hồ sơ, Danh mục — và KHÔNG được xem Tính thu nhập (dữ liệu lương)
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
-elif st.session_state.role == "kt_luong":
-    # Kế toán lương: tập trung vào Chấm công + Tính thu nhập, không có Upload hồ sơ/Danh mục
-    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
-elif st.session_state.role == "van_thu":
-    menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
-elif st.session_state.role == "admin_bcc":
-    # Admin BCC: Chấm công + BHXH + Tính thu nhập + Dashboard (không có Ứng viên, Danh mục, Công văn)
-    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 BHXH","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
-elif st.session_state.role == "viewer":
-    # Viewer: chỉ xem, thu hẹp — không có BHXH, không có Tính thu nhập
-    menu_options = ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo định kỳ","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
-elif st.session_state.role == "xem_toan_bo":
-    # Vai trò "Xem toàn bộ (không chỉnh sửa)": thấy ĐẦY ĐỦ menu & tab giống hệt Admin,
-    # nhưng KHÔNG có quyền thay đổi dữ liệu — mọi nút Lưu/Sửa/Xóa/Cập nhật/Save trong các
-    # màn hình bên dưới đều bị làm mờ (disabled=not can_edit()/can_delete()).
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📥 Nhập/Xuất Excel","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","🔍 Audit Dashboard","📘 Hướng dẫn sử dụng",]
-elif st.session_state.role == "demo_readonly":
-    # Vai trò DÀNH RIÊNG cho tài khoản demo công khai: thấy TOÀN BỘ menu như admin
-    # (trừ Danh mục/Nhập-Xuất Excel/Audit vốn là công cụ cấu hình hệ thống, không
-    # cần thiết cho việc "xem thử" tính năng), nhưng can_edit()/can_delete()/can_export()
-    # đều trả về False với role này nên các nút Lưu/Sửa/Xóa/Xuất sẽ bị chặn.
-    # LƯU Ý: các nút Lưu/Sửa/Xóa hiện KHÔNG kiểm tra can_edit()/can_delete() ở TẤT CẢ
-    # màn hình trong app (chỉ mới có ở một số form) — trước khi phát hành tài khoản demo
-    # công khai, cần rà soát thêm các nút còn thiếu để đảm bảo dữ liệu thật sự không đổi được.
-    menu_options = ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng",]
-else:  # 'nhan_vien' thường (mặc định) hoặc bất kỳ vai trò nào khác chưa được liệt kê ở trên
-    # -> LUÔN có 1 menu tối thiểu an toàn, tuyệt đối KHÔNG được để menu_options rơi vào
-    # trạng thái "không được gán" (từng gây lỗi NameError crash toàn bộ app khi đăng nhập).
 # Menu theo role — mỗi vai trò có 1 danh sách menu cố định (MENU_THEO_VAI_TRO).
 # Người đăng nhập có thể giữ 1 vai trò CHÍNH (st.session_state.role) + nhiều vai trò PHỤ
 # (st.session_state.vai_tro_phu, gán tại 🔑 Quản lý MK > Phân quyền hệ thống) — menu cuối

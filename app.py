@@ -435,37 +435,44 @@ def la_phong_ban_lanh_dao_cao_cap(ten):
     ten_sach = " ".join((ten or "").strip().split()).lower()
     return any(ten_sach == pb.lower() for pb in PHONG_BAN_LANH_DAO_CAO_CAP)
 
+def co_vai_tro(*vai_tro_can_kiem):
+    """Kiểm tra vai trò HIỆN TẠI của người đăng nhập (vai trò CHÍNH trong nhan_vien.vai_tro
+    HOẶC bất kỳ vai trò PHỤ nào trong bảng vai_tro_bo_sung) có nằm trong danh sách
+    vai_tro_can_kiem hay không. Đây là hàm DÙNG CHUNG cho mọi kiểm tra quyền theo vai trò
+    (thay cho việc so sánh trực tiếp st.session_state.role == 'xxx'), để 1 nhân viên có thể
+    giữ đồng thời 2 vai trò (1 chính + 1 phụ) mà vẫn được cấp đủ quyền của cả 2."""
+    vai_tro_hien_tai = {st.session_state.get('role')} | set(st.session_state.get('vai_tro_phu') or [])
+    return bool(vai_tro_hien_tai & set(vai_tro_can_kiem))
+
 def can_edit():
     """Kiểm tra xem user hiện tại có quyền chỉnh sửa dữ liệu không"""
     # Admin, HR, Văn thư, Kế toán lương có quyền chỉnh sửa.
     # LƯU Ý: 'xem_toan_bo' (Xem toàn bộ - không chỉnh sửa) CỐ Ý không có trong danh sách này —
     # vai trò này được thấy TOÀN BỘ menu/tab như Admin nhưng mọi nút Lưu/Sửa/Xóa/Cập nhật đều
     # phải bị disabled (xem các nơi dùng disabled=not can_edit()).
-    edit_roles = ['admin', 'admin_bcc', 'hr', 'van_thu', 'kt_luong']
-    return st.session_state.get('role') in edit_roles
+    return co_vai_tro('admin', 'admin_bcc', 'hr', 'van_thu', 'kt_luong')
 
 def can_delete():
     """Kiểm tra xem user hiện tại có quyền xóa dữ liệu không"""
     # Chỉ Admin mới có quyền xóa ('xem_toan_bo' không có quyền xóa)
-    return st.session_state.get('role') == 'admin'
+    return co_vai_tro('admin')
 
 def can_export():
     """Kiểm tra xem user hiện tại có quyền xuất báo cáo không"""
     # Admin, HR, Văn thư, Kế toán lương có quyền xuất
-    export_roles = ['admin', 'hr', 'van_thu', 'kt_luong']
-    return st.session_state.get('role') in export_roles
+    return co_vai_tro('admin', 'hr', 'van_thu', 'kt_luong')
 
 def can_manage_users():
     """Kiểm tra xem user hiện tại có quyền quản lý người dùng không"""
     # Chỉ Admin mới có quyền quản lý người dùng ('xem_toan_bo' không có quyền này)
-    return st.session_state.get('role') == 'admin'
+    return co_vai_tro('admin')
 
 def can_edit_bcc():
     """Quyền nhập mới/sửa BCC (ô trống) — đọc cấu hình tenant."""
     mac_dinh = 'admin,admin_bcc'
     ds_role_str = get_cau_hinh('cc_vai_tro_edit_bcc', mac_dinh)
-    ds_role = [r.strip() for r in ds_role_str.split(',') if r.strip()]
-    return st.session_state.role in ds_role
+    ds_role = tuple(r.strip() for r in ds_role_str.split(',') if r.strip())
+    return co_vai_tro(*ds_role)
 
 def can_dieu_chinh_bcc():
     """Quyền điều chỉnh BCC — đọc cấu hình tenant để biết vai trò nào được phép."""
@@ -473,16 +480,16 @@ def can_dieu_chinh_bcc():
     # Tenant có thể cấu hình thêm vai trò khác (VD: 'kt_luong', 'truong_phong')
     mac_dinh = 'admin,admin_bcc'
     ds_role_str = get_cau_hinh('cc_vai_tro_dieu_chinh_bcc', mac_dinh)
-    ds_role = [r.strip() for r in ds_role_str.split(',') if r.strip()]
-    return st.session_state.role in ds_role
+    ds_role = tuple(r.strip() for r in ds_role_str.split(',') if r.strip())
+    return co_vai_tro(*ds_role)
 
 def can_khoa_thang_bcc():
     """Quyền khoá/mở khoá BCC tháng"""
-    return st.session_state.role == 'admin'
+    return co_vai_tro('admin')
 
 def can_duyet_ot():
     """Quyền phê duyệt tăng ca"""
-    return st.session_state.role in ('admin', 'admin_bcc', 'truong_phong')
+    return co_vai_tro('admin', 'admin_bcc', 'truong_phong')
     
 def get_chu_ho_info(nhan_vien_id):
     """Lấy thông tin chủ hộ từ bảng phu_luc_gia_dinh"""
@@ -6111,6 +6118,16 @@ def check_login(username, password):
             row = rows[0] if rows else None
             if not row:
                 return False, None, None
+            # Lấy thêm vai trò PHỤ (nếu có) — không để lỗi ở đây làm sập đăng nhập
+            # (VD: tenant cũ chưa có bảng vai_tro_bo_sung vì chưa từng dùng tính năng này).
+            try:
+                db_vtp = st.session_state.db_engine.get_connection()
+                c_vtp = db_vtp.cursor()
+                c_vtp.execute("SELECT vai_tro FROM vai_tro_bo_sung WHERE nhan_vien_id=%s", (row['id'],))
+                row['vai_tro_phu'] = [r[0] for r in c_vtp.fetchall()]
+                db_vtp.close()
+            except Exception:
+                row['vai_tro_phu'] = []
             if not row.get('mat_khau_hash'):
                 khop = password.strip() == (row.get('dien_thoai') or '').strip()
                 if khop:
@@ -6283,6 +6300,7 @@ if not st.session_state.logged_in:
         if success:
             st.session_state.logged_in = True
             st.session_state.role = role
+            st.session_state.vai_tro_phu = (nv_row.get('vai_tro_phu') or []) if nv_row else []
             st.session_state.username = u
             st.session_state.nhan_vien_id = nv_row['id'] if nv_row else None
             st.session_state.ho_ten_dang_nhap = nv_row['ho_ten'] if nv_row else u
@@ -6494,7 +6512,43 @@ elif st.session_state.role == "demo_readonly":
 else:  # 'nhan_vien' thường (mặc định) hoặc bất kỳ vai trò nào khác chưa được liệt kê ở trên
     # -> LUÔN có 1 menu tối thiểu an toàn, tuyệt đối KHÔNG được để menu_options rơi vào
     # trạng thái "không được gán" (từng gây lỗi NameError crash toàn bộ app khi đăng nhập).
-    menu_options = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"]
+# Menu theo role — mỗi vai trò có 1 danh sách menu cố định (MENU_THEO_VAI_TRO).
+# Người đăng nhập có thể giữ 1 vai trò CHÍNH (st.session_state.role) + nhiều vai trò PHỤ
+# (st.session_state.vai_tro_phu, gán tại 🔑 Quản lý MK > Phân quyền hệ thống) — menu cuối
+# cùng là HỢP (union) menu của TẤT CẢ các vai trò đang giữ, giữ đúng thứ tự xuất hiện.
+MENU_THEO_VAI_TRO = {
+    "admin": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📥 Nhập/Xuất Excel","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","🔍 Audit Dashboard","📘 Hướng dẫn sử dụng"],
+    # "văn thư" (có dấu) — giữ lại vì dữ liệu vai_tro cũ của một số tenant có thể đang lưu giá trị này.
+    "văn thư": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
+    "hr": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
+    "kt_luong": ["📊 Dashboard","✅ Nhân viên","📋 BHXH","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
+    "van_thu": ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
+    "admin_bcc": ["📊 Dashboard","✅ Nhân viên","📋 BHXH","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
+    "viewer": ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo định kỳ","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
+    # "Xem toàn bộ (không chỉnh sửa)": thấy ĐẦY ĐỦ menu & tab giống hệt Admin, nhưng KHÔNG có
+    # quyền thay đổi dữ liệu — mọi nút Lưu/Sửa/Xóa/Cập nhật/Save đều bị làm mờ
+    # (disabled=not can_edit()/can_delete()).
+    "xem_toan_bo": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📥 Nhập/Xuất Excel","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","🔍 Audit Dashboard","📘 Hướng dẫn sử dụng"],
+    # Vai trò DÀNH RIÊNG cho tài khoản demo công khai: thấy TOÀN BỘ menu như admin (trừ Danh
+    # mục/Nhập-Xuất Excel/Audit vốn là công cụ cấu hình hệ thống), nhưng can_edit()/can_delete()/
+    # can_export() đều trả về False với role này nên các nút Lưu/Sửa/Xóa/Xuất sẽ bị chặn.
+    # LƯU Ý: các nút Lưu/Sửa/Xóa hiện KHÔNG kiểm tra can_edit()/can_delete() ở TẤT CẢ màn hình
+    # trong app (chỉ mới có ở một số form) — trước khi phát hành tài khoản demo công khai, cần
+    # rà soát thêm các nút còn thiếu để đảm bảo dữ liệu thật sự không đổi được.
+    "demo_readonly": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
+}
+# Menu tối thiểu an toàn cho 'nhan_vien' thường hoặc vai trò lạ chưa khai báo — TUYỆT ĐỐI
+# không được để menu_options rơi vào trạng thái rỗng (từng gây lỗi NameError crash cả app).
+MENU_MAC_DINH_NHAN_VIEN = ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"]
+
+_ds_vai_tro_dang_giu = [st.session_state.role] + list(st.session_state.get('vai_tro_phu') or [])
+menu_options = []
+for _vt in _ds_vai_tro_dang_giu:
+    for _m in MENU_THEO_VAI_TRO.get(_vt, []):
+        if _m not in menu_options:
+            menu_options.append(_m)
+if not menu_options:
+    menu_options = MENU_MAC_DINH_NHAN_VIEN
 # ── Phân luồng menu theo loại hình tenant (DN / HKD) ──
 _tenant = st.session_state.get("tenant") or {}
 if _tenant.get("loai_hinh") in ("HKD", "HO_KINH_DOANH"):
@@ -6546,7 +6600,9 @@ if _tenant.get("loai_hinh") in ("HKD", "HO_KINH_DOANH"):
     menu_options = menu_options_hkd if menu_options_hkd else _menu_hkd_full
 menu = st.sidebar.radio(i18n.t("📋 Menu"), menu_options, format_func=i18n.t)
 st.sidebar.divider()
-st.sidebar.caption(f"👤 {st.session_state.get('ho_ten_dang_nhap', st.session_state.username)} ({st.session_state.role})")
+_vtp_hienthi = st.session_state.get('vai_tro_phu') or []
+_role_hienthi = st.session_state.role + (" + " + ", ".join(_vtp_hienthi) if _vtp_hienthi else "")
+st.sidebar.caption(f"👤 {st.session_state.get('ho_ten_dang_nhap', st.session_state.username)} ({_role_hienthi})")
 
 # Mobile: dropdown menu — HTML native, tự ẩn trên desktop bằng JS
 import json as _json_menu
@@ -6609,6 +6665,7 @@ if 'hmenu' in _qp:
 if st.sidebar.button(i18n.t("🚪 THOÁT"), width='stretch'):
     st.session_state.logged_in = False
     st.session_state.role = None
+    st.session_state.vai_tro_phu = []
     st.session_state.username = None
     st.session_state.pop('last_birthday_check', None)
     st.session_state.pop('sinh_nhat_hom_nay_list', None)
@@ -14233,7 +14290,8 @@ elif menu == "🔑 Quản lý MK":
                 "Kể từ nay, TẤT CẢ mọi người (kể cả Admin/HR/Văn thư/Kế toán lương) đều đăng nhập bằng "
                 "**số điện thoại nhân viên thật** trong hồ sơ — không còn tài khoản hệ thống riêng nữa. "
                 "Tại đây, Admin chỉ định NHÂN VIÊN NÀO giữ vai trò gì; vai trò quyết định menu & quyền "
-                "họ thấy sau khi đăng nhập."
+                "họ thấy sau khi đăng nhập. Mỗi người có 1 **vai trò chính** và có thể có thêm "
+                "**vai trò phụ** (VD: vừa HR vừa Kế toán lương)."
             )
 
             VAI_TRO_LUA_CHON = [
@@ -14246,12 +14304,22 @@ elif menu == "🔑 Quản lý MK":
                 ("xem_toan_bo", "👁️ Xem toàn bộ - không chỉnh sửa (thấy hết menu/tab, nút Lưu/Sửa/Xóa bị khóa)"),
             ]
             NHAN_VAI_TRO = dict(VAI_TRO_LUA_CHON)
+            # Vai trò phụ: không cho gán "nhan_vien" (đó là mặc định/rỗng, không phải vai trò đặc biệt)
+            VAI_TRO_PHU_LUA_CHON = [(k, v) for k, v in VAI_TRO_LUA_CHON if k != 'nhan_vien']
 
-            # Đảm bảo cột vai_tro tồn tại — phòng trường hợp tenant được tạo trước khi có tính năng này.
+            # Đảm bảo cột vai_tro + bảng vai_tro_bo_sung tồn tại — phòng trường hợp tenant tạo trước khi có tính năng này.
             try:
                 db_pq0 = st.session_state.db_engine.get_connection()
                 c_pq0 = db_pq0.cursor()
                 c_pq0.execute("ALTER TABLE nhan_vien ADD COLUMN IF NOT EXISTS vai_tro VARCHAR(20) DEFAULT 'nhan_vien'")
+                c_pq0.execute("""
+                    CREATE TABLE IF NOT EXISTS vai_tro_bo_sung (
+                        id SERIAL PRIMARY KEY,
+                        nhan_vien_id INTEGER NOT NULL REFERENCES nhan_vien(id) ON DELETE CASCADE,
+                        vai_tro VARCHAR(20) NOT NULL,
+                        UNIQUE(nhan_vien_id, vai_tro)
+                    )
+                """)
                 db_pq0.commit()
                 db_pq0.close()
             except Exception:
@@ -14262,17 +14330,31 @@ elif menu == "🔑 Quản lý MK":
             c_pq.execute("""SELECT id, ho_ten, ma_nv, dien_thoai, phong_ban_lam_viec, chuc_vu, vai_tro
                             FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY ho_ten""")
             ds_nv_pq = c_pq.fetchall()
+
+            c_pq.execute("SELECT nhan_vien_id, vai_tro FROM vai_tro_bo_sung")
+            rows_vt_phu = c_pq.fetchall()
             db_pq.close()
 
-            dang_giu_quyen = [r for r in ds_nv_pq if (r.get('vai_tro') or 'nhan_vien') != 'nhan_vien']
-            so_admin_hien_tai = sum(1 for r in ds_nv_pq if r.get('vai_tro') == 'admin')
+            # Map nhan_vien_id -> danh sách vai trò phụ
+            map_vai_tro_phu = {}
+            for r in rows_vt_phu:
+                map_vai_tro_phu.setdefault(r['nhan_vien_id'], []).append(r['vai_tro'])
 
-            st.markdown(f"**📋 Đang có {len(dang_giu_quyen)} người giữ vai trò đặc biệt** (Admin hiện tại: {so_admin_hien_tai} người)")
+            dang_giu_quyen = [r for r in ds_nv_pq
+                               if (r.get('vai_tro') or 'nhan_vien') != 'nhan_vien'
+                               or map_vai_tro_phu.get(r['id'])]
+            so_admin_hien_tai = sum(
+                1 for r in ds_nv_pq
+                if r.get('vai_tro') == 'admin' or 'admin' in map_vai_tro_phu.get(r['id'], [])
+            )
+
+            st.markdown(f"**📋 Đang có {len(dang_giu_quyen)} người giữ vai trò đặc biệt** (Admin hiện tại: {so_admin_hien_tai} người, tính cả vai trò phụ)")
             if dang_giu_quyen:
                 df_pq = pd.DataFrame([{
                     "Họ tên": r['ho_ten'], "Mã NV": r['ma_nv'],
                     "Phòng ban": r.get('phong_ban_lam_viec') or '',
-                    "Vai trò": NHAN_VAI_TRO.get(r.get('vai_tro'), r.get('vai_tro')),
+                    "Vai trò chính": NHAN_VAI_TRO.get(r.get('vai_tro'), r.get('vai_tro')),
+                    "Vai trò phụ": ", ".join(NHAN_VAI_TRO.get(v, v) for v in map_vai_tro_phu.get(r['id'], [])) or "—",
                 } for r in dang_giu_quyen])
                 st.dataframe(df_pq, width='stretch', hide_index=True)
             else:
@@ -14280,22 +14362,34 @@ elif menu == "🔑 Quản lý MK":
 
             st.divider()
             st.markdown("##### ✏️ Thay đổi vai trò cho 1 nhân viên")
-            tuy_chon_pq = {f"{r['ho_ten']} ({r['ma_nv']}) — hiện tại: {NHAN_VAI_TRO.get(r.get('vai_tro') or 'nhan_vien')}": r
+            tuy_chon_pq = {f"{r['ho_ten']} ({r['ma_nv']}) — chính: {NHAN_VAI_TRO.get(r.get('vai_tro') or 'nhan_vien')}": r
                             for r in ds_nv_pq}
             chon_pq = st.selectbox("Chọn nhân viên:", ["-- Chọn --"] + list(tuy_chon_pq.keys()), key="chon_nv_phan_quyen")
             if chon_pq != "-- Chọn --":
                 nv_pq = tuy_chon_pq[chon_pq]
                 vai_tro_hien_tai = nv_pq.get('vai_tro') or 'nhan_vien'
                 idx_mac_dinh = [k for k, _ in VAI_TRO_LUA_CHON].index(vai_tro_hien_tai) if vai_tro_hien_tai in NHAN_VAI_TRO else 0
-                vai_tro_moi_label = st.selectbox("Vai trò mới:", [v for _, v in VAI_TRO_LUA_CHON],
+                vai_tro_moi_label = st.selectbox("Vai trò chính:", [v for _, v in VAI_TRO_LUA_CHON],
                                                   index=idx_mac_dinh, key=f"vt_moi_{nv_pq['id']}")
                 vai_tro_moi = [k for k, v in VAI_TRO_LUA_CHON if v == vai_tro_moi_label][0]
 
-                if not nv_pq.get('dien_thoai') and vai_tro_moi != 'nhan_vien':
+                vai_tro_phu_hien_tai = map_vai_tro_phu.get(nv_pq['id'], [])
+                tuy_chon_phu_kha_dung = [(k, v) for k, v in VAI_TRO_PHU_LUA_CHON if k != vai_tro_moi]
+                vai_tro_phu_moi_label = st.multiselect(
+                    "Vai trò phụ (ngoài vai trò chính ở trên):",
+                    [v for _, v in tuy_chon_phu_kha_dung],
+                    default=[NHAN_VAI_TRO[k] for k in vai_tro_phu_hien_tai if k in dict(tuy_chon_phu_kha_dung)],
+                    key=f"vt_phu_{nv_pq['id']}",
+                )
+                vai_tro_phu_moi = [k for k, v in tuy_chon_phu_kha_dung if v in vai_tro_phu_moi_label]
+
+                if not nv_pq.get('dien_thoai') and (vai_tro_moi != 'nhan_vien' or vai_tro_phu_moi):
                     st.error("❌ Nhân viên này chưa có số điện thoại trong hồ sơ — cần có SĐT để đăng nhập trước khi cấp quyền.")
                 elif st.button("💾 Lưu vai trò", key=f"btn_luu_vt_{nv_pq['id']}", type="primary", disabled=not can_edit()):
-                    # Chặn tự hạ quyền / hạ quyền người khác nếu đó là Admin CUỐI CÙNG còn lại
-                    if vai_tro_hien_tai == 'admin' and vai_tro_moi != 'admin' and so_admin_hien_tai <= 1:
+                    # Chặn tự hạ quyền / hạ quyền người khác nếu đó là Admin CUỐI CÙNG (tính cả vai trò phụ)
+                    la_admin_hien_tai = vai_tro_hien_tai == 'admin' or 'admin' in vai_tro_phu_hien_tai
+                    se_con_la_admin = vai_tro_moi == 'admin' or 'admin' in vai_tro_phu_moi
+                    if la_admin_hien_tai and not se_con_la_admin and so_admin_hien_tai <= 1:
                         st.error("❌ Không thể thực hiện: đây là Admin CUỐI CÙNG của công ty. "
                                  "Hãy chỉ định 1 Admin khác trước khi đổi vai trò người này.")
                     else:
@@ -14303,14 +14397,21 @@ elif menu == "🔑 Quản lý MK":
                             db_pq2 = st.session_state.db_engine.get_connection()
                             c_pq2 = db_pq2.cursor()
                             c_pq2.execute("UPDATE nhan_vien SET vai_tro=%s WHERE id=%s", (vai_tro_moi, nv_pq['id']))
+                            c_pq2.execute("DELETE FROM vai_tro_bo_sung WHERE nhan_vien_id=%s", (nv_pq['id'],))
+                            for vt in vai_tro_phu_moi:
+                                c_pq2.execute(
+                                    "INSERT INTO vai_tro_bo_sung (nhan_vien_id, vai_tro) VALUES (%s, %s)",
+                                    (nv_pq['id'], vt)
+                                )
                             db_pq2.commit()
                             db_pq2.close()
-                            st.success(f"✅ Đã đặt vai trò của **{nv_pq['ho_ten']}** thành **{vai_tro_moi_label}**.")
+                            phu_txt = f" + phụ: {', '.join(NHAN_VAI_TRO[v] for v in vai_tro_phu_moi)}" if vai_tro_phu_moi else ""
+                            st.success(f"✅ Đã đặt vai trò của **{nv_pq['ho_ten']}** thành **{vai_tro_moi_label}**{phu_txt}.")
                             st.cache_data.clear()
                             st.rerun()
                         except Exception as e:
                             st.error(f"❌ Không thể lưu vai trò: {e}")
-
+                            
 elif menu == "🖼️ Tạo ảnh thẻ NV":
     photo_card_gender.render()
 

@@ -8061,7 +8061,7 @@ elif menu == "👤 Ứng viên":
                                     phong_ban_nv, tinh_ngay_ket_thuc(loai_hd_chuyen, nhl), quoc_tich_nv, dan_toc_nv,
                                     to_float_or_none(he_so_luong_chuyen), to_float_or_none(pc_chuc_vu_chuyen),
                                     to_float_or_none(pc_tnvk_chuyen), to_float_or_none(pc_tnn_chuyen),
-                                    muc_huong_bhyt_chuyen, to_float_or_none(ty_le_dong_chuyen), to_float_or_none(muc_tien_dong_chuyen),
+                                    muc_huong_bhyt_chuyen, to_float_or_none(ty_le_dong_chuyen), to_float_or_none(mtd),
                                     phuong_thuc_dong_chuyen, tinh_nhan_hs_chuyen, phuong_nhan_hs_chuyen, dia_chi_nhan_hs_chuyen,
                                     tinh_kcb_chuyen, noi_kcb_chuyen, dk_nhan_so_chuyen, ten_don_vi_thu_huong, so_luong_npt_nv, trinh_do_nv,
                                     pa_val, format_thang_nam(tbd_val)

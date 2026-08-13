@@ -5600,13 +5600,9 @@ def tao_hop_dong_thu_viec(nv):
     tuy_chinh_hdtv = get_all_dieu_hop_dong('HDTV')
     ctx_hdtv = {"vi_tri": nv.get("chuc_danh_nghe", ""), "ngay_bat_dau": ns_bd, "ngay_ket_thuc": ns_kt, "ten_cong_ty": CC.get("ten_cong_ty", "")}
     # --- Render "Căn cứ pháp lý" (từ template, trước BÊN A/B) ---
-    #tieu_de_cc, noi_dung_cc = get_dieu_content("HDTV", "can_cu", tuy_chinh_hdtv, DEFAULT_DIEU_HDTV)
-    #if tieu_de_cc or noi_dung_cc:
-    #    render_dieu(doc, add_p, tieu_de_cc, noi_dung_cc, context=ctx_hdtv)
-    # --- Render "Căn cứ pháp lý" (từ template, trước BÊN A/B) ---
-    tieu_de_cc, noi_dung_cc = get_dieu_content("HDLD", "can_cu", tuy_chinh_hdld, DEFAULT_DIEU_HDLD)
+    tieu_de_cc, noi_dung_cc = get_dieu_content("HDTV", "can_cu", tuy_chinh_hdtv, DEFAULT_DIEU_HDTV)
     if tieu_de_cc or noi_dung_cc:
-        render_dieu(doc, add_p, "", noi_dung_cc, context=ctx_hdld)
+        render_dieu(doc, add_p, "", noi_dung_cc, context=ctx_hdtv)
     doc.add_paragraph('Chúng tôi gồm:')
     p=doc.add_paragraph(); r=p.add_run(f'BÊN A: {CC["ten_cong_ty"]} (Người sử dụng LĐ)'); r.bold=True
     al('Đại diện',f"Ông {CC['dai_dien']}"); al('Chức vụ',CC['chuc_vu']); al('Mã số thuế',CC['ma_so_thue'])

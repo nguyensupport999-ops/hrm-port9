@@ -10212,13 +10212,16 @@ elif menu == "✅ Nhân viên":
                                 SET trang_thai = 'NGHI_VIEC',
                                     ngay_ket_thuc = %s,
                                     ly_do_nghi = %s,
-                                    trang_thai_bhxh = 'DA_BAO_GIAM',
-                                    thang_ket_thuc_bh = %s,
+                                    trang_thai_bhxh = CASE WHEN %s THEN trang_thai_bhxh ELSE 'DA_BAO_GIAM' END,
+                                    thang_ket_thuc_bh = CASE WHEN %s THEN thang_ket_thuc_bh ELSE %s END,
                                     phuong_an_dieu_chinh = CASE WHEN %s != '' THEN %s ELSE phuong_an_dieu_chinh END,
                                     thang_phuong_an = CASE WHEN %s IS NOT NULL THEN %s ELSE thang_phuong_an END
                                 WHERE id = %s
-                            """, (ngay_qd, ly_do_cd if ly_do_cd.strip() else None, ngay_qd,
-                                  pa_giam, pa_giam, thang_pa_giam, thang_pa_giam, nv_qd['id']))
+                            """, (ngay_qd, ly_do_cd if ly_do_cd.strip() else None,
+                                  la_thu_viec_cd,
+                                  la_thu_viec_cd, thang_ket_thuc_bh_val,
+                                  pa_giam, pa_giam, thang_pa_giam, thang_pa_giam,
+                                  nv_qd['id']))
 
                         elif loai_qd == 'CHUYEN_CHINH_THUC':
                             pa_ct_val = lay_ma_phuong_an(phuong_an_ct) if phuong_an_ct else None

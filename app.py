@@ -771,6 +771,7 @@ def tao_bao_cao_bhxh_d02_lt(tang_list, giam_list, tu_ngay, den_ngay, ten_cong_ty
         all_data.append(row_data)
     
     # Xử lý dữ liệu giảm
+        # Xử lý dữ liệu giảm
     for nv in giam_list:
         row_data = {}
         row_data['STT'] = len(all_data) + 1
@@ -778,10 +779,80 @@ def tao_bao_cao_bhxh_d02_lt(tang_list, giam_list, tu_ngay, den_ngay, ten_cong_ty
         row_data['Mã số BHXH'] = nv.get('ma_so_bhxh', '')
         row_data['Loại phương án'] = "Giảm lao động"
         row_data['Mã loại PA'] = "2"
+        row_data['Loại ngày sinh'] = "0"
         row_data['Ngày Sinh'] = format_date(nv.get('ngay_sinh'))
-        row_data['Giới tính'] = "1" if nv.get('gioi_tinh') == 'Nam' else "2"
+        row_data['Giới tính'] = "1" if nv.get('gioi_tinh') == 'Nam' else "2" if nv.get('gioi_tinh') == 'Nữ' else "3"
+        row_data['Số CMND/ CCCD/Hộ chiếu'] = nv.get('so_cccd', '')
+        row_data['Cấp bậc, chức vụ, chức danh nghề'] = nv.get('chuc_danh_nghe', '')
+        row_data['Phòng ban làm việc'] = nv.get('phong_ban_lam_viec', '')
+        row_data['Nơi Làm Việc'] = nv.get('noi_lam_viec', 'Cảng THQT Hòn La')
+        row_data['Mức lương'] = nv.get('luong_bao_hiem', '')
+        row_data['Phụ cấp lương'] = ""
+        row_data['Các khoản bổ sung'] = ""
+        row_data['Hệ số lương'] = nv.get('he_so_luong', '')
+        row_data['Phụ cấp CV'] = nv.get('phu_cap_chuc_vu', '')
+        row_data['Phụ cấp TNVK (%)'] = nv.get('phu_cap_tnvk', '')
+        row_data['Phụ cấp TN nghề (%)'] = nv.get('phu_cap_tnn', '')
+
+        # Phương án điều chỉnh: dùng đúng mã GH1-4 đã lưu trên nhan_vien khi ban hành QĐ chấm dứt
+        pa_da_luu = nv.get('phuong_an_dieu_chinh', '')
+        if pa_da_luu:
+            row_data['Mã PA'] = pa_da_luu
+            pa_label_map = {lay_ma_phuong_an(pa): pa for pa in PHUONG_AN_ALL}
+            row_data['Phương án điều chỉnh'] = pa_label_map.get(pa_da_luu, pa_da_luu)
+        else:
+            row_data['Phương án điều chỉnh'] = ""
+            row_data['Mã PA'] = ""
+
+        row_data['Tháng/ năm bắt đầu'] = ""
         row_data['Tháng/ năm kết thúc'] = format_date_thang_nam(nv.get('thang_ket_thuc_bh')) if nv.get('thang_ket_thuc_bh') else ""
+        row_data['Nghỉ ốm đau/Thai sản/không lương'] = ""
         row_data['Ghi chú'] = nv.get('ly_do_nghi', '')
+        row_data['Số sổ BHXH'] = nv.get('ma_so_bhxh', '')
+        row_data['Mức hưởng BHYT'] = nv.get('muc_huong_bhyt', '100')
+        row_data['Tỷ lệ đóng (%)'] = nv.get('ty_le_dong', '')
+        row_data['Mã vùng lương tối thiểu'] = "03"
+        row_data['Ngày bắt đầu giữ vị trí'] = format_date(nv.get('ngay_vao_lam'))
+        row_data['Loại HĐLĐ'] = nv.get('loai_hop_dong', '')
+        row_data['Hiệu lực từ ngày'] = format_date(nv.get('ngay_ky_hd')) or format_date(nv.get('ngay_vao_lam'))
+        row_data['Hiệu lực đến ngày'] = format_date(nv.get('ngay_ket_thuc')) if nv.get('ngay_ket_thuc') else ""
+        row_data['Số'] = nv.get('so_hdld', '')
+        row_data['Ngày ký'] = format_date(nv.get('ngay_ky_hd')) or format_date(nv.get('ngay_vao_lam'))
+        row_data['Quốc tịch'] = nv.get('quoc_tich', 'VIET NAM')
+        row_data['Mã QT'] = "VN"
+        row_data['Dân tộc'] = nv.get('dan_toc', 'Kinh')
+        row_data['Mã DT'] = "1"
+        row_data['Điện thoại liên hệ'] = nv.get('dien_thoai', '')
+        row_data['Email liên hệ'] = nv.get('email_lien_he', '')
+
+        row_data['Tỉnh / Thành phố (Khai sinh)'] = get_cau_hinh('tinh_khai_sinh', 'Tỉnh Quảng Trị')
+        row_data['Mã Tỉnh (Khai sinh)'] = get_ma_tinh_from_name(get_cau_hinh('tinh_khai_sinh', 'Quảng Trị'))
+
+        row_data['Tỉnh / Thành phố (Nhận HS)'] = nv.get('tinh_nhan_hs') or get_cau_hinh('tinh_nhan_hs', 'Tỉnh Quảng Trị')
+        row_data['Mã Tỉnh (Nhận HS)'] = get_ma_tinh_from_name(nv.get('tinh_nhan_hs') or get_cau_hinh('tinh_nhan_hs', 'Quảng Trị'))
+        row_data['Phường/ Xã (Nhận HS)'] = nv.get('phuong_nhan_hs', '')
+        row_data['Địa chỉ nhận hồ sơ'] = nv.get('dia_chi_nhan_hs', '')
+
+        row_data['Tỉnh nơi KCB'] = nv.get('tinh_kcb') or get_cau_hinh('tinh_kcb', 'Tỉnh Quảng Trị')
+        row_data['Mã tỉnh (KCB)'] = "44"
+        row_data['Nơi đăng ký KCB'] = nv.get('noi_dang_ky_kcb') or get_cau_hinh('noi_dang_ky_kcb', 'Bệnh viện đa khoa khu vực Bắc Quảng Trị')
+        row_data['Mã BV'] = "44003"
+
+        row_data['Đăng ký nhận sổ và thẻ'] = nv.get('dang_ky_nhan_so', 'Có')
+        row_data['Tỉnh / Thành phố (Nhận sổ thẻ)'] = nv.get('tinh_nhan_hs', '')
+        row_data['Mã Tỉnh (Nhận sổ thẻ)'] = get_ma_tinh_from_name(nv.get('tinh_nhan_hs', ''))
+        row_data['Phường/ Xã (Nhận sổ thẻ)'] = nv.get('phuong_nhan_hs', '')
+        row_data['Địa chỉ nhận Sổ thẻ'] = nv.get('dia_chi_nhan_hs', '')
+
+        row_data['Mức tiền đóng'] = nv.get('muc_tien_dong', '')
+        row_data['Phương thức đóng'] = nv.get('phuong_thuc_dong', 'Hàng tháng')
+
+        chu_ho = get_chu_ho_info(nv.get('id'))
+        if chu_ho:
+            row_data['Họ Tên chủ hộ'] = chu_ho.get('ho_ten', '')
+            row_data['Số CMND/ CCCD/Hộ chiếu (chủ hộ)'] = chu_ho.get('so_cccd', '')
+            row_data['Điện thoại (chủ hộ)'] = chu_ho.get('dien_thoai', '')
+
         all_data.append(row_data)
     
     # Ghi dữ liệu vào Excel
@@ -13117,8 +13188,15 @@ elif menu == "📋 BHXH":
                 nv.id, nv.ma_nv, nv.ho_ten, nv.ma_so_bhxh, nv.ngay_sinh, nv.gioi_tinh, nv.so_cccd,
                 nv.chuc_danh_nghe, nv.phong_ban_lam_viec, nv.luong_bao_hiem, nv.he_so_luong,
                 COALESCE(nv.thang_ket_thuc_bh, nv.ngay_ket_thuc) as ngay_ket_thuc,
+                nv.thang_ket_thuc_bh,
                 nv.loai_hop_dong, nv.so_hdld, nv.ngay_vao_lam, nv.thuong_tru,
-                nv.ly_do_nghi
+                nv.ly_do_nghi, nv.phuong_an_dieu_chinh, nv.thang_phuong_an,
+                nv.phu_cap_chuc_vu, nv.phu_cap_tnvk, nv.phu_cap_tnn,
+                nv.muc_huong_bhyt, nv.ty_le_dong, nv.muc_tien_dong, nv.phuong_thuc_dong,
+                nv.quoc_tich, nv.dan_toc, nv.dien_thoai, nv.email_lien_he,
+                nv.tinh_nhan_hs, nv.phuong_nhan_hs, nv.dia_chi_nhan_hs,
+                nv.tinh_kcb, nv.noi_dang_ky_kcb, nv.dang_ky_nhan_so,
+                nv.ngay_ky_hd, nv.ngay_ket_thuc, nv.ten_don_vi_thu_huong
             FROM nhan_vien nv
             WHERE nv.trang_thai = 'NGHI_VIEC'
             AND nv.loai_hop_dong IS DISTINCT FROM 'Thử việc'

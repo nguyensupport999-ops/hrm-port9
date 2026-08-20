@@ -55,6 +55,7 @@ import cv2
 from streamlit_webrtc import webrtc_streamer
 import face_id_cham_cong
 from bao_cao_bhxh import xuat_bao_cao_trich_nop_bhxh, render_xuat_bao_cao_bhxh
+from d02lt_export import build_d02lt_excel
 import base64
 import cham_cong_thu_cong_honla as cc_honla
 
@@ -13162,6 +13163,7 @@ elif menu == "📋 BHXH":
                 nv.chuc_danh_nghe, nv.phong_ban_lam_viec, nv.luong_bao_hiem, nv.he_so_luong,
                 nv.thang_bat_dau_bh as ngay_bat_dau,
                 nv.loai_hop_dong, nv.so_hdld, nv.ngay_vao_lam, nv.thuong_tru,
+                nv.phuong_an_dieu_chinh, nv.thang_phuong_an,
                 nv.phu_cap_chuc_vu, nv.phu_cap_tnvk, nv.phu_cap_tnn,
                 nv.muc_huong_bhyt, nv.ty_le_dong, nv.muc_tien_dong, nv.phuong_thuc_dong,
                 nv.quoc_tich, nv.dan_toc, nv.dien_thoai, nv.email_lien_he,
@@ -13238,23 +13240,25 @@ elif menu == "📋 BHXH":
             else:
                 st.info("📭 Không có lao động giảm trong kỳ")
         
-        st.divider()
+        st.divider() 
         
         # ===== XỬ LÝ XUẤT EXCEL KHI NHẤN NÚT =====
         if export_clicked:
             if tang_list or giam_list:
                 with st.spinner("Đang tạo báo cáo D02-LT theo mẫu BHXH... Vui lòng chờ..."):
                     try:
-                        # Gọi hàm tạo báo cáo
-                        filename = tao_bao_cao_bhxh_d02_lt(
-                            tang_list, 
-                            giam_list, 
-                            tu_ngay, 
-                            den_ngay, 
-                            COMPANY_CONFIG.get("ten_cong_ty", "CÔNG TY CỔ PHẦN CẢNG HÒN LA"),
-                            COMPANY_CONFIG.get("ma_don_vi_BHXH", "4400000000")
+                        # Gọi hàm tạo báo cáo — dùng ĐÚNG file mẫu chuẩn iCare
+                        # (giữ nguyên mọi sheet danh mục/công thức/data validation),
+                        # chỉ điền dữ liệu vào đúng cột theo tên field kỹ thuật.
+                        filename = f"D02-LT_BHXH_{tu_ngay.strftime('%d%m%Y')}_{den_ngay.strftime('%d%m%Y')}.xlsx"
+                        build_d02lt_excel(
+                            template_path="templates/D02LT_template_goc.xlsx",
+                            output_path=filename,
+                            tang_list=tang_list,
+                            giam_list=giam_list,
+                            noi_lam_viec=COMPANY_CONFIG.get("noi_lam_viec", ""),
                         )
-                        
+
                         # Đọc file
                         with open(filename, "rb") as f:
                             file_data = f.read()

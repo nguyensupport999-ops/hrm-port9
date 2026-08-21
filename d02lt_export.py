@@ -67,19 +67,21 @@ CÀI ĐẶT / SỬ DỤNG
    từ truy vấn có sẵn (tang_list, giam_list) — xem `example_usage()` cuối file
    để biết cách gắn thẳng vào nút "XUẤT EXCEL D02-LT" trong Streamlit.
 
-LƯU Ý QUAN TRỌNG CẦN ANH XÁC NHẬN LẠI (business rule map, em đã tạm suy đoán
-hợp lý nhất theo dữ liệu hiện có, ANH VUI LÒNG KIỂM TRA LẠI TRƯỚC KHI NỘP):
-  - Cột "Phương án điều chỉnh" (mã PA: TM/TC/TD/TH/GH/GC/GD/OF/KL/TS...) là
-    cột BHXH dùng để xác định LOẠI hồ sơ tăng/giảm cụ thể, ảnh hưởng trực
-    tiếp tới việc xử lý hồ sơ. Em tạm suy luận:
-      * Tăng: "Thử việc/HĐLĐ dưới 3 tháng" -> TH; đã có mã số BHXH -> TD;
-        chưa có mã số BHXH -> TM.
-      * Giảm: dựa vào `ly_do_nghi` (chứa "thai sản" -> TS, "ốm" -> OF,
-        "không lương" -> KL, "chuyển tỉnh" -> GC, "chuyển đơn vị" -> GD,
-        còn lại mặc định -> GH (Giảm hẳn).
-    Đây là quy tắc suy đoán, có thể không đúng 100% với thực tế hồ sơ của
-    từng lao động — anh nên rà lại cột này trước khi ký/gửi hồ sơ.
+LƯU Ý
+------
+  - Cột "Phương án điều chỉnh" (TM/TC/TD/TH/GH/GC/GD/OF/KL/TS...) KHÔNG còn
+    suy đoán — module này lấy đúng mã đã lưu sẵn trong cột
+    `nhan_vien.phuong_an_dieu_chinh` (là mã do người dùng chọn ngay khi
+    thêm mới/chuyển đổi lao động trong app, xem PHUONG_AN_TANG /
+    PHUONG_AN_GIAM / hàm lay_ma_phuong_an() trong app.py), rồi đối chiếu
+    với danh mục "Phương án" đọc trực tiếp từ file mẫu để lấy đúng text
+    chuẩn BHXH. Nếu 1 nhân viên chưa được chọn phương án khi tăng/giảm,
+    ô "Phương án điều chỉnh" sẽ để TRỐNG — anh cần bổ sung chọn phương án
+    cho nhân viên đó trong app trước khi xuất báo cáo.
   - Giới tính: quy ước 1 = Nam, 0 = Nữ theo chuẩn TK1-TS của BHXH.
+  - "Tháng/năm bắt đầu-kết thúc" ưu tiên lấy từ cột `thang_phuong_an`
+    (đã được app tự format sẵn dạng mm/yyyy khi lưu), chỉ tự tính lại từ
+    `thang_bat_dau_bh` / `thang_ket_thuc_bh` nếu cột đó trống.
 """
 from __future__ import annotations
 
@@ -178,33 +180,15 @@ def _gioi_tinh_code(val) -> str:
     return ""
 
 
-def _is_thu_viec(loai_hop_dong) -> bool:
-    return "thử việc" in _s(loai_hop_dong).lower()
-
-
-def _phuong_an_tang(row: Mapping[str, Any]) -> str:
-    """Suy luận mã phương án TĂNG — xem lưu ý ở đầu file, ANH KIỂM TRA LẠI."""
-    if _is_thu_viec(row.get("loai_hop_dong")):
-        return "TH-Tăng mới HĐLĐ từ 1 - dưới 3 tháng"
-    if _s(row.get("ma_so_bhxh")):
-        return "TD-Tăng đến đã có số sổ, di chuyển trong địa bàn tỉnh"
-    return "TM-Tăng mới chưa có số sổ"
-
-
-def _phuong_an_giam(row: Mapping[str, Any]) -> str:
-    """Suy luận mã phương án GIẢM theo lý do nghỉ — ANH KIỂM TRA LẠI."""
-    ly_do = _s(row.get("ly_do_nghi")).lower()
-    if "thai sản" in ly_do:
-        return "TS-Thai sản"
-    if "ốm" in ly_do:
-        return "OF-Nghỉ do ốm đau"
-    if "không lương" in ly_do:
-        return "KL-Nghỉ không lương"
-    if "chuyển tỉnh" in ly_do:
-        return "GC-Giảm do chuyển tỉnh"
-    if "chuyển đơn vị" in ly_do:
-        return "GD-Giảm do chuyển đơn vị cùng tỉnh"
-    return "GH-Giảm hẳn"
+def _ma_phuong_an(row: Mapping[str, Any]) -> str:
+    """Lấy MÃ phương án (2 ký tự, vd 'TD', 'TM', 'GH'...) đã được người dùng
+    chọn sẵn trong app (cột `phuong_an_dieu_chinh` trong bảng nhan_vien —
+    xem PHUONG_AN_TANG / PHUONG_AN_GIAM và hàm lay_ma_phuong_an() trong
+    app.py). Đây LÀ nguồn đáng tin cậy nhất, không cần suy đoán lại.
+    Chuỗi text đầy đủ đúng theo mẫu (vd "TD-Tăng đến...") sẽ được resolve
+    ở bước ghi record, dựa theo danh mục 'Phương án' đọc trực tiếp từ
+    chính file mẫu, nên luôn khớp chính tả với BHXH yêu cầu."""
+    return _s(row.get("phuong_an_dieu_chinh")).upper()
 
 
 # --------------------------------------------------------------------------
@@ -227,10 +211,10 @@ def _record_tang(row: Mapping[str, Any], stt: int) -> dict:
         "PhuCapChucVu": _s(row.get("phu_cap_chuc_vu")),
         "PhuCapThamNienVuotKhung": _s(row.get("phu_cap_tnvk")),
         "PhuCapThamNienNghe": _s(row.get("phu_cap_tnn")),
-        "PhuongAn_Text": _phuong_an_tang(row),     # -> cột T (text hiển thị)
-        "TuThang": _fmt_month(row.get("thang_bat_dau_bh") or row.get("ngay_bat_dau")),
+        "PhuongAn_Text": _ma_phuong_an(row),       # -> cột T (mã, sẽ resolve ra text chuẩn)
+        "TuThang": _s(row.get("thang_phuong_an")) or _fmt_month(row.get("thang_bat_dau_bh") or row.get("ngay_bat_dau")),
         "DenThang": "",
-        "GhiChu": _s(row.get("loai_hop_dong")),
+        "GhiChu": _s(row.get("ghi_chu")) or _s(row.get("loai_hop_dong")),
         "MucHuongBaoHiemYTe": _s(row.get("muc_huong_bhyt")),
         "TyleDong": _s(row.get("ty_le_dong")),
         "LoaiHDLD": _s(row.get("loai_hop_dong")),
@@ -269,9 +253,9 @@ def _record_giam(row: Mapping[str, Any], stt: int) -> dict:
         "PhuCapChucVu": _s(row.get("phu_cap_chuc_vu")),
         "PhuCapThamNienVuotKhung": _s(row.get("phu_cap_tnvk")),
         "PhuCapThamNienNghe": _s(row.get("phu_cap_tnn")),
-        "PhuongAn_Text": _phuong_an_giam(row),
+        "PhuongAn_Text": _ma_phuong_an(row),       # -> cột T (mã, sẽ resolve ra text chuẩn)
         "TuThang": "",
-        "DenThang": _fmt_month(row.get("thang_ket_thuc_bh") or row.get("ngay_ket_thuc")),
+        "DenThang": _s(row.get("thang_phuong_an")) or _fmt_month(row.get("thang_ket_thuc_bh") or row.get("ngay_ket_thuc")),
         "GhiChu": _s(row.get("ly_do_nghi")),
         "MucHuongBaoHiemYTe": _s(row.get("muc_huong_bhyt")),
         "TyleDong": _s(row.get("ty_le_dong")),
@@ -340,6 +324,21 @@ def _build_lookup(wb, sheet_name: str, col_letter: str = "B", start_row: int = 2
     return lookup
 
 
+def _build_phuong_an_lookup(wb) -> dict[str, str]:
+    """Đọc sheet 'Phương án' (cột B = mã 'TD','TM','GH'...; cột C = text đầy
+    đủ đúng chuẩn 'TD-Tăng đến...') -> dict {mã: text đầy đủ}. Nhờ đọc trực
+    tiếp từ chính file mẫu nên luôn khớp chính tả, kể cả khi BHXH cập nhật
+    lại danh mục phương án sau này (chỉ cần tải lại file mẫu mới)."""
+    ws = wb["Phương án"]
+    lookup = {}
+    for r in range(3, ws.max_row + 1):
+        ma = ws.cell(row=r, column=2).value
+        text = ws.cell(row=r, column=3).value
+        if ma and text:
+            lookup[str(ma).strip().upper()] = str(text)
+    return lookup
+
+
 def _resolve(value: str, lookup: dict[str, str]) -> str:
     """Trả về đúng chuỗi có trong danh mục nếu khớp (không phân biệt hoa
     thường/dấu); nếu không khớp, trả nguyên giá trị gốc (để người dùng tự
@@ -353,6 +352,7 @@ def _write_record(
     ws, row_idx: int, record: dict, col_map: dict[str, int],
     quoc_tich_lookup: dict[str, str] | None = None,
     dan_toc_lookup: dict[str, str] | None = None,
+    phuong_an_lookup: dict[str, str] | None = None,
 ) -> None:
     for field_key, value in record.items():
         col = col_map.get(field_key)
@@ -362,6 +362,11 @@ def _write_record(
             value = _resolve(value, quoc_tich_lookup)
         elif field_key == "DanToc_Text" and dan_toc_lookup:
             value = _resolve(value, dan_toc_lookup)
+        elif field_key == "PhuongAn_Text" and phuong_an_lookup:
+            # value hiện là MÃ (vd "TD") -> đổi thành text đầy đủ đúng chuẩn.
+            # Nếu mã không có trong danh mục (vd để trống) -> để trống, không
+            # ghi mã trần vào ô text (tránh công thức MATCH ở cột kế bên lỗi).
+            value = phuong_an_lookup.get(value, "")
         ws.cell(row=row_idx, column=col, value=value)
 
 
@@ -374,6 +379,7 @@ def build_d02lt_excel(
     tang_list: Iterable[Mapping[str, Any]],
     giam_list: Iterable[Mapping[str, Any]],
     trim_buffer_rows: int = 30,
+    noi_lam_viec: str = "",
 ) -> Path:
     """
     Sinh file Excel D02-LT đúng định dạng chuẩn iCare.
@@ -415,6 +421,7 @@ def build_d02lt_excel(
     # từng sheet để ghi đúng chính tả mà công thức MATCH() có thể tìm thấy.
     quoc_tich_lookup = _build_lookup(wb, "DM Quốc tịch", col_letter="B")
     dan_toc_lookup = _build_lookup(wb, "Dân tộc", col_letter="B")
+    phuong_an_lookup = _build_phuong_an_lookup(wb)
 
     tang_list = list(tang_list)
     giam_list = list(giam_list)
@@ -422,11 +429,17 @@ def build_d02lt_excel(
     row_idx = FIRST_DATA_ROW
     stt = 1
     for r in tang_list:
-        _write_record(ws, row_idx, _record_tang(r, stt), col_map, quoc_tich_lookup, dan_toc_lookup)
+        rec = _record_tang(r, stt)
+        if noi_lam_viec:
+            rec.setdefault("NoiLamViec", noi_lam_viec)
+        _write_record(ws, row_idx, rec, col_map, quoc_tich_lookup, dan_toc_lookup, phuong_an_lookup)
         row_idx += 1
         stt += 1
     for r in giam_list:
-        _write_record(ws, row_idx, _record_giam(r, stt), col_map, quoc_tich_lookup, dan_toc_lookup)
+        rec = _record_giam(r, stt)
+        if noi_lam_viec:
+            rec.setdefault("NoiLamViec", noi_lam_viec)
+        _write_record(ws, row_idx, rec, col_map, quoc_tich_lookup, dan_toc_lookup, phuong_an_lookup)
         row_idx += 1
         stt += 1
 
@@ -470,6 +483,7 @@ def example_usage():
                 output_path=out_path,
                 tang_list=tang_list,   # list đã có sẵn từ query phía trên
                 giam_list=giam_list,
+                noi_lam_viec=COMPANY_CONFIG.get("noi_lam_viec", ""),  # tuỳ chọn
             )
             with open(out_path, "rb") as f:
                 st.download_button(

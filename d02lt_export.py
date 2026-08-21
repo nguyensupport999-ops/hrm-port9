@@ -129,6 +129,39 @@ def _s(val) -> str:
     return str(val).strip()
 
 
+def _num(val) -> str:
+    """Chuẩn hoá số (int/float/Decimal/str) -> chuỗi số THUẦN, không dấu
+    phẩy ngăn cách nghìn, không ".0"/".00" thừa. Vd Decimal('4650000.00')
+    -> '4650000'; Decimal('2.34') -> '2.34'; None/"" -> ''.
+    (Khắc phục lỗi cột M/P/Q/R/S/AC hiển thị dạng '4650000.0' do trước đây
+    dùng str() trực tiếp lên giá trị Decimal lấy từ Postgres.)"""
+    if val in (None, ""):
+        return ""
+    try:
+        f = float(val)
+    except (TypeError, ValueError):
+        return _s(val)
+    if f == int(f):
+        return str(int(f))
+    s = f"{f:.4f}".rstrip("0").rstrip(".")
+    return s
+
+
+def _num_or_blank(val) -> str:
+    """Như _num(), nhưng trả về RỖNG nếu giá trị là 0 hoặc None — dùng cho
+    các cột Hệ số lương / Phụ cấp: nếu nhân viên chưa nhập (DB lưu mặc định
+    0 thay vì NULL) thì ô trên file xuất phải để TRỐNG, không ghi '0'."""
+    if val in (None, ""):
+        return ""
+    try:
+        f = float(val)
+    except (TypeError, ValueError):
+        return _s(val)
+    if f == 0:
+        return ""
+    return _num(val)
+
+
 def _fmt_date(val) -> str:
     """dd/mm/yyyy dạng TEXT (cột Ngày sinh, Ngày ký... trong template là Text)."""
     if val in (None, ""):
@@ -206,17 +239,18 @@ def _record_tang(row: Mapping[str, Any], stt: int) -> dict:
         "Cmnd": _s(row.get("so_cccd")),
         "ChucVu": _s(row.get("chuc_danh_nghe")),
         "MaPhongBan": _s(row.get("phong_ban_lam_viec")),
-        "TienLuong": row.get("luong_bao_hiem") or 0,
-        "Heso": _s(row.get("he_so_luong")),
-        "PhuCapChucVu": _s(row.get("phu_cap_chuc_vu")),
-        "PhuCapThamNienVuotKhung": _s(row.get("phu_cap_tnvk")),
-        "PhuCapThamNienNghe": _s(row.get("phu_cap_tnn")),
+        "NoiLamViec": _s(row.get("noi_lam_viec")),   # -> cột L (ưu tiên riêng từng NV)
+        "TienLuong": _num(row.get("luong_bao_hiem")),
+        "Heso": _num_or_blank(row.get("he_so_luong")),
+        "PhuCapChucVu": _num_or_blank(row.get("phu_cap_chuc_vu")),
+        "PhuCapThamNienVuotKhung": _num_or_blank(row.get("phu_cap_tnvk")),
+        "PhuCapThamNienNghe": _num_or_blank(row.get("phu_cap_tnn")),
         "PhuongAn_Text": _ma_phuong_an(row),       # -> cột T (mã, sẽ resolve ra text chuẩn)
         "TuThang": _s(row.get("thang_phuong_an")) or _fmt_month(row.get("thang_bat_dau_bh") or row.get("ngay_bat_dau")),
         "DenThang": "",
         "GhiChu": _s(row.get("ghi_chu")) or _s(row.get("loai_hop_dong")),
         "MucHuongBaoHiemYTe": _s(row.get("muc_huong_bhyt")),
-        "TyleDong": _s(row.get("ty_le_dong")),
+        "TyleDong": _num(row.get("ty_le_dong")),
         "LoaiHDLD": _s(row.get("loai_hop_dong")),
         "TuNgayHDLD": _fmt_date(row.get("ngay_vao_lam")),
         "SoHDLD": _s(row.get("so_hdld")),
@@ -231,7 +265,7 @@ def _record_tang(row: Mapping[str, Any], stt: int) -> dict:
         "NoiNhanTinh_Text": _s(row.get("tinh_nhan_hs")),           # -> BH
         "NoiNhanXa_Text": _s(row.get("phuong_nhan_hs")),           # -> BJ
         "NoiNhanDiaChiChiTiet": _s(row.get("dia_chi_nhan_hs")),
-        "MucDongTk01": _s(row.get("muc_tien_dong")),
+        "MucDongTk01": _num(row.get("muc_tien_dong")),
         "PhuongThucTk1": _s(row.get("phuong_thuc_dong")),
     }
 
@@ -248,17 +282,18 @@ def _record_giam(row: Mapping[str, Any], stt: int) -> dict:
         "Cmnd": _s(row.get("so_cccd")),
         "ChucVu": _s(row.get("chuc_danh_nghe")),
         "MaPhongBan": _s(row.get("phong_ban_lam_viec")),
-        "TienLuong": row.get("luong_bao_hiem") or 0,
-        "Heso": _s(row.get("he_so_luong")),
-        "PhuCapChucVu": _s(row.get("phu_cap_chuc_vu")),
-        "PhuCapThamNienVuotKhung": _s(row.get("phu_cap_tnvk")),
-        "PhuCapThamNienNghe": _s(row.get("phu_cap_tnn")),
+        "NoiLamViec": _s(row.get("noi_lam_viec")),   # -> cột L (ưu tiên riêng từng NV)
+        "TienLuong": _num(row.get("luong_bao_hiem")),
+        "Heso": _num_or_blank(row.get("he_so_luong")),
+        "PhuCapChucVu": _num_or_blank(row.get("phu_cap_chuc_vu")),
+        "PhuCapThamNienVuotKhung": _num_or_blank(row.get("phu_cap_tnvk")),
+        "PhuCapThamNienNghe": _num_or_blank(row.get("phu_cap_tnn")),
         "PhuongAn_Text": _ma_phuong_an(row),       # -> cột T (mã, sẽ resolve ra text chuẩn)
         "TuThang": "",
         "DenThang": _s(row.get("thang_phuong_an")) or _fmt_month(row.get("thang_ket_thuc_bh") or row.get("ngay_ket_thuc")),
         "GhiChu": _s(row.get("ly_do_nghi")),
         "MucHuongBaoHiemYTe": _s(row.get("muc_huong_bhyt")),
-        "TyleDong": _s(row.get("ty_le_dong")),
+        "TyleDong": _num(row.get("ty_le_dong")),
         "LoaiHDLD": _s(row.get("loai_hop_dong")),
         "SoHDLD": _s(row.get("so_hdld")),
         "NgayKy": _fmt_date(row.get("ngay_ky_hd")),
@@ -266,7 +301,7 @@ def _record_giam(row: Mapping[str, Any], stt: int) -> dict:
         "DanToc_Text": _s(row.get("dan_toc")) or "Kinh",
         "DienThoaiLienHe": _s(row.get("dien_thoai")),
         "Email": _s(row.get("email_lien_he")),
-        "MucDongTk01": _s(row.get("muc_tien_dong")),
+        "MucDongTk01": _num(row.get("muc_tien_dong")),
         "PhuongThucTk1": _s(row.get("phuong_thuc_dong")),
         "NoiDungThayDoi": _s(row.get("ly_do_nghi")),
     }
@@ -430,15 +465,15 @@ def build_d02lt_excel(
     stt = 1
     for r in tang_list:
         rec = _record_tang(r, stt)
-        if noi_lam_viec:
-            rec.setdefault("NoiLamViec", noi_lam_viec)
+        if not rec.get("NoiLamViec") and noi_lam_viec:
+            rec["NoiLamViec"] = noi_lam_viec
         _write_record(ws, row_idx, rec, col_map, quoc_tich_lookup, dan_toc_lookup, phuong_an_lookup)
         row_idx += 1
         stt += 1
     for r in giam_list:
         rec = _record_giam(r, stt)
-        if noi_lam_viec:
-            rec.setdefault("NoiLamViec", noi_lam_viec)
+        if not rec.get("NoiLamViec") and noi_lam_viec:
+            rec["NoiLamViec"] = noi_lam_viec
         _write_record(ws, row_idx, rec, col_map, quoc_tich_lookup, dan_toc_lookup, phuong_an_lookup)
         row_idx += 1
         stt += 1

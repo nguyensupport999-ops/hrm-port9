@@ -13161,7 +13161,7 @@ elif menu == "📋 BHXH":
             SELECT 
                 nv.id, nv.ma_nv, nv.ho_ten, nv.ma_so_bhxh, nv.ngay_sinh, nv.gioi_tinh, nv.so_cccd,
                 nv.chuc_danh_nghe, nv.phong_ban_lam_viec, nv.luong_bao_hiem, nv.he_so_luong,
-                nv.thang_bat_dau_bh as ngay_bat_dau,
+                nv.thang_bat_dau_bh as ngay_bat_dau,nv.noi_lam_viec,
                 nv.loai_hop_dong, nv.so_hdld, nv.ngay_vao_lam, nv.thuong_tru,
                 nv.phuong_an_dieu_chinh, nv.thang_phuong_an,
                 nv.phu_cap_chuc_vu, nv.phu_cap_tnvk, nv.phu_cap_tnn,
@@ -13190,7 +13190,7 @@ elif menu == "📋 BHXH":
                 nv.id, nv.ma_nv, nv.ho_ten, nv.ma_so_bhxh, nv.ngay_sinh, nv.gioi_tinh, nv.so_cccd,
                 nv.chuc_danh_nghe, nv.phong_ban_lam_viec, nv.luong_bao_hiem, nv.he_so_luong,
                 COALESCE(nv.thang_ket_thuc_bh, nv.ngay_ket_thuc) as ngay_ket_thuc,
-                nv.thang_ket_thuc_bh,
+                nv.thang_ket_thuc_bh, nv.noi_lam_viec,
                 nv.loai_hop_dong, nv.so_hdld, nv.ngay_vao_lam, nv.thuong_tru,
                 nv.ly_do_nghi, nv.phuong_an_dieu_chinh, nv.thang_phuong_an,
                 nv.phu_cap_chuc_vu, nv.phu_cap_tnvk, nv.phu_cap_tnn,

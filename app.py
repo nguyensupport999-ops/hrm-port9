@@ -8019,7 +8019,7 @@ elif menu == "👤 Ứng viên":
                 pc_tnvk_chuyen = st.text_input("PC TNVK (%)")
                 pc_tnn_chuyen = st.text_input("PC TNN (%)")
                 muc_huong_bhyt_chuyen = st.selectbox("Mức hưởng BHYT", ["80%", "95%", "100%"])
-                ty_le_dong_chuyen = st.text_input("Tỷ lệ đóng (%)", value="10.5", disabled=True, key="tld")
+                ty_le_dong_chuyen = st.text_input("Tỷ lệ đóng (%)", value="32", disabled=True, key="tld")
             with col6:
                 _lbh_val = 0
                 try:
@@ -8575,7 +8575,7 @@ elif menu == "✅ Nhân viên":
                         ptv = st.text_input("PC TNVK (%)", key="ptv")
                         ptn = st.text_input("PC TNN (%)", key="ptn")
                         mhb = st.selectbox("Mức hưởng BHYT", ["80%", "95%", "100%"], key="mhb")
-                        tld = st.text_input("Tỷ lệ đóng (%)", value="10.5", disabled=True, key="tld")
+                        tld = st.text_input("Tỷ lệ đóng (%)", value="32", disabled=True, key="tld")
                     with c6:
                         _lbh_val = 0
                         try:
@@ -9208,7 +9208,7 @@ elif menu == "✅ Nhân viên":
                                     ptnv = st.text_input("PC TNN (%)", value=str(nd.get('phu_cap_tnn', '')))
                                     mhbv = st.selectbox("Mức hưởng BHYT", ["80%", "95%", "100%"], index=["80%", "95%", "100%"].index(nd.get('muc_huong_bhyt', '80%')) if nd.get('muc_huong_bhyt') in ["80%", "95%", "100%"] else 0)
                                 with col6:
-                                    tldv = st.text_input("Tỷ lệ đóng (%)", value="10.5", disabled=True, key="tld")
+                                    tldv = st.text_input("Tỷ lệ đóng (%)", value="32", disabled=True, key="tld")
                                     _lbh_e = 0
                                     try:
                                         _lbh_e = int(str(st.session_state.get("lbhv", "0")).replace(".", "").replace(",", "").strip() or "0")

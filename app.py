@@ -13764,6 +13764,7 @@ elif menu == "📋 Báo cáo định kỳ":
                 "ho_ten":             "Họ tên",
                 "ngay_sinh":          "Ngày sinh",
                 "gioi_tinh":          "Giới tính",
+                "chuc_vu":            "Chức vụ",           # MỚI
                 "chuc_danh_nghe":     "Chức danh",
                 "phong_ban_lam_viec": "Phòng ban",
                 "loai_hop_dong":      "Loại HĐ",
@@ -13771,6 +13772,9 @@ elif menu == "📋 Báo cáo định kỳ":
                 "ngay_ky_hd":         "Ngày ký HĐ",
                 "so_hdld":            "Số HĐLĐ",
                 "so_cccd":            "Số CCCD",
+                "ngay_cap_cccd":      "Ngày cấp CCCD",     # MỚI
+                "noi_cap_cccd":       "Nơi cấp CCCD",      # MỚI
+                "nguyen_quan":        "Nguyên quán",       # MỚI
                 "thuong_tru":         "Thường trú",
                 "dien_thoai":         "Điện thoại",
                 "ma_so_bhxh":         "Mã BHXH",
@@ -13779,16 +13783,18 @@ elif menu == "📋 Báo cáo định kỳ":
                 "chi_nhanh_nh":       "Chi nhánh NH",
                 "ho_so":              "Hồ sơ",
                 "ten_don_vi_thu_huong": "Tên đơn vị thụ hưởng",
+                "so_luong_npt": "Số lượng người phụ thuộc",
             }
 
             # Thứ tự ưu tiên mặc định (tất cả tích mặc định)
             DEFAULT_PRIORITY = [
-                "ma_nv", "ho_ten", "ngay_sinh", "gioi_tinh",
+                "ma_nv", "ho_ten", "ngay_sinh", "gioi_tinh", "chuc_vu",
                 "chuc_danh_nghe", "phong_ban_lam_viec", "loai_hop_dong",
                 "ngay_vao_lam", "ngay_ky_hd", "so_hdld",
-                "so_cccd", "thuong_tru", "dien_thoai", "ma_so_bhxh",
+                "so_cccd", "ngay_cap_cccd", "noi_cap_cccd", "nguyen_quan",
+                "thuong_tru", "dien_thoai", "ma_so_bhxh",
                 "thang_bat_dau_bh", "so_tai_khoan_nh", "chi_nhanh_nh", "ho_so",
-                "ten_don_vi_thu_huong",
+                "ten_don_vi_thu_huong", "so_luong_npt",
             ]
             DEFAULT_CHECKED = set(DEFAULT_PRIORITY)
 
@@ -13898,6 +13904,7 @@ elif menu == "📋 Báo cáo định kỳ":
                         center_cols = {k for k in selected_cols_sorted if k in (
                             "ma_nv","ngay_sinh","gioi_tinh","loai_hop_dong",
                             "ngay_vao_lam","ngay_ky_hd","ngay_ket_thuc","trang_thai",
+                            "ngay_cap_cccd",                          # MỚI
                             "thang_bat_dau_bh","thang_ket_thuc_bh","he_so_luong",
                             "phu_cap_tnvk","phu_cap_tnn","muc_huong_bhyt"
                         )}
@@ -13979,7 +13986,8 @@ elif menu == "📋 Báo cáo định kỳ":
                         # ── Độ rộng cột ──
                         ws_tk.column_dimensions['A'].width = 5
                         for col_idx, col_key in enumerate(selected_cols_sorted, 2):
-                            if col_key in ('ho_ten', 'thuong_tru', 'nguyen_quan', 'noi_cap_cccd', 'chuc_danh_nghe', 'ten_don_vi_thu_huong'):
+                            if col_key in ('ho_ten', 'thuong_tru', 'nguyen_quan', 'noi_cap_cccd',
+                                           'chuc_danh_nghe', 'chuc_vu', 'ten_don_vi_thu_huong'):
                                 w = 28
                             elif col_key in ('ma_nv', 'gioi_tinh', 'he_so_luong', 'phu_cap_tnvk', 'phu_cap_tnn'):
                                 w = 12

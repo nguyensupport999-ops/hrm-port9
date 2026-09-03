@@ -13050,29 +13050,35 @@ elif menu == "📋 BHXH":
     with t1:
         st.subheader("📊 Tổng quan tình hình đóng BHXH")
         
+        # Dùng CHUNG tiêu chuẩn thống kê với Dashboard: chỉ tính nhân sự đang làm
+        # (đang làm hoặc thử việc) VÀ đã có số hợp đồng lao động (so_hdld) — để số liệu
+        # giữa trang BHXH và Dashboard luôn khớp nhau.
+        DK_CHUAN_NV = "trang_thai IN ('DANG_LAM', 'THU_VIEC') AND so_hdld IS NOT NULL AND so_hdld != ''"
+
         db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         
         # Thống kê chung
-        c.execute("SELECT COUNT(*) as tong FROM nhan_vien WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')")
+        c.execute(f"SELECT COUNT(*) as tong FROM nhan_vien WHERE {DK_CHUAN_NV}")
         tong_ld = c.fetchone()['tong']
         
-        c.execute("""
+        c.execute(f"""
             SELECT COUNT(*) as dang_dong 
             FROM nhan_vien 
-            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') 
+            WHERE {DK_CHUAN_NV}
             AND thang_bat_dau_bh IS NOT NULL  -- ĐÃ CÓ NGÀY BẮT ĐẦU = ĐANG THAM GIA
         """)
         dang_dong = c.fetchone()['dang_dong']
-
-        c.execute("""
+        c.execute(f"""
             SELECT COUNT(*) as chua_dong 
             FROM nhan_vien 
-            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') 
+            WHERE {DK_CHUAN_NV}
             AND thang_bat_dau_bh IS NULL  -- CHƯA CÓ NGÀY BẮT ĐẦU = CHƯA THAM GIA
         """)
         chua_dong = c.fetchone()['chua_dong']
         
+        # Đã nghỉ việc: giữ nguyên logic riêng (không thuộc DK_CHUAN_NV vì đây là
+        # nhóm trang_thai = 'NGHI_VIEC', trái với điều kiện DANG_LAM/THU_VIEC)
         c.execute("SELECT COUNT(*) as da_nghi FROM nhan_vien WHERE trang_thai = 'NGHI_VIEC'")
         da_nghi = c.fetchone()['da_nghi']
         
@@ -13091,16 +13097,15 @@ elif menu == "📋 BHXH":
         
         db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        c.execute("""
+        c.execute(f"""
             SELECT ma_nv, ho_ten, chuc_danh_nghe, ngay_vao_lam, loai_hop_dong, 
                    thang_bat_dau_bh, trang_thai_bhxh
             FROM nhan_vien 
-            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC') 
+            WHERE {DK_CHUAN_NV}
             AND thang_bat_dau_bh IS NULL
             ORDER BY ngay_vao_lam ASC
         """)
         chua_dong_list = c.fetchall()
-
         db.close()
         
         if chua_dong_list:

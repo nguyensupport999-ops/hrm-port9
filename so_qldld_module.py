@@ -87,7 +87,7 @@ def build_so_qldld_excel(template_path, output_path, employees, tu_ngay, den_nga
     employees: list[dict] - mỗi dict là 1 bản ghi lấy từ bảng nhan_vien, cần các
         khoá (lấy None/"" nếu không có, hàm tự bỏ qua):
         ho_ten, gioi_tinh, ngay_sinh, quoc_tich, thuong_tru, so_cccd,
-        trinh_do_cmkt, bac_trinh_do_nghe, chuc_danh_nghe, loai_hop_dong,
+        trinh_do, bac_trinh_do_nghe, chuc_danh_nghe, loai_hop_dong,
         ngay_vao_lam, thang_bat_dau_bh, luong_bao_hiem, ngay_ket_thuc, ly_do_nghi
     tu_ngay, den_ngay: date - khoảng thời gian thống kê (in vào tiêu đề sổ)
     company_config: dict - {"ten_doanh_nghiep":..., "mst":..., "dia_chi":...}
@@ -120,7 +120,7 @@ def build_so_qldld_excel(template_path, output_path, employees, tu_ngay, den_nga
         ws.cell(row=r, column=5, value=nv.get("quoc_tich") or "Việt Nam")       # Quốc tịch
         ws.cell(row=r, column=6, value=nv.get("thuong_tru") or "")             # Nơi cư trú
         ws.cell(row=r, column=7, value=nv.get("so_cccd") or "")                # Số CCCD/CMND/hộ chiếu
-        ws.cell(row=r, column=8, value=nv.get("trinh_do_cmkt") or "")          # Trình độ CMKT
+        ws.cell(row=r, column=8, value=nv.get("trinh_do") or "")               # Trình độ (CMKT)
         ws.cell(row=r, column=9, value=nv.get("bac_trinh_do_nghe") or "")      # Bậc trình độ kỹ năng nghề
         ws.cell(row=r, column=10, value=nv.get("chuc_danh_nghe") or "")        # Vị trí làm việc
         ws.cell(row=r, column=11, value=nv.get("loai_hop_dong") or "")         # Loại HĐLĐ
@@ -134,10 +134,9 @@ def build_so_qldld_excel(template_path, output_path, employees, tu_ngay, den_nga
         # sự kiện này dưới dạng trường riêng -> để trống, cập nhật thủ công theo
         # phát sinh thực tế trong kỳ.
         thoi_diem_cham_dut = ""
-        if nv.get("ngay_ket_thuc"):
+        if nv.get("ngay_ket_thuc") and nv.get("ly_do_nghi"):
             thoi_diem_cham_dut = _fmt_ngay(nv.get("ngay_ket_thuc"))
-            if nv.get("ly_do_nghi"):
-                thoi_diem_cham_dut += f" - {nv.get('ly_do_nghi')}"
+            thoi_diem_cham_dut += f" - {nv.get('ly_do_nghi')}"
         ws.cell(row=r, column=24, value=thoi_diem_cham_dut)                    # Chấm dứt HĐLĐ và lý do
 
     wb.save(output_path)
@@ -216,10 +215,12 @@ def render_tab_so_qldld(db_engine, format_date, company_config, auto_download_ex
             nv.ma_nv, nv.ho_ten, nv.gioi_tinh, nv.ngay_sinh, nv.quoc_tich,
             nv.thuong_tru, nv.so_cccd, nv.chuc_danh_nghe, nv.loai_hop_dong,
             nv.ngay_vao_lam, nv.thang_bat_dau_bh, nv.luong_bao_hiem,
-            nv.ngay_ket_thuc, nv.ly_do_nghi, nv.trang_thai
+            nv.ngay_ket_thuc, nv.ly_do_nghi, nv.trang_thai,
+            nv.trinh_do, nv.so_hdld
         FROM nhan_vien nv
         WHERE nv.ngay_vao_lam <= %s
         AND (nv.ngay_ket_thuc IS NULL OR nv.ngay_ket_thuc >= %s)
+        AND nv.so_hdld IS NOT NULL AND nv.so_hdld != ''
         ORDER BY nv.ngay_vao_lam ASC
         """,
         (den_ngay, tu_ngay),

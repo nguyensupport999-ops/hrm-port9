@@ -110,11 +110,15 @@ def _phan_nhom(nv):
        "Xác định thời hạn 12/24/36 tháng")
     3) Thử việc
     4) (dự phòng) Khác - loai_hop_dong không khớp mẫu nào ở trên
-    5) Đã chấm dứt hợp đồng lao động - ĐƯỢC ƯU TIÊN CAO NHẤT: bất kể loại
-       hợp đồng gì, hễ đã có ngày kết thúc thì luôn xếp vào nhóm cuối này
-       (kể cả người đang "Thử việc" mà đã nghỉ).
+    5) Đã chấm dứt hợp đồng lao động - ĐƯỢC ƯU TIÊN CAO NHẤT, dựa vào
+       trang_thai == 'NGHI_VIEC' (KHÔNG dựa vào ngay_ket_thuc khác NULL nữa,
+       vì với lao động "Thử việc", ngay_ket_thuc có thể đang lưu NGÀY HẾT
+       HẠN THỬ VIỆC DỰ KIẾN chứ không phải ngày họ thực sự nghỉ -> nếu dùng
+       ngay_ket_thuc sẽ vô tình xếp nhầm cả người đang thử việc bình thường
+       vào nhóm "đã chấm dứt". trang_thai là cờ trạng thái thực tế, đáng tin
+       cậy hơn).
     """
-    if nv.get("ngay_ket_thuc"):
+    if (nv.get("trang_thai") or "").strip().upper() == "NGHI_VIEC":
         return GRP_CHAM_DUT
     lhd = (nv.get("loai_hop_dong") or "").strip().lower()
     if lhd == "không xác định thời hạn":
@@ -356,17 +360,19 @@ def build_so_qldld_excel(template_path, output_path, employees, tu_ngay, den_nga
         trinh_do, bac_trinh_do_nghe, chuc_danh_nghe, loai_hop_dong,
         ngay_vao_lam, thang_bat_dau_bh, luong_bao_hiem, ngay_ket_thuc, ly_do_nghi
     tu_ngay, den_ngay: date - khoảng thời gian thống kê (in vào tiêu đề sổ)
-    company_config: dict - {"ten_doanh_nghiep":..., "mst":..., "dia_chi":...}
+    company_config: dict - {"ten_cong_ty":..., "ma_so_thue":..., "dia_chi":...}
 
     Danh sách được TỰ ĐỘNG PHÂN NHÓM và in theo đúng thứ tự:
       1) Không xác định thời hạn
       2) Hợp đồng có thời hạn
       3) Thử việc
       4) (nếu có phát sinh) Khác
-      5) Đã chấm dứt hợp đồng lao động - luôn ở cuối, bất kể loại HĐLĐ gì.
-    Mỗi nhóm có 1 dòng tiêu đề (merge toàn bảng, in đậm, căn trái có thụt lề).
-    Nhóm không có lao động nào thì không in dòng tiêu đề của nhóm đó. STT
-    đánh số liên tục xuyên suốt toàn bộ sổ (không reset lại theo từng nhóm).
+      5) Đã chấm dứt hợp đồng lao động - luôn ở cuối (dựa vào trang_thai).
+    Mỗi nhóm có 1 dòng tiêu đề (merge toàn bảng, in đậm, căn trái có thụt lề,
+    kèm số lượng, ví dụ "Không xác định thời hạn: 65 người"). Nhóm không có
+    lao động nào thì không in dòng tiêu đề của nhóm đó. Trong mỗi nhóm, lao
+    động được sắp xếp theo ma_nv tăng dần. STT đánh số liên tục xuyên suốt
+    toàn bộ sổ (không reset lại theo từng nhóm).
 
     Cột "Mã NV" được chèn ngay sau cột STT (đẩy các cột còn lại sang phải).
     """
@@ -381,8 +387,13 @@ def build_so_qldld_excel(template_path, output_path, employees, tu_ngay, den_nga
     _dong_bo_do_rong_cot(ws)
 
     # ----- Tiêu đề doanh nghiệp -----
-    ws["A1"] = f"DOANH NGHIỆP: {company_config.get('ten_doanh_nghiep', '')}"
-    ws["A2"] = f"Mã số thuế: {company_config.get('mst', '')}"
+    # Ưu tiên khoá đúng trong COMPANY_CONFIG thật của app ("ten_cong_ty",
+    # "ma_so_thue"); vẫn giữ khoá cũ ("ten_doanh_nghiep", "mst") làm dự phòng
+    # để không vỡ nếu app dùng bộ khoá khác.
+    ten_cong_ty = company_config.get("ten_cong_ty") or company_config.get("ten_doanh_nghiep", "")
+    ma_so_thue = company_config.get("ma_so_thue") or company_config.get("mst", "")
+    ws["A1"] = f"DOANH NGHIỆP: {ten_cong_ty}"
+    ws["A2"] = f"Mã số thuế: {ma_so_thue}"
     ws["A3"] = f"Địa chỉ: {company_config.get('dia_chi', '')}"
     ws["A4"] = (
         f"SỔ QUẢN LÝ LAO ĐỘNG (Từ ngày {tu_ngay.strftime('%d/%m/%Y')} "
@@ -404,8 +415,11 @@ def build_so_qldld_excel(template_path, output_path, employees, tu_ngay, den_nga
         if not ds_nhom:
             continue  # nhóm rỗng -> không in dòng tiêu đề nhóm
 
+        # Sắp xếp trong nhóm theo mã NV tăng dần.
+        ds_nhom = sorted(ds_nhom, key=lambda nv: (nv.get("ma_nv") or ""))
+
         # ----- Dòng tiêu đề nhóm -----
-        _write_group_header(ws, r, g_label)
+        _write_group_header(ws, r, f"{g_label}: {len(ds_nhom)} người")
         r += 1
 
         # ----- Các dòng lao động trong nhóm -----
@@ -435,6 +449,7 @@ def build_so_qldld_excel(template_path, output_path, employees, tu_ngay, den_nga
             # không phải chuỗi, thì Excel mới áp number_format '#,##0' được.
             luong_cell = ws.cell(row=r, column=COL_TIEN_LUONG, value=_to_number(nv.get("luong_bao_hiem")))
             luong_cell.number_format = "#,##0"
+            luong_cell.alignment = openpyxl.styles.Alignment(horizontal="right", vertical="center")
 
             # Cột Chấm dứt HĐLĐ và lý do: chỉ điền khi có ĐỦ CẢ ngày kết thúc
             # VÀ lý do nghỉ; căn giữa ngang/dọc, wrap text, tự giãn chiều cao.

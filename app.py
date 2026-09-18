@@ -58,6 +58,10 @@ from bao_cao_bhxh import xuat_bao_cao_trich_nop_bhxh, render_xuat_bao_cao_bhxh
 from d02lt_export import build_d02lt_excel
 import base64
 import cham_cong_thu_cong_honla as cc_honla
+import os
+from datetime import date
+
+import openpyxl
 
 def _auto_download_excel(file_data: bytes, filename: str):
     """Tự động kích hoạt tải file Excel ngay khi vừa tạo xong — không cần bấm thêm nút Tải."""
@@ -13045,7 +13049,10 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
 elif menu == "📋 BHXH":
     st.markdown(f"# {i18n.tm('📋 Quản lý BHXH')}", unsafe_allow_html=True)
     
-    t1, t2, t3 = st.tabs(["📊 Tổng quan", "📝 Báo cáo tăng/giảm D02-LT", "📥 Xuất BC trích nộp BH"])
+    t1, t2, t3, t4 = st.tabs([
+           "📊 Tổng quan", "📝 Báo cáo tăng/giảm D02-LT",
+           "📥 Xuất BC trích nộp BH", "📔 Sổ quản lý lao động",
+       ])
     
     with t1:
         st.subheader("📊 Tổng quan tình hình đóng BHXH")
@@ -13287,7 +13294,9 @@ elif menu == "📋 BHXH":
     
     with t3:
         render_xuat_bao_cao_bhxh(st.session_state.db_engine)
-        
+    with t4:
+           render_tab_so_qldld(st.session_state.db_engine)
+              
 # ========== BÁO CÁO TÌNH HÌNH SỬ DỤNG LAO ĐỘNG MẪU 01/PLI (EXCEL) ==========
 elif menu == "📋 Báo cáo định kỳ":
     st.markdown(f"# {i18n.tm('📋 Báo cáo định kỳ')}", unsafe_allow_html=True)

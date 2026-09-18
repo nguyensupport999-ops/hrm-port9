@@ -144,20 +144,29 @@ def build_so_qldld_excel(template_path, output_path, employees, tu_ngay, den_nga
     return output_path
 
 
-def render_tab_so_qldld(db_engine):
-    """Nội dung tab '📔 Sổ quản lý lao động' — dán vào khối `with t4:`."""
-    # Import cục bộ để build_so_qldld_excel() ở trên có thể dùng/test độc lập
-    # mà không cần cài streamlit/psycopg2 (ví dụ chạy script test ngoài app).
+def render_tab_so_qldld(db_engine, format_date, company_config, auto_download_excel):
+    """Nội dung tab '📔 Sổ quản lý lao động' — dán vào khối `with t4:`.
+
+    LƯU Ý QUAN TRỌNG: hàm này KHÔNG tự import format_date/COMPANY_CONFIG/
+    _auto_download_excel từ app.py nữa. Lý do: khi Streamlit chạy app.py làm
+    script chính, app.py được nạp dưới tên module "__main__", KHÔNG phải
+    "app" -> nếu ta viết `from app import ...` bên trong module này, Python
+    sẽ không tìm thấy module "app" đã nạp sẵn, và sẽ NẠP LẠI TOÀN BỘ app.py
+    từ đầu như một bản chạy song song -> gây lỗi (vì các lệnh st.* bị gọi
+    trùng lặp, ví dụ st.set_page_config gọi 2 lần, hoặc trùng key widget).
+
+    Thay vào đó, 3 tham số này phải được TRUYỀN VÀO từ nơi gọi hàm (app.py),
+    nơi chúng vốn đã tồn tại sẵn trong cùng file:
+        render_tab_so_qldld(
+            st.session_state.db_engine,
+            format_date=format_date,
+            company_config=COMPANY_CONFIG,
+            auto_download_excel=_auto_download_excel,
+        )
+    """
     import streamlit as st
     import pandas as pd
     import psycopg2.extras
-    # Import trễ (bên trong hàm) để tránh import vòng (circular import) với
-    # app.py: app.py import so_qldld_module ở đầu file, nếu ta import ngược
-    # lại các tên này từ app ở cấp module (đầu file .py) thì lúc đó module
-    # `app` đang nạp dở, chưa có các tên format_date/COMPANY_CONFIG/
-    # _auto_download_excel -> lỗi. Import bên trong hàm thì tới lúc hàm này
-    # được GỌI (không phải lúc import), app.py chắc chắn đã nạp xong.
-    from app import format_date, COMPANY_CONFIG, _auto_download_excel
 
     st.subheader("📔 Sổ quản lý lao động")
     st.caption(
@@ -251,7 +260,7 @@ def render_tab_so_qldld(db_engine):
                         employees=ds_lao_dong,
                         tu_ngay=tu_ngay,
                         den_ngay=den_ngay,
-                        company_config=COMPANY_CONFIG,
+                        company_config=company_config,
                     )
 
                     with open(filename, "rb") as f:
@@ -260,7 +269,7 @@ def render_tab_so_qldld(db_engine):
                     st.success(f"✅ Đã tạo Sổ quản lý lao động thành công! {len(ds_lao_dong)} lao động.")
                     st.cache_data.clear()
 
-                    _auto_download_excel(file_data, filename)
+                    auto_download_excel(file_data, filename)
 
                     if os.path.exists(filename):
                         os.remove(filename)

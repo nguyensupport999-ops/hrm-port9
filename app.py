@@ -348,6 +348,25 @@ def tinh_thang_ket_thuc_bh(ngay_qd, so_ngay_lam_viec_tuan=6):
         # ngày QĐ (không làm tròn về ngày 1, đối xứng với tinh_thang_bat_dau_bh).
         return ngay
 
+def cung_thang_bat_dau_va_ket_thuc_bh(thang_bat_dau, ngay_ket_thuc):
+    """Trường hợp hy hữu: lao động có THÁNG BẮT ĐẦU đóng BHXH (thang_bat_dau_bh)
+    TRÙNG với THÁNG chấm dứt HĐLĐ (ngay_ket_thuc) -> vào rồi nghỉ ngay trong
+    cùng 1 tháng. Dùng để LOẠI những trường hợp này khỏi CẢ báo tăng và báo
+    giảm D02-LT của tháng đó (không báo tăng, không báo giảm).
+
+    Args:
+        thang_bat_dau: date - nv.thang_bat_dau_bh
+        ngay_ket_thuc: date - nv.ngay_ket_thuc (hoặc thang_ket_thuc_bh)
+    Returns:
+        bool - True nếu cùng tháng/năm.
+    """
+    if not thang_bat_dau or not ngay_ket_thuc:
+        return False
+    try:
+        return (thang_bat_dau.year, thang_bat_dau.month) == (ngay_ket_thuc.year, ngay_ket_thuc.month)
+    except AttributeError:
+        return False
+
 def format_thang_nam(d):
     """Hiển thị date thành mm/yyyy. VD: date(2026,8,1) → '08/2026'"""
     if not d:
@@ -13202,7 +13221,7 @@ elif menu == "📋 BHXH":
                 nv.id, nv.ma_nv, nv.ho_ten, nv.ma_so_bhxh, nv.ngay_sinh, nv.gioi_tinh, nv.so_cccd,
                 nv.chuc_danh_nghe, nv.phong_ban_lam_viec, nv.luong_bao_hiem, nv.he_so_luong,
                 COALESCE(nv.thang_ket_thuc_bh, nv.ngay_ket_thuc) as ngay_ket_thuc,
-                nv.thang_ket_thuc_bh, nv.noi_lam_viec,
+                nv.thang_ket_thuc_bh, nv.thang_bat_dau_bh, nv.noi_lam_viec,
                 nv.loai_hop_dong, nv.so_hdld, nv.ngay_vao_lam, nv.thuong_tru,
                 nv.ly_do_nghi, nv.phuong_an_dieu_chinh, nv.thang_phuong_an,
                 nv.phu_cap_chuc_vu, nv.phu_cap_tnvk, nv.phu_cap_tnn,
@@ -13219,7 +13238,26 @@ elif menu == "📋 BHXH":
         """, (tu_ngay, den_ngay))
         giam_list = c.fetchall()
         db.close()
-        
+
+        # ===== LOẠI TRƯỜNG HỢP HY HỮU: tháng bắt đầu = tháng chấm dứt HĐLĐ =====
+        # Vào rồi nghỉ ngay trong cùng 1 tháng -> không báo tăng, không báo giảm
+        # cho tháng đó (loại khỏi cả tang_list và giam_list).
+        so_luong_truoc_loc = len(tang_list) + len(giam_list)
+        tang_list = [
+            nv for nv in tang_list
+            if not cung_thang_bat_dau_va_ket_thuc_bh(nv.get('ngay_bat_dau'), nv.get('ngay_ket_thuc'))
+        ]
+        giam_list = [
+            nv for nv in giam_list
+            if not cung_thang_bat_dau_va_ket_thuc_bh(nv.get('thang_bat_dau_bh'), nv.get('ngay_ket_thuc'))
+        ]
+        so_da_loc = so_luong_truoc_loc - len(tang_list) - len(giam_list)
+        if so_da_loc > 0:
+            st.caption(
+                f"ℹ️ Đã loại {so_da_loc} trường hợp vào và nghỉ ngay trong cùng 1 tháng "
+                f"(không báo tăng, không báo giảm cho tháng này)."
+            )
+
         # Hiển thị preview
         col_tang, col_giam = st.columns(2)
         with col_tang:
@@ -13295,12 +13333,7 @@ elif menu == "📋 BHXH":
     with t3:
         render_xuat_bao_cao_bhxh(st.session_state.db_engine)
     with t4:
-        render_tab_so_qldld(
-            st.session_state.db_engine,
-            format_date=format_date,
-            company_config=COMPANY_CONFIG,
-            auto_download_excel=_auto_download_excel,
-        )
+           render_tab_so_qldld(st.session_state.db_engine)
               
 # ========== BÁO CÁO TÌNH HÌNH SỬ DỤNG LAO ĐỘNG MẪU 01/PLI (EXCEL) ==========
 elif menu == "📋 Báo cáo định kỳ":

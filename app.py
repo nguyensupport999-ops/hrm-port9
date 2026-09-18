@@ -13333,7 +13333,12 @@ elif menu == "📋 BHXH":
     with t3:
         render_xuat_bao_cao_bhxh(st.session_state.db_engine)
     with t4:
-           render_tab_so_qldld(st.session_state.db_engine)
+        render_tab_so_qldld(
+            st.session_state.db_engine,
+            format_date=format_date,
+            company_config=COMPANY_CONFIG,
+            auto_download_excel=_auto_download_excel,
+        )
               
 # ========== BÁO CÁO TÌNH HÌNH SỬ DỤNG LAO ĐỘNG MẪU 01/PLI (EXCEL) ==========
 elif menu == "📋 Báo cáo định kỳ":

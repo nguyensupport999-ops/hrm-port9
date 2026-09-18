@@ -33,10 +33,10 @@ CÁCH TÍCH HỢP VÀO FILE APP HIỆN TẠI
 
 import os
 from datetime import date
-
+from app import format_date, COMPANY_CONFIG, _auto_download_excel
 import openpyxl
 
-TEMPLATE_SO_QLLD = "excel_excel_templates/SoQLLD_template_goc.xlsx"
+TEMPLATE_SO_QLLD = "excel_templates/SoQLLD_template_goc.xlsx"
 
 # Dòng đầu tiên có sẵn định dạng (viền + font) trong file mẫu là dòng 7,
 # và mẫu có sẵn định dạng cho tới dòng 12 (6 dòng mẫu). Nếu số lao động

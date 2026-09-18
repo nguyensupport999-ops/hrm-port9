@@ -60,7 +60,7 @@ import base64
 import cham_cong_thu_cong_honla as cc_honla
 import os
 from datetime import date
-
+from so_qldld_module import build_so_qldld_excel, render_tab_so_qldld
 import openpyxl
 
 def _auto_download_excel(file_data: bytes, filename: str):

@@ -20,7 +20,16 @@ CÁCH TÍCH HỢP VÀO FILE APP HIỆN TẠI
 
 2) Thêm ở cuối file (sau khối "with t3: render_xuat_bao_cao_bhxh(...)"):
        with t4:
-           render_tab_so_qldld(st.session_state.db_engine)
+           render_tab_so_qldld(
+               st.session_state.db_engine,
+               format_date=format_date,
+               company_config=COMPANY_CONFIG,
+               auto_download_excel=_auto_download_excel,
+           )
+   (3 tham số format_date/company_config/auto_download_excel đã tồn tại sẵn
+   trong app.py -> TRUYỀN VÀO, KHÔNG import ngược lại từ app.py, vì Streamlit
+   chạy app.py dưới tên module "__main__" chứ không phải "app" -> nếu import
+   ngược sẽ vô tình nạp lại và chạy lại toàn bộ app.py từ đầu, gây lỗi.)
 
 3) Copy file mẫu gốc (đính kèm) vào:
        excel_templates/SoQLLD_template_goc.xlsx
@@ -28,40 +37,56 @@ CÁCH TÍCH HỢP VÀO FILE APP HIỆN TẠI
 
 4) import các hàm bên dưới vào file app chính:
        from so_qldld_module import build_so_qldld_excel, render_tab_so_qldld
-   (hoặc copy thẳng nội dung 2 hàm vào file app nếu app đang gộp 1 file).
 """
 
 import os
+from copy import copy as _copy
 from datetime import date
 
 import openpyxl
 import openpyxl.styles
+from openpyxl.utils import get_column_letter, column_index_from_string
 
 TEMPLATE_SO_QLLD = "excel_templates/SoQLLD_template_goc.xlsx"
 
-# Dòng đầu tiên có sẵn định dạng (viền + font) trong file mẫu là dòng 7,
-# và mẫu có sẵn định dạng cho tới dòng 12 (6 dòng mẫu). Nếu số lao động
-# nhiều hơn, ta copy định dạng của dòng 7 xuống các dòng tiếp theo.
-FIRST_DATA_ROW = 7
-# Không còn dùng để rẽ nhánh nữa (từ khi có chèn dòng tiêu đề nhóm, mọi dòng
-# dữ liệu đều được áp style thống nhất từ _capture_template_row_style/
-# _apply_template_row_style) - giữ lại chỉ để tham khảo lịch sử mẫu gốc.
-LAST_PREFORMATTED_ROW = 12
+# ============================================================================
+# VỊ TRÍ DÒNG/CỘT CỐ ĐỊNH - đã xác minh trực tiếp trên file mẫu thật
+# (SoQLLD_template_goc.xlsx). Nếu sau này thay mẫu khác, kiểm tra lại các
+# hằng số này cho khớp.
+# ============================================================================
+HEADER_ROW = 5          # Dòng tiêu đề cột (merge dọc 2 dòng cho hầu hết các cột)
+SUB_HEADER_ROW = 6      # Dòng tiêu đề phụ (chỉ 3 cột con BHXH/BHYT/BHTN)
+FIRST_DATA_ROW = 7      # Dòng dữ liệu lao động đầu tiên
 
-# Dòng tiêu đề cột (header) NGAY PHÍA TRÊN vùng dữ liệu. Đây là GIẢ ĐỊNH
-# (mẫu gốc không có trong repo để kiểm tra chính xác) -> nếu dòng tiêu đề
-# thật trong file mẫu nằm ở vị trí khác FIRST_DATA_ROW - 1, hãy sửa lại
-# hằng số này cho khớp, nếu không tiêu đề "Mã NV" sẽ bị ghi sai dòng.
-HEADER_ROW = FIRST_DATA_ROW - 1
+# Cột "Mã NV" được CHÈN THÊM ngay sau cột STT -> chèn tại vị trí cột B (2),
+# đẩy toàn bộ các cột còn lại (Họ tên, Giới tính, ... Chấm dứt HĐLĐ) sang
+# phải 1 cột so với mẫu gốc.
+MA_NV_INSERT_AT = 2
 
-# Bảng gốc theo mẫu Nghị định 145 có 24 cột (A..X). Ta bổ sung thêm 1 cột
-# cuối bảng "Mã NV" -> cột 25 (Y).
-N_COLS_GOC = 24
-MA_NV_COL = 25
-N_COLS = MA_NV_COL
-
-SALARY_COL = 16   # Cột P - Tiền lương
-TERMINATION_COL = 24  # Cột X - Chấm dứt HĐLĐ và lý do
+# ----- Chỉ số cột SAU KHI ĐÃ CHÈN xong cột Mã NV (dùng để ghi dữ liệu) -----
+COL_STT = 1
+COL_MA_NV = 2
+COL_HO_TEN = 3
+COL_GIOI_TINH = 4
+COL_NGAY_SINH = 5
+COL_QUOC_TICH = 6
+COL_NOI_CU_TRU = 7            # = cột "F" trong mẫu gốc (trước khi chèn Mã NV)
+COL_SO_CCCD = 8
+COL_TRINH_DO = 9
+COL_BAC_TRINH_DO_NGHE = 10
+COL_VI_TRI_LAM_VIEC = 11
+COL_LOAI_HDLD = 12
+COL_BAT_DAU_LAM_VIEC = 13
+COL_BHXH = 14
+COL_BHYT = 15
+COL_BHTN = 16
+COL_TIEN_LUONG = 17           # = cột "P" trong mẫu gốc (trước khi chèn Mã NV)
+# Cột 18-24 (mẫu gốc là Q..W): Nâng bậc lương, Số ngày nghỉ, Giờ làm thêm,
+# Hưởng chế độ BHXH/BHYT/BHTN, Học nghề đào tạo, Kỷ luật lao động, TNLĐ-BNN
+# -> hệ thống hiện chưa lưu các sự kiện này dưới dạng trường riêng, để trống,
+# cập nhật thủ công theo phát sinh thực tế trong kỳ.
+COL_CHAM_DUT_HDLD = 25        # = cột "X" trong mẫu gốc (trước khi chèn Mã NV)
+N_COLS = 25                   # Tổng số cột sau khi chèn (A..Y)
 
 # ----- Thứ tự nhóm bắt buộc theo yêu cầu -----
 GROUP_LABELS = [
@@ -86,7 +111,8 @@ def _phan_nhom(nv):
     3) Thử việc
     4) (dự phòng) Khác - loai_hop_dong không khớp mẫu nào ở trên
     5) Đã chấm dứt hợp đồng lao động - ĐƯỢC ƯU TIÊN CAO NHẤT: bất kể loại
-       hợp đồng gì, hễ đã có ngày kết thúc thì luôn xếp vào nhóm cuối này.
+       hợp đồng gì, hễ đã có ngày kết thúc thì luôn xếp vào nhóm cuối này
+       (kể cả người đang "Thử việc" mà đã nghỉ).
     """
     if nv.get("ngay_ket_thuc"):
         return GRP_CHAM_DUT
@@ -100,15 +126,139 @@ def _phan_nhom(nv):
     return GRP_KHAC
 
 
+def _to_number(val):
+    """Chuyển giá trị lương (có thể là str '7000000', '4650000.0', số, hoặc
+    None) về kiểu số THẬT (int/float). Nếu ghi giá trị dạng chuỗi vào ô Excel,
+    number_format '#,##0' sẽ KHÔNG được áp dụng (Excel chỉ định dạng số cho
+    kiểu numeric) -> đây là gốc rễ của lỗi "cột P chưa định dạng được"."""
+    if val is None or val == "":
+        return None
+    if isinstance(val, (int, float)):
+        return val
+    try:
+        s = str(val).strip().replace(",", "")
+        if s == "":
+            return None
+        f = float(s)
+        return int(f) if f.is_integer() else f
+    except (TypeError, ValueError):
+        return None
+
+
+def _insert_column_after(ws, insert_col, max_row=None, max_col=None):
+    """Chèn 1 cột trống vào vị trí insert_col, dịch toàn bộ nội dung / style /
+    độ rộng cột / vùng merge từ insert_col trở đi sang phải 1 cột.
+
+    QUAN TRỌNG: KHÔNG dùng ws.insert_cols() của openpyxl ở đây - đã kiểm
+    chứng trực tiếp trên file mẫu thật rằng nó dịch chuyển GIÁ TRỊ Ô đúng
+    nhưng KHÔNG dịch các VÙNG MERGE (merged_cells) một cách tương ứng, làm
+    lệch toàn bộ header 2 dòng của mẫu (ví dụ nhóm merge "Tham gia bảo hiểm"
+    bị lệch khỏi 3 cột con BHXH/BHYT/BHTN, cột cuối cùng mất merge). Hàm này
+    tự làm đúng cả 2 việc: dịch nội dung/style VÀ dịch/nới merge.
+    """
+    if max_row is None:
+        max_row = ws.max_row
+    if max_col is None:
+        max_col = ws.max_column
+
+    # 1) Gỡ toàn bộ merge hiện có trước khi đụng vào cell (openpyxl không
+    #    cho set value trực tiếp vào ô không phải góc trên-trái của 1 vùng
+    #    đang merge).
+    old_merges = list(ws.merged_cells.ranges)
+    for m in old_merges:
+        ws.unmerge_cells(str(m))
+
+    new_merges = []
+    for m in old_merges:
+        min_col, min_row, max_c, max_r = m.min_col, m.min_row, m.max_col, m.max_row
+        if min_col >= insert_col:
+            # Toàn bộ vùng merge nằm sau điểm chèn -> dịch cả 2 mép phải 1 cột
+            min_col += 1
+            max_c += 1
+        elif max_c >= insert_col:
+            # Vùng merge "bao trùm" điểm chèn (vd. A1:F1 tiêu đề DN) -> nới
+            # rộng thêm 1 cột để vẫn phủ đúng độ rộng bảng như trước khi chèn
+            max_c += 1
+        new_merges.append((min_row, min_col, max_r, max_c))
+
+    # 2) Dịch nội dung + style từng ô, DUYỆT TỪ PHẢI SANG TRÁI để không ghi
+    #    đè lên dữ liệu chưa kịp dịch.
+    for col in range(max_col, insert_col - 1, -1):
+        for row in range(1, max_row + 1):
+            src = ws.cell(row=row, column=col)
+            dst = ws.cell(row=row, column=col + 1)
+            dst.value = src.value
+            dst.font = _copy(src.font)
+            dst.border = _copy(src.border)
+            dst.fill = _copy(src.fill)
+            dst.alignment = _copy(src.alignment)
+            dst.number_format = src.number_format
+
+    # 3) Làm trống cột vừa "nhường chỗ" (insert_col), lấy tạm style của cột
+    #    kế bên (đã dịch) để viền/font đồng bộ với các cột xung quanh.
+    for row in range(1, max_row + 1):
+        c = ws.cell(row=row, column=insert_col)
+        c.value = None
+        neighbor = ws.cell(row=row, column=insert_col + 1)
+        c.font = _copy(neighbor.font)
+        c.border = _copy(neighbor.border)
+        c.fill = _copy(neighbor.fill)
+        c.alignment = _copy(neighbor.alignment)
+        c.number_format = neighbor.number_format
+
+    # 4) Áp lại các vùng merge đã dịch/nới ở bước 1.
+    for row1, col1, row2, col2 in new_merges:
+        ws.merge_cells(start_row=row1, start_column=col1, end_row=row2, end_column=col2)
+
+    # 5) Dịch độ rộng cột (column_dimensions), key theo chữ cái -> duyệt từ
+    #    cột lớn nhất về nhỏ nhất để không ghi đè khi shift.
+    old_widths = {}
+    for letter, dim in list(ws.column_dimensions.items()):
+        if dim.width is not None:
+            old_widths[column_index_from_string(letter)] = dim.width
+    for idx in sorted(old_widths.keys(), reverse=True):
+        if idx >= insert_col:
+            ws.column_dimensions[get_column_letter(idx + 1)].width = old_widths[idx]
+    # Cột mới chèn (Mã NV): đặt độ rộng mặc định vừa phải.
+    ws.column_dimensions[get_column_letter(insert_col)].width = 10
+
+
+def _chen_cot_ma_nv(ws):
+    """Chèn cột 'Mã NV' ngay sau cột STT, rồi ghi tiêu đề cho cột mới (merge
+    dọc 2 dòng HEADER_ROW:SUB_HEADER_ROW giống các cột đơn khác trong mẫu)."""
+    _insert_column_after(ws, MA_NV_INSERT_AT)
+
+    header_style = ws.cell(row=HEADER_ROW, column=COL_STT)
+    cell = ws.cell(row=HEADER_ROW, column=COL_MA_NV, value="Mã NV")
+    cell.font = _copy(header_style.font)
+    cell.border = _copy(header_style.border)
+    cell.fill = _copy(header_style.fill)
+    cell.alignment = _copy(header_style.alignment)
+    ws.merge_cells(
+        start_row=HEADER_ROW, start_column=COL_MA_NV,
+        end_row=SUB_HEADER_ROW, end_column=COL_MA_NV,
+    )
+
+
+def _dong_bo_do_rong_cot(ws):
+    """Set độ rộng cột 'Nơi cư trú' và cột 'Chấm dứt HĐLĐ và lý do' bằng
+    nhau (lấy theo độ rộng đã có sẵn của cột 'Nơi cư trú' trong mẫu, vì cột
+    này vốn đã được set đủ rộng để chứa địa chỉ dài)."""
+    target_width = ws.column_dimensions[get_column_letter(COL_NOI_CU_TRU)].width
+    if target_width:
+        ws.column_dimensions[get_column_letter(COL_CHAM_DUT_HDLD)].width = target_width
+
+
 def _write_group_header(ws, row, label, n_cols=N_COLS):
     """Ghi 1 dòng tiêu đề nhóm, merge từ cột A đến cột cuối bảng, in đậm,
-    căn giữa, có nền xám nhạt để phân biệt với dòng dữ liệu."""
+    CĂN TRÁI CÓ THỤT LỀ (indent), căn giữa theo chiều dọc, nền xám nhạt để
+    phân biệt với dòng dữ liệu."""
     from openpyxl.styles import Alignment, Font, PatternFill
 
     ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=n_cols)
     cell = ws.cell(row=row, column=1, value=label)
     cell.font = Font(bold=True)
-    cell.alignment = Alignment(horizontal="center", vertical="center")
+    cell.alignment = Alignment(horizontal="left", vertical="center", indent=1)
     cell.fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
     ws.row_dimensions[row].height = 20
 
@@ -116,8 +266,6 @@ def _write_group_header(ws, row, label, n_cols=N_COLS):
 def _chars_per_line(ws, col_idx, fallback=28):
     """Ước lượng số ký tự vừa 1 dòng trong cột, dựa vào độ rộng cột đã đặt
     trong file mẫu (nếu có), dùng để tính chiều cao dòng khi wrap text."""
-    from openpyxl.utils import get_column_letter
-
     dim = ws.column_dimensions.get(get_column_letter(col_idx))
     if dim and dim.width:
         return max(8, int(dim.width) - 2)
@@ -125,8 +273,7 @@ def _chars_per_line(ws, col_idx, fallback=28):
 
 
 def _autosize_row_for_wrap(ws, row, col, text, line_height=15, min_height=15):
-    """Tăng chiều cao dòng (nếu cần) để text wrap trong 1 ô hiển thị đủ,
-    thay cho việc merge nhiều dòng (xem giải thích ở cuối phản hồi)."""
+    """Tăng chiều cao dòng (nếu cần) để text wrap trong 1 ô hiển thị đủ."""
     if not text:
         return
     chars_per_line = _chars_per_line(ws, col)
@@ -156,19 +303,18 @@ def _fmt_ngay(d):
     return d.strftime("%d/%m/%Y")
 
 
-def _capture_template_row_style(ws, src_row, n_cols=N_COLS_GOC):
+def _capture_template_row_style(ws, src_row, n_cols=N_COLS):
     """Chụp (snapshot) style của dòng mẫu (font/border/fill/alignment/
     number_format + chiều cao dòng) vào bộ nhớ.
 
-    QUAN TRỌNG: phải gọi hàm này 1 LẦN DUY NHẤT, TRƯỚC KHI ghi bất cứ nội
-    dung nào (kể cả tiêu đề nhóm) đè lên dòng mẫu (FIRST_DATA_ROW). Vì việc
-    phân nhóm có thể khiến chính dòng FIRST_DATA_ROW trở thành dòng tiêu đề
-    nhóm đầu tiên (nếu nhóm đó có lao động) -> nếu không chụp trước, các
-    dòng dữ liệu phía sau sẽ vô tình copy nhầm định dạng "tiêu đề nhóm"
-    (in đậm, nền xám, merge) thay vì định dạng dòng dữ liệu bình thường.
+    QUAN TRỌNG: phải gọi hàm này SAU KHI đã chèn xong cột Mã NV (để bắt đúng
+    style của dòng mẫu với đủ N_COLS cột), và TRƯỚC KHI ghi bất cứ nội dung
+    nào (kể cả tiêu đề nhóm) đè lên dòng mẫu (FIRST_DATA_ROW). Vì việc phân
+    nhóm có thể khiến chính dòng FIRST_DATA_ROW trở thành dòng tiêu đề nhóm
+    đầu tiên (nếu nhóm đó có lao động) -> nếu không chụp trước, các dòng dữ
+    liệu phía sau sẽ vô tình copy nhầm định dạng "tiêu đề nhóm" (in đậm, nền
+    xám, merge) thay vì định dạng dòng dữ liệu bình thường.
     """
-    from copy import copy as _copy
-
     styles = []
     for col in range(1, n_cols + 1):
         src_cell = ws.cell(row=src_row, column=col)
@@ -183,17 +329,13 @@ def _capture_template_row_style(ws, src_row, n_cols=N_COLS_GOC):
     return {"cols": styles, "row_height": row_height}
 
 
-def _apply_template_row_style(ws, dst_row, template_style, n_cols=N_COLS_GOC):
-    """Áp style đã chụp (từ _capture_template_row_style) vào dst_row. Cột
-    thứ N_COLS_GOC + 1 trở đi (vd. cột "Mã NV" mới thêm) không có style mẫu
-    sẵn -> lấy tạm style của cột cuối cùng trong mẫu (n_cols) cho đồng bộ
-    viền/font với các cột khác trên cùng dòng."""
+def _apply_template_row_style(ws, dst_row, template_style, n_cols=N_COLS):
+    """Áp style đã chụp (từ _capture_template_row_style) vào dst_row."""
     cols_style = template_style["cols"]
-    last_style = cols_style[-1] if cols_style else None
-    for col in range(1, max(n_cols, N_COLS) + 1):
-        style = cols_style[col - 1] if col <= len(cols_style) else last_style
-        if style is None:
+    for col in range(1, n_cols + 1):
+        if col > len(cols_style):
             continue
+        style = cols_style[col - 1]
         dst_cell = ws.cell(row=dst_row, column=col)
         dst_cell.font = style["font"]
         dst_cell.border = style["border"]
@@ -222,12 +364,21 @@ def build_so_qldld_excel(template_path, output_path, employees, tu_ngay, den_nga
       3) Thử việc
       4) (nếu có phát sinh) Khác
       5) Đã chấm dứt hợp đồng lao động - luôn ở cuối, bất kể loại HĐLĐ gì.
-    Mỗi nhóm có 1 dòng tiêu đề (merge toàn bảng, in đậm). Nhóm không có lao
-    động nào thì không in dòng tiêu đề của nhóm đó. STT đánh số liên tục
-    xuyên suốt toàn bộ sổ (không reset lại theo từng nhóm).
+    Mỗi nhóm có 1 dòng tiêu đề (merge toàn bảng, in đậm, căn trái có thụt lề).
+    Nhóm không có lao động nào thì không in dòng tiêu đề của nhóm đó. STT
+    đánh số liên tục xuyên suốt toàn bộ sổ (không reset lại theo từng nhóm).
+
+    Cột "Mã NV" được chèn ngay sau cột STT (đẩy các cột còn lại sang phải).
     """
     wb = openpyxl.load_workbook(template_path)
     ws = wb["Sheet1"]
+
+    # ----- Chèn cột "Mã NV" ngay sau STT (phải làm TRƯỚC mọi bước khác vì
+    # nó dịch chuyển toàn bộ vị trí cột phía sau) -----
+    _chen_cot_ma_nv(ws)
+
+    # ----- Đồng bộ độ rộng cột "Nơi cư trú" và "Chấm dứt HĐLĐ và lý do" -----
+    _dong_bo_do_rong_cot(ws)
 
     # ----- Tiêu đề doanh nghiệp -----
     ws["A1"] = f"DOANH NGHIỆP: {company_config.get('ten_doanh_nghiep', '')}"
@@ -237,9 +388,6 @@ def build_so_qldld_excel(template_path, output_path, employees, tu_ngay, den_nga
         f"SỔ QUẢN LÝ LAO ĐỘNG (Từ ngày {tu_ngay.strftime('%d/%m/%Y')} "
         f"đến ngày {den_ngay.strftime('%d/%m/%Y')})"
     )
-
-    # ----- Tiêu đề cột bổ sung "Mã NV" (xem ghi chú tại hằng số HEADER_ROW) -----
-    ws.cell(row=HEADER_ROW, column=MA_NV_COL, value="Mã NV")
 
     # ----- Chụp style dòng mẫu TRƯỚC khi ghi đè bất cứ nội dung nào -----
     template_style = _capture_template_row_style(ws, FIRST_DATA_ROW)
@@ -266,44 +414,39 @@ def build_so_qldld_excel(template_path, output_path, employees, tu_ngay, den_nga
 
             dang_dong_bh = bool(nv.get("thang_bat_dau_bh"))
 
-            ws.cell(row=r, column=1, value=stt)                                   # STT
-            ws.cell(row=r, column=2, value=(nv.get("ho_ten") or "").strip())       # Họ và tên
-            ws.cell(row=r, column=3, value=_gioi_tinh_display(nv.get("gioi_tinh")))  # Giới tính
-            ws.cell(row=r, column=4, value=_fmt_ngay(nv.get("ngay_sinh")))          # Ngày sinh
-            ws.cell(row=r, column=5, value=nv.get("quoc_tich") or "Việt Nam")       # Quốc tịch
-            ws.cell(row=r, column=6, value=nv.get("thuong_tru") or "")             # Nơi cư trú
-            ws.cell(row=r, column=7, value=nv.get("so_cccd") or "")                # Số CCCD/CMND/hộ chiếu
-            ws.cell(row=r, column=8, value=nv.get("trinh_do") or "")               # Trình độ (CMKT)
-            ws.cell(row=r, column=9, value=nv.get("bac_trinh_do_nghe") or "")      # Bậc trình độ kỹ năng nghề
-            ws.cell(row=r, column=10, value=nv.get("chuc_danh_nghe") or "")        # Vị trí làm việc
-            ws.cell(row=r, column=11, value=nv.get("loai_hop_dong") or "")         # Loại HĐLĐ
-            ws.cell(row=r, column=12, value=_fmt_ngay(nv.get("ngay_vao_lam")))     # Bắt đầu làm việc
-            ws.cell(row=r, column=13, value="x" if dang_dong_bh else "")           # BHXH
-            ws.cell(row=r, column=14, value="x" if dang_dong_bh else "")           # BHYT
-            ws.cell(row=r, column=15, value="x" if dang_dong_bh else "")           # BHTN
+            ws.cell(row=r, column=COL_STT, value=stt)
+            ws.cell(row=r, column=COL_MA_NV, value=nv.get("ma_nv") or "")
+            ws.cell(row=r, column=COL_HO_TEN, value=(nv.get("ho_ten") or "").strip())
+            ws.cell(row=r, column=COL_GIOI_TINH, value=_gioi_tinh_display(nv.get("gioi_tinh")))
+            ws.cell(row=r, column=COL_NGAY_SINH, value=_fmt_ngay(nv.get("ngay_sinh")))
+            ws.cell(row=r, column=COL_QUOC_TICH, value=nv.get("quoc_tich") or "Việt Nam")
+            ws.cell(row=r, column=COL_NOI_CU_TRU, value=nv.get("thuong_tru") or "")
+            ws.cell(row=r, column=COL_SO_CCCD, value=nv.get("so_cccd") or "")
+            ws.cell(row=r, column=COL_TRINH_DO, value=nv.get("trinh_do") or "")
+            ws.cell(row=r, column=COL_BAC_TRINH_DO_NGHE, value=nv.get("bac_trinh_do_nghe") or "")
+            ws.cell(row=r, column=COL_VI_TRI_LAM_VIEC, value=nv.get("chuc_danh_nghe") or "")
+            ws.cell(row=r, column=COL_LOAI_HDLD, value=nv.get("loai_hop_dong") or "")
+            ws.cell(row=r, column=COL_BAT_DAU_LAM_VIEC, value=_fmt_ngay(nv.get("ngay_vao_lam")))
+            ws.cell(row=r, column=COL_BHXH, value="x" if dang_dong_bh else "")
+            ws.cell(row=r, column=COL_BHYT, value="x" if dang_dong_bh else "")
+            ws.cell(row=r, column=COL_BHTN, value="x" if dang_dong_bh else "")
 
-            # Cột P - Tiền lương: định dạng number, phân tách hàng nghìn.
-            luong_cell = ws.cell(row=r, column=SALARY_COL, value=nv.get("luong_bao_hiem") or None)
+            # Cột Tiền lương - QUAN TRỌNG: phải ghi giá trị SỐ THẬT (int/float),
+            # không phải chuỗi, thì Excel mới áp number_format '#,##0' được.
+            luong_cell = ws.cell(row=r, column=COL_TIEN_LUONG, value=_to_number(nv.get("luong_bao_hiem")))
             luong_cell.number_format = "#,##0"
 
-            # Cột Q..W (Nâng bậc lương, Số ngày nghỉ, Giờ làm thêm, Hưởng chế độ BHXH,
-            # Học nghề đào tạo, Kỷ luật lao động, TNLĐ-BNN): hệ thống hiện chưa lưu các
-            # sự kiện này dưới dạng trường riêng -> để trống, cập nhật thủ công theo
-            # phát sinh thực tế trong kỳ.
+            # Cột Chấm dứt HĐLĐ và lý do: chỉ điền khi có ĐỦ CẢ ngày kết thúc
+            # VÀ lý do nghỉ; căn giữa ngang/dọc, wrap text, tự giãn chiều cao.
             thoi_diem_cham_dut = ""
             if nv.get("ngay_ket_thuc") and nv.get("ly_do_nghi"):
                 thoi_diem_cham_dut = _fmt_ngay(nv.get("ngay_ket_thuc"))
                 thoi_diem_cham_dut += f" - {nv.get('ly_do_nghi')}"
-            # Cột X - Chấm dứt HĐLĐ và lý do: căn giữa ngang/dọc, tự xuống dòng
-            # (wrap text), tự giãn chiều cao dòng theo độ dài nội dung.
-            cham_dut_cell = ws.cell(row=r, column=TERMINATION_COL, value=thoi_diem_cham_dut)
+            cham_dut_cell = ws.cell(row=r, column=COL_CHAM_DUT_HDLD, value=thoi_diem_cham_dut)
             cham_dut_cell.alignment = openpyxl.styles.Alignment(
                 horizontal="center", vertical="center", wrap_text=True
             )
-            _autosize_row_for_wrap(ws, r, TERMINATION_COL, thoi_diem_cham_dut)
-
-            # Cột cuối bảng - Mã NV
-            ws.cell(row=r, column=MA_NV_COL, value=nv.get("ma_nv") or "")
+            _autosize_row_for_wrap(ws, r, COL_CHAM_DUT_HDLD, thoi_diem_cham_dut)
 
             stt += 1
             r += 1
@@ -316,12 +459,11 @@ def render_tab_so_qldld(db_engine, format_date, company_config, auto_download_ex
     """Nội dung tab '📔 Sổ quản lý lao động' — dán vào khối `with t4:`.
 
     LƯU Ý QUAN TRỌNG: hàm này KHÔNG tự import format_date/COMPANY_CONFIG/
-    _auto_download_excel từ app.py nữa. Lý do: khi Streamlit chạy app.py làm
+    _auto_download_excel từ app.py. Lý do: khi Streamlit chạy app.py làm
     script chính, app.py được nạp dưới tên module "__main__", KHÔNG phải
-    "app" -> nếu ta viết `from app import ...` bên trong module này, Python
-    sẽ không tìm thấy module "app" đã nạp sẵn, và sẽ NẠP LẠI TOÀN BỘ app.py
-    từ đầu như một bản chạy song song -> gây lỗi (vì các lệnh st.* bị gọi
-    trùng lặp, ví dụ st.set_page_config gọi 2 lần, hoặc trùng key widget).
+    "app" -> nếu viết `from app import ...` bên trong module này, Python sẽ
+    không tìm thấy module "app" đã nạp sẵn, và sẽ NẠP LẠI TOÀN BỘ app.py từ
+    đầu như một bản chạy song song -> gây lỗi (các lệnh st.* bị gọi trùng).
 
     Thay vào đó, 3 tham số này phải được TRUYỀN VÀO từ nơi gọi hàm (app.py),
     nơi chúng vốn đã tồn tại sẵn trong cùng file:

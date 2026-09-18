@@ -33,7 +33,7 @@ CÁCH TÍCH HỢP VÀO FILE APP HIỆN TẠI
 
 import os
 from datetime import date
-from app import format_date, COMPANY_CONFIG, _auto_download_excel
+
 import openpyxl
 
 TEMPLATE_SO_QLLD = "excel_templates/SoQLLD_template_goc.xlsx"
@@ -151,6 +151,13 @@ def render_tab_so_qldld(db_engine):
     import streamlit as st
     import pandas as pd
     import psycopg2.extras
+    # Import trễ (bên trong hàm) để tránh import vòng (circular import) với
+    # app.py: app.py import so_qldld_module ở đầu file, nếu ta import ngược
+    # lại các tên này từ app ở cấp module (đầu file .py) thì lúc đó module
+    # `app` đang nạp dở, chưa có các tên format_date/COMPANY_CONFIG/
+    # _auto_download_excel -> lỗi. Import bên trong hàm thì tới lúc hàm này
+    # được GỌI (không phải lúc import), app.py chắc chắn đã nạp xong.
+    from app import format_date, COMPANY_CONFIG, _auto_download_excel
 
     st.subheader("📔 Sổ quản lý lao động")
     st.caption(

@@ -350,7 +350,7 @@ def _apply_template_row_style(ws, dst_row, template_style, n_cols=N_COLS):
         ws.row_dimensions[dst_row].height = template_style["row_height"]
 
 
-def build_so_qldld_excel(template_path, output_path, employees, tu_ngay, den_ngay, company_config):
+def build_so_qldld_excel(template_path, output_path, employees, ngay_bao_cao, company_config):
     """
     Điền danh sách lao động vào file mẫu "Sổ quản lý lao động".
 
@@ -359,7 +359,13 @@ def build_so_qldld_excel(template_path, output_path, employees, tu_ngay, den_nga
         ma_nv, ho_ten, gioi_tinh, ngay_sinh, quoc_tich, thuong_tru, so_cccd,
         trinh_do, bac_trinh_do_nghe, chuc_danh_nghe, loai_hop_dong,
         ngay_vao_lam, thang_bat_dau_bh, luong_bao_hiem, ngay_ket_thuc, ly_do_nghi
-    tu_ngay, den_ngay: date - khoảng thời gian thống kê (in vào tiêu đề sổ)
+    ngay_bao_cao: date - mốc thời điểm "chụp" trạng thái sổ (in vào tiêu đề sổ).
+        LƯU Ý: Sổ quản lý lao động theo Điều 3 Nghị định 145/2020/NĐ-CP là một
+        SỔ TÍCH LŨY (ghi nhận toàn bộ lịch sử lao động của doanh nghiệp, cập
+        nhật liên tục "kể từ ngày người lao động bắt đầu làm việc"), KHÔNG
+        phải một báo cáo biến động theo kỳ như Điều 4 (Báo cáo sử dụng lao
+        động, Mẫu 01/PLI). Vì vậy hàm này chỉ nhận 1 mốc "tính đến ngày", chứ
+        không nhận khoảng "từ ngày - đến ngày".
     company_config: dict - {"ten_cong_ty":..., "ma_so_thue":..., "dia_chi":...}
 
     Danh sách được TỰ ĐỘNG PHÂN NHÓM và in theo đúng thứ tự:
@@ -395,10 +401,7 @@ def build_so_qldld_excel(template_path, output_path, employees, tu_ngay, den_nga
     ws["A1"] = f"DOANH NGHIỆP: {ten_cong_ty}"
     ws["A2"] = f"Mã số thuế: {ma_so_thue}"
     ws["A3"] = f"Địa chỉ: {company_config.get('dia_chi', '')}"
-    ws["A4"] = (
-        f"SỔ QUẢN LÝ LAO ĐỘNG (Từ ngày {tu_ngay.strftime('%d/%m/%Y')} "
-        f"đến ngày {den_ngay.strftime('%d/%m/%Y')})"
-    )
+    ws["A4"] = f"SỔ QUẢN LÝ LAO ĐỘNG (Tính đến ngày {ngay_bao_cao.strftime('%d/%m/%Y')})"
 
     # ----- Chụp style dòng mẫu TRƯỚC khi ghi đè bất cứ nội dung nào -----
     template_style = _capture_template_row_style(ws, FIRST_DATA_ROW)
@@ -495,27 +498,15 @@ def render_tab_so_qldld(db_engine, format_date, company_config, auto_download_ex
 
     st.subheader("📔 Sổ quản lý lao động")
     st.caption(
-        "Theo Nghị định 145/2020/NĐ-CP - Ghi nhận thông tin lao động đang làm việc "
-        "trong khoảng thời gian được chọn."
+        "Theo Nghị định 145/2020/NĐ-CP (Điều 3) - Sổ tích lũy toàn bộ lịch sử lao động "
+        "của doanh nghiệp, không phải báo cáo biến động theo kỳ."
     )
 
-    col1, col2 = st.columns(2)
-    with col1:
-        tu_ngay = st.date_input(
-            "📅 Từ ngày:",
-            value=date(date.today().year, 1, 1),
-            key="soqldld_tu_ngay",
-        )
-    with col2:
-        den_ngay = st.date_input(
-            "📅 Đến ngày:",
-            value=date.today(),
-            key="soqldld_den_ngay",
-        )
-
-    if tu_ngay > den_ngay:
-        st.error("⚠️ 'Từ ngày' phải nhỏ hơn hoặc bằng 'Đến ngày'.")
-        return
+    ngay_bao_cao = st.date_input(
+        "📅 Tính đến ngày:",
+        value=date.today(),
+        key="soqldld_ngay_bao_cao",
+    )
 
     col_btn1, col_btn2, col_btn3 = st.columns([1, 2, 1])
     with col_btn2:
@@ -529,10 +520,12 @@ def render_tab_so_qldld(db_engine, format_date, company_config, auto_download_ex
 
     st.divider()
 
-    # Lao động "có mặt" trong kỳ: đã vào làm trước/trong kỳ, và (chưa nghỉ việc
-    # HOẶC nghỉ việc sau khi kỳ đã bắt đầu) -> đúng nghiệp vụ của Sổ QLLĐ (ghi nhận
-    # toàn bộ lao động từng làm việc trong khoảng thời gian, không chỉ lao động
-    # đang làm tại thời điểm hiện tại).
+    # Toàn bộ lao động đã từng vào làm tính đến ngày báo cáo -> đúng nghiệp vụ
+    # của Sổ QLLĐ (Điều 3 NĐ 145/2020/NĐ-CP): sổ tích lũy ghi nhận toàn bộ
+    # lịch sử lao động, gồm cả người đang làm lẫn người đã chấm dứt HĐLĐ ở BẤT
+    # KỲ thời điểm nào trong quá khứ, chứ KHÔNG chỉ những người chấm dứt trong
+    # một khoảng thời gian nhất định (đó là nghiệp vụ của Điều 4 - Báo cáo sử
+    # dụng lao động / Mẫu 01/PLI, không phải của sổ này).
     db = db_engine.get_connection()
     c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     c.execute(
@@ -545,16 +538,15 @@ def render_tab_so_qldld(db_engine, format_date, company_config, auto_download_ex
             nv.trinh_do, nv.so_hdld
         FROM nhan_vien nv
         WHERE nv.ngay_vao_lam <= %s
-        AND (nv.ngay_ket_thuc IS NULL OR nv.ngay_ket_thuc >= %s)
         AND nv.so_hdld IS NOT NULL AND nv.so_hdld != ''
         ORDER BY nv.ngay_vao_lam ASC
         """,
-        (den_ngay, tu_ngay),
+        (ngay_bao_cao,),
     )
     ds_lao_dong = c.fetchall()
     db.close()
 
-    st.markdown(f"### 👥 Danh sách lao động trong kỳ ({len(ds_lao_dong)})")
+    st.markdown(f"### 👥 Danh sách lao động tính đến ngày báo cáo ({len(ds_lao_dong)})")
     if ds_lao_dong:
         df = pd.DataFrame(ds_lao_dong)
         for col in df.columns:
@@ -572,21 +564,18 @@ def render_tab_so_qldld(db_engine, format_date, company_config, auto_download_ex
         ][: len(available_cols)]
         st.dataframe(df_preview, width="stretch", hide_index=True)
     else:
-        st.info("📭 Không có lao động nào trong khoảng thời gian đã chọn.")
+        st.info("📭 Không có lao động nào được ghi nhận tính đến ngày báo cáo.")
 
     if export_clicked:
         if ds_lao_dong:
             with st.spinner("Đang tạo Sổ quản lý lao động... Vui lòng chờ..."):
                 try:
-                    filename = (
-                        f"SoQLLD_{tu_ngay.strftime('%d%m%Y')}_{den_ngay.strftime('%d%m%Y')}.xlsx"
-                    )
+                    filename = f"SoQLLD_TinhDenNgay_{ngay_bao_cao.strftime('%d%m%Y')}.xlsx"
                     build_so_qldld_excel(
                         template_path=TEMPLATE_SO_QLLD,
                         output_path=filename,
                         employees=ds_lao_dong,
-                        tu_ngay=tu_ngay,
-                        den_ngay=den_ngay,
+                        ngay_bao_cao=ngay_bao_cao,
                         company_config=company_config,
                     )
 

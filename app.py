@@ -6577,7 +6577,7 @@ if not st.session_state.get('_da_quet_canh_bao_thieu_gio_ra'):
 # (st.session_state.vai_tro_phu, gán tại 🔑 Quản lý MK > Phân quyền hệ thống) — menu cuối
 # cùng là HỢP (union) menu của TẤT CẢ các vai trò đang giữ, giữ đúng thứ tự xuất hiện.
 MENU_THEO_VAI_TRO = {
-    "admin": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📥 Nhập/Xuất Excel","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","🔍 Audit Dashboard","📘 Hướng dẫn sử dụng"],
+    "admin": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📥 Nhập/Xuất Excel","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","🔍 Audit Dashboard","📁 Quản lý hồ sơ Dự án","📘 Hướng dẫn sử dụng"],
     # "văn thư" (có dấu) — giữ lại vì dữ liệu vai_tro cũ của một số tenant có thể đang lưu giá trị này.
     "văn thư": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
     "hr": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
@@ -6588,7 +6588,7 @@ MENU_THEO_VAI_TRO = {
     # "Xem toàn bộ (không chỉnh sửa)": thấy ĐẦY ĐỦ menu & tab giống hệt Admin, nhưng KHÔNG có
     # quyền thay đổi dữ liệu — mọi nút Lưu/Sửa/Xóa/Cập nhật/Save đều bị làm mờ
     # (disabled=not can_edit()/can_delete()).
-    "xem_toan_bo": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📥 Nhập/Xuất Excel","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","🔍 Audit Dashboard","📘 Hướng dẫn sử dụng"],
+    "xem_toan_bo": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📥 Nhập/Xuất Excel","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","🔍 Audit Dashboard","📁 Quản lý hồ sơ Dự án","📘 Hướng dẫn sử dụng"],
     # Vai trò DÀNH RIÊNG cho tài khoản demo công khai: thấy TOÀN BỘ menu như admin (trừ Danh
     # mục/Nhập-Xuất Excel/Audit vốn là công cụ cấu hình hệ thống), nhưng can_edit()/can_delete()/
     # can_export() đều trả về False với role này nên các nút Lưu/Sửa/Xóa/Xuất sẽ bị chặn.

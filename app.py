@@ -8114,17 +8114,17 @@ elif menu == "👤 Ứng viên":
                                 ma_cty_hd = st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL'
 
                                 # Tạo số hợp đồng theo loại + tự tính tháng bắt đầu BH
-                                if loai_hd_chuyen == "Thử việc":
-                                    trang_thai_nv = 'THU_VIEC'
-                                    trang_thai_bhxh = 'CHUA_DONG'
+                                if lhd == "Thử việc":
+                                    ttnv = 'THU_VIEC'
+                                    ttbh = 'CHUA_DONG'
                                     tbd_val = None
-                                    pa_val = None
+                                    pa_val_add = lay_ma_phuong_an(pa_add)
                                     so_hd = sinh_so_hdld_moi(c, ma_cty_hd, nhl.year, la_thu_viec=True)
                                 else:
-                                    trang_thai_nv = 'DANG_LAM'
-                                    trang_thai_bhxh = 'DANG_DONG'
+                                    ttnv = 'DANG_LAM'
+                                    ttbh = 'DANG_DONG'
                                     tbd_val = tinh_thang_bat_dau_bh(nhl)
-                                    pa_val = lay_ma_phuong_an(phuong_an_chuyen)
+                                    pa_val_add = lay_ma_phuong_an(pa_add)
                                     so_hd = sinh_so_hdld_moi(c, ma_cty_hd, nhl.year, la_thu_viec=False)
                                 
                                 # Thêm nhân viên mới (đã thêm trường ten_don_vi_thu_huong, trinh_do)
@@ -8576,7 +8576,7 @@ elif menu == "✅ Nhân viên":
                     la_thu_viec_add = lhd == "Thử việc"
                     c4, c5, c6 = st.columns(3)
                     with c4:
-                        mbh = st.text_input("Mã BHXH", key="mbh", disabled=la_thu_viec_add)
+                        mbh = st.text_input("Mã BHXH", key="mbh")
                         _cd_chon = st.session_state.get("cdn", "")
                         _goi_y_lines = ["── Gợi ý lương BH theo chức danh ──"]
                         _goi_y_nhanh = ""
@@ -8612,7 +8612,7 @@ elif menu == "✅ Nhân viên":
                                             help=f"= {_lbh_val:,} × 10,5% (tự tính từ Lương BH)" if _mtd_auto > 0 else "Nhập Lương BH trước")
                         ptd = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"], key="ptd")
                         nbh = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"], key="nbh")
-                        pa_add = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_add", disabled=la_thu_viec_add)
+                        pa_add = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_add")
                     st.divider()
                     st.caption("🏦 Ngân hàng & Hồ sơ")
                     c7, c8 = st.columns(2)
@@ -9200,7 +9200,7 @@ elif menu == "✅ Nhân viên":
                                 st.caption("💼 Bảo hiểm xã hội")
                                 col4, col5, col6 = st.columns(3)
                                 with col4:
-                                    mbhv = st.text_input("Mã BHXH", value=nd.get('ma_so_bhxh', ''), disabled=la_thu_viec_edit)
+                                    mbhv = st.text_input("Mã BHXH", value=nd.get('ma_so_bhxh', ''))
                                     # Phương án điều chỉnh BHXH
                                     pa_hien_tai = nd.get('phuong_an_dieu_chinh', '')
                                     pa_label_hien_tai = ""
@@ -9209,7 +9209,7 @@ elif menu == "✅ Nhân viên":
                                             pa_label_hien_tai = pa
                                             break
                                     pa_index = ([""] + PHUONG_AN_ALL).index(pa_label_hien_tai) if pa_label_hien_tai in PHUONG_AN_ALL else 0
-                                    pa_edit = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_ALL, index=pa_index, key="pa_edit", disabled=la_thu_viec_edit)
+                                    pa_edit = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_ALL, index=pa_index, key="pa_edit")
                                     _cd_edit = st.session_state.get("cdnv", "") if "cdnv" in st.session_state else ""
                                     _goi_y_lines_e = ["── Gợi ý lương BH ──"]
                                     _goi_y_nhanh_e = ""
@@ -9304,6 +9304,8 @@ elif menu == "✅ Nhân viên":
                                                         # Chuẩn hóa tên phòng ban
                                                         pbnv_chuan = chuan_hoa_ten_phong_ban(pbnv)
                                                     
+                                                        pa_val_edit = lay_ma_phuong_an(pa_edit)
+
                                                         c_upd.execute("""UPDATE nhan_vien SET ho_ten=%s,chuc_danh_nghe=%s,ngay_sinh=%s,gioi_tinh=%s,
                                                             so_cccd=%s,ngay_cap_cccd=%s,noi_cap_cccd=%s,nguyen_quan=%s,thuong_tru=%s,dien_thoai=%s,
                                                             email=%s,email_lien_he=%s,ho_so=%s,luong_bao_hiem=%s,ma_so_bhxh=%s,ngay_vao_lam=%s,noi_lam_viec=%s,
@@ -9313,13 +9315,13 @@ elif menu == "✅ Nhân viên":
                                                             phu_cap_tnvk=%s,phu_cap_tnn=%s,muc_huong_bhyt=%s,ty_le_dong=%s,muc_tien_dong=%s,
                                                             phuong_thuc_dong=%s,tinh_nhan_hs=%s,phuong_nhan_hs=%s,dia_chi_nhan_hs=%s,
                                                             tinh_kcb=%s,noi_dang_ky_kcb=%s,dang_ky_nhan_so=%s, ten_don_vi_thu_huong=%s, trinh_do=%s,
-                                                            so_luong_npt=%s WHERE id=%s""",
+                                                            so_luong_npt=%s, phuong_an_dieu_chinh=%s WHERE id=%s""",
                                                             (hnv, cdnv, parse_date(nsnv), gtnv, sccv, parse_date(nccv), ncv, nqnv, ttnv, (dtnv2.strip() or None) if dtnv2 else None,
                                                              emnv, emnv, hsov, to_float_or_none(lbhv), mbhv, parse_date(nvlv), nlv2, stkv, cnhv, lhdv,
                                                              nbhv, tbd_val, tt_nv, tt_bh, pbnv_chuan, parse_date(nktv), qtnv, dtnv,
                                                              to_float_or_none(hslv), to_float_or_none(pcvv), to_float_or_none(ptvv), to_float_or_none(ptnv),
                                                              mhbv, to_float_or_none(tldv), to_float_or_none(mtdv), ptdv, thsv, phsv, dhsv,
-                                                             tkbv, nkbv, dksv, ten_don_vi_thu_huong, trinh_do_v, so_luong_npt_edit, nid))
+                                                             tkbv, nkbv, dksv, ten_don_vi_thu_huong, trinh_do_v, so_luong_npt_edit, pa_val_edit, nid))
                                                     
                                                         if anh_ho_so_v is not None:
                                                             storage_path_anh_v = upload_anh_ho_so(nd.get('ma_nv', nid), hnv, anh_ho_so_v)

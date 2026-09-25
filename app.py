@@ -8721,7 +8721,7 @@ elif menu == "✅ Nhân viên":
                                             db.close()
                                             st.success(f"✅ Đã lưu nhân viên mới thành công! {htn} - {ma_nv}")
                                             # Đóng expander + buộc Streamlit tạo lại form mới hoàn toàn
-                                            st.session_state.add_nv_reset_ctr += 1
+                                            #st.session_state.add_nv_reset_ctr += 1
                                             st.cache_data.clear()
                                             st.rerun()
                                         except Exception as e:

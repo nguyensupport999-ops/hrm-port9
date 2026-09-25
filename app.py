@@ -3573,7 +3573,7 @@ def show_quan_ly_cong_van():
 
         # ── THÊM CV ĐẾN MỚI ──
         if thao_tac_cvden == "➕ Thêm CV đến mới":
-            with st.form("add_cong_van_den"):
+            with st.form("add_cong_van_den", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
                     so_cv = st.text_input("Số công văn *", placeholder="VD: 123/BQP-2026")
@@ -3616,8 +3616,8 @@ def show_quan_ly_cong_van():
         # ── NHẬP LẠI CV ĐẾN CŨ (form giống hệt, chỉ khác key) ──
         elif thao_tac_cvden == "📂 Nhập lại CV đến cũ":
             st.caption("Nhập lại các công văn đến đã tiếp nhận trước đây vào hệ thống.")
-            with st.form("add_cong_van_den_cu"):
-                col1, col2 = st.columns(2)
+            with st.form("add_cong_van_den_cu", clear_on_submit=True):
+                col1, col2 = st.columns(2))
                 with col1:
                     so_cv_cu = st.text_input("Số công văn *", placeholder="VD: 456/UBND-2024", key="cv_den_cu_socv")
                     co_quan_cu = st.text_input("Cơ quan phát hành *", placeholder="VD: UBND tỉnh Nghệ An", key="cv_den_cu_coquan")
@@ -3755,7 +3755,7 @@ def show_quan_ly_cong_van():
                 f"— số chính thức sẽ được cấp khi bấm **Lưu công văn đi**"
             )
 
-            with st.form("add_cong_van_di"):
+            with st.form("add_cong_van_di", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
                     ds_phong_ban_cv = get_phong_ban_options()
@@ -3809,7 +3809,7 @@ def show_quan_ly_cong_van():
             selected_loai2 = st.selectbox("Loại công văn *", list(loai_options2.keys()), key="cv_di_cu_loai")
             loai_cv_cu = chuan_hoa_loai_cong_van(loai_options2[selected_loai2])
 
-            with st.form("add_cong_van_di_cu"):
+            with st.form("add_cong_van_di_cu", clear_on_submit=True):
                 so_cv_cu = st.text_input("Số công văn *", placeholder="VD: 05/2025/QĐ-CHL")
                 col1, col2 = st.columns(2)
                 with col1:
@@ -4001,7 +4001,7 @@ def show_quan_ly_cong_van():
                 f"📄 **Số HĐKT dự kiến:** `{so_hd_xem_truoc}` (Prefix: **{prefix_hdkt_dang_dung}**) "
                 f"— số chính thức sẽ được cấp khi bấm **Lưu Hợp đồng**"
             )
-            with st.form("add_hop_dong_kt"):
+            with st.form("add_hop_dong_kt", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
                     so_hd_tuy_chinh = st.text_input(
@@ -4047,7 +4047,7 @@ def show_quan_ly_cong_van():
         elif thao_tac_hdkt == "📂 Nhập lại HĐKT cũ":
             st.caption("Nhập lại các hợp đồng kinh tế đã ký trước đây vào hệ thống. "
                        "Số hợp đồng do bạn tự nhập.")
-            with st.form("add_hop_dong_kt_cu"):
+            with st.form("add_hop_dong_kt_cu", clear_on_submit=True):
                 col1, col2 = st.columns(2)
                 with col1:
                     so_hd_cu = st.text_input("Số hợp đồng *", placeholder="VD: 02/2024/HĐKT-CHL", key="hdkt_cu_sohd")
@@ -7991,7 +7991,7 @@ elif menu == "👤 Ứng viên":
         with _col_lhd_c2:
             loai_hd_chuyen = st.selectbox("Loại HĐ *", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"], key="loai_hd_chuyen_uv")
         
-        with st.form("chuyen_uv_to_nv_form"):
+        with st.form("chuyen_uv_to_nv_form", clear_on_submit=True):
             st.markdown(f"**Ứng viên:** {uv_data.get('ho_ten', '')}")
             
             col1, col2, col3 = st.columns(3)
@@ -8187,10 +8187,14 @@ elif menu == "👤 Ứng viên":
                                 
                                 st.success(f"✅ Đã chuyển {ho_ten_nv} thành nhân viên! Mã NV: {ma_nv}")
                                 st.cache_data.clear()
-                                # Xóa session state
+                                # Xóa session state điều khiển form
                                 del st.session_state['show_chuyen_nv_form']
                                 del st.session_state['chuyen_uv_id']
                                 del st.session_state['chuyen_uv_data']
+                                # Xóa các key widget rời NGOÀI form (form đã tự xóa nhờ clear_on_submit)
+                                for _k in list(st.session_state.keys()):
+                                    if _k.startswith('chuyen_') or _k in ('nvl_chuyen_uv', 'loai_hd_chuyen_uv'):
+                                        del st.session_state[_k]
                                 st.rerun()
                                 
                             except Exception as e:
@@ -8227,7 +8231,7 @@ elif menu == "👤 Ứng viên":
     # Chỉ admin mới thấy nút thêm ứng viên
     if st.session_state.role in ("admin", "xem_toan_bo"):
         with st.expander("➕ THÊM ỨNG VIÊN MỚI", expanded=False):
-            with st.form("add_uv_form"):
+            with st.form("add_uv_form", clear_on_submit=True):
                 db_f = st.session_state.db_engine.get_connection()
                 c_f = db_f.cursor()
                 c_f.execute("SELECT ten_chuc_danh FROM chuc_danh_ung_vien ORDER BY ten_chuc_danh")
@@ -8402,7 +8406,7 @@ elif menu == "👤 Ứng viên":
         uv_data = c.fetchone()
         db.close()
         if uv_data:
-            with st.form("edit_uv_direct"):
+            with st.form(f"edit_uv_direct_{uv_data['id']}", clear_on_submit=True):
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     ho_ten_e = st.text_input("Họ và tên *", value=uv_data['ho_ten'] or '')
@@ -8547,7 +8551,7 @@ elif menu == "✅ Nhân viên":
                     nvl = st.text_input("Ngày vào làm (dd/mm/yyyy) *", placeholder="dd/mm/yyyy", max_chars=10, key="nvl")
                 with _col_lhd2:
                     lhd = st.selectbox("Loại HĐ *", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"], key="lhd")
-                with st.form(f"add_nv_{st.session_state.add_nv_reset_ctr}"):
+                with st.form(f"add_nv_{st.session_state.add_nv_reset_ctr}", clear_on_submit=True):
                     st.markdown("**Nhập thông tin nhân viên mới**")
                     db = st.session_state.db_engine.get_connection()
                     c = db.cursor()
@@ -8716,6 +8720,8 @@ elif menu == "✅ Nhân viên":
                                             db.commit()
                                             db.close()
                                             st.success(f"✅ Đã lưu nhân viên mới thành công! {htn} - {ma_nv}")
+                                            # Đóng expander + buộc Streamlit tạo lại form mới hoàn toàn
+                                            st.session_state.add_nv_reset_ctr += 1
                                             st.cache_data.clear()
                                             st.rerun()
                                         except Exception as e:
@@ -9199,14 +9205,18 @@ elif menu == "✅ Nhân viên":
                     
                         if nd:
                             st.subheader(f"✏️ Cập nhật: {nd.get('ho_ten', '')} ({nd.get('ma_nv', '')})")
-                            # Đặt Loại HĐ + Ngày vào làm NGOÀI form để đổi giá trị → rerun ngay → disable Mã BHXH & Phương án
+                            # Counter vào key để mỗi lần mở sửa 1 NV khác, Streamlit tạo widget MỚI
+                            # hoàn toàn, không kế thừa session_state của NV vừa sửa xong.
+                            if 'edit_nv_ctr' not in st.session_state:
+                                st.session_state.edit_nv_ctr = 0
+                            _edit_nv_ctr = st.session_state.edit_nv_ctr
                             _col_lhd_e1, _col_lhd_e2 = st.columns(2)
                             with _col_lhd_e1:
-                                nvlv = st.text_input("Ngày vào làm (dd/mm/yyyy)", value=format_date(nd.get('ngay_vao_lam')), placeholder="dd/mm/yyyy", max_chars=10, key="nvlv_edit_outside")
+                                nvlv = st.text_input("Ngày vào làm (dd/mm/yyyy)", value=format_date(nd.get('ngay_vao_lam')), placeholder="dd/mm/yyyy", max_chars=10, key=f"nvlv_edit_outside_{nid}_{_edit_nv_ctr}")
                             with _col_lhd_e2:
-                                lhdv = st.selectbox("Loại HĐ", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"], index=["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"].index(nd.get('loai_hop_dong', 'Thử việc')) if nd.get('loai_hop_dong') in ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"] else 0, key="lhdv_edit_outside")
+                                lhdv = st.selectbox("Loại HĐ", ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"], index=["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"].index(nd.get('loai_hop_dong', 'Thử việc')) if nd.get('loai_hop_dong') in ["Thử việc", "Xác định thời hạn", "Không xác định thời hạn"] else 0, key=f"lhdv_edit_outside_{nid}_{_edit_nv_ctr}")
                             la_thu_viec_edit = lhdv == "Thử việc"
-                            with st.form("edit_nv"):
+                            with st.form(f"edit_nv_{nid}_{_edit_nv_ctr}", clear_on_submit=True):
                                 col1, col2, col3 = st.columns(3)
                                 with col1:
                                     hnv = st.text_input("Họ và tên *", value=nd.get('ho_ten', ''))
@@ -9371,7 +9381,11 @@ elif menu == "✅ Nhân viên":
                                                         db_upd.close()
                                                         st.success(f"✅ Đã cập nhật: {hnv}")
                                                         st.cache_data.clear()
-                                                        del st.session_state['selected_nv_id']
+                                                        # Tăng counter để lần sau mở Sửa NV khác, form hoàn toàn mới
+                                                        st.session_state.edit_nv_ctr += 1
+                                                        # Đóng form sửa (xóa selected_nv_id)
+                                                        if 'selected_nv_id' in st.session_state:
+                                                            del st.session_state['selected_nv_id']
                                                         st.rerun()
                                                     except Exception as e:
                                                         st.error(f"❌ Lỗi: {e}")
@@ -9442,7 +9456,7 @@ elif menu == "✅ Nhân viên":
                                 st.session_state.bhxh_family_members.pop(tv_to_delete - 1)
                                 st.rerun()
                 
-                    with st.form(key=f"bhxh_family_form_{nv_id}"):
+                    with st.form(key=f"bhxh_family_form_{nv_id}", clear_on_submit=True):
                         st.markdown("**I. THÔNG TIN CHỦ HỘ:**")
                         col1, col2 = st.columns(2)
                         with col1:
@@ -10454,12 +10468,14 @@ elif menu == "✅ Nhân viên":
                         st.session_state['qdns_last_file'] = file_path
                         st.session_state['qdns_last_label'] = LOAI_QDNS_LABEL[loai_qd]
                         st.session_state['qdns_last_so'] = so_qd
-                        # Xoá các ô nhập liệu (chọn NV, loại QĐ, ngày, các trường phụ theo từng
-                        # loại QĐ...) để màn hình "trắng" lại cho lần tạo QĐ tiếp theo — không
-                        # xoá nhóm "qdns_last_*" vì đó là dữ liệu cần giữ để hiện thông báo +
-                        # nút tải file ngay sau khi rerun (xem đoạn đọc ở dòng 9914).
+                        # Xoá TRIỆT ĐỂ các ô nhập liệu của tab QĐNS để màn hình "trắng" hoàn toàn
+                        # cho lần tạo QĐ tiếp theo. Giữ lại nhóm "qdns_last_*" (thông báo + nút
+                        # tải file của QĐ vừa tạo) và "qdns_thao_tac" (đang ở chế độ Tạo mới hay
+                        # Tra cứu — tránh nhảy về tab khác sau rerun).
                         for _k in list(st.session_state.keys()):
-                            if _k.startswith('qdns_') and not _k.startswith('qdns_last'):
+                            if _k.startswith('qdns_') \
+                               and not _k.startswith('qdns_last') \
+                               and _k != 'qdns_thao_tac':
                                 del st.session_state[_k]
                         st.cache_data.clear()
                         st.rerun()
@@ -12273,24 +12289,30 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
     st.caption("Mỗi khách hàng tự đặt tên Phòng ban, Chức danh, Loại hợp đồng, Trình độ học vấn phù hợp với cơ cấu công ty mình — không ảnh hưởng đến khách hàng khác.")
 
     def _quan_ly_danh_muc_don_gian(ten_bang, cot_ten, tieu_de, placeholder):
-        """Hàm dùng chung để quản lý CRUD cho các bảng danh mục dạng đơn giản
-        (id, cột tên, thu_tu, trang_thai) — tránh lặp code cho từng loại danh mục."""
+        """..."""
         with st.expander(f"➕ Thêm {tieu_de.lower()} mới", expanded=False):
-            ten_moi = st.text_input("Tên", key=f"add_{ten_bang}", placeholder=placeholder)
+            # Counter để đổi key widget sau mỗi lần thêm thành công → ô nhập trắng hoàn toàn
+            _ctr_key = f"add_{ten_bang}_ctr"
+            if _ctr_key not in st.session_state:
+                st.session_state[_ctr_key] = 0
+            _ctr_val = st.session_state[_ctr_key]
+            ten_moi = st.text_input("Tên", key=f"add_{ten_bang}_{_ctr_val}", placeholder=placeholder)
             if st.button("💾 Lưu", key=f"btn_add_{ten_bang}", disabled=not can_edit()):
                 if ten_moi.strip():
                     try:
                         if ten_bang == "danh_muc_phong_ban":
-                            # Phòng ban: dùng chuẩn hóa kiểu tiếng Việt (không viết hoa mọi từ)
                             ten_chuan_hoa = chuan_hoa_ten_phong_ban(ten_moi)
                         else:
-                            ten_chuan_hoa = ten_moi.strip()[:1].upper() + ten_moi.strip()[1:]  # chỉ viết hoa chữ cái đầu
+                            ten_chuan_hoa = ten_moi.strip()[:1].upper() + ten_moi.strip()[1:]
                         db = st.session_state.db_engine.get_connection(); c = db.cursor()
                         c.execute(f"INSERT INTO {ten_bang} ({cot_ten}) VALUES (%s) ON CONFLICT DO NOTHING",
                                   (ten_chuan_hoa,))
                         db.commit(); db.close()
-                        st.success(f"✅ Đã thêm: {ten_chuan_hoa}"); st.cache_data.clear(); st.rerun()
+                        st.success(f"✅ Đã thêm: {ten_chuan_hoa}")
+                        # Tăng counter để lần rerun kế tiếp, ô nhập được tạo mới hoàn toàn
+                        st.session_state[_ctr_key] += 1
                         st.cache_data.clear()
+                        st.rerun()
                     except Exception as e:
                         st.error(f"❌ Lỗi: {e}")
                 else:
@@ -12356,7 +12378,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
     with tab_cd:
         # Chức danh tiếp tục dùng bảng vi_tri_cong_tac có sẵn để không phá vỡ dữ liệu cũ
         with st.expander("➕ Thêm chức danh mới", expanded=False):
-            with st.form("add_chuc_danh"):
+            with st.form("add_chuc_danh", clear_on_submit=True):
                 ten_moi = st.text_input("Tên chức danh *"); mo_ta = st.text_area("Mô tả")
                 if st.form_submit_button("💾 LƯU", disabled=not can_edit()):
                     if ten_moi:

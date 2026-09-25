@@ -3617,7 +3617,7 @@ def show_quan_ly_cong_van():
         elif thao_tac_cvden == "📂 Nhập lại CV đến cũ":
             st.caption("Nhập lại các công văn đến đã tiếp nhận trước đây vào hệ thống.")
             with st.form("add_cong_van_den_cu", clear_on_submit=True):
-                col1, col2 = st.columns(2))
+                col1, col2 = st.columns(2)
                 with col1:
                     so_cv_cu = st.text_input("Số công văn *", placeholder="VD: 456/UBND-2024", key="cv_den_cu_socv")
                     co_quan_cu = st.text_input("Cơ quan phát hành *", placeholder="VD: UBND tỉnh Nghệ An", key="cv_den_cu_coquan")

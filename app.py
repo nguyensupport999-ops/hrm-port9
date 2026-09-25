@@ -8719,7 +8719,39 @@ elif menu == "✅ Nhân viên":
                                             st.cache_data.clear()
                                             st.rerun()
                                         except Exception as e:
-                                            st.error(f"❌ Lỗi: {e}")
+                                            # Luôn rollback + đóng kết nối khi có lỗi — nếu không, kết nối
+                                            # có thể bị kẹt ở trạng thái "transaction lỗi" cho các thao tác
+                                            # tiếp theo trên cùng connection (an toàn kể cả khi lỗi xảy ra
+                                            # trước khi db/c được tạo, vì bọc thêm try/except ở đây).
+                                            try:
+                                                db.rollback()
+                                                db.close()
+                                            except Exception:
+                                                pass
+                                            if 'nhan_vien_dien_thoai_key' in str(e):
+                                                # Dò xem SĐT trùng đang thuộc về nhân viên nào để báo rõ ràng,
+                                                # thay vì hiện nguyên câu lỗi kỹ thuật của Postgres.
+                                                trung = None
+                                                try:
+                                                    db_chk = st.session_state.db_engine.get_connection()
+                                                    c_chk = db_chk.cursor()
+                                                    c_chk.execute(
+                                                        "SELECT ma_nv, ho_ten, trang_thai FROM nhan_vien WHERE dien_thoai = %s",
+                                                        ((dtn2.strip() or None) if dtn2 else None,)
+                                                    )
+                                                    trung = c_chk.fetchone()
+                                                    db_chk.close()
+                                                except Exception:
+                                                    trung = None
+                                                if trung:
+                                                    tt_label = "đang làm việc" if trung[2] in ('DANG_LAM', 'THU_VIEC') else "đã nghỉ việc"
+                                                    st.error(f"❌ Số điện thoại **{dtn2}** đã được dùng cho nhân viên "
+                                                             f"**{trung[1]}** (Mã NV: {trung[0]}, {tt_label}). "
+                                                             f"Vui lòng kiểm tra lại hoặc sửa/xoá SĐT ở hồ sơ cũ trước.")
+                                                else:
+                                                    st.error(f"❌ Số điện thoại **{dtn2}** đã được dùng cho một nhân viên khác trong hệ thống.")
+                                            else:
+                                                st.error(f"❌ Lỗi: {e}")
                                 else:
                                     st.error("Họ tên không được để trống!")
                     with col_save_exit2:

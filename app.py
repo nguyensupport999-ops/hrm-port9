@@ -7967,7 +7967,9 @@ elif menu == "📊 Dashboard":
 # ========== ỨNG VIÊN ==========
 elif menu == "👤 Ứng viên":
     st.markdown(f"# {i18n.tm('👤 Ứng viên')}", unsafe_allow_html=True)
-    ensure_chuc_danh_ung_vien_table()
+    if not st.session_state.get('_da_ensure_chuc_danh_uv'):
+        ensure_chuc_danh_ung_vien_table()
+        st.session_state['_da_ensure_chuc_danh_uv'] = True
     su = st.text_input("🔍 Tìm kiếm", key="suv")
     
     # Kiểm tra nếu đang chuyển từ ứng viên sang nhân viên
@@ -8514,9 +8516,14 @@ elif menu == "👤 Ứng viên":
 # ========== NHÂN VIÊN ==========
 elif menu == "✅ Nhân viên":
     st.markdown(f"# {i18n.tm('✅ Quản lý nhân viên')}", unsafe_allow_html=True)
-    ensure_qdns_columns()
-    ensure_qdns_table()
-    ensure_mau_dieu_hop_dong_table()
+    # Chỉ kiểm tra/tạo cột & bảng 1 LẦN/phiên đăng nhập — tránh chạy lại ~30 câu
+    # ALTER/CREATE mỗi khi bấm bất kỳ nút nào trong trang này (Streamlit rerun
+    # lại toàn bộ script mỗi lần tương tác).
+    if not st.session_state.get('_da_ensure_qdns'):
+        ensure_qdns_columns()
+        ensure_qdns_table()
+        ensure_mau_dieu_hop_dong_table()
+        st.session_state['_da_ensure_qdns'] = True
 
     tab_dang_lam, tab_da_nghi, tab_qtct, tab_qdns, tab_co_cau = st.tabs(["📌 ĐANG LÀM VIỆC", "📋 ĐÃ NGHỈ VIỆC", "📜 LỊCH SỬ CÔNG TÁC", "📜 QUYẾT ĐỊNH NHÂN SỰ", "🏢 CƠ CẤU PHÒNG BAN"])
     
@@ -9809,6 +9816,7 @@ elif menu == "✅ Nhân viên":
                       nv_current['phong_ban_lam_viec'], nv_current['noi_lam_viec'], 
                       loai_hd_dung, nv_current['he_so_luong']))
                 db.commit()
+                st.cache_data.clear()
                 st.rerun()
             db.close()
         else:
@@ -10414,6 +10422,13 @@ elif menu == "✅ Nhân viên":
                         st.session_state['qdns_last_file'] = file_path
                         st.session_state['qdns_last_label'] = LOAI_QDNS_LABEL[loai_qd]
                         st.session_state['qdns_last_so'] = so_qd
+                        # Xoá các ô nhập liệu (chọn NV, loại QĐ, ngày, các trường phụ theo từng
+                        # loại QĐ...) để màn hình "trắng" lại cho lần tạo QĐ tiếp theo — không
+                        # xoá nhóm "qdns_last_*" vì đó là dữ liệu cần giữ để hiện thông báo +
+                        # nút tải file ngay sau khi rerun (xem đoạn đọc ở dòng 9914).
+                        for _k in list(st.session_state.keys()):
+                            if _k.startswith('qdns_') and not _k.startswith('qdns_last'):
+                                del st.session_state[_k]
                         st.cache_data.clear()
                         st.rerun()
                     except Exception as e:
@@ -10797,8 +10812,10 @@ elif menu == "🕒 Chấm công":
         with st.expander("🍚 Tổng hợp báo cơm (dành cho admin_bcc)", expanded=False):
             cc_honla.render_bang_tong_hop_bao_com_admin()
     
-    # ========== BCC LUÔN HIỂN THỊ (không phụ thuộc phương thức) ==========
-    ensure_cham_cong_table()
+        # ========== BCC LUÔN HIỂN THỊ (không phụ thuộc phương thức) ==========
+        if not st.session_state.get('_da_ensure_cham_cong'):
+            ensure_cham_cong_table()
+            st.session_state['_da_ensure_cham_cong'] = True
 
     # Bố cục chọn tháng/năm/bộ phận
     if not st.session_state.get('cc_full_open', False):
@@ -11284,6 +11301,7 @@ elif menu == "🕒 Chấm công":
                         st.success(f"✅ Đã lưu {n_saved} lượt chấm công tháng {thang_v}/{nam_v}.")
                         st.session_state.cc_edit_mode = False
                         st.session_state.cc_force_save_approved = False
+                        st.cache_data.clear()
                         st.rerun()
 
     # ========== 2. TRÍCH XUẤT TỪ MÁY CHẤM VÂN TAY ==========
@@ -11778,6 +11796,7 @@ elif menu == "🕒 Chấm công":
                                         """, (st.session_state.get('username', ''), req['id']))
                                         db_duyet.commit()
                                         db_duyet.close()
+                                        st.cache_data.clear()
                                         st.rerun()
                                 with col_d3:
                                     ghi_chu_tc = st.text_input("Lý do từ chối:",
@@ -11794,6 +11813,7 @@ elif menu == "🕒 Chấm công":
                                               ghi_chu_tc, req['id']))
                                         db_tc.commit()
                                         db_tc.close()
+                                        st.cache_data.clear()
                                         st.rerun()
 
                     if ds_ls:
@@ -14491,6 +14511,7 @@ Theo **Điều 26 Luật BHXH 2014**, người lao động đóng BHXH từ đ�
                                         db_d.commit()
                                         db_d.close()
                                         st.success(f"✅ Đã duyệt {dk['ho_ten']} — {credit_duyet} credit")
+                                        st.cache_data.clear()
                                         st.rerun()
                                     except Exception as e:
                                         st.error(f"Lỗi: {e}")
@@ -14508,6 +14529,7 @@ Theo **Điều 26 Luật BHXH 2014**, người lao động đóng BHXH từ đ�
                                         db_tc.commit()
                                         db_tc.close()
                                         st.warning(f"Đã từ chối {dk['ho_ten']}")
+                                        st.cache_data.clear()
                                         st.rerun()
                                     except Exception as e:
                                         st.error(f"Lỗi: {e}")
@@ -14531,6 +14553,7 @@ Theo **Điều 26 Luật BHXH 2014**, người lao động đóng BHXH từ đ�
                                     db_cc.commit()
                                     db_cc.close()
                                     st.success(f"✅ Đã cộng {them_credit} credit cho {dk['ho_ten']}")
+                                    st.cache_data.clear()
                                     st.rerun()
                                 except Exception as e:
                                     st.error(f"Lỗi: {e}")

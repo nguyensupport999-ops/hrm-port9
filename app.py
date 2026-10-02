@@ -13420,12 +13420,42 @@ elif menu == "📋 BHXH":
 elif menu == "📋 Báo cáo định kỳ":
     st.markdown(f"# {i18n.tm('📋 Báo cáo định kỳ')}", unsafe_allow_html=True)
 
-    tab_bc_pli, tab_bc_tk, tab_bc_tanggiam, tab_bc_tinhhinh, tab_bc_yte, tab_bc_atvsld, \
-    tab_bc_tnld, tab_bc_huanluyen, tab_bc_socapcuu, tab_bc_quantrac = st.tabs([
-        "📋 Báo cáo 01/PLI", "📊 Báo cáo thống kê nhân sự", "📊 Báo cáo tăng/giảm nhân sự trong kỳ",
-        "📈 Tình hình sử dụng lao động", "🏥 Y tế Lao động", "🦺 Công tác ATVSLĐ",
-        "⚠️ Tai nạn lao động", "🎓 Huấn luyện ATVSLĐ", "🚑 Mạng lưới sơ cấp cứu", "🌡️ Quan trắc môi trường LĐ"
-    ])
+    # ── Menu báo cáo: 3 hàng nút (4 - 3 - 3) ──
+    BC_PLI       = "📋 Báo cáo 01/PLI"
+    BC_TK        = "📊 Báo cáo thống kê nhân sự"
+    BC_TANGGIAM  = "📊 Báo cáo tăng/giảm nhân sự trong kỳ"
+    BC_TINHHINH  = "📈 Tình hình sử dụng lao động"
+    BC_YTE       = "🏥 Y tế Lao động"
+    BC_ATVSLD    = "🦺 Công tác ATVSLĐ"
+    BC_TNLD      = "⚠️ Tai nạn lao động"
+    BC_HUANLUYEN = "🎓 Huấn luyện ATVSLĐ"
+    BC_SOCAPCUU  = "🚑 Mạng lưới sơ cấp cứu"
+    BC_QUANTRAC  = "🌡️ Quan trắc môi trường LĐ"
+
+    bc_hang_menu = [
+        [BC_PLI, BC_TK, BC_TANGGIAM, BC_TINHHINH],
+        [BC_YTE, BC_ATVSLD, BC_TNLD],
+        [BC_HUANLUYEN, BC_SOCAPCUU, BC_QUANTRAC],
+    ]
+
+    if "bc_active" not in st.session_state:
+        st.session_state["bc_active"] = BC_PLI
+
+    for hang in bc_hang_menu:
+        cols_bc = st.columns(4)  # luôn chia 4 cột để các nút ở mọi hàng cùng độ rộng
+        for col_bc, ten in zip(cols_bc, hang):
+            with col_bc:
+                if st.button(
+                    ten,
+                    key=f"bc_btn_{ten}",
+                    use_container_width=True,
+                    type="primary" if st.session_state["bc_active"] == ten else "secondary",
+                ):
+                    st.session_state["bc_active"] = ten
+                    st.rerun()
+
+    st.divider()
+    bc_active = st.session_state["bc_active"]
 
     def _bao_cao_dang_phat_trien(ten_bao_cao, mo_ta, icon, mau_sac="#f59e0b"):
         """Card hiện đại cho các báo cáo định kỳ chưa có logic - sẽ bổ sung sau."""
@@ -13454,7 +13484,7 @@ elif menu == "📋 Báo cáo định kỳ":
             - Xuất file Word/Excel theo đúng mẫu quy định
             """)
 
-    with tab_bc_tinhhinh:
+    if bc_active == BC_TINHHINH:
         st.caption("💡 Lưu ý: tab **📋 Báo cáo 01/PLI** hiện tại cũng đang thể hiện nội dung "
                    "\"tình hình sử dụng lao động\" theo mẫu 01/PLI. Nếu đây là 1 báo cáo khác "
                    "(mẫu/kỳ báo cáo khác), bạn gửi mẫu cụ thể để tôi phân biệt rõ khi triển khai.")
@@ -13465,49 +13495,49 @@ elif menu == "📋 Báo cáo định kỳ":
             "📈"
         )
 
-    with tab_bc_yte:
+    if bc_active == BC_YTE:
         _bao_cao_dang_phat_trien(
             "Báo cáo Y tế Lao động",
             "Báo cáo công tác y tế lao động: khám sức khỏe định kỳ, bệnh nghề nghiệp, tình hình sức khỏe người lao động.",
             "🏥"
         )
 
-    with tab_bc_atvsld:
+    if bc_active == BC_ATVSLD:
         _bao_cao_dang_phat_trien(
             "Báo cáo công tác An toàn, Vệ sinh lao động (ATVSLĐ)",
             "Tổng hợp công tác an toàn vệ sinh lao động: tổ chức bộ máy ATVSLĐ, tự kiểm tra, cải thiện điều kiện làm việc.",
             "🦺"
         )
 
-    with tab_bc_tnld:
+    if bc_active == BC_TNLD:
         _bao_cao_dang_phat_trien(
             "Báo cáo Tai nạn lao động",
             "Thống kê, khai báo các vụ tai nạn lao động phát sinh trong kỳ báo cáo theo quy định.",
             "⚠️", mau_sac="#ef4444"
         )
 
-    with tab_bc_huanluyen:
+    if bc_active == BC_HUANLUYEN:
         _bao_cao_dang_phat_trien(
             "Báo cáo Huấn luyện ATVSLĐ",
             "Tổng hợp tình hình huấn luyện an toàn vệ sinh lao động theo nhóm đối tượng, thời hạn huấn luyện lại.",
             "🎓"
         )
 
-    with tab_bc_socapcuu:
+    if bc_active == BC_SOCAPCUU:
         _bao_cao_dang_phat_trien(
             "Báo cáo hoạt động mạng lưới sơ cấp cứu",
             "Tình hình tổ chức, hoạt động của mạng lưới sơ cấp cứu tại doanh nghiệp.",
             "🚑"
         )
 
-    with tab_bc_quantrac:
+    if bc_active == BC_QUANTRAC:
         _bao_cao_dang_phat_trien(
             "Báo cáo Quan trắc môi trường lao động",
             "Kết quả quan trắc môi trường lao động định kỳ (các yếu tố có hại tại nơi làm việc).",
             "🌡️"
         )
 
-    with tab_bc_pli:
+    if bc_active == BC_PLI:
         st.subheader("📋 Báo cáo tình hình sử dụng lao động")
         st.caption("Theo mẫu 01/PLI Phụ lục I - Nghị định 145/2020/NĐ-CP (sửa đổi bởi Nghị định 35/2022/NĐ-CP)")
     
@@ -13869,9 +13899,7 @@ elif menu == "📋 Báo cáo định kỳ":
         else:
             st.warning("⚠️ Không có lao động nào đang làm việc trong kỳ báo cáo!")
         
-    # ========== QUẢN LÝ CÔNG VĂN & HĐ KINH TẾ ==========
-
-    with tab_bc_tk:
+    if bc_active == BC_TK:
         st.caption("⚙️ Tùy chọn bộ lọc và xuất báo cáo thống kê nhân sự")
 
         # ── Tùy chọn bộ lọc ──
@@ -14146,7 +14174,7 @@ elif menu == "📋 Báo cáo định kỳ":
                         st.cache_data.clear()
 
 
-    with tab_bc_tanggiam:
+    if bc_active == BC_TANGGIAM:
         col_from, col_to, col_xuat_bc = st.columns(3)
         with col_from:
             tu_ngay_bc = st.date_input("Từ ngày:", value=date.today().replace(day=1), key="bc_tu")

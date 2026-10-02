@@ -6588,7 +6588,7 @@ MENU_THEO_VAI_TRO = {
     # "Xem toàn bộ (không chỉnh sửa)": thấy ĐẦY ĐỦ menu & tab giống hệt Admin, nhưng KHÔNG có
     # quyền thay đổi dữ liệu — mọi nút Lưu/Sửa/Xóa/Cập nhật/Save đều bị làm mờ
     # (disabled=not can_edit()/can_delete()).
-    "xem_toan_bo": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📥 Nhập/Xuất Excel","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","🔍 Audit Dashboard","📁 Quản lý hồ sơ Dự án","📘 Hướng dẫn sử dụng"],
+    "xem_toan_bo": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","📁 Quản lý hồ sơ Dự án"],
     # Vai trò DÀNH RIÊNG cho tài khoản demo công khai: thấy TOÀN BỘ menu như admin (trừ Danh
     # mục/Nhập-Xuất Excel/Audit vốn là công cụ cấu hình hệ thống), nhưng can_edit()/can_delete()/
     # can_export() đều trả về False với role này nên các nút Lưu/Sửa/Xóa/Xuất sẽ bị chặn.

@@ -365,7 +365,7 @@ def render():
           </div>
           <div class="cv-cta-row">
             <a class="cv-btn" href="http://demo-hrm9.streamlit.app" target="_blank" rel="noopener">→ Đăng nhập trải nghiệm HRM Master</a>
-            <a class="cv-btn ghost" href="#" onclick="alert('Anh có thể upload file CV PDF lên Google Drive và thay link vào đây.'); return false;">⬇ Tải file CV PDF</a>
+            <a class="cv-btn ghost" href="https://drive.google.com/file/d/1GbDDNIsG37tsVW4cMwHK8nZ3k8xmNKtY/view?usp=drive_link">⬇ Tải file CV PDF</a>
           </div>
         </div>
       </div>

@@ -6,17 +6,17 @@ Landing Page MẶC ĐỊNH (dùng chung cho mọi tenant CHƯA có landing page 
 
 CƠ CHẾ "MỖI TENANT 1 LANDING PAGE RIÊNG":
 - app.py sẽ tìm file `landing_page/landing_{ma_so_thue}.py` của tenant đang đăng nhập
-  (ma_so_thue lấy từ Control Plane — xem control_plane.py, đây là khoá quản lý tenant
+  (ma_so_thue lấy từ Control Plane - xem control_plane.py, đây là khoá quản lý tenant
   hiện tại). Nếu tìm thấy và file có hàm `render()`, dùng file đó.
 - Nếu tenant CHƯA có file riêng (chưa custom landing page), app.py tự động dùng file
-  này (landing_demo.py) làm mặc định — nội dung y hệt landing page gốc trước khi có
+  này (landing_demo.py) làm mặc định - nội dung y hệt landing page gốc trước khi có
   cơ chế đa-tenant.
 
 MUỐN TẠO LANDING PAGE RIÊNG CHO 1 TENANT?
 1. Copy file này thành `landing_page/landing_{ma_so_thue}.py` (đúng mã số thuế của
    tenant đó, VD: `landing_page/landing_0304577099.py`).
 2. Sửa nội dung hàm `render()` bên dưới theo đúng thương hiệu/nội dung mong muốn.
-3. Không cần sửa gì ở app.py — lần đăng nhập tiếp theo của tenant đó sẽ tự nhận
+3. Không cần sửa gì ở app.py - lần đăng nhập tiếp theo của tenant đó sẽ tự nhận
    đúng file mới.
 """
 
@@ -26,7 +26,7 @@ import streamlit.components.v1 as components
 
 def render():
     """
-    Landing Page CV cá nhân — NGUYỄN VĂN TUYẾN
+    Landing Page CV cá nhân - NGUYỄN VĂN TUYẾN
     Ứng tuyển vị trí Trợ lý Phó Chủ tịch HĐQT.
 
     LƯU Ý VỀ ẢNH:
@@ -36,7 +36,7 @@ def render():
     """
 
     # ========================================================================
-    # PLACEHOLDER ẢNH — ANH THAY BẰNG BASE64 THẬT CỦA ANH
+    # PLACEHOLDER ẢNH - ANH THAY BẰNG BASE64 THẬT CỦA ANH
     # ========================================================================
     # Cách lấy base64:
     #   1. Mở terminal, chạy: base64 -w 0 anh_chan_dung.jpg > portrait.txt
@@ -163,7 +163,7 @@ def render():
     font-family:'Space Mono', monospace; font-size:10.5px; color:var(--pine);
     letter-spacing:.08em; text-transform:uppercase; margin-bottom:10px; font-weight:400;
   }}
-  #hrm-landing .cv-kicker::before{{ content:"— "; color:var(--rust); }}
+  #hrm-landing .cv-kicker::before{{ content:"- "; color:var(--rust); }}
   #hrm-landing .cv-sec h2{{ font-size:20px; margin-bottom:14px; font-weight:600; }}
 
   /* ---------- TRIẾT LÝ & MỤC TIÊU ---------- */
@@ -375,14 +375,15 @@ def render():
   <section class="cv-sec">
     <div class="hl-wrap">
       <div class="cv-kicker">Triết lý làm việc &amp; Mục tiêu nghề nghiệp</div>
-      <h2>Lắng nghe — Thấu hiểu — Chuẩn bị — Làm bệ phóng</h2>
+      <h2>Lắng nghe - Thấu hiểu - Chuẩn bị - Làm bệ phóng</h2>
 
       <div class="cv-philo">
         <p class="cv-quote">
-          Ở vai trò Trợ lý, vai trò quan trọng nhất là lắng nghe, thấu hiểu, chuẩn bị chu đáo nguồn lực và làm bệ phóng cho các quyết định của Phó Chủ tịch. Tôi không đến để làm thay, mà đến để làm cho mọi việc trở nên nhẹ nhàng, chính xác và kín đáo hơn.
+          Với nền tảng kiến thức được đào tạo bài bản, cùng với kinh nghiệm công tác hơn 20 năm với những thành công cũng như thất bại; với khả năng tư duy hệ thống và năng lực update nhanh và khai thác hiệu quả những tiện tích siêu việt từ Trí tuệ nhân tạo - AI Agent. Tôi muốn tìm cho mình những vị trí/công việc có nhiều thách thức hơn hiện tại. 
+Ở vai trò Trợ lý, tôi có thể phát huy được những kỹ năng, kinh nghiệm và có thể "tuyển dụng" cho sếp nhiều "siêu trợ lý AI" đề giúp sếp tối ưu tối đa thời gian; năng lượng và các quyết sách của mình đạt hiệu quả cao nhất có thể.
         </p>
         <ul class="cv-goals">
-          <li><b>Trở thành "cánh tay phải" tin cậy</b> — thấu hiểu và chia sẻ áp lực công việc với Phó Chủ tịch.</li>
+          <li><b>Trở thành "cánh tay phải" tin cậy</b> - thấu hiểu và chia sẻ áp lực công việc với Phó Chủ tịch.</li>
           <li><b>Chuẩn bị chu đáo hồ sơ, đàm phán/đối ngoại chuyên nghiệp</b> với đối tác và cơ quan Quản lý nhà nước.</li>
           <li><b>Điều phối lịch trình, theo dõi đôn đốc công việc đa phòng ban</b> chính xác, bảo mật tuyệt đối hình ảnh và thông tin Lãnh đạo.</li>
         </ul>
@@ -446,22 +447,22 @@ def render():
   <section class="cv-sec">
     <div class="hl-wrap">
       <div class="cv-kicker">Hành trình kinh nghiệm &amp; Thành tựu</div>
-      <h2>Hơn 20 năm quản trị — từ Bảo Việt đến HRM Master</h2>
+      <h2>Hơn 20 năm quản trị - từ Bảo Việt đến HRM Master</h2>
 
       <div class="cv-tl">
 
         <div class="cv-tl-item milestone">
-          <div class="cv-tl-date">05/2026 — nay</div>
+          <div class="cv-tl-date">05/2026 - nay</div>
           <h3>Chuyên viên Hành chính Nhân sự · Tham mưu Quản trị</h3>
           <div class="cv-role">Doanh nghiệp hiện tại · gần 80 nhân viên</div>
           <ul>
             <li><b>Tham mưu &amp; Xây dựng thể chế:</b> Chủ trì soạn thảo Nội quy lao động, Chức năng nhiệm vụ các phòng ban, Hồ sơ PCCC, An toàn lao động và hồ sơ làm việc với Cơ quan Quản lý Nhà nước.</li>
-            <li><b>Chuẩn hóa quy trình &amp; Số hóa:</b> Khảo sát quy trình vận hành, ứng dụng AI xây dựng hệ thống quản trị HRM số hóa giúp tự động hóa theo dõi trọn đời mỗi nhân viên, nghiệp vụ BHXH, chấm công, C&amp;B, báo cáo, công văn, hợp đồng kinh tế — <b>tối ưu 40% thời gian xử lý thủ tục hành chính.</b></li>
+            <li><b>Chuẩn hóa quy trình &amp; Số hóa:</b> Khảo sát quy trình vận hành, ứng dụng AI xây dựng hệ thống quản trị HRM số hóa giúp tự động hóa theo dõi trọn đời mỗi nhân viên, nghiệp vụ BHXH, chấm công, C&amp;B, báo cáo, công văn, hợp đồng kinh tế - <b>tối ưu 40% thời gian xử lý thủ tục hành chính.</b></li>
           </ul>
         </div>
 
         <div class="cv-tl-item">
-          <div class="cv-tl-date">2023 — 04/2026</div>
+          <div class="cv-tl-date">2023 - 04/2026</div>
           <h3>Freelancer · Tư vấn du học và Xuất khẩu lao động</h3>
           <div class="cv-role">CTCP Cung ứng Nhân lực Nghệ An</div>
           <ul>
@@ -471,7 +472,7 @@ def render():
         </div>
 
         <div class="cv-tl-item milestone">
-          <div class="cv-tl-date">2010 — 2023</div>
+          <div class="cv-tl-date">2010 - 2023</div>
           <h3>Founder &amp; CEO</h3>
           <div class="cv-role">CTCP Đầu tư và Thương mại An Phú Lộc</div>
           <ul>
@@ -484,7 +485,7 @@ def render():
         </div>
 
         <div class="cv-tl-item">
-          <div class="cv-tl-date">1999 — 2010</div>
+          <div class="cv-tl-date">1999 - 2010</div>
           <h3>Trưởng phòng Nghiệp vụ</h3>
           <div class="cv-role">Tập đoàn Bảo Việt · Bảo Việt Nhân thọ Nghệ An</div>
           <ul>
@@ -499,7 +500,7 @@ def render():
       <!-- Case study HRM Master -->
       <div class="cv-case">
         <span class="cv-case-badge">Case study tiêu biểu</span>
-        <h3>HRM Master — Phần mềm Quản trị Nhân sự</h3>
+        <h3>HRM Master - Phần mềm Quản trị Nhân sự</h3>
         <p>
           Phần mềm HR/C&amp;B/BHXH/Hành chính đang vận hành thực tế; tự phân tích nghiệp vụ, thiết kế kiến trúc dữ liệu và chỉ đạo AI xây dựng toàn bộ hệ thống <b>(hơn 15.000 dòng code)</b>.
           Các module: Dashboard, Nhân viên, BHXH, Chấm công, Tính thu nhập, Công văn và Hợp đồng kinh tế, Chat nội bộ, Chatbot pháp luật lao động, Audit.
@@ -566,7 +567,7 @@ def render():
 
 <script>
   // Iframe của components.html có chiều cao cố định theo tham số height=... truyền
-  // từ Python, không tự co giãn theo nội dung — nên phải tự đo và set lại chiều cao
+  // từ Python, không tự co giãn theo nội dung - nên phải tự đo và set lại chiều cao
   // bằng JS. window.frameElement trỏ đúng tới thẻ <iframe> đang chứa nội dung này
   // (vẫn cùng-origin với trang Streamlit nên truy cập được, không cần postMessage).
   function _hrmResizeIframe() {{

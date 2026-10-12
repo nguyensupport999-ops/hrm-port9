@@ -13945,6 +13945,7 @@ elif menu == "📋 Báo cáo định kỳ":
                 "ho_so":              "Hồ sơ",
                 "ten_don_vi_thu_huong": "Tên đơn vị thụ hưởng",
                 "so_luong_npt": "Số lượng người phụ thuộc",
+                "luong_bao_hiem": "Lương BHXH",
             }
 
             # Thứ tự ưu tiên mặc định (tất cả tích mặc định)
@@ -13955,7 +13956,7 @@ elif menu == "📋 Báo cáo định kỳ":
                 "so_cccd", "ngay_cap_cccd", "noi_cap_cccd", "nguyen_quan",
                 "thuong_tru", "dien_thoai", "ma_so_bhxh",
                 "thang_bat_dau_bh", "so_tai_khoan_nh", "chi_nhanh_nh", "ho_so",
-                "ten_don_vi_thu_huong", "so_luong_npt",
+                "ten_don_vi_thu_huong", "so_luong_npt", "luong_bao_hiem",
             ]
             DEFAULT_CHECKED = set(DEFAULT_PRIORITY)
 

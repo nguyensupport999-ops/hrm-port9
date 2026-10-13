@@ -1154,6 +1154,49 @@ def get_chuc_vu_options():
     return list(DANH_SACH_CHUC_VU)
 
 
+def get_chuc_danh_options():
+    """Danh sách Chức danh cho dropdown (QĐ Bổ nhiệm / Thay đổi chức danh): gộp danh mục chức danh
+    (bảng chuc_danh_ung_vien — thêm/xoá ở màn Ứng viên) với các chức danh đang dùng trong hồ sơ nhân viên."""
+    ds = []
+    db = None
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        try:
+            c.execute("SELECT ten_chuc_danh FROM chuc_danh_ung_vien")
+            ds += [r[0] for r in c.fetchall() if r[0]]
+        except Exception:
+            db.rollback()
+        c.execute("SELECT DISTINCT chuc_danh_nghe FROM nhan_vien WHERE chuc_danh_nghe IS NOT NULL AND TRIM(chuc_danh_nghe) <> ''")
+        ds += [r[0] for r in c.fetchall() if r[0]]
+    except Exception:
+        pass
+    finally:
+        try:
+            if db is not None:
+                db.close()
+        except Exception:
+            pass
+    seen, kq = set(), []
+    for x in ds:
+        k = " ".join(str(x).split())
+        if k and k.lower() not in seen:
+            seen.add(k.lower())
+            kq.append(k)
+    return sorted(kq, key=lambda t: t.lower())
+
+
+def _ds_dropdown_giu_hien_tai(options, hien_tai):
+    """Trả về (danh sách, index) cho selectbox mặc định = giá trị hiện tại (thêm vào nếu chưa có trong danh mục)."""
+    opts = list(options)
+    hien_tai = (hien_tai or '').strip()
+    if hien_tai and hien_tai not in opts:
+        opts.insert(0, hien_tai)
+    if not hien_tai:
+        opts.insert(0, '')
+    return opts, opts.index(hien_tai)
+
+
 def get_phong_to_chuc_nhan_su():
     """Trả về tên Phòng Tổ chức - Nhân sự / Hành chính ĐÚNG theo danh mục phòng ban
     riêng của TỪNG TENANT, thay vì khoá cứng chuỗi 'Phòng Tổ chức - Hành chính'
@@ -1688,32 +1731,32 @@ def _chatbot_call_claude_v2(system_prompt, history):
 def _chatbot_badge_html(loai):
     return {
         "recommended": '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#e6f4ea;color:#1e6e3a;border:1px solid #8fc8a3;font-weight:600">Khuyến nghị</span>',
-        "alternative": '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#e8f0fe;color:#1a56c4;border:1px solid #93b4f5;font-weight:600">Thay thế</span>',
-        "risky": '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#fce8e6;color:#b91c1c;border:1px solid #f5a3a3;font-weight:600">Rủi ro cao</span>',
-    }.get(loai, '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#e8f0fe;color:#1a56c4;border:1px solid #93b4f5;font-weight:600">Thay thế</span>')
+        "alternative": '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#f9f3ed;color:#af4a2f;border:1px solid #e6b0a2;font-weight:600">Thay thế</span>',
+        "risky": '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#f8f1ea;color:#b91c1c;border:1px solid #eabbae;font-weight:600">Rủi ro cao</span>',
+    }.get(loai, '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#f9f3ed;color:#af4a2f;border:1px solid #e6b0a2;font-weight:600">Thay thế</span>')
 
 def _chatbot_render_answer_html(data):
     """Dựng HTML thẻ trả lời có cấu trúc (tương đương hàm render() bản JS), hiển thị qua st.markdown."""
     import html as _html
     al = _chatbot_all_laws()
-    h = '<div style="padding:14px 16px;background:#fff;border:1px solid #e5e7eb;border-radius:4px 14px 14px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05)">'
-    h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:11px;padding-bottom:8px;border-bottom:1px solid #f1f5f9">' \
-         '<div style="width:22px;height:22px;border-radius:6px;background:#1e3a5f;display:flex;align-items:center;justify-content:center;font-size:11px">⚖️</div>' \
-         '<span style="font-size:10.5px;font-weight:700;color:#1e3a5f;letter-spacing:.06em">CHUYÊN GIA TƯ VẤN HCNS</span></div>'
+    h = '<div style="padding:14px 16px;background:#fff;border:1px solid #ece7e4;border-radius:4px 14px 14px 14px;box-shadow:0 1px 4px rgba(0,0,0,.05)">'
+    h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:11px;padding-bottom:8px;border-bottom:1px solid #f9f5f1">' \
+         '<div style="width:22px;height:22px;border-radius:6px;background:#5f2c1e;display:flex;align-items:center;justify-content:center;font-size:11px">⚖️</div>' \
+         '<span style="font-size:10.5px;font-weight:700;color:#5f2c1e;letter-spacing:.06em">CHUYÊN GIA TƯ VẤN HCNS</span></div>'
     if data.get("summary"):
-        h += f'<div style="padding:10px 13px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;margin-bottom:11px;font-size:13px;color:#0c4a6e;font-weight:500;line-height:1.65">{_html.escape(data["summary"])}</div>'
+        h += f'<div style="padding:10px 13px;background:#f0f9ff;border:1px solid #eddcca;border-radius:8px;margin-bottom:11px;font-size:13px;color:#60281a;font-weight:500;line-height:1.65">{_html.escape(data["summary"])}</div>'
     if data.get("analysis"):
-        h += f'<div style="font-size:13.5px;color:#374151;line-height:1.8;margin-bottom:13px">{_html.escape(data["analysis"])}</div>'
+        h += f'<div style="font-size:13.5px;color:#5f3429;line-height:1.8;margin-bottom:13px">{_html.escape(data["analysis"])}</div>'
     if data.get("options"):
-        h += '<div style="font-size:10px;font-weight:700;color:#6b7280;letter-spacing:.07em;text-transform:uppercase;margin-bottom:7px">⚖️ Phương án xử lý</div>'
+        h += '<div style="font-size:10px;font-weight:700;color:#8b7260;letter-spacing:.07em;text-transform:uppercase;margin-bottom:7px">⚖️ Phương án xử lý</div>'
         for o in data["options"]:
             risk_html = f'<div style="margin-top:5px;font-size:12px;color:#b91c1c;background:#fef2f2;padding:4px 9px;border-radius:5px">⚠️ {_html.escape(o.get("risk",""))}</div>' if o.get("risk") else ""
-            h += f'<div style="margin-bottom:7px;padding:10px 13px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px">' \
+            h += f'<div style="margin-bottom:7px;padding:10px 13px;background:#f9fafb;border:1px solid #ece7e4;border-radius:8px">' \
                  f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;flex-wrap:wrap">' \
-                 f'<span style="font-size:13px;font-weight:700;color:#111827">{_html.escape(o.get("label",""))}</span>{_chatbot_badge_html(o.get("type"))}</div>' \
-                 f'<div style="font-size:13px;color:#4b5563;line-height:1.65">{_html.escape(o.get("detail",""))}</div>{risk_html}</div>'
+                 f'<span style="font-size:13px;font-weight:700;color:#271611">{_html.escape(o.get("label",""))}</span>{_chatbot_badge_html(o.get("type"))}</div>' \
+                 f'<div style="font-size:13px;color:#675447;line-height:1.65">{_html.escape(o.get("detail",""))}</div>{risk_html}</div>'
     if data.get("calculations"):
-        h += '<div style="font-size:10px;font-weight:700;color:#6b7280;letter-spacing:.07em;text-transform:uppercase;margin:10px 0 7px">🔢 Tính toán cụ thể</div>'
+        h += '<div style="font-size:10px;font-weight:700;color:#8b7260;letter-spacing:.07em;text-transform:uppercase;margin:10px 0 7px">🔢 Tính toán cụ thể</div>'
         for c in data["calculations"]:
             ket_qua = f'<span style="font-weight:700;color:#14532d"> = {_html.escape(str(c.get("result","")))}</span>' if c.get("result") else ""
             h += f'<div style="margin-bottom:5px;padding:8px 12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;font-size:13px">' \
@@ -1722,15 +1765,15 @@ def _chatbot_render_answer_html(data):
     if data.get("citations"):
         matched = [l for l in al if l["id"] in data["citations"]]
         if matched:
-            h += '<div style="margin-top:13px;border-top:1px solid #f3f4f6;padding-top:11px">' \
-                 '<div style="font-size:10px;font-weight:700;color:#6b7280;letter-spacing:.07em;text-transform:uppercase;margin-bottom:7px">📚 Căn cứ pháp lý</div>'
+            h += '<div style="margin-top:13px;border-top:1px solid #f6f4f3;padding-top:11px">' \
+                 '<div style="font-size:10px;font-weight:700;color:#8b7260;letter-spacing:.07em;text-transform:uppercase;margin-bottom:7px">📚 Căn cứ pháp lý</div>'
             for law in matched:
-                h += f'<div style="margin-bottom:8px;padding:8px 12px;background:#fffbeb;border:1px solid #fde68a;border-left:3px solid #f59e0b;border-radius:6px">' \
-                     f'<div style="font-size:11px;font-weight:700;color:#92400e;margin-bottom:3px">{_html.escape(law["ref"])}</div>' \
-                     f'<div style="font-size:12px;color:#78350f;line-height:1.65">{_html.escape(law["text"])}</div></div>'
+                h += f'<div style="margin-bottom:8px;padding:8px 12px;background:#faf5f0;border:1px solid #e6afa1;border-left:3px solid #ca5536;border-radius:6px">' \
+                     f'<div style="font-size:11px;font-weight:700;color:#7e3522;margin-bottom:3px">{_html.escape(law["ref"])}</div>' \
+                     f'<div style="font-size:12px;color:#6b2d1c;line-height:1.65">{_html.escape(law["text"])}</div></div>'
             h += '</div>'
     if data.get("note"):
-        h += f'<div style="margin-top:9px;padding:8px 12px;background:#faf5ff;border:1px solid #e9d5ff;border-radius:6px;font-size:12.5px;color:#6b21a8;line-height:1.65">💡 <strong>Lưu ý:</strong> {_html.escape(data["note"])}</div>'
+        h += f'<div style="margin-top:9px;padding:8px 12px;background:#faf5ff;border:1px solid #f4eae0;border-radius:6px;font-size:12.5px;color:#9f432a;line-height:1.65">💡 <strong>Lưu ý:</strong> {_html.escape(data["note"])}</div>'
     h += '</div>'
     return h
 
@@ -1893,6 +1936,71 @@ handle_language_change()
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide",
                    initial_sidebar_state="expanded")
 
+# ===== Giao diện: phối màu Terracotta + Beige (đồng bộ với .streamlit/config.toml) =====
+st.markdown("""
+<style>
+:root{
+  --terra:#b8593b; --terra-dark:#96452b; --terra-soft:#f3dcd2;
+  --beige:#dfc4a9; --beige-mid:#ebdcc9; --beige-light:#f6eee3; --ink:#3a2a22;
+}
+.stApp{background:var(--beige-light); color:var(--ink);}
+[data-testid="stHeader"]{background:transparent;}
+[data-testid="stSidebar"]{background:var(--beige-mid); border-right:1px solid var(--beige);}
+h1,h2,h3,h4,h5,h6{color:var(--terra-dark) !important;}
+a{color:var(--terra) !important;}
+a:hover{color:var(--terra-dark) !important;}
+hr{border-color:var(--beige) !important;}
+
+/* Nút chính: Terracotta */
+.stButton>button[kind="primary"], .stDownloadButton>button[kind="primary"],
+button[data-testid="stBaseButton-primary"], button[data-testid="stBaseButton-primaryFormSubmit"]{
+  background:var(--terra) !important; border:1px solid var(--terra) !important; color:#fff !important;
+}
+.stButton>button[kind="primary"]:hover, .stDownloadButton>button[kind="primary"]:hover,
+button[data-testid="stBaseButton-primary"]:hover, button[data-testid="stBaseButton-primaryFormSubmit"]:hover{
+  background:var(--terra-dark) !important; border-color:var(--terra-dark) !important; color:#fff !important;
+}
+/* Nút phụ: Beige viền Terracotta */
+.stButton>button[kind="secondary"], .stDownloadButton>button[kind="secondary"],
+button[data-testid="stBaseButton-secondary"], button[data-testid="stBaseButton-secondaryFormSubmit"]{
+  background:var(--beige-light) !important; border:1px solid var(--beige) !important; color:var(--terra-dark) !important;
+}
+.stButton>button[kind="secondary"]:hover, .stDownloadButton>button[kind="secondary"]:hover,
+button[data-testid="stBaseButton-secondary"]:hover, button[data-testid="stBaseButton-secondaryFormSubmit"]:hover{
+  background:var(--terra-soft) !important; border-color:var(--terra) !important; color:var(--terra) !important;
+}
+button:disabled{opacity:.55 !important;}
+
+/* Tabs */
+button[data-baseweb="tab"][aria-selected="true"]{color:var(--terra) !important;}
+div[data-baseweb="tab-highlight"]{background-color:var(--terra) !important;}
+button[data-baseweb="tab"]:hover{color:var(--terra-dark) !important;}
+
+/* Ô nhập / dropdown */
+div[data-baseweb="input"]>div, div[data-baseweb="select"]>div, div[data-baseweb="textarea"]>div,
+[data-testid="stDateInput"] div[data-baseweb="input"]>div, [data-testid="stNumberInput"] div[data-baseweb="input"]>div{
+  background:#fffaf3 !important; border-color:var(--beige) !important;
+}
+div[data-baseweb="input"]:focus-within>div, div[data-baseweb="select"]:focus-within>div{border-color:var(--terra) !important;}
+ul[role="listbox"] li[aria-selected="true"], ul[role="listbox"] li:hover{background:var(--terra-soft) !important;}
+
+/* Khung, expander, bảng */
+[data-testid="stExpander"]{border:1px solid var(--beige) !important; background:#fbf5ec; border-radius:8px;}
+[data-testid="stForm"]{border:1px solid var(--beige) !important; background:#fbf5ec;}
+[data-testid="stMetric"]{background:#fbf5ec; border:1px solid var(--beige); border-radius:8px; padding:8px 12px;}
+
+/* Thông báo: nền Beige, viền Terracotta (biểu tượng ✅ ⚠️ ❌ trong nội dung vẫn phân biệt mức độ) */
+[data-testid="stAlert"], [data-testid="stAlertContainer"]{
+  background:var(--beige-mid) !important; color:var(--ink) !important; border-left:4px solid var(--terra) !important;
+}
+[data-testid="stAlert"] *, [data-testid="stAlertContainer"] *{color:var(--ink) !important;}
+[data-testid="stAlert"]:has([data-testid="stAlertContentError"]), [data-testid="stAlertContainer"]:has([data-testid="stAlertContentError"]){
+  background:var(--terra-soft) !important; border-left-color:var(--terra-dark) !important;
+}
+::selection{background:var(--beige); color:var(--ink);}
+</style>
+""", unsafe_allow_html=True)
+
 # Mobile UX: sidebar login + nút Menu nổi sau đăng nhập
 import streamlit.components.v1 as components
 
@@ -1935,7 +2043,7 @@ else:
         @media (max-width: 768px) {
             /* Phóng to nút mở sidebar mặc định của Streamlit */
             [data-testid="collapsedControl"] {
-                background: #ff4b4b !important;
+                background: #d98771 !important;
                 border-radius: 8px !important;
                 padding: 4px 8px !important;
                 box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
@@ -1948,7 +2056,7 @@ else:
             }
             /* Phóng to nút > ở header (một số phiên bản Streamlit) */
             [data-testid="stHeader"] button {
-                background: #ff4b4b !important;
+                background: #d98771 !important;
                 border-radius: 8px !important;
             }
             [data-testid="stHeader"] button svg {
@@ -2925,7 +3033,7 @@ def nut_lay_toa_do(khoa="gps", nhan="📍 Lấy vị trí hiện tại của tô
     components.html(f"""
         <div style="font-family: sans-serif;">
           <button onclick="layViTri_{khoa}()" style="
-              background:#ff4b4b; color:#fff; border:none; border-radius:8px;
+              background:#d98771; color:#fff; border:none; border-radius:8px;
               padding:10px 18px; font-size:15px; cursor:pointer; width:100%;">
             {nhan}
           </button>
@@ -5066,96 +5174,213 @@ LOAI_QDNS_LABEL = {
 }
 
 
+# ===================== THỂ THỨC VĂN BẢN — NGHỊ ĐỊNH 30/2020/NĐ-CP =====================
+# Khổ A4; lề trên 2cm, dưới 2cm, trái 3cm, phải 2cm; Times New Roman cỡ 14; giãn đoạn trước/sau 6pt,
+# giãn dòng Single; thụt đầu dòng 1,27cm; quốc hiệu cỡ 13 đậm, tiêu ngữ cỡ 14 đậm; tên cơ quan cỡ 13 đậm;
+# số/ký hiệu cỡ 13; ngày tháng cỡ 14 nghiêng; "Nơi nhận" cỡ 12 đậm nghiêng, danh sách nơi nhận cỡ 11;
+# chức vụ, họ tên người ký cỡ 14 đậm; số trang từ trang 2, canh giữa lề trên.
+ND30_FONT = 'Times New Roman'
+_ND30_CAN = {'left': WD_ALIGN_PARAGRAPH.LEFT, 'center': WD_ALIGN_PARAGRAPH.CENTER,
+             'right': WD_ALIGN_PARAGRAPH.RIGHT, 'justify': WD_ALIGN_PARAGRAPH.JUSTIFY}
+
+
+def _nd30_font_run(r, size=14, bold=None, italic=None):
+    r.font.name = ND30_FONT
+    rf = r._element.get_or_add_rPr().find(qn('w:rFonts'))
+    if rf is not None:
+        for a in ('w:ascii', 'w:hAnsi', 'w:cs', 'w:eastAsia'):
+            rf.set(qn(a), ND30_FONT)
+    r.font.size = Pt(size)
+    if bold is not None:
+        r.bold = bold
+    if italic is not None:
+        r.italic = italic
+    return r
+
+
+def nd30_p(container, text='', size=14, bold=False, italic=False, align='justify', indent=True,
+           before=6, after=6, p=None):
+    """Thêm 1 đoạn văn đúng thể thức (container: Document hoặc ô bảng; p: đoạn có sẵn, vd paragraphs[0] của ô)."""
+    from docx.enum.text import WD_LINE_SPACING
+    p = p if p is not None else container.add_paragraph()
+    p.alignment = _ND30_CAN[align]
+    pf = p.paragraph_format
+    pf.space_before = Pt(before); pf.space_after = Pt(after)
+    pf.line_spacing_rule = WD_LINE_SPACING.SINGLE
+    pf.first_line_indent = Cm(1.27) if indent else Cm(0)
+    if text:
+        _nd30_font_run(p.add_run(text), size, bold, italic)
+    return p
+
+
+def nd30_ke_ngang(container, rong_cm, ben_cm):
+    """Đường kẻ ngang ngắn, canh giữa (gạch dưới tên cơ quan, tiêu ngữ, trích yếu)."""
+    p = container.add_paragraph()
+    pPr = p._p.get_or_add_pPr()
+    bdr = OxmlElement('w:pBdr')            # phải chèn TRƯỚC spacing/ind/jc để đúng thứ tự schema
+    b = OxmlElement('w:bottom')
+    b.set(qn('w:val'), 'single'); b.set(qn('w:sz'), '6'); b.set(qn('w:space'), '1'); b.set(qn('w:color'), '000000')
+    bdr.append(b); pPr.append(bdr)
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    ind = max((ben_cm - rong_cm) / 2.0, 0)
+    pf = p.paragraph_format
+    pf.left_indent = Cm(ind); pf.right_indent = Cm(ind)
+    pf.space_before = Pt(0); pf.space_after = Pt(0)
+    _nd30_font_run(p.add_run(''), 2)
+    return p
+
+
+def _nd30_them_so_trang(sec):
+    """Đánh số trang từ trang 2, canh giữa phần lề trên (trang 1 không hiện số)."""
+    sec.different_first_page_header_footer = True
+    sec.header_distance = Cm(1.0)
+    hp = sec.header.paragraphs[0]
+    hp.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = hp.add_run()
+    _nd30_font_run(r, 14, italic=False)
+    f1 = OxmlElement('w:fldChar'); f1.set(qn('w:fldCharType'), 'begin')
+    it = OxmlElement('w:instrText'); it.set(qn('xml:space'), 'preserve'); it.text = 'PAGE'
+    f2 = OxmlElement('w:fldChar'); f2.set(qn('w:fldCharType'), 'end')
+    r._r.append(f1); r._r.append(it); r._r.append(f2)
+
+
+def nd30_thiet_lap_trang(doc):
+    from docx.enum.text import WD_LINE_SPACING
+    st_ = doc.styles['Normal']
+    st_.font.name = ND30_FONT; st_.font.size = Pt(14)
+    rf = st_.element.get_or_add_rPr().find(qn('w:rFonts'))
+    if rf is not None:
+        for a in ('w:ascii', 'w:hAnsi', 'w:cs', 'w:eastAsia'):
+            rf.set(qn(a), ND30_FONT)
+    pf = st_.paragraph_format
+    pf.space_before = Pt(6); pf.space_after = Pt(6)
+    pf.line_spacing_rule = WD_LINE_SPACING.SINGLE
+    pf.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    sec = doc.sections[0]
+    sec.page_width = Cm(21); sec.page_height = Cm(29.7)
+    sec.top_margin = Cm(2); sec.bottom_margin = Cm(2)
+    sec.left_margin = Cm(3); sec.right_margin = Cm(2)
+    _nd30_them_so_trang(sec)
+
+
+def _nd30_tach_ten_don_vi(ten_ty):
+    low = (ten_ty or '').lower()
+    for kw, nhan in (("công ty cổ phần", "CÔNG TY CỔ PHẦN"), ("công ty tnhh", "CÔNG TY TNHH"),
+                     ("hộ kinh doanh", "HỘ KINH DOANH")):
+        if kw in low:
+            return nhan, ten_ty[low.index(kw) + len(kw):].strip().upper()
+    return (ten_ty or '').upper(), ""
+
+
+def nd30_the_thuc_dau(doc, ten_doan1, ten_doan2, so_text, ngay_text):
+    """Khối đầu văn bản: tên cơ quan + Số (trái); Quốc hiệu, tiêu ngữ + địa danh, ngày tháng (phải)."""
+    L, R = 5.6, 10.4
+    ht = doc.add_table(rows=1, cols=2)
+    ht.alignment = WD_TABLE_ALIGNMENT.CENTER; ht.autofit = False
+    remove_table_border(ht)
+    cl, cr = ht.rows[0].cells
+    cl.width = Cm(L); cr.width = Cm(R)
+    ht.columns[0].width = Cm(L); ht.columns[1].width = Cm(R)
+    nd30_p(cl, ten_doan1, 13, True, align='center', indent=False, before=0, after=0, p=cl.paragraphs[0])
+    if ten_doan2:
+        nd30_p(cl, ten_doan2.upper(), 13, True, align='center', indent=False, before=0, after=0)
+    nd30_ke_ngang(cl, 3.0, L)
+    nd30_p(cl, so_text, 13, align='center', indent=False, before=6, after=0)
+    nd30_p(cr, 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', 13, True, align='center', indent=False, before=0, after=0, p=cr.paragraphs[0])
+    nd30_p(cr, 'Độc lập - Tự do - Hạnh phúc', 14, True, align='center', indent=False, before=0, after=0)
+    nd30_ke_ngang(cr, 5.6, R)
+    nd30_p(cr, ngay_text, 14, italic=True, align='center', indent=False, before=6, after=0)
+    return ht
+
+
+def nd30_noi_nhan_chu_ky(doc, noi_nhan, dong_tm, chuc_vu, ten_nguoi_ky):
+    """Khối cuối: Nơi nhận (trái) + thẩm quyền/chức vụ/họ tên người ký (phải)."""
+    nd30_p(doc, '', 6, before=0, after=6)
+    t = doc.add_table(rows=1, cols=2)
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER; t.autofit = False
+    remove_table_border(t)
+    cl, cr = t.rows[0].cells
+    cl.width = Cm(7.5); cr.width = Cm(8.5)
+    t.columns[0].width = Cm(7.5); t.columns[1].width = Cm(8.5)
+    nd30_p(cl, 'Nơi nhận:', 12, True, True, align='left', indent=False, before=0, after=0, p=cl.paragraphs[0])
+    for d in noi_nhan:
+        nd30_p(cl, d, 11, align='left', indent=False, before=0, after=0)
+    if dong_tm:
+        nd30_p(cr, dong_tm, 14, True, align='center', indent=False, before=0, after=0, p=cr.paragraphs[0])
+        nd30_p(cr, chuc_vu, 14, True, align='center', indent=False, before=0, after=0)
+    else:
+        nd30_p(cr, chuc_vu, 14, True, align='center', indent=False, before=0, after=0, p=cr.paragraphs[0])
+    nd30_p(cr, ten_nguoi_ky or '', 14, True, align='center', indent=False, before=60, after=0)
+    return t
+
+
+def nd30_ra_soat(doc):
+    """Rà soát lần cuối (dùng cho hợp đồng): ép font Times New Roman cỡ 14 cho phần nội dung và thụt đầu dòng
+    1,27cm cho các đoạn văn thường (bảng ký/tiêu đề căn giữa không bị ảnh hưởng)."""
+    for p in doc.paragraphs:
+        if not p.text.strip():
+            continue
+        for r in p.runs:
+            _nd30_font_run(r, 14)
+        if p.alignment in (None, WD_ALIGN_PARAGRAPH.JUSTIFY) and '\t' not in p.text \
+                and p.paragraph_format.first_line_indent is None:
+            p.paragraph_format.first_line_indent = Cm(1.27)
+
+
 def tao_quyet_dinh_nhan_su(nv, so_qd, ngay_qd, tieu_de, dieu1_lines, hieu_luc_text=None, nguoi_thi_hanh=None):
     """Tạo file Word Quyết định nhân sự dùng chung cho các loại: bổ nhiệm, miễn nhiệm,
-    thay đổi chức danh, điều chuyển công tác, chấm dứt HĐTV/HĐLĐ."""
+    thay đổi chức danh, điều chuyển công tác, chấm dứt HĐTV/HĐLĐ — thể thức theo NĐ 30/2020/NĐ-CP."""
     CC = COMPANY_CONFIG
     doc = Document()
-    s = doc.styles['Normal']; s.font.name = 'Times New Roman'; s.font.size = Pt(13)
-    s.paragraph_format.space_after = Pt(4); s.paragraph_format.space_before = Pt(0)
-    s.paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    sec = doc.sections[0]; sec.top_margin = Cm(2); sec.bottom_margin = Cm(2)
-    sec.left_margin = Cm(3); sec.right_margin = Cm(2)
+    nd30_thiet_lap_trang(doc)
 
-    # -- Tách tên đơn vị thành 2 dòng (loại hình + tên riêng) --
     ten_ty = CC.get('ten_cong_ty', 'CÔNG TY')
     ten_ty_lower = ten_ty.lower()
-    if "công ty cổ phần" in ten_ty_lower:
-        ten_doan1 = "CÔNG TY CỔ PHẦN"
-        ten_doan2 = ten_ty[ten_ty_lower.index("công ty cổ phần") + len("công ty cổ phần"):].strip()
-    elif "công ty tnhh" in ten_ty_lower:
-        ten_doan1 = "CÔNG TY TNHH"
-        ten_doan2 = ten_ty[ten_ty_lower.index("công ty tnhh") + len("công ty tnhh"):].strip()
-    elif "hộ kinh doanh" in ten_ty_lower:
-        ten_doan1 = "HỘ KINH DOANH"
-        ten_doan2 = ten_ty[ten_ty_lower.index("hộ kinh doanh") + len("hộ kinh doanh"):].strip()
-    else:
-        ten_doan1 = ten_ty.upper()
-        ten_doan2 = ""
+    ten_doan1, ten_doan2 = _nd30_tach_ten_don_vi(ten_ty)
 
-    ht = doc.add_table(rows=4, cols=2); ht.alignment = WD_TABLE_ALIGNMENT.CENTER; ht.autofit = False; remove_table_border(ht)
-    for row in ht.rows:
-        row.cells[0].width = Cm(7); row.cells[1].width = Cm(10)
-    c = ht.rows[0].cells[0]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run(ten_doan1); r.bold = True; r.font.size = Pt(13)
-    c = ht.rows[1].cells[0]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run(ten_doan2.upper()); r.bold = True; r.font.size = Pt(13)
-    c = ht.rows[0].cells[1]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'); r.bold = True; r.font.size = Pt(13)
-    c = ht.rows[1].cells[1]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run('Độc lập - Tự do - Hạnh phúc'); r.bold = True; r.italic = True; r.font.size = Pt(13)
-    c = ht.rows[2].cells[0]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run(f'Số: {so_qd}'); r.italic = True; r.font.size = Pt(12)
-    c = ht.rows[3].cells[1]; p = c.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.RIGHT; p.paragraph_format.space_after = Pt(20)
     dia_diem = CC.get('dia_diem') or get_cau_hinh('dia_diem', 'Quảng Trị')
-    ns = f'{dia_diem}, ngày {ngay_qd.day} tháng {ngay_qd.month:02d} năm {ngay_qd.year}' if hasattr(ngay_qd, 'day') else f'{dia_diem}, ngày ... tháng ... năm ......'
-    r = p.add_run(ns); r.italic = True; r.font.size = Pt(13)
+    ns = (f'{dia_diem}, ngày {ngay_qd.day} tháng {ngay_qd.month:02d} năm {ngay_qd.year}'
+          if hasattr(ngay_qd, 'day') else f'{dia_diem}, ngày ... tháng ... năm ......')
+    nd30_the_thuc_dau(doc, ten_doan1, ten_doan2, f'Số: {so_qd}', ns)
 
-    p = doc.add_paragraph(); p.paragraph_format.space_after = Pt(4)
-    r = p.add_run('QUYẾT ĐỊNH'); r.bold = True; r.font.size = Pt(18)
-    force_center(p)
-    p = doc.add_paragraph()
-    r = p.add_run(f'Về việc: {tieu_de}'); r.bold = True; r.italic = True; r.font.size = Pt(14)
-    force_center(p)
-    p = doc.add_paragraph()
+    # Tên loại văn bản + trích yếu
+    nd30_p(doc, 'QUYẾT ĐỊNH', 14, True, align='center', indent=False, before=18, after=0)
+    tdv = (tieu_de or '').strip()
+    tdv = (tdv[:1].lower() + tdv[1:]) if tdv else ''
+    nd30_p(doc, f'Về việc {tdv}', 14, True, align='center', indent=False, before=0, after=0)
+    nd30_ke_ngang(doc, 4.0, 16.0)
+
+    # Thẩm quyền ban hành
     chuc_vu_qdns = CC.get('chuc_vu', 'GIÁM ĐỐC').upper()
-    r = p.add_run(f"{chuc_vu_qdns} {ten_doan1} {ten_doan2}".strip().upper()); r.bold = True
-    force_center(p)
+    nd30_p(doc, f"{chuc_vu_qdns} {ten_doan1} {ten_doan2}".strip(), 14, True, align='center', indent=False, before=12, after=6)
 
-    doc.add_paragraph('- Căn cứ Bộ luật Lao động số 45/2019/QH14 ngày 20/11/2019;')
+    # Căn cứ (nghiêng)
+    nd30_p(doc, 'Căn cứ Bộ luật Lao động số 45/2019/QH14 ngày 20/11/2019;', 14, italic=True, before=0, after=0)
     if "hộ kinh doanh" in ten_ty_lower:
-        doc.add_paragraph('- Căn cứ Giấy chứng nhận đăng ký hộ kinh doanh;')
+        nd30_p(doc, 'Căn cứ Giấy chứng nhận đăng ký hộ kinh doanh;', 14, italic=True, before=0, after=0)
     else:
-        doc.add_paragraph('- Căn cứ Điều lệ tổ chức và hoạt động của Công ty;')
-    doc.add_paragraph('- Căn cứ nhu cầu công tác và năng lực cán bộ, nhân viên;')
+        nd30_p(doc, 'Căn cứ Điều lệ tổ chức và hoạt động của Công ty;', 14, italic=True, before=0, after=0)
+    nd30_p(doc, 'Căn cứ nhu cầu công tác và năng lực cán bộ, nhân viên;', 14, italic=True, before=0, after=0)
     phong_to_chuc_ns = get_phong_to_chuc_nhan_su()
-    doc.add_paragraph(f'- Xét đề nghị của {phong_to_chuc_ns},')
+    nd30_p(doc, f'Xét đề nghị của {phong_to_chuc_ns}.', 14, italic=True, before=0, after=6)
 
-    p = doc.add_paragraph(); r = p.add_run('QUYẾT ĐỊNH:'); r.bold = True
-    force_center(p)
+    nd30_p(doc, 'QUYẾT ĐỊNH:', 14, True, align='center', indent=False, before=12, after=6)
 
-    p = doc.add_paragraph(); r = p.add_run('Điều 1. '); r.bold = True
-    r2 = p.add_run(dieu1_lines[0] if dieu1_lines else '')
+    def _dieu(nhan, noi_dung):
+        p = nd30_p(doc, '', 14)
+        _nd30_font_run(p.add_run(nhan + ' '), 14, True)
+        _nd30_font_run(p.add_run(noi_dung), 14, False)
+        return p
+
+    _dieu('Điều 1.', dieu1_lines[0] if dieu1_lines else '')
     for extra_line in dieu1_lines[1:]:
-        doc.add_paragraph(extra_line)
-
-    p = doc.add_paragraph(); r = p.add_run('Điều 2. '); r.bold = True
-    r2 = p.add_run(hieu_luc_text or f'Quyết định này có hiệu lực kể từ ngày {ngay_qd.day}/{ngay_qd.month:02d}/{ngay_qd.year}.')
-
-    p = doc.add_paragraph(); r = p.add_run('Điều 3. '); r.bold = True
+        nd30_p(doc, extra_line, 14)
+    _dieu('Điều 2.', hieu_luc_text or f'Quyết định này có hiệu lực kể từ ngày {ngay_qd.day}/{ngay_qd.month:02d}/{ngay_qd.year}.')
     ten_thi_hanh = nguoi_thi_hanh or f"Ông/Bà {nv.get('ho_ten', '')}"
-    r2 = p.add_run(f"{ten_thi_hanh}, Trưởng {phong_to_chuc_ns} và các bộ phận có liên quan chịu trách nhiệm thi hành Quyết định này./.")
+    _dieu('Điều 3.', f"{ten_thi_hanh}, Trưởng {phong_to_chuc_ns} và các bộ phận có liên quan chịu trách nhiệm thi hành Quyết định này./.")
 
-    doc.add_paragraph('')
-    t2 = doc.add_table(rows=2, cols=2); remove_table_border(t2)
-    p_nn = t2.rows[0].cells[0].paragraphs[0]
-    r = p_nn.add_run('Nơi nhận:'); r.bold = True; r.font.size = Pt(11)
-    p_nn2 = t2.rows[0].cells[0].add_paragraph()
-    r = p_nn2.add_run('- Như Điều 3;\n- Lưu: VT, HSNV.'); r.font.size = Pt(11)
-    p_kh = t2.rows[0].cells[1].paragraphs[0]; p_kh.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p_kh.add_run(CC.get('chuc_vu', 'GIÁM ĐỐC').upper()); r.bold = True
-    p_kh2 = t2.rows[1].cells[1].add_paragraph(); p_kh2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r = p_kh2.add_run('\n\n\n' + CC.get('dai_dien', ''))
+    nd30_noi_nhan_chu_ky(doc, ['- Như Điều 3;', '- Lưu: VT, HSNV.'],
+                         f"TM. {ten_doan1} {ten_doan2}".strip(), CC.get('chuc_vu', 'GIÁM ĐỐC').upper(), CC.get('dai_dien', ''))
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.docx')
     doc.save(tmp.name)
@@ -5386,16 +5611,18 @@ def render_qd_dieu_chinh_luong(nv_list, ds_phong_ban):
         })
 
     nv_theo_ma = {nv['ma_nv']: nv for nv in nv_loc}
-    ds_dc, bo_qua = [], 0
+    ds_dc, bo_qua, ds_bo_qua = [], 0, []
     for _, r in edited.iterrows():
         cu = 0 if pd.isna(r["Lương BH hiện tại"]) else int(r["Lương BH hiện tại"])
         moi = 0 if pd.isna(r["Lương BH mới"]) else int(r["Lương BH mới"])
         if moi <= 0 or moi == cu:
             bo_qua += 1
+            ds_bo_qua.append(f"{r['Mã NV']} - {r['Họ tên']}")
             continue
         ds_dc.append({**nv_theo_ma[r["Mã NV"]], 'luong_cu': cu, 'luong_moi': moi})
     if bo_qua:
-        st.caption(f"ℹ️ {bo_qua} người bị bỏ qua (lương mới để trống hoặc không thay đổi).")
+        st.warning(f"⚠️ Mức lương BH mới phải khác mức hiện tại. {bo_qua} người chưa hợp lệ nên sẽ KHÔNG được ra quyết định: "
+                   + ", ".join(ds_bo_qua))
 
     thang_ap = _thang_ap_dung_luong_bh(ngay_hl)
     if ds_dc:
@@ -5606,22 +5833,6 @@ def ensure_chuc_danh_ung_vien_table():
         print(f"Lỗi ensure_chuc_danh_ung_vien_table: {e}")
         return False
 
-def ensure_ung_vien_columns():
-    """Bổ sung cột 'trinh_do' vào bảng ung_vien nếu chưa có (idempotent).
-    Bảng ung_vien gốc chưa có cột trình độ — cần thêm để form Thêm/Sửa ứng viên
-    lưu được Trình độ theo danh mục TRINH_DO_LIST của từng tenant."""
-    try:
-        db = st.session_state.db_engine.get_connection()
-        c = db.cursor()
-        c.execute("ALTER TABLE ung_vien ADD COLUMN IF NOT EXISTS trinh_do VARCHAR(100)")
-        db.commit()
-        c.close()
-        db.close()
-        return True
-    except Exception as e:
-        print(f"Lỗi ensure_ung_vien_columns: {e}")
-        return False
-
 # Nội dung MẶC ĐỊNH của từng Điều — dùng khi admin CHƯA tuỳ chỉnh gì.
 # Dòng bắt đầu bằng "## " sẽ được in đậm (tiêu đề phụ, VD "1. Nghĩa vụ:").
 # Có thể dùng {vi_tri}, {ngay_hieu_luc}, {ten_cong_ty} trong nội dung các Điều 1, 5 — sẽ tự thay bằng thông tin nhân viên.
@@ -5798,80 +6009,30 @@ def tao_hop_dong(nv):
     mau_dieu_hop_dong nếu admin đã tuỳ chỉnh (Danh mục → Mẫu Điều khoản Hợp đồng),
     nếu chưa có thì dùng nội dung mặc định DEFAULT_DIEU_HDLD."""
     CC = COMPANY_CONFIG; doc = Document()
-    s = doc.styles['Normal']; s.font.name='Times New Roman'; s.font.size=Pt(13)
-    s.paragraph_format.space_after=Pt(0); s.paragraph_format.space_before=Pt(0)
-    sec = doc.sections[0]; sec.top_margin=Cm(2); sec.bottom_margin=Cm(2)
-    sec.left_margin=Cm(3.5); sec.right_margin=Cm(2)
-    def add_p(text='', bold=False, size=Pt(13)):
+    nd30_thiet_lap_trang(doc)
+    def add_p(text='', bold=False, size=Pt(14)):
         p = doc.add_paragraph(text)
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        p.paragraph_format.space_after = Pt(2)
-        p.paragraph_format.space_before = Pt(2)
+        p.paragraph_format.first_line_indent = Cm(1.27)
         if bold and p.runs:
             p.runs[0].bold = True
         if p.runs:
             p.runs[0].font.size = size
         return p
     def al(label,value):
-        p=doc.add_paragraph(); p.paragraph_format.space_after=Pt(1); p.paragraph_format.space_before=Pt(1)
+        p=doc.add_paragraph(); p.paragraph_format.space_after=Pt(3); p.paragraph_format.space_before=Pt(3)
         p.paragraph_format.tab_stops.add_tab_stop(Cm(5))
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        r=p.add_run(f'{label}'); r.font.size=Pt(13)
-        r=p.add_run('\t: '); r.font.size=Pt(13)
-        r=p.add_run(f'{value}'); r.font.size=Pt(13)
-    
-    ten_ty = CC["ten_cong_ty"]
-    # Kiểm tra loại hình doanh nghiệp (không phân biệt hoa/thường)
-    ten_ty_lower = ten_ty.lower()
-    if "công ty cổ phần" in ten_ty_lower:
-        ten_doan1 = "CÔNG TY CỔ PHẦN"
-        idx = ten_ty_lower.index("công ty cổ phần") + len("công ty cổ phần")
-        ten_doan2 = ten_ty[idx:].strip()
-    elif "công ty tnhh" in ten_ty_lower:
-        ten_doan1 = "CÔNG TY TNHH"
-        idx = ten_ty_lower.index("công ty tnhh") + len("công ty tnhh")
-        ten_doan2 = ten_ty[idx:].strip()
-    elif "hộ kinh doanh" in ten_ty_lower:
-        ten_doan1 = "HỘ KINH DOANH"
-        idx = ten_ty_lower.index("hộ kinh doanh") + len("hộ kinh doanh")
-        ten_doan2 = ten_ty[idx:].strip()
-    else:
-        ten_doan1 = ten_ty.upper()
-        ten_doan2 = ""
-    
-    ht=doc.add_table(rows=4,cols=2); ht.alignment=WD_TABLE_ALIGNMENT.CENTER; ht.autofit=False; remove_table_border(ht)
-    for row in ht.rows: row.cells[0].width=Cm(7); row.cells[1].width=Cm(10)
-    c=ht.rows[0].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run((ten_doan1).upper()); r.bold=True; r.font.size=Pt(13)
-    c=ht.rows[1].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run((ten_doan2).upper()); r.bold=True; r.font.size=Pt(13)
-    c=ht.rows[0].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=p.add_run('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'); r.bold=True; r.font.size=Pt(13)
-    c=ht.rows[1].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=p.add_run('Độc lập - Tự do - Hạnh phúc'); r.bold=True; r.italic=True; r.font.size=Pt(13)
-    c=ht.rows[2].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=p.add_run('─'*9); r.font.size=Pt(9)
-    c=ht.rows[2].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=p.add_run('─'*20); r.font.size=Pt(9)
-    c=ht.rows[3].cells[1]; p=c.paragraphs[0];p.alignment=WD_ALIGN_PARAGRAPH.RIGHT; p.paragraph_format.space_after=Pt(20)
-    ngay_ky = nv.get("ngay_ky_hd")
-    ngay_vao = nv.get("ngay_vao_lam")
-    nk = ngay_ky if ngay_ky else ngay_vao
+        for _t in (f'{label}', '\t: ', f'{value}'):
+            r=p.add_run(_t); r.font.size=Pt(14)
+    ten_doan1, ten_doan2 = _nd30_tach_ten_don_vi(CC["ten_cong_ty"])
+    ngay_ky = nv.get("ngay_ky_hd"); ngay_vao = nv.get("ngay_vao_lam"); nk = ngay_ky if ngay_ky else ngay_vao
     dia_diem_ky = CC.get('dia_diem') or get_cau_hinh('dia_diem', 'Quảng Trị')
     ns = f'{dia_diem_ky}, ngày ... tháng ... năm ......'
     if nk and hasattr(nk, 'day'):
         ns = f'{dia_diem_ky}, ngày {nk.day} tháng {nk.month:02d} năm {nk.year}'
-    run = p.add_run(ns)
-    run.font.size = Pt(13)
-    run.italic = True
-    c=ht.rows[3].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=p.add_run(f'Số: {nv.get("so_hdld","...")}'); r.italic=True; r.font.size=Pt(12)
-    p = doc.add_paragraph()
-    p.paragraph_format.space_after = Pt(20)
-    r = p.add_run('HỢP ĐỒNG LAO ĐỘNG')
-    r.bold = True
-    r.font.size = Pt(18)
-    force_center(p)
+    nd30_the_thuc_dau(doc, ten_doan1, ten_doan2, f'Số: {nv.get("so_hdld","...")}', ns)
+    nd30_p(doc, 'HỢP ĐỒNG LAO ĐỘNG', 14, True, align='center', indent=False, before=18, after=6)
     # ===== Lấy nội dung Điều từ DB (admin tuỳ chỉnh) hoặc mặc định =====
     tuy_chinh_hdld = get_all_dieu_hop_dong('HDLD')
     ngay_hieu_luc = nv.get("ngay_ky_hd") or nv.get("ngay_vao_lam")
@@ -5911,94 +6072,47 @@ def tao_hop_dong(nv):
     doc.add_paragraph()
     ts=doc.add_table(rows=3,cols=2); ts.alignment=WD_TABLE_ALIGNMENT.CENTER; remove_table_border(ts)
     c=ts.rows[0].cells[0]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=c.paragraphs[0].add_run('NGƯỜI LAO ĐỘNG'); r.bold=True; r.font.size=Pt(13)
+    r=c.paragraphs[0].add_run('NGƯỜI LAO ĐỘNG'); r.bold=True; r.font.size=Pt(14)
     c=ts.rows[0].cells[1]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=c.paragraphs[0].add_run('NGƯỜI SỬ DỤNG LAO ĐỘNG'); r.bold=True; r.font.size=Pt(13)
+    r=c.paragraphs[0].add_run('NGƯỜI SỬ DỤNG LAO ĐỘNG'); r.bold=True; r.font.size=Pt(14)
     c=ts.rows[1].cells[0]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
     c.paragraphs[0].add_run('').font.size=Pt(12); sp=c.add_paragraph(); sp.paragraph_format.space_after=Pt(60)
     c=ts.rows[1].cells[1]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
     c.paragraphs[0].add_run('').font.size=Pt(12); sp=c.add_paragraph(); sp.paragraph_format.space_after=Pt(60)
     c=ts.rows[2].cells[0]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=c.paragraphs[0].add_run(nv.get('ho_ten','').upper()); r.bold=True; r.font.size=Pt(13)
+    r=c.paragraphs[0].add_run(nv.get('ho_ten','').upper()); r.bold=True; r.font.size=Pt(14)
     c=ts.rows[2].cells[1]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=c.paragraphs[0].add_run(CC['dai_dien'].upper()); r.bold=True; r.font.size=Pt(13)
+    r=c.paragraphs[0].add_run(CC['dai_dien'].upper()); r.bold=True; r.font.size=Pt(14)
+    nd30_ra_soat(doc)
     tf=tempfile.NamedTemporaryFile(delete=False,suffix='.docx'); doc.save(tf.name); return tf.name
 
 def tao_hop_dong_thu_viec(nv):
     # ... giữ nguyên code cũ (tương tự)
     CC = COMPANY_CONFIG; doc = Document()
-    s = doc.styles['Normal']; s.font.name='Times New Roman'; s.font.size=Pt(13)
-    s.paragraph_format.space_after=Pt(0); s.paragraph_format.space_before=Pt(0)
-    sec = doc.sections[0]; sec.top_margin=Cm(2); sec.bottom_margin=Cm(2)
-    sec.left_margin=Cm(3.5); sec.right_margin=Cm(2)
-    def add_p(text='', bold=False, size=Pt(13)):
+    nd30_thiet_lap_trang(doc)
+    def add_p(text='', bold=False, size=Pt(14)):
         p = doc.add_paragraph(text)
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        p.paragraph_format.space_after = Pt(2)
-        p.paragraph_format.space_before = Pt(2)
+        p.paragraph_format.first_line_indent = Cm(1.27)
         if bold and p.runs:
             p.runs[0].bold = True
         if p.runs:
             p.runs[0].font.size = size
         return p
     def al(label,value):
-        p=doc.add_paragraph(); p.paragraph_format.space_after=Pt(1); p.paragraph_format.space_before=Pt(1)
+        p=doc.add_paragraph(); p.paragraph_format.space_after=Pt(3); p.paragraph_format.space_before=Pt(3)
         p.paragraph_format.tab_stops.add_tab_stop(Cm(5))
         p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        r=p.add_run(f'{label}'); r.font.size=Pt(13)
-        r=p.add_run('\t: '); r.font.size=Pt(13)
-        r=p.add_run(f'{value}'); r.font.size=Pt(13)
-        
-    ten_ty = CC["ten_cong_ty"]
-    # Kiểm tra loại hình doanh nghiệp (không phân biệt hoa/thường)
-    ten_ty_lower = ten_ty.lower()
-    if "công ty cổ phần" in ten_ty_lower:
-        ten_doan1 = "CÔNG TY CỔ PHẦN"
-        idx = ten_ty_lower.index("công ty cổ phần") + len("công ty cổ phần")
-        ten_doan2 = ten_ty[idx:].strip()
-    elif "công ty tnhh" in ten_ty_lower:
-        ten_doan1 = "CÔNG TY TNHH"
-        idx = ten_ty_lower.index("công ty tnhh") + len("công ty tnhh")
-        ten_doan2 = ten_ty[idx:].strip()
-    elif "hộ kinh doanh" in ten_ty_lower:
-        ten_doan1 = "HỘ KINH DOANH"
-        idx = ten_ty_lower.index("hộ kinh doanh") + len("hộ kinh doanh")
-        ten_doan2 = ten_ty[idx:].strip()
-    else:
-        ten_doan1 = ten_ty.upper()
-        ten_doan2 = ""
-    
-    ht=doc.add_table(rows=4,cols=2); ht.alignment=WD_TABLE_ALIGNMENT.CENTER; ht.autofit=False; remove_table_border(ht)
-    for row in ht.rows: row.cells[0].width=Cm(7); row.cells[1].width=Cm(10)
-    c=ht.rows[0].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run((ten_doan1).upper()); r.bold=True; r.font.size=Pt(13)
-    c=ht.rows[1].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r = p.add_run((ten_doan2).upper()); r.bold=True; r.font.size=Pt(13)
-    
-    c=ht.rows[0].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=p.add_run('CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM'); r.bold=True; r.font.size=Pt(13)
-    c=ht.rows[1].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=p.add_run('Độc lập - Tự do - Hạnh phúc'); r.bold=True; r.italic=True; r.font.size=Pt(13)
-    c=ht.rows[2].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=p.add_run('─'*9); r.font.size=Pt(9)
-    c=ht.rows[2].cells[1]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=p.add_run('─'*20); r.font.size=Pt(9)
-    c=ht.rows[3].cells[0]; p=c.paragraphs[0]; p.alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=p.add_run(f'Số: {nv.get("so_hdld",".../.../HĐTV-CHL")}'); r.italic=True; r.font.size=Pt(12)
-    c=ht.rows[3].cells[1]; p=c.paragraphs[0];p.alignment=WD_ALIGN_PARAGRAPH.RIGHT; p.paragraph_format.space_after=Pt(20)
-    nk=nv.get("ngay_vao_lam") or nv.get("ngay_ky_hd")
-    dia_diem_ky_tv = CC.get('dia_diem') or get_cau_hinh('dia_diem', 'Quảng Trị')
-    ns=f'{dia_diem_ky_tv}, ngày ... tháng ... năm ......'
-    if nk and hasattr(nk,'day'): ns=f'{dia_diem_ky_tv}, ngày {nk.day} tháng {nk.month:02d} năm {nk.year}'
-    run = p.add_run(ns)
-    run.font.size = Pt(13)
-    run.italic = True
-    p = doc.add_paragraph()
-    p.paragraph_format.space_after = Pt(20)
-    r = p.add_run('HỢP ĐỒNG THỬ VIỆC')
-    r.bold = True
-    r.font.size = Pt(18)
-    force_center(p)
+        for _t in (f'{label}', '\t: ', f'{value}'):
+            r=p.add_run(_t); r.font.size=Pt(14)
+    ten_doan1, ten_doan2 = _nd30_tach_ten_don_vi(CC["ten_cong_ty"])
+    nk = nv.get("ngay_vao_lam") or nv.get("ngay_ky_hd")
+    dia_diem_ky = CC.get('dia_diem') or get_cau_hinh('dia_diem', 'Quảng Trị')
+    ns = f'{dia_diem_ky}, ngày ... tháng ... năm ......'
+    if nk and hasattr(nk, 'day'):
+        ns = f'{dia_diem_ky}, ngày {nk.day} tháng {nk.month:02d} năm {nk.year}'
+    nd30_the_thuc_dau(doc, ten_doan1, ten_doan2, f'Số: {nv.get("so_hdld",".../.../HĐTV-CHL")}', ns)
+    nd30_p(doc, 'HỢP ĐỒNG THỬ VIỆC', 14, True, align='center', indent=False, before=18, after=6)
     # ===== Lấy nội dung Điều từ DB (admin tuỳ chỉnh) hoặc mặc định =====
     nkt = nk + timedelta(days=30) if (nk and hasattr(nk, 'day')) else None
     ns_bd = f'{nk.day:02d}/{nk.month:02d}/{nk.year}' if (nk and hasattr(nk, 'day')) else '.../.../......'
@@ -6035,17 +6149,18 @@ def tao_hop_dong_thu_viec(nv):
     doc.add_paragraph()
     ts=doc.add_table(rows=3,cols=2); ts.alignment=WD_TABLE_ALIGNMENT.CENTER; remove_table_border(ts)
     c=ts.rows[0].cells[0]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=c.paragraphs[0].add_run('NGƯỜI LAO ĐỘNG'); r.bold=True; r.font.size=Pt(13)
+    r=c.paragraphs[0].add_run('NGƯỜI LAO ĐỘNG'); r.bold=True; r.font.size=Pt(14)
     c=ts.rows[0].cells[1]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=c.paragraphs[0].add_run('NGƯỜI SỬ DỤNG LAO ĐỘNG'); r.bold=True; r.font.size=Pt(13)
+    r=c.paragraphs[0].add_run('NGƯỜI SỬ DỤNG LAO ĐỘNG'); r.bold=True; r.font.size=Pt(14)
     c=ts.rows[1].cells[0]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
     c.paragraphs[0].add_run('').font.size=Pt(12); sp=c.add_paragraph(); sp.paragraph_format.space_after=Pt(60)
     c=ts.rows[1].cells[1]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
     c.paragraphs[0].add_run('').font.size=Pt(12); sp=c.add_paragraph(); sp.paragraph_format.space_after=Pt(60)
     c=ts.rows[2].cells[0]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=c.paragraphs[0].add_run(nv.get('ho_ten','').upper()); r.bold=True; r.font.size=Pt(13)
+    r=c.paragraphs[0].add_run(nv.get('ho_ten','').upper()); r.bold=True; r.font.size=Pt(14)
     c=ts.rows[2].cells[1]; c.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
-    r=c.paragraphs[0].add_run(CC['dai_dien'].upper()); r.bold=True; r.font.size=Pt(13)
+    r=c.paragraphs[0].add_run(CC['dai_dien'].upper()); r.bold=True; r.font.size=Pt(14)
+    nd30_ra_soat(doc)
     tf = tempfile.NamedTemporaryFile(delete=False, suffix='.docx')
     doc.save(tf.name)
     return tf.name
@@ -6113,80 +6228,55 @@ def gui_telegram(msg):
         return False
 
 def tao_bao_cao_tang_giam(tang_list, giam_list, tu_ngay, den_ngay):
-    """Tạo báo cáo Word tăng/giảm nhân sự"""
-    from docx import Document
-    from docx.shared import Pt, Cm, Inches
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.enum.table import WD_TABLE_ALIGNMENT
-    
+    """Báo cáo Word tăng/giảm nhân sự — thể thức theo NĐ 30/2020/NĐ-CP."""
+    CC = COMPANY_CONFIG
     doc = Document()
-    
-    # Tiêu đề
-    title = doc.add_heading('BÁO CÁO TĂNG/GIẢM NHÂN SỰ', 0)
-    title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    period = doc.add_paragraph(f'Thời gian: Từ {tu_ngay.strftime("%d/%m/%Y")} đến {den_ngay.strftime("%d/%m/%Y")}')
-    period.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
-    doc.add_paragraph()
-    
-    # Danh sách tăng
-    doc.add_heading('I. LAO ĐỘNG TĂNG MỚI', level=1)
+    nd30_thiet_lap_trang(doc)
+    ten_doan1, ten_doan2 = _nd30_tach_ten_don_vi(CC.get('ten_cong_ty', 'CÔNG TY'))
+    dia_diem = CC.get('dia_diem') or get_cau_hinh('dia_diem', 'Quảng Trị')
+    hn = date.today()
+    nd30_the_thuc_dau(doc, ten_doan1, ten_doan2, 'Số: ....../BC-NS',
+                      f'{dia_diem}, ngày {hn.day} tháng {hn.month:02d} năm {hn.year}')
+    nd30_p(doc, 'BÁO CÁO', 14, True, align='center', indent=False, before=18, after=0)
+    nd30_p(doc, f'Về tình hình tăng/giảm nhân sự từ ngày {tu_ngay.strftime("%d/%m/%Y")} đến ngày {den_ngay.strftime("%d/%m/%Y")}',
+           14, True, align='center', indent=False, before=0, after=0)
+    nd30_ke_ngang(doc, 4.0, 16.0)
+
+    def _bang(ds, cot_ngay, nhan_ngay):
+        tb = doc.add_table(rows=1 + len(ds), cols=5)
+        tb.style = 'Table Grid'; tb.alignment = WD_TABLE_ALIGNMENT.CENTER; tb.autofit = False
+        rong = [1.2, 4.6, 4.4, 3.2, 2.6]
+        def _o(cell, text, bold=False, align='left'):
+            nd30_p(cell, str(text or ''), 13, bold, align=align, indent=False, before=2, after=2, p=cell.paragraphs[0])
+        for i, h in enumerate(['STT', 'Họ tên', 'Chức danh', 'Loại HĐ', nhan_ngay]):
+            _o(tb.rows[0].cells[i], h, True, 'center')
+        for idx, nv_ in enumerate(ds, 1):
+            row = tb.rows[idx].cells
+            _o(row[0], idx, align='center'); _o(row[1], nv_.get('ho_ten', '')); _o(row[2], nv_.get('chuc_danh_nghe', ''))
+            _o(row[3], nv_.get('loai_hop_dong', '')); _o(row[4], format_date(nv_.get(cot_ngay)), align='center')
+        for r_ in tb.rows:
+            for i, w in enumerate(rong):
+                r_.cells[i].width = Cm(w)
+
+    nd30_p(doc, 'I. LAO ĐỘNG TĂNG MỚI', 14, True, align='left', indent=False, before=12, after=6)
     if tang_list:
-        table = doc.add_table(rows=1 + len(tang_list), cols=5)
-        table.style = 'Table Grid'
-        # Header
-        headers = ['STT', 'Họ tên', 'Chức danh', 'Loại HĐ', 'Ngày vào làm']
-        for i, header in enumerate(headers):
-            table.rows[0].cells[i].text = header
-            table.rows[0].cells[i].paragraphs[0].runs[0].bold = True
-        
-        for idx, nv in enumerate(tang_list, 1):
-            row = table.rows[idx]
-            row.cells[0].text = str(idx)
-            row.cells[1].text = nv.get('ho_ten', '')
-            row.cells[2].text = nv.get('chuc_danh_nghe', '')
-            row.cells[3].text = nv.get('loai_hop_dong', '')
-            row.cells[4].text = format_date(nv.get('ngay_vao_lam'))
+        _bang(tang_list, 'ngay_vao_lam', 'Ngày vào làm')
     else:
-        doc.add_paragraph('Không có lao động tăng trong kỳ.')
-    
-    doc.add_paragraph()
-    
-    # Danh sách giảm
-    doc.add_heading('II. LAO ĐỘNG GIẢM (NGHỈ VIỆC)', level=1)
+        nd30_p(doc, 'Không có lao động tăng trong kỳ.', 14)
+
+    nd30_p(doc, 'II. LAO ĐỘNG GIẢM (NGHỈ VIỆC)', 14, True, align='left', indent=False, before=12, after=6)
     if giam_list:
-        table = doc.add_table(rows=1 + len(giam_list), cols=5)
-        table.style = 'Table Grid'
-        headers = ['STT', 'Họ tên', 'Chức danh', 'Loại HĐ', 'Ngày nghỉ việc']
-        for i, header in enumerate(headers):
-            table.rows[0].cells[i].text = header
-            table.rows[0].cells[i].paragraphs[0].runs[0].bold = True
-        
-        for idx, nv in enumerate(giam_list, 1):
-            row = table.rows[idx]
-            row.cells[0].text = str(idx)
-            row.cells[1].text = nv.get('ho_ten', '')
-            row.cells[2].text = nv.get('chuc_danh_nghe', '')
-            row.cells[3].text = nv.get('loai_hop_dong', '')
-            row.cells[4].text = format_date(nv.get('ngay_ket_thuc'))
+        _bang(giam_list, 'ngay_ket_thuc', 'Ngày nghỉ việc')
     else:
-        doc.add_paragraph('Không có lao động giảm trong kỳ.')
-    
-    # Footer
-    doc.add_paragraph()
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    p.add_run(f'Ngày {date.today().day} tháng {date.today().month} năm {date.today().year}')
-    
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    p.add_run('NGƯỜI LẬP BÁO CÁO')
-    
+        nd30_p(doc, 'Không có lao động giảm trong kỳ.', 14)
+
+    nd30_p(doc, '', 14, before=0, after=6)
+    nd30_noi_nhan_chu_ky(doc, ['- Như trên;', '- Lưu: VT, HSNV.'], None, 'NGƯỜI LẬP BÁO CÁO', '')
+
     tf = tempfile.NamedTemporaryFile(delete=False, suffix='.docx')
     doc.save(tf.name)
     return tf.name
-    
+
 def show_super_admin_page():
     """Trang QUẢN TRỊ HỆ THỐNG — chỉ đội vận hành App dùng để thêm/sửa/khoá khách hàng (tenant).
     Hoàn toàn tách biệt với dữ liệu nhân sự của từng khách hàng."""
@@ -6832,8 +6922,8 @@ if not st.session_state.logged_in:
                 .canh-bao-mobile-only { display: none !important; }
             }
         </style>
-        <div class="canh-bao-mobile-only" style="background-color:#e7f3fe; border-radius:8px;
-                    padding:0.9rem 1rem; margin-bottom:1rem; border:1px solid #b6d4f5; color:#0c5da8;">
+        <div class="canh-bao-mobile-only" style="background-color:#f9f3ec; border-radius:8px;
+                    padding:0.9rem 1rem; margin-bottom:1rem; border:1px solid #eec8bd; color:#8e3c26;">
             📱 <b>Đang dùng điện thoại?</b> Form đăng nhập nằm ở thanh bên trái.
             Nếu không thấy, bấm vào biểu tượng <b>›</b> (mũi tên) ở góc trên bên trái màn hình để mở ra.
         </div>
@@ -6983,7 +7073,7 @@ _current_idx = menu_options.index(menu) if menu in menu_options else 0
 import streamlit.components.v1 as _comp_menu
 _comp_menu.html(f"""
 <select id="hrm-mob-sel" style="width:100%;padding:8px 12px;font-size:15px;
-    border:1px solid #ddd;border-radius:8px;background:#f8f8f8;" onchange="
+    border:1px solid #e3dcd7;border-radius:8px;background:#f8f8f8;" onchange="
     var idx = this.selectedIndex;
     var url = new URL(window.top.location.href);
     url.searchParams.set('hmenu', idx);
@@ -7075,7 +7165,7 @@ def render_employee_info_card(nv, key_prefix, on_close=None):
             height: 200px;
             border-radius: 50%;
             object-fit: cover;
-            border: 4px solid #f59e0b;
+            border: 4px solid #ca5536;
             box-shadow: 0 4px 15px rgba(0,0,0,0.15);
         }
         </style>
@@ -7468,7 +7558,7 @@ elif menu == "📊 Dashboard":
         import plotly.express as px
         import plotly.graph_objects as go
 
-        MODERN_PALETTE = ['#0f3b5c', '#2196F3', '#4FC3F7', '#00BFA5', '#66BB6A', '#FFB74D', '#FF7043', '#AB47BC', '#78909C']
+        MODERN_PALETTE = ['#552416', '#ce6346', '#d8846e', '#973f28', '#66BB6A', '#da8872', '#d8816a', '#bc6047', '#b96f5b']
         CHART_HEIGHT = 300
 
         # Hàng 1: Table + Biểu đồ thanh + Biểu đồ tròn
@@ -7511,7 +7601,7 @@ elif menu == "📊 Dashboard":
                     hole=0.55,
                     textinfo='label',
                     textposition='outside',
-                    textfont=dict(size=11, color='#1e293b'),
+                    textfont=dict(size=11, color='#3e221b'),
                     marker=dict(
                         colors=px.colors.qualitative.Safe,
                         line=dict(color='white', width=2)
@@ -7523,7 +7613,7 @@ elif menu == "📊 Dashboard":
                         text=f"<b>Tổng: {total} nhân viên</b>",
                         x=0.5, y=0.5,
                         xanchor='center', yanchor='middle',
-                        font=dict(size=14, color='#0f3b5c')
+                        font=dict(size=14, color='#552416')
                     ),
                     showlegend=False,
                     margin=dict(t=40, b=40, l=10, r=10),
@@ -7591,11 +7681,11 @@ elif menu == "📊 Dashboard":
                 
                 # Màu sắc nổi bật cho từng giới tính
                 color_map = {
-                    'Nam': '#2196F3',  # Xanh dương đẹp
-                    'Nữ': '#FF6B6B',   # Đỏ hồng
-                    'Khác': '#FFD93D'  # Vàng
+                    'Nam': '#ce6346',  # Xanh dương đẹp
+                    'Nữ': '#e09c8a',   # Đỏ hồng
+                    'Khác': '#d67d66'  # Vàng
                 }
-                colors = [color_map.get(g, '#95a5a6') for g in df_gender['gioi_tinh']]
+                colors = [color_map.get(g, '#af9b8c') for g in df_gender['gioi_tinh']]
                 
                 # Tạo donut chart với hiệu ứng đẹp
                 fig_gender = go.Figure(data=[go.Pie(
@@ -7608,7 +7698,7 @@ elif menu == "📊 Dashboard":
                     ),
                     textinfo='label+value+percent',
                     textposition='auto',
-                    textfont=dict(size=12, color='#2c3e50', family='Arial Black'),
+                    textfont=dict(size=12, color='#573025', family='Arial Black'),
                     insidetextorientation='radial',
                     hovertemplate='<b>%{label}</b><br>Số lượng: %{value}<br>Tỷ lệ: %{percent:.1f}%<extra></extra>',
                     pull=[0.05 if i == 0 else 0 for i in range(len(df_gender))],  # Tách nhẹ phần tử đầu tiên
@@ -7621,14 +7711,14 @@ elif menu == "📊 Dashboard":
                     x=0.5, y=0.5,
                     text=f"<b>{total}</b>",
                     showarrow=False,
-                    font=dict(size=24, color='#2c3e50', family='Arial Black'),
+                    font=dict(size=24, color='#573025', family='Arial Black'),
                     align='center'
                 )
                 fig_gender.add_annotation(
                     x=0.5, y=0.42,
                     text="Tổng",
                     showarrow=False,
-                    font=dict(size=12, color='#7f8c8d', family='Arial'),
+                    font=dict(size=12, color='#9c8370', family='Arial'),
                     align='center'
                 )
                 
@@ -7642,7 +7732,7 @@ elif menu == "📊 Dashboard":
                         y=-0.15,
                         xanchor='center',
                         x=0.5,
-                        font=dict(size=12, color='#2c3e50')
+                        font=dict(size=12, color='#573025')
                     ),
                     paper_bgcolor='rgba(0,0,0,0)',
                     plot_bgcolor='rgba(0,0,0,0)'
@@ -7671,8 +7761,8 @@ elif menu == "📊 Dashboard":
                     showlegend=False
                 )
                 fig_trend.update_traces(
-                    line=dict(color='#f59e0b', width=3),
-                    marker=dict(size=10, color='#0f3b5c')
+                    line=dict(color='#ca5536', width=3),
+                    marker=dict(size=10, color='#552416')
                 )
                 st.plotly_chart(fig_trend, use_container_width=True)
             else:
@@ -7687,7 +7777,7 @@ elif menu == "📊 Dashboard":
                 df_sen = df_sen.sort_values('Độ tuổi')
                 
                 # Sử dụng biểu đồ tròn với màu sắc gradient
-                colors = ['#FFEAA7', '#FDCB6E', '#E17055', '#D63031', '#6C5CE7']
+                colors = ['#edc4b9', '#e09d8b', '#d57961', '#D63031', '#d8826b']
                 fig_sen = go.Figure(data=[go.Pie(
                     labels=df_sen['Độ tuổi'],
                     values=df_sen['Số lượng'],
@@ -7815,17 +7905,17 @@ elif menu == "📊 Dashboard":
                         
                         if is_today:
                             st.markdown(f"""
-                            <div style='background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%); 
+                            <div style='background: linear-gradient(135deg, #c95536 0%, #da8973 100%); 
                                         padding: 15px; border-radius: 15px; margin: 10px 0; 
-                                        border: 2px solid #ff9800; box-shadow: 0 4px 8px rgba(0,0,0,0.1);'>
+                                        border: 2px solid #c95536; box-shadow: 0 4px 8px rgba(0,0,0,0.1);'>
                                 <div style='font-size: 30px; text-align: center;'>🎉🎂</div>
                                 <h4 style='text-align: center; color: #d32f2f; margin: 5px 0;'>
                                     <b>HÔM NAY LÀ SINH NHẬT!</b>
                                 </h4>
-                                <h3 style='text-align: center; color: #333; margin: 5px 0;'>
+                                <h3 style='text-align: center; color: #3c322a; margin: 5px 0;'>
                                     {xung_ho} <b>{sn['ho_ten']}</b>
                                 </h3>
-                                <p style='text-align: center; color: #666;'>
+                                <p style='text-align: center; color: #786354;'>
                                     📅 {format_date(ngay_sinh)} (🎂 {tuoi} tuổi)<br>
                                     💼 {sn.get('chuc_danh_nghe', 'Chưa cập nhật')}<br>
                                     📞 {sn.get('dien_thoai', 'Chưa cập nhật')}
@@ -7834,7 +7924,7 @@ elif menu == "📊 Dashboard":
                             """, unsafe_allow_html=True)
                         elif da_qua:
                             st.markdown(f"""
-                            <div style='background-color: #e0e0e0; padding: 12px; border-radius: 10px; margin: 8px 0;'>
+                            <div style='background-color: #e6dfda; padding: 12px; border-radius: 10px; margin: 8px 0;'>
                                 <b>✅ {sn['ho_ten']}</b><br>
                                 🎂 Sinh ngày: {format_date(ngay_sinh)}<br>
                                 💼 {sn.get('chuc_danh_nghe', '')}
@@ -7843,7 +7933,7 @@ elif menu == "📊 Dashboard":
                         else:
                             ngay_con_lai = (sinh_nhat_nam_nay - today).days
                             st.markdown(f"""
-                            <div style='background-color: #e3f2fd; padding: 12px; border-radius: 10px; margin: 8px 0;'>
+                            <div style='background-color: #f8f0e8; padding: 12px; border-radius: 10px; margin: 8px 0;'>
                                 <b>🎂 {sn['ho_ten']}</b><br>
                                 📅 Sinh ngày: {format_date(ngay_sinh)}<br>
                                 ⏰ Còn {ngay_con_lai} ngày nữa<br>
@@ -7893,12 +7983,12 @@ elif menu == "📊 Dashboard":
                 xung_ho = get_xung_ho(sn.get('gioi_tinh'), sn['ho_ten'])
                 
                 st.markdown(f"""
-                <div style='background: linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 100%);
+                <div style='background: linear-gradient(135deg, #e09c8a 0%, #e7b3a6 100%);
                             padding: 25px; border-radius: 20px; margin: 15px 0;
                             text-align: center; color: white;'>
                     <div style='font-size: 50px;'>🎉🎂🎉</div>
                     <h1 style='color: white; margin: 10px 0;'>CHÚC MỪNG SINH NHẬT!</h1>
-                    <h2 style='color: #fff3e0; margin: 10px 0;'>{xung_ho} {sn['ho_ten']}</h2>
+                    <h2 style='color: #f7f0e8; margin: 10px 0;'>{xung_ho} {sn['ho_ten']}</h2>
                     <p style='font-size: 18px;'>
                         🎂 {tuoi} tuổi - Một tuổi mới thật nhiều niềm vui! 🎂
                     </p>
@@ -8107,7 +8197,7 @@ elif menu == "📊 Dashboard":
                                 <meta charset="UTF-8">
                             </head>
                             <body style='font-family: "Times New Roman", Arial, sans-serif;'>
-                                <div style='background: linear-gradient(135deg, #ffd700 0%, #ff9800 100%); 
+                                <div style='background: linear-gradient(135deg, #c95536 0%, #c95536 100%); 
                                             padding: 20px; text-align: center; border-radius: 10px;'>
                                     <h1 style='color: white;'>🎂 CHÚC MỪNG SINH NHẬT 🎂</h1>
                                 </div>
@@ -8115,7 +8205,7 @@ elif menu == "📊 Dashboard":
                                     {loi_chuc.replace(chr(10), '<br>')}
                                 </div>
                                 <hr>
-                                <p style='color: #999; font-size: 11px; text-align: center;'>
+                                <p style='color: #ab9687; font-size: 11px; text-align: center;'>
                                     Email được gửi tự động từ hệ thống HRM-Port {COMPANY_CONFIG.get('ten_cong_ty', '')}<br>
                                     Địa chỉ: {COMPANY_CONFIG.get('dia_chi', '')} | Điện thoại: {COMPANY_CONFIG.get('dien_thoai_cty', '')}
                                 </p>
@@ -8281,7 +8371,6 @@ elif menu == "👤 Ứng viên":
     st.markdown(f"# {i18n.tm('👤 Ứng viên')}", unsafe_allow_html=True)
     if not st.session_state.get('_da_ensure_chuc_danh_uv'):
         ensure_chuc_danh_ung_vien_table()
-        ensure_ung_vien_columns()
         st.session_state['_da_ensure_chuc_danh_uv'] = True
     su = st.text_input("🔍 Tìm kiếm", key="suv")
     
@@ -8554,21 +8643,14 @@ elif menu == "👤 Ứng viên":
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     ho_ten_uv = st.text_input("Họ và tên *")
+                    vi_tri_uv = st.selectbox("Vị trí dự tuyển", [""] + ds_vt_uv)
+                    dien_thoai_uv = st.text_input("SĐT")
+                with col2:
                     ngay_sinh_uv = st.text_input("Ngày sinh (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
                     gioi_tinh_uv = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"])
-                with col2:
-                    dien_thoai_uv = st.text_input("SĐT")
-                    trinh_do_uv = st.selectbox("Trình độ", [""] + TRINH_DO_LIST)
-                    vi_tri_uv = st.selectbox("Vị trí ứng tuyển", [""] + ds_vt_uv)
                 with col3:
+                    ngay_vao_lam_uv = st.text_input("Ngày vào làm (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
                     ghi_chu_uv = st.text_area("Ghi chú")
-                    # Trường Lương BH chỉ show cho tenant có MST = 0108872052
-                    _mst_tenant_uv = (st.session_state.get('tenant') or {}).get('ma_so_thue', '')
-                    hien_luong_bh_uv = (_mst_tenant_uv == '0108872052')
-                    if hien_luong_bh_uv:
-                        luong_bh_uv = st.text_input("Lương BH")
-                    else:
-                        luong_bh_uv = ""
                 
                 if st.form_submit_button("💾 LƯU", width='stretch', disabled=not can_edit()):
                     if not can_edit():
@@ -8578,6 +8660,8 @@ elif menu == "👤 Ứng viên":
                             ngay_loi = []
                             if ngay_sinh_uv and not parse_date(ngay_sinh_uv): 
                                 ngay_loi.append("Ngày sinh")
+                            if ngay_vao_lam_uv and not parse_date(ngay_vao_lam_uv): 
+                                ngay_loi.append("Ngày vào làm")
                             if ngay_loi:
                                 st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
                             else:
@@ -8585,11 +8669,10 @@ elif menu == "👤 Ứng viên":
                                     db = st.session_state.db_engine.get_connection()
                                     c = db.cursor()
                                     c.execute("""INSERT INTO ung_vien (ho_ten, vi_tri_du_tuyen, dien_thoai, 
-                                        ngay_sinh, gioi_tinh, trinh_do, luong_bao_hiem, trang_thai, ghi_chu)
+                                        ngay_sinh, gioi_tinh, ngay_vao_lam, luong_bao_hiem, trang_thai, ghi_chu)
                                         VALUES (%s, %s, %s, %s, %s, %s, %s, 'CHO_DUYET', %s) RETURNING id""",
                                         (ho_ten_uv, vi_tri_uv, dien_thoai_uv, parse_date(ngay_sinh_uv),
-                                         gioi_tinh_uv, trinh_do_uv,
-                                         to_float_or_none(luong_bh_uv), ghi_chu_uv or None))
+                                         gioi_tinh_uv, parse_date(ngay_vao_lam_uv), None, ghi_chu_uv or None))
                                     new_id = c.fetchone()[0]
                                     ma_uv = f"UV{new_id:04d}"
                                     c.execute("UPDATE ung_vien SET ma_uv = %s WHERE id = %s", (ma_uv, new_id))
@@ -8613,7 +8696,7 @@ elif menu == "👤 Ứng viên":
             tt = tm[tn]
             db = st.session_state.db_engine.get_connection()
             c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            sql = "SELECT id, ma_uv, ho_ten, vi_tri_du_tuyen, dien_thoai, ngay_vao_lam, luong_bao_hiem, ngay_sinh, trinh_do, ghi_chu, trang_thai FROM ung_vien WHERE 1=1"
+            sql = "SELECT id, ma_uv, ho_ten, vi_tri_du_tuyen, dien_thoai, ngay_vao_lam, luong_bao_hiem, ngay_sinh, trang_thai FROM ung_vien WHERE 1=1"
             params = []
             if tt:
                 sql += " AND trang_thai = %s"
@@ -8635,24 +8718,19 @@ elif menu == "👤 Ứng viên":
                     if 'ngay' in col.lower():
                         df[col] = df[col].apply(format_date)
                 
-                _mst_tenant_hien_thi = (st.session_state.get('tenant') or {}).get('ma_so_thue', '')
-                hien_luong_bh = (_mst_tenant_hien_thi == '0108872052')
-                
-                display_cols = ['ma_uv', 'ho_ten', 'ngay_sinh', 'dien_thoai', 'trinh_do', 'vi_tri_du_tuyen', 'ghi_chu']
-                if hien_luong_bh:
-                    display_cols.insert(6, 'luong_bao_hiem')
+                display_cols = ['ma_uv', 'ho_ten', 'vi_tri_du_tuyen', 'dien_thoai', 'ngay_vao_lam', 'luong_bao_hiem', 'ngay_sinh', 'trang_thai']
                 available_cols = [c for c in display_cols if c in df.columns]
                 df_show = df[available_cols]
                 
                 col_map = {
                     'ma_uv': 'Mã UV',
                     'ho_ten': 'Họ tên',
-                    'ngay_sinh': 'Ngày sinh',
+                    'vi_tri_du_tuyen': 'Vị trí dự tuyển',
                     'dien_thoai': 'SĐT',
-                    'trinh_do': 'Trình độ',
-                    'vi_tri_du_tuyen': 'Vị trí ứng tuyển',
-                    'luong_bao_hiem': 'Lương BH',
-                    'ghi_chu': 'Ghi chú',
+                    'ngay_vao_lam': 'Ngày vào làm',
+                    'luong_bao_hiem': 'Ghi chú',
+                    'ngay_sinh': 'Ngày sinh',
+                    'trang_thai': 'Trạng thái',
                 }
                 df_show.rename(columns=col_map, inplace=True)
                 
@@ -8662,7 +8740,7 @@ elif menu == "👤 Ứng viên":
                     # Admin: hiển thị bảng có checkbox và nút chức năng
                     if 'selected' not in df.columns:
                         df.insert(0, 'selected', False)
-                    df_show_with_checkbox = df[['selected'] + [c for c in df.columns if c in available_cols]]
+                    df_show_with_checkbox = df[['selected'] + [c for c in df.columns if c in display_cols]]
                     df_show_with_checkbox.rename(columns={'selected': 'Chọn'}, inplace=True)
                     
                     edited_df = st.data_editor(
@@ -8683,6 +8761,7 @@ elif menu == "👤 Ứng viên":
                             selected_nv = df.iloc[selected_idx]
                             col_btn1, col_btn2 = st.columns(2)
                             with col_btn1:
+                                # Chỉ hiển thị nút Sửa khi đã chọn 1 ứng viên
                                 if st.button(f"✏️ SỬA", key=f"edit_sel_{tn}", width='stretch'):
                                     st.session_state['edit_uv_id'] = int(selected_nv['id'])
                                     st.rerun()
@@ -8698,6 +8777,7 @@ elif menu == "👤 Ứng viên":
                                             db.close()
                                             
                                             if uv:
+                                                # Lưu thông tin ứng viên vào session_state
                                                 st.session_state['chuyen_uv_id'] = uv_id
                                                 st.session_state['chuyen_uv_data'] = {
                                                     'ho_ten': uv['ho_ten'],
@@ -8706,7 +8786,7 @@ elif menu == "👤 Ứng viên":
                                                     'ngay_sinh': uv['ngay_sinh'],
                                                     'gioi_tinh': uv['gioi_tinh'],
                                                     'ngay_vao_lam': uv['ngay_vao_lam'] or date.today(),
-                                                    'ghi_chu': uv.get('ghi_chu') or ''
+                                                    'ghi_chu': uv['luong_bao_hiem']
                                                 }
                                                 st.session_state['show_chuyen_nv_form'] = True
                                                 st.rerun()
@@ -8732,26 +8812,18 @@ elif menu == "👤 Ứng viên":
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     ho_ten_e = st.text_input("Họ và tên *", value=uv_data['ho_ten'] or '')
+                    vi_tri_e = st.selectbox("Vị trí dự tuyển", [""] + ds_vi_tri,
+                        index=([""] + ds_vi_tri).index(uv_data['vi_tri_du_tuyen']) if uv_data['vi_tri_du_tuyen'] in ds_vi_tri else 0)
+                    dien_thoai_e = st.text_input("SĐT", value=uv_data['dien_thoai'] or '')
+                with col2:
                     ngay_sinh_e = st.text_input("Ngày sinh (dd/mm/yyyy)", value=format_date(uv_data['ngay_sinh']))
                     gioi_tinh_e = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"],
                         index=["", "Nam", "Nữ", "Khác"].index(uv_data['gioi_tinh']) if uv_data['gioi_tinh'] in ["Nam", "Nữ", "Khác"] else 0)
-                with col2:
-                    dien_thoai_e = st.text_input("SĐT", value=uv_data['dien_thoai'] or '')
-                    trinh_do_e = st.selectbox("Trình độ", [""] + TRINH_DO_LIST,
-                        index=([""] + TRINH_DO_LIST).index(uv_data.get('trinh_do')) if uv_data.get('trinh_do') in TRINH_DO_LIST else 0)
-                    vi_tri_e = st.selectbox("Vị trí ứng tuyển", [""] + ds_vi_tri,
-                        index=([""] + ds_vi_tri).index(uv_data['vi_tri_du_tuyen']) if uv_data['vi_tri_du_tuyen'] in ds_vi_tri else 0)
                 with col3:
+                    ngay_vao_lam_e = st.text_input("Ngày vào làm (dd/mm/yyyy)", value=format_date(uv_data['ngay_vao_lam']))
                     ghi_chu_e = st.text_area("Ghi chú", value=uv_data.get('ghi_chu') or '')
                     trang_thai_e = st.selectbox("Trạng thái", ["CHO_DUYET", "TU_CHOI", "DA_NHAN_VIEC"],
                         index=["CHO_DUYET", "TU_CHOI", "DA_NHAN_VIEC"].index(uv_data['trang_thai']) if uv_data['trang_thai'] in ["CHO_DUYET", "TU_CHOI", "DA_NHAN_VIEC"] else 0)
-                    # Trường Lương BH chỉ show cho tenant có MST = 0108872052
-                    _mst_tenant_uv_e = (st.session_state.get('tenant') or {}).get('ma_so_thue', '')
-                    hien_luong_bh_e = (_mst_tenant_uv_e == '0108872052')
-                    if hien_luong_bh_e:
-                        luong_bh_e = st.text_input("Lương BH", value=str(uv_data.get('luong_bao_hiem') or ''))
-                    else:
-                        luong_bh_e = ""
                 
                 col_save, col_del, col_cancel = st.columns(3)
                 with col_save:
@@ -8762,23 +8834,18 @@ elif menu == "👤 Ứng viên":
                             ngay_loi = []
                             if ngay_sinh_e and not parse_date(ngay_sinh_e): 
                                 ngay_loi.append("Ngày sinh")
+                            if ngay_vao_lam_e and not parse_date(ngay_vao_lam_e): 
+                                ngay_loi.append("Ngày vào làm")
                             if ngay_loi:
                                 st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
                             else:
                                 db = st.session_state.db_engine.get_connection()
                                 c = db.cursor()
-                                if hien_luong_bh_e:
-                                    c.execute("""UPDATE ung_vien SET ho_ten=%s, vi_tri_du_tuyen=%s, dien_thoai=%s,
-                                        ngay_sinh=%s, gioi_tinh=%s, trinh_do=%s, luong_bao_hiem=%s, trang_thai=%s, ghi_chu=%s
-                                        WHERE id=%s""",
-                                        (ho_ten_e, vi_tri_e, dien_thoai_e, parse_date(ngay_sinh_e), gioi_tinh_e,
-                                         trinh_do_e, to_float_or_none(luong_bh_e), trang_thai_e, ghi_chu_e or None, uv_data['id']))
-                                else:
-                                    c.execute("""UPDATE ung_vien SET ho_ten=%s, vi_tri_du_tuyen=%s, dien_thoai=%s,
-                                        ngay_sinh=%s, gioi_tinh=%s, trinh_do=%s, trang_thai=%s, ghi_chu=%s
-                                        WHERE id=%s""",
-                                        (ho_ten_e, vi_tri_e, dien_thoai_e, parse_date(ngay_sinh_e), gioi_tinh_e,
-                                         trinh_do_e, trang_thai_e, ghi_chu_e or None, uv_data['id']))
+                                c.execute("""UPDATE ung_vien SET ho_ten=%s, vi_tri_du_tuyen=%s, dien_thoai=%s,
+                                    ngay_sinh=%s, gioi_tinh=%s, ngay_vao_lam=%s, trang_thai=%s, ghi_chu=%s
+                                    WHERE id=%s""",
+                                    (ho_ten_e, vi_tri_e, dien_thoai_e, parse_date(ngay_sinh_e), gioi_tinh_e,
+                                     parse_date(ngay_vao_lam_e), trang_thai_e, ghi_chu_e or None, uv_data['id']))
                                 db.commit()
                                 db.close()
                                 st.success("✅ Đã cập nhật!")
@@ -10351,12 +10418,12 @@ elif menu == "✅ Nhân viên":
             elif not nv_qd_list:
                 st.info("Không có nhân viên đang làm việc.")
             else:
-                # Bố cục: Loại QĐ + Ngày ban hành → thông tin chi tiết (chức vụ/chức danh/lương mới...)
-                # → Chọn nhân viên (cuối). Dùng container để hiển thị đúng thứ tự trên màn hình,
+                # Bố cục: Loại QĐ → Ngày ban hành → Chọn nhân viên → các tuỳ chọn chi tiết (chức vụ/chức danh/
+                # phòng ban/lương mới...). Dùng container để hiển thị đúng thứ tự trên màn hình,
                 # còn code vẫn chạy "Loại QĐ" trước (cần để lọc danh sách nhân viên theo loại QĐ).
                 c_qd_top = st.container()
-                c_qd_detail = st.container()
                 c_qd_nv = st.container()
+                c_qd_detail = st.container()
 
                 with c_qd_top:
                     col_qd1, col_qd2 = st.columns(2)
@@ -10409,16 +10476,22 @@ elif menu == "✅ Nhân viên":
                         ds_chuc_vu_tenant = get_chuc_vu_options()
 
                         if loai_qd == 'BO_NHIEM':
-                            chuc_vu_moi = st.selectbox("🏷️ Chức vụ được bổ nhiệm:", ds_chuc_vu_tenant, key="qdns_cv_bonhiem")
+                            cv_hien_tai_bn = nv_qd.get('chuc_vu') or 'Nhân viên'
+                            ds_cv_bn = [x for x in ds_chuc_vu_tenant if x != cv_hien_tai_bn]
+                            chuc_vu_moi = st.selectbox("🏷️ Chức vụ được bổ nhiệm:", ds_cv_bn, index=None,
+                                                       placeholder="Chọn chức vụ được bổ nhiệm (khác chức vụ hiện tại)",
+                                                       key=f"qdns_cv_bonhiem_{nv_qd['id']}")
                             # Bổ nhiệm trong thực tế thường đi kèm luôn Chức danh & Phòng ban mới (VD:
                             # bổ nhiệm Trưởng phòng Kinh doanh = đổi cả chức vụ, chức danh lẫn phòng ban).
                             # Cho phép chỉnh, mặc định giữ nguyên giá trị hiện tại nếu không đổi.
                             cd_hien_tai_bn = nv_qd.get('chuc_danh_nghe') or ''
                             pb_hien_tai_bn = nv_qd.get('phong_ban_lam_viec') or ''
-                            with st.expander("⚙️ Chức danh & Phòng ban kèm theo (tuỳ chọn — bỏ trống nếu không đổi)", expanded=False):
-                                chuc_danh_moi_bn = st.text_input("💼 Chức danh mới:", value=cd_hien_tai_bn, key="qdns_cd_bonhiem")
+                            with st.expander("⚙️ Chức danh & Phòng ban kèm theo (tuỳ chọn — để nguyên nếu không đổi)", expanded=False):
+                                ds_cd_bn, idx_cd_bn = _ds_dropdown_giu_hien_tai(get_chuc_danh_options(), cd_hien_tai_bn)
+                                chuc_danh_moi_bn = st.selectbox("💼 Chức danh mới:", ds_cd_bn, index=idx_cd_bn,
+                                                                key=f"qdns_cd_bonhiem_{nv_qd['id']}") or ''
                                 idx_pb_bn = ds_phong_ban.index(pb_hien_tai_bn) if pb_hien_tai_bn in ds_phong_ban else 0
-                                phong_ban_moi_bn = st.selectbox("🏢 Phòng ban mới:", ds_phong_ban, index=idx_pb_bn, key="qdns_pb_bonhiem") if ds_phong_ban else pb_hien_tai_bn
+                                phong_ban_moi_bn = st.selectbox("🏢 Phòng ban mới:", ds_phong_ban, index=idx_pb_bn, key=f"qdns_pb_bonhiem_{nv_qd['id']}") if ds_phong_ban else pb_hien_tai_bn
                             tieu_de = f"Bổ nhiệm chức vụ {chuc_vu_moi}"
                             dieu1_lines = [f"Bổ nhiệm Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) giữ chức vụ {chuc_vu_moi} kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
                             chi_tiet_bn = []
@@ -10430,6 +10503,9 @@ elif menu == "✅ Nhân viên":
                                 dieu1_lines.append(f"Đồng thời giữ {', '.join(chi_tiet_bn)} kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}.")
                             gia_tri_truoc = nv_qd.get('chuc_vu') or 'Nhân viên'
                             gia_tri_sau = chuc_vu_moi
+                            if not chuc_vu_moi:
+                                ok_to_submit = False
+                                st.error("⚠️ Vui lòng chọn chức vụ được bổ nhiệm (phải khác chức vụ hiện tại).")
 
                         elif loai_qd == 'MIEN_NHIEM':
                             cv_hien_tai = nv_qd.get('chuc_vu') or 'Nhân viên'
@@ -10440,31 +10516,51 @@ elif menu == "✅ Nhân viên":
                             gia_tri_truoc = cv_hien_tai
                             gia_tri_sau = 'Nhân viên'
                             if cv_hien_tai == 'Nhân viên':
-                                st.warning("⚠️ Nhân viên này hiện đang giữ chức vụ 'Nhân viên' (không có chức vụ quản lý để miễn nhiệm).")
+                                ok_to_submit = False
+                                st.error("⚠️ Nhân viên này hiện đang giữ chức vụ 'Nhân viên' (không có chức vụ quản lý để miễn nhiệm).")
+                            elif chuc_vu_mien != cv_hien_tai:
+                                ok_to_submit = False
+                                st.error(f"⚠️ Nhân viên hiện giữ chức vụ '{cv_hien_tai}', không thể miễn nhiệm chức vụ '{chuc_vu_mien}'.")
 
                         elif loai_qd == 'DOI_CHUC_DANH':
-                            chuc_danh_moi = st.text_input("💼 Chức danh mới:", value=nv_qd.get('chuc_danh_nghe') or '', key="qdns_cd_moi")
+                            cd_hien_tai_dc = (nv_qd.get('chuc_danh_nghe') or '').strip()
+                            ds_cd_moi = [x for x in get_chuc_danh_options() if x.strip().lower() != cd_hien_tai_dc.lower()]
+                            chuc_danh_moi = st.selectbox("💼 Chức danh mới:", ds_cd_moi, index=None,
+                                                         placeholder="Chọn chức danh mới (khác chức danh hiện tại)",
+                                                         key=f"qdns_cd_moi_{nv_qd['id']}") or ''
+                            if not ds_cd_moi:
+                                st.caption("ℹ️ Chưa có chức danh nào khác trong danh mục — thêm tại Ứng viên › Quản lý danh mục vị trí/chức danh.")
                             tieu_de = f"Thay đổi chức danh - {nv_qd['ho_ten']}"
                             dieu1_lines = [f"Thay đổi chức danh của Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) từ '{nv_qd.get('chuc_danh_nghe') or ''}' thành '{chuc_danh_moi}' kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
                             gia_tri_truoc = nv_qd.get('chuc_danh_nghe') or ''
                             gia_tri_sau = chuc_danh_moi
                             if not chuc_danh_moi.strip():
                                 ok_to_submit = False
-                                st.error("⚠️ Vui lòng nhập chức danh mới.")
+                                st.error("⚠️ Vui lòng chọn chức danh mới (phải khác chức danh hiện tại).")
+                            elif chuc_danh_moi.strip().lower() == cd_hien_tai_dc.lower():
+                                ok_to_submit = False
+                                st.error("⚠️ Chức danh mới phải khác chức danh hiện tại.")
 
                         elif loai_qd == 'DIEU_CHUYEN':
                             phong_hien_tai = nv_qd.get('phong_ban_lam_viec') or ''
-                            st.text_input("🏢 Từ phòng ban:", value=phong_hien_tai, disabled=True, key="qdns_pb_tu")
+                            st.text_input("🏢 Từ phòng ban:", value=phong_hien_tai, disabled=True, key=f"qdns_pb_tu_{nv_qd['id']}")
                             # Chỉ cho chọn trong danh sách phòng ban CHUẨN — bỏ ô nhập tay tự do để
                             # tránh phát sinh biến thể mới không chuẩn hóa.
-                            phong_moi = st.selectbox("🏢 Đến phòng ban:", ds_phong_ban, key="qdns_pb_den_select")
+                            _pb_hien_chuan = chuan_hoa_ten_phong_ban(phong_hien_tai)
+                            ds_pb_den = [x for x in ds_phong_ban if chuan_hoa_ten_phong_ban(x) != _pb_hien_chuan]
+                            phong_moi = st.selectbox("🏢 Đến phòng ban:", ds_pb_den, index=None,
+                                                     placeholder="Chọn phòng ban đến (khác phòng ban hiện tại)",
+                                                     key=f"qdns_pb_den_select_{nv_qd['id']}") or ''
+                            if (phong_moi or '').strip() and chuan_hoa_ten_phong_ban(phong_moi) == _pb_hien_chuan:
+                                ok_to_submit = False
+                                st.error("⚠️ Phòng ban đến phải khác phòng ban hiện tại.")
                             tieu_de = f"Điều chuyển công tác - {nv_qd['ho_ten']}"
                             dieu1_lines = [f"Điều chuyển Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) từ {phong_hien_tai or '(chưa xác định)'} sang {phong_moi or '(chưa xác định)'} kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
                             gia_tri_truoc = phong_hien_tai
                             gia_tri_sau = phong_moi
                             if not (phong_moi or '').strip():
                                 ok_to_submit = False
-                                st.error("⚠️ Vui lòng chọn hoặc nhập phòng ban đến.")
+                                st.error("⚠️ Vui lòng chọn phòng ban đến (phải khác phòng ban hiện tại).")
 
                         elif loai_qd == 'CHUYEN_CHINH_THUC':
                             # Chỉ cho phép chuyển đổi NV đang ở trạng thái Thử việc
@@ -11056,7 +11152,7 @@ elif menu == "✅ Nhân viên":
             aspect-ratio: 1 / 1;
             border-radius: 50%;
             object-fit: cover;
-            border: 4px solid #f59e0b;
+            border: 4px solid #ca5536;
             box-shadow: 0 4px 15px rgba(0,0,0,0.15);
         }
         @media (max-width: 1400px) {
@@ -11545,9 +11641,9 @@ elif menu == "🕒 Chấm công":
                 def _highlight_special(s):
                     styles = [''] * len(s)
                     if s.name in sunday_cols:
-                        styles = ['background-color: #FFF2CC; color: #999;'] * len(s)
+                        styles = ['background-color: #f2e6d9; color: #ab9687;'] * len(s)
                     elif s.name in holiday_cols:
-                        styles = ['background-color: #FCE4EC; color: #C62828;'] * len(s)
+                        styles = ['background-color: #f8f0e8; color: #C62828;'] * len(s)
                     return styles
 
                 df_view = df_month.drop(columns=["Chấm công full"], errors='ignore')
@@ -13864,23 +13960,23 @@ elif menu == "📋 Báo cáo định kỳ":
     st.divider()
     bc_active = st.session_state["bc_active"]
 
-    def _bao_cao_dang_phat_trien(ten_bao_cao, mo_ta, icon, mau_sac="#f59e0b"):
+    def _bao_cao_dang_phat_trien(ten_bao_cao, mo_ta, icon, mau_sac="#ca5536"):
         """Card hiện đại cho các báo cáo định kỳ chưa có logic - sẽ bổ sung sau."""
         st.markdown(f"""
-        <div style="border:1px solid #e5e7eb;border-radius:16px;padding:28px 24px;
-             background:linear-gradient(135deg,#fffbeb 0%,#ffffff 100%);
+        <div style="border:1px solid #ece7e4;border-radius:16px;padding:28px 24px;
+             background:linear-gradient(135deg,#faf5f0 0%,#ffffff 100%);
              box-shadow:0 2px 10px rgba(0,0,0,0.04);">
             <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
                 <div style="font-size:34px;">{icon}</div>
                 <div>
-                    <div style="font-size:19px;font-weight:700;color:#111827;">{ten_bao_cao}</div>
+                    <div style="font-size:19px;font-weight:700;color:#271611;">{ten_bao_cao}</div>
                     <span style="display:inline-block;margin-top:4px;padding:2px 10px;border-radius:999px;
                           background:{mau_sac};color:white;font-size:11px;font-weight:600;letter-spacing:.3px;">
                           🚧 SẼ BỔ SUNG SAU
                     </span>
                 </div>
             </div>
-            <div style="color:#4b5563;font-size:14px;line-height:1.6;margin-top:8px;">{mo_ta}</div>
+            <div style="color:#675447;font-size:14px;line-height:1.6;margin-top:8px;">{mo_ta}</div>
         </div>
         """, unsafe_allow_html=True)
         st.write("")
@@ -13920,7 +14016,7 @@ elif menu == "📋 Báo cáo định kỳ":
         _bao_cao_dang_phat_trien(
             "Báo cáo Tai nạn lao động",
             "Thống kê, khai báo các vụ tai nạn lao động phát sinh trong kỳ báo cáo theo quy định.",
-            "⚠️", mau_sac="#ef4444"
+            "⚠️", mau_sac="#d4775f"
         )
 
     if bc_active == BC_HUANLUYEN:
@@ -14826,8 +14922,8 @@ elif menu == "🤖 Chatbot Giải đáp":
             st.markdown("""
             <div style="text-align:center; padding:20px 0 10px;">
                 <div style="font-size:48px; margin-bottom:8px;">⚖️</div>
-                <h2 style="color:#1e3a5f; margin-bottom:4px;">AI Tư vấn Hành chính Nhân sự</h2>
-                <p style="color:#6b7280; font-size:14px; line-height:1.7; max-width:600px; margin:0 auto;">
+                <h2 style="color:#5f2c1e; margin-bottom:4px;">AI Tư vấn Hành chính Nhân sự</h2>
+                <p style="color:#8b7260; font-size:14px; line-height:1.7; max-width:600px; margin:0 auto;">
                     Hỏi bất kỳ câu hỏi nào về <b>BHXH, BHYT, Thuế TNCN, Hợp đồng lao động, Thai sản, 
                     Trợ cấp thất nghiệp</b> — AI sẽ phân tích và trích dẫn điều luật cụ thể.
                 </p>

@@ -5606,6 +5606,22 @@ def ensure_chuc_danh_ung_vien_table():
         print(f"Lỗi ensure_chuc_danh_ung_vien_table: {e}")
         return False
 
+def ensure_ung_vien_columns():
+    """Bổ sung cột 'trinh_do' vào bảng ung_vien nếu chưa có (idempotent).
+    Bảng ung_vien gốc chưa có cột trình độ — cần thêm để form Thêm/Sửa ứng viên
+    lưu được Trình độ theo danh mục TRINH_DO_LIST của từng tenant."""
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("ALTER TABLE ung_vien ADD COLUMN IF NOT EXISTS trinh_do VARCHAR(100)")
+        db.commit()
+        c.close()
+        db.close()
+        return True
+    except Exception as e:
+        print(f"Lỗi ensure_ung_vien_columns: {e}")
+        return False
+
 # Nội dung MẶC ĐỊNH của từng Điều — dùng khi admin CHƯA tuỳ chỉnh gì.
 # Dòng bắt đầu bằng "## " sẽ được in đậm (tiêu đề phụ, VD "1. Nghĩa vụ:").
 # Có thể dùng {vi_tri}, {ngay_hieu_luc}, {ten_cong_ty} trong nội dung các Điều 1, 5 — sẽ tự thay bằng thông tin nhân viên.
@@ -8265,6 +8281,7 @@ elif menu == "👤 Ứng viên":
     st.markdown(f"# {i18n.tm('👤 Ứng viên')}", unsafe_allow_html=True)
     if not st.session_state.get('_da_ensure_chuc_danh_uv'):
         ensure_chuc_danh_ung_vien_table()
+        ensure_ung_vien_columns()
         st.session_state['_da_ensure_chuc_danh_uv'] = True
     su = st.text_input("🔍 Tìm kiếm", key="suv")
     
@@ -8537,14 +8554,21 @@ elif menu == "👤 Ứng viên":
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     ho_ten_uv = st.text_input("Họ và tên *")
-                    vi_tri_uv = st.selectbox("Vị trí dự tuyển", [""] + ds_vt_uv)
-                    dien_thoai_uv = st.text_input("SĐT")
-                with col2:
                     ngay_sinh_uv = st.text_input("Ngày sinh (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
                     gioi_tinh_uv = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"])
+                with col2:
+                    dien_thoai_uv = st.text_input("SĐT")
+                    trinh_do_uv = st.selectbox("Trình độ", [""] + TRINH_DO_LIST)
+                    vi_tri_uv = st.selectbox("Vị trí ứng tuyển", [""] + ds_vt_uv)
                 with col3:
-                    ngay_vao_lam_uv = st.text_input("Ngày vào làm (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
                     ghi_chu_uv = st.text_area("Ghi chú")
+                    # Trường Lương BH chỉ show cho tenant có MST = 0108872052
+                    _mst_tenant_uv = (st.session_state.get('tenant') or {}).get('ma_so_thue', '')
+                    hien_luong_bh_uv = (_mst_tenant_uv == '0108872052')
+                    if hien_luong_bh_uv:
+                        luong_bh_uv = st.text_input("Lương BH")
+                    else:
+                        luong_bh_uv = ""
                 
                 if st.form_submit_button("💾 LƯU", width='stretch', disabled=not can_edit()):
                     if not can_edit():
@@ -8554,8 +8578,6 @@ elif menu == "👤 Ứng viên":
                             ngay_loi = []
                             if ngay_sinh_uv and not parse_date(ngay_sinh_uv): 
                                 ngay_loi.append("Ngày sinh")
-                            if ngay_vao_lam_uv and not parse_date(ngay_vao_lam_uv): 
-                                ngay_loi.append("Ngày vào làm")
                             if ngay_loi:
                                 st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
                             else:
@@ -8563,10 +8585,11 @@ elif menu == "👤 Ứng viên":
                                     db = st.session_state.db_engine.get_connection()
                                     c = db.cursor()
                                     c.execute("""INSERT INTO ung_vien (ho_ten, vi_tri_du_tuyen, dien_thoai, 
-                                        ngay_sinh, gioi_tinh, ngay_vao_lam, luong_bao_hiem, trang_thai, ghi_chu)
+                                        ngay_sinh, gioi_tinh, trinh_do, luong_bao_hiem, trang_thai, ghi_chu)
                                         VALUES (%s, %s, %s, %s, %s, %s, %s, 'CHO_DUYET', %s) RETURNING id""",
                                         (ho_ten_uv, vi_tri_uv, dien_thoai_uv, parse_date(ngay_sinh_uv),
-                                         gioi_tinh_uv, parse_date(ngay_vao_lam_uv), None, ghi_chu_uv or None))
+                                         gioi_tinh_uv, trinh_do_uv,
+                                         to_float_or_none(luong_bh_uv), ghi_chu_uv or None))
                                     new_id = c.fetchone()[0]
                                     ma_uv = f"UV{new_id:04d}"
                                     c.execute("UPDATE ung_vien SET ma_uv = %s WHERE id = %s", (ma_uv, new_id))
@@ -8590,7 +8613,7 @@ elif menu == "👤 Ứng viên":
             tt = tm[tn]
             db = st.session_state.db_engine.get_connection()
             c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            sql = "SELECT id, ma_uv, ho_ten, vi_tri_du_tuyen, dien_thoai, ngay_vao_lam, luong_bao_hiem, ngay_sinh, trang_thai FROM ung_vien WHERE 1=1"
+            sql = "SELECT id, ma_uv, ho_ten, vi_tri_du_tuyen, dien_thoai, ngay_vao_lam, luong_bao_hiem, ngay_sinh, trinh_do, ghi_chu, trang_thai FROM ung_vien WHERE 1=1"
             params = []
             if tt:
                 sql += " AND trang_thai = %s"
@@ -8612,19 +8635,24 @@ elif menu == "👤 Ứng viên":
                     if 'ngay' in col.lower():
                         df[col] = df[col].apply(format_date)
                 
-                display_cols = ['ma_uv', 'ho_ten', 'vi_tri_du_tuyen', 'dien_thoai', 'ngay_vao_lam', 'luong_bao_hiem', 'ngay_sinh', 'trang_thai']
+                _mst_tenant_hien_thi = (st.session_state.get('tenant') or {}).get('ma_so_thue', '')
+                hien_luong_bh = (_mst_tenant_hien_thi == '0108872052')
+                
+                display_cols = ['ma_uv', 'ho_ten', 'ngay_sinh', 'dien_thoai', 'trinh_do', 'vi_tri_du_tuyen', 'ghi_chu']
+                if hien_luong_bh:
+                    display_cols.insert(6, 'luong_bao_hiem')
                 available_cols = [c for c in display_cols if c in df.columns]
                 df_show = df[available_cols]
                 
                 col_map = {
                     'ma_uv': 'Mã UV',
                     'ho_ten': 'Họ tên',
-                    'vi_tri_du_tuyen': 'Vị trí dự tuyển',
-                    'dien_thoai': 'SĐT',
-                    'ngay_vao_lam': 'Ngày vào làm',
-                    'luong_bao_hiem': 'Ghi chú',
                     'ngay_sinh': 'Ngày sinh',
-                    'trang_thai': 'Trạng thái',
+                    'dien_thoai': 'SĐT',
+                    'trinh_do': 'Trình độ',
+                    'vi_tri_du_tuyen': 'Vị trí ứng tuyển',
+                    'luong_bao_hiem': 'Lương BH',
+                    'ghi_chu': 'Ghi chú',
                 }
                 df_show.rename(columns=col_map, inplace=True)
                 
@@ -8634,7 +8662,7 @@ elif menu == "👤 Ứng viên":
                     # Admin: hiển thị bảng có checkbox và nút chức năng
                     if 'selected' not in df.columns:
                         df.insert(0, 'selected', False)
-                    df_show_with_checkbox = df[['selected'] + [c for c in df.columns if c in display_cols]]
+                    df_show_with_checkbox = df[['selected'] + [c for c in df.columns if c in available_cols]]
                     df_show_with_checkbox.rename(columns={'selected': 'Chọn'}, inplace=True)
                     
                     edited_df = st.data_editor(
@@ -8655,7 +8683,6 @@ elif menu == "👤 Ứng viên":
                             selected_nv = df.iloc[selected_idx]
                             col_btn1, col_btn2 = st.columns(2)
                             with col_btn1:
-                                # Chỉ hiển thị nút Sửa khi đã chọn 1 ứng viên
                                 if st.button(f"✏️ SỬA", key=f"edit_sel_{tn}", width='stretch'):
                                     st.session_state['edit_uv_id'] = int(selected_nv['id'])
                                     st.rerun()
@@ -8671,7 +8698,6 @@ elif menu == "👤 Ứng viên":
                                             db.close()
                                             
                                             if uv:
-                                                # Lưu thông tin ứng viên vào session_state
                                                 st.session_state['chuyen_uv_id'] = uv_id
                                                 st.session_state['chuyen_uv_data'] = {
                                                     'ho_ten': uv['ho_ten'],
@@ -8680,7 +8706,7 @@ elif menu == "👤 Ứng viên":
                                                     'ngay_sinh': uv['ngay_sinh'],
                                                     'gioi_tinh': uv['gioi_tinh'],
                                                     'ngay_vao_lam': uv['ngay_vao_lam'] or date.today(),
-                                                    'ghi_chu': uv['luong_bao_hiem']
+                                                    'ghi_chu': uv.get('ghi_chu') or ''
                                                 }
                                                 st.session_state['show_chuyen_nv_form'] = True
                                                 st.rerun()
@@ -8706,18 +8732,26 @@ elif menu == "👤 Ứng viên":
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     ho_ten_e = st.text_input("Họ và tên *", value=uv_data['ho_ten'] or '')
-                    vi_tri_e = st.selectbox("Vị trí dự tuyển", [""] + ds_vi_tri,
-                        index=([""] + ds_vi_tri).index(uv_data['vi_tri_du_tuyen']) if uv_data['vi_tri_du_tuyen'] in ds_vi_tri else 0)
-                    dien_thoai_e = st.text_input("SĐT", value=uv_data['dien_thoai'] or '')
-                with col2:
                     ngay_sinh_e = st.text_input("Ngày sinh (dd/mm/yyyy)", value=format_date(uv_data['ngay_sinh']))
                     gioi_tinh_e = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"],
                         index=["", "Nam", "Nữ", "Khác"].index(uv_data['gioi_tinh']) if uv_data['gioi_tinh'] in ["Nam", "Nữ", "Khác"] else 0)
+                with col2:
+                    dien_thoai_e = st.text_input("SĐT", value=uv_data['dien_thoai'] or '')
+                    trinh_do_e = st.selectbox("Trình độ", [""] + TRINH_DO_LIST,
+                        index=([""] + TRINH_DO_LIST).index(uv_data.get('trinh_do')) if uv_data.get('trinh_do') in TRINH_DO_LIST else 0)
+                    vi_tri_e = st.selectbox("Vị trí ứng tuyển", [""] + ds_vi_tri,
+                        index=([""] + ds_vi_tri).index(uv_data['vi_tri_du_tuyen']) if uv_data['vi_tri_du_tuyen'] in ds_vi_tri else 0)
                 with col3:
-                    ngay_vao_lam_e = st.text_input("Ngày vào làm (dd/mm/yyyy)", value=format_date(uv_data['ngay_vao_lam']))
                     ghi_chu_e = st.text_area("Ghi chú", value=uv_data.get('ghi_chu') or '')
                     trang_thai_e = st.selectbox("Trạng thái", ["CHO_DUYET", "TU_CHOI", "DA_NHAN_VIEC"],
                         index=["CHO_DUYET", "TU_CHOI", "DA_NHAN_VIEC"].index(uv_data['trang_thai']) if uv_data['trang_thai'] in ["CHO_DUYET", "TU_CHOI", "DA_NHAN_VIEC"] else 0)
+                    # Trường Lương BH chỉ show cho tenant có MST = 0108872052
+                    _mst_tenant_uv_e = (st.session_state.get('tenant') or {}).get('ma_so_thue', '')
+                    hien_luong_bh_e = (_mst_tenant_uv_e == '0108872052')
+                    if hien_luong_bh_e:
+                        luong_bh_e = st.text_input("Lương BH", value=str(uv_data.get('luong_bao_hiem') or ''))
+                    else:
+                        luong_bh_e = ""
                 
                 col_save, col_del, col_cancel = st.columns(3)
                 with col_save:
@@ -8728,18 +8762,23 @@ elif menu == "👤 Ứng viên":
                             ngay_loi = []
                             if ngay_sinh_e and not parse_date(ngay_sinh_e): 
                                 ngay_loi.append("Ngày sinh")
-                            if ngay_vao_lam_e and not parse_date(ngay_vao_lam_e): 
-                                ngay_loi.append("Ngày vào làm")
                             if ngay_loi:
                                 st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
                             else:
                                 db = st.session_state.db_engine.get_connection()
                                 c = db.cursor()
-                                c.execute("""UPDATE ung_vien SET ho_ten=%s, vi_tri_du_tuyen=%s, dien_thoai=%s,
-                                    ngay_sinh=%s, gioi_tinh=%s, ngay_vao_lam=%s, trang_thai=%s, ghi_chu=%s
-                                    WHERE id=%s""",
-                                    (ho_ten_e, vi_tri_e, dien_thoai_e, parse_date(ngay_sinh_e), gioi_tinh_e,
-                                     parse_date(ngay_vao_lam_e), trang_thai_e, ghi_chu_e or None, uv_data['id']))
+                                if hien_luong_bh_e:
+                                    c.execute("""UPDATE ung_vien SET ho_ten=%s, vi_tri_du_tuyen=%s, dien_thoai=%s,
+                                        ngay_sinh=%s, gioi_tinh=%s, trinh_do=%s, luong_bao_hiem=%s, trang_thai=%s, ghi_chu=%s
+                                        WHERE id=%s""",
+                                        (ho_ten_e, vi_tri_e, dien_thoai_e, parse_date(ngay_sinh_e), gioi_tinh_e,
+                                         trinh_do_e, to_float_or_none(luong_bh_e), trang_thai_e, ghi_chu_e or None, uv_data['id']))
+                                else:
+                                    c.execute("""UPDATE ung_vien SET ho_ten=%s, vi_tri_du_tuyen=%s, dien_thoai=%s,
+                                        ngay_sinh=%s, gioi_tinh=%s, trinh_do=%s, trang_thai=%s, ghi_chu=%s
+                                        WHERE id=%s""",
+                                        (ho_ten_e, vi_tri_e, dien_thoai_e, parse_date(ngay_sinh_e), gioi_tinh_e,
+                                         trinh_do_e, trang_thai_e, ghi_chu_e or None, uv_data['id']))
                                 db.commit()
                                 db.close()
                                 st.success("✅ Đã cập nhật!")

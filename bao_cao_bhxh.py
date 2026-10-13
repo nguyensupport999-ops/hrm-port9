@@ -89,21 +89,10 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None, thang_tr
     conn = db_engine.get_connection()
     try:
         c = conn.cursor()
+        # SELECT * để có đủ cột (thang_bat_dau_bh, phuong_an_dieu_chinh, thang_phuong_an,
+        # trang_thai, ma_so_bhxh...) mà phần xử lý bên dưới đang dùng; thiếu cột nào r.get() trả None.
         c.execute("""
-            SELECT
-                id,
-                ho_ten,
-                luong_bao_hiem,
-                so_hdld,
-                ma_bhxh,
-                so_cccd,
-                chuc_danh_nghe,
-                phong_ban_lam_viec,
-                ngay_bat_dau_bh,
-                ngay_cap_cccd,
-                noi_dang_ky_kcb,
-                ghi_chu
-            FROM nhan_vien
+            SELECT * FROM nhan_vien
             WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
             ORDER BY phong_ban_lam_viec, ho_ten
         """)
@@ -400,7 +389,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None, thang_tr
             nld_105,
             kpcd_2,  # KPCĐ 2%
             r.get("so_hdld", "") or "",
-            r.get("ma_so_bhxh", "") or "",
+            r.get("ma_so_bhxh") or r.get("ma_bhxh") or "",
             r.get("so_cccd", "") or "",
             ngay_cap_str,
             r.get("chuc_danh_nghe", "") or "",
@@ -546,4 +535,3 @@ def render_xuat_bao_cao_bhxh(db_engine):
                             f"{thang_trich_nop.strftime('%m/%Y')} (được ghi chú ở cột GHI CHÚ).")
         except Exception as e:
             st.error(f"❌ Lỗi: {e}")
-            

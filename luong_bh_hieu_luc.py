@@ -70,11 +70,12 @@ def hoan_tac_khi_xoa_qd(conn, qd_id):
                   (str(r[0] if r else luong_cu), nv_id))
 
 
-def lay_luong_hieu_luc(conn, den_ngay, nv_ids=None):
+def lay_luong_hieu_luc(conn, den_ngay, nv_ids=None, strict=False):
     """{nhan_vien_id: lương BH (int)} có hiệu lực TRONG THÁNG chứa `den_ngay`.
     - Có điều chỉnh với thang_ap_dung <= tháng đó -> lấy mức mới nhất.
     - Có điều chỉnh nhưng đều SAU tháng đó        -> lấy luong_cu của điều chỉnh sớm nhất.
     - Chưa từng điều chỉnh                        -> lấy nhan_vien.luong_bao_hiem.
+    strict=True: không nuốt lỗi (bảng lịch sử chưa có...) mà raise để nơi gọi báo cảnh báo.
     """
     thang = date(den_ngay.year, den_ngay.month, 1)
     loc, params = "", {"thang": thang}

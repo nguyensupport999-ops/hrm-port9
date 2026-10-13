@@ -7,6 +7,7 @@ import io
 import datetime
 import streamlit as st
 import openpyxl
+import luong_bh_hieu_luc
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 import base64
 
@@ -72,93 +73,92 @@ def _is_hop_dong_thu_viec(so_hdld):
         return False
 
 
-def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
+def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None, thang_trich_nop=None):
     """Xuất báo cáo trích nộp BHXH.
+    Mức lương nộp BH của từng người = mức có hiệu lực trong `thang_trich_nop`
+    (xác định theo ngày hiệu lực các QĐ điều chỉnh mức lương). Mặc định: tháng hiện tại.
     Trả về (excel_bytes, so_nv).
     """
+    if thang_trich_nop is None:
+        thang_trich_nop = datetime.date.today()
+    thang_trich_nop = thang_trich_nop.replace(day=1)
+
     conn = db_engine.get_connection()
     try:
         c = conn.cursor()
-        # Query lấy tất cả nhân viên (bao gồm NGHI_VIEC) 
-        # và LOẠI BỎ: so_hdld = NULL, so_hdld rỗng, hợp đồng thử việc
         c.execute("""
             SELECT
+                id,
                 ho_ten,
                 luong_bao_hiem,
                 so_hdld,
-                ma_so_bhxh,
+                ma_bhxh,
                 so_cccd,
                 chuc_danh_nghe,
                 phong_ban_lam_viec,
-                thang_bat_dau_bh,
-                thang_ket_thuc_bh,
-                ngay_ket_thuc,
+                ngay_bat_dau_bh,
                 ngay_cap_cccd,
                 noi_dang_ky_kcb,
-                ghi_chu,
-                phuong_an_dieu_chinh,
-                thang_phuong_an,
-                trang_thai_bhxh,
-                trang_thai
+                ghi_chu
             FROM nhan_vien
-            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC', 'NGHI_VIEC')
-              AND so_hdld IS NOT NULL
-              AND so_hdld != ''
-              AND so_hdld NOT LIKE '%HĐTV%'
-              AND so_hdld NOT LIKE '%HDTV%'
-            ORDER BY 
-                CAST(SUBSTRING(so_hdld FROM '^([0-9]+)/') AS INTEGER) ASC
+            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            ORDER BY phong_ban_lam_viec, ho_ten
         """)
         col_names = [desc[0] for desc in c.description]
         rows = [dict(zip(col_names, r)) for r in c.fetchall()]
-    except Exception as e:
-        st.warning(f"Lỗi khi truy vấn dữ liệu: {e}")
-        # Fallback query
+    except Exception:
+        # Nếu lỗi cột — thử query tối giản chỉ với cột chắc chắn có
         try:
             conn.close()
         except Exception:
             pass
         conn = db_engine.get_connection()
         c = conn.cursor()
-        try:
-            c.execute("""
-                SELECT 
-                    ho_ten, 
-                    luong_bao_hiem, 
-                    chuc_danh_nghe,
-                    ma_so_bhxh,
-                    so_cccd,
-                    so_hdld,
-                    thang_bat_dau_bh,
-                    thang_ket_thuc_bh,
-                    ngay_ket_thuc,
-                    ngay_cap_cccd,
-                    noi_dang_ky_kcb,
-                    ghi_chu,
-                    phuong_an_dieu_chinh,
-                    thang_phuong_an,
-                    trang_thai_bhxh,
-                    trang_thai,
-                    phong_ban_lam_viec
-                FROM nhan_vien
-                WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC', 'NGHI_VIEC')
-                  AND so_hdld IS NOT NULL
-                  AND so_hdld != ''
-                  AND so_hdld NOT LIKE '%HĐTV%'
-                  AND so_hdld NOT LIKE '%HDTV%'
-                ORDER BY 
-                    CAST(SUBSTRING(so_hdld FROM '^([0-9]+)/') AS INTEGER) ASC
-            """)
-            col_names = [desc[0] for desc in c.description]
-            rows = [dict(zip(col_names, r)) for r in c.fetchall()]
-        except Exception as e2:
-            st.error(f"Lỗi fallback: {e2}")
-            rows = []
+        c.execute("""
+            SELECT id, ho_ten, luong_bao_hiem, chuc_danh_nghe
+            FROM nhan_vien
+            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            ORDER BY ho_ten
+        """)
+        col_names = [desc[0] for desc in c.description]
+        rows = [dict(zip(col_names, r)) for r in c.fetchall()]
     finally:
         try:
             conn.close()
         except Exception:
             pass
+
+    # ── Mức lương có hiệu lực trong tháng trích nộp (theo ngày hiệu lực QĐ điều chỉnh lương) ──
+    luong_map, dc_map = {}, {}
+    try:
+        conn2 = db_engine.get_connection()
+        try:
+            luong_map = luong_bh_hieu_luc.lay_luong_hieu_luc(conn2, thang_trich_nop)
+            dc_map = luong_bh_hieu_luc.lay_dieu_chinh_thang(conn2, thang_trich_nop)
+        finally:
+            conn2.close()
+    except Exception:
+        luong_map, dc_map = {}, {}   # lỗi -> dùng lương hiện tại trong hồ sơ
+
+    def _fmt(n):
+        return f"{int(n or 0):,}".replace(",", ".")
+
+    rows_hl = []
+    for r in rows:
+        luong = luong_map.get(r.get("id"))
+        if luong is None:
+            luong = luong_bh_hieu_luc.parse_luong(r.get("luong_bao_hiem"))
+        if luong <= 0:
+            continue                       # không có mức lương nộp BH -> không đưa vào báo cáo
+        r["luong_hieu_luc"] = luong
+        dc = dc_map.get(r.get("id"))
+        if dc:                             # có điều chỉnh bắt đầu áp dụng đúng tháng này -> ghi chú
+            so_qd, ngay_hl, luong_cu, luong_moi = dc
+            ghi = (f"ĐC lương {_fmt(luong_cu)} → {_fmt(luong_moi)} theo QĐ {so_qd} "
+                   f"(hiệu lực {ngay_hl.strftime('%d/%m/%Y')})")
+            r["ghi_chu"] = (str(r.get("ghi_chu") or "").strip() + " | " + ghi).strip(" |")
+        rows_hl.append(r)
+    rows = rows_hl
 
     # Lọc theo khoảng thời gian (nếu có)
     def _to_date(val):
@@ -228,12 +228,9 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
     ws["A1"].font = font_title
     ws["A1"].alignment = align_center
 
-    ky_label = ""
+    ky_label = f"Tháng trích nộp: {thang_trich_nop.strftime('%m/%Y')}"
     if tu_ngay and den_ngay:
-        if tu_ngay.year == den_ngay.year and tu_ngay.month == den_ngay.month:
-            ky_label = f"Kỳ: Tháng {tu_ngay.month:02d}/{tu_ngay.year}"
-        else:
-            ky_label = f"Kỳ: từ {tu_ngay.strftime('%d/%m/%Y')} đến {den_ngay.strftime('%d/%m/%Y')}"
+        ky_label += f"  |  Lọc tháng bắt đầu nộp BH: từ {tu_ngay.strftime('%d/%m/%Y')} đến {den_ngay.strftime('%d/%m/%Y')}"
     else:
         ky_label = f"Kỳ: {datetime.date.today().strftime('%m/%Y')}"
     if ky_label:
@@ -276,7 +273,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
 
     for idx, r in enumerate(rows, 1):
         # Lấy lương, nếu NULL hoặc rỗng thì = 0
-        luong_bh = _safe_float(r.get("luong_bao_hiem", 0))
+        luong_bh = float(r["luong_hieu_luc"])   # lương có hiệu lực trong tháng trích nộp
         trang_thai = r.get("trang_thai", "")
         phuong_an = r.get("phuong_an_dieu_chinh", "") or ""
         thang_phuong_an = r.get("thang_phuong_an", "") or ""
@@ -477,32 +474,65 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None):
 def render_xuat_bao_cao_bhxh(db_engine):
     """UI xuất báo cáo trích nộp BHXH."""
     st.subheader("📥 Xuất báo cáo trích nộp BHXH")
-    st.caption("Mẫu: Danh sách lao động nộp bảo hiểm (32% = DN 21,5% + NLĐ 10,5%) + Kinh phí công đoàn 2%")
+    st.caption("Mẫu: Danh sách lao động nộp bảo hiểm (32% = DN 21,5% + NLĐ 10,5%). "
+               "Mức lương nộp BH lấy theo ngày hiệu lực các Quyết định điều chỉnh mức lương.")
+
+    hom_nay = datetime.date.today()
+    c_thang, c_nam = st.columns(2)
+    with c_thang:
+        thang_chon = st.selectbox("Tháng trích nộp", list(range(1, 13)), index=hom_nay.month - 1,
+                                  key="bhxh_bc_thang")
+    with c_nam:
+        nam_chon = st.number_input("Năm", min_value=2020, max_value=2100, value=hom_nay.year,
+                                   step=1, key="bhxh_bc_nam")
+    thang_trich_nop = datetime.date(int(nam_chon), int(thang_chon), 1)
 
     col1, col2 = st.columns(2)
     with col1:
-        thang_chon = st.selectbox("📅 Tháng:", list(range(1, 13)),
-                                   index=datetime.date.today().month - 1,
-                                   key="bhxh_bc_thang")
+        tu_ngay = st.date_input("Từ ngày (tháng bắt đầu nộp BH)",
+                                value=datetime.date(datetime.date.today().year, 1, 1),
+                                key="bhxh_bc_tu")
     with col2:
-        nam_chon = st.selectbox("📅 Năm:",
-                                 list(range(datetime.date.today().year - 2, datetime.date.today().year + 2)),
-                                 index=2, key="bhxh_bc_nam")
+        den_ngay = st.date_input("Đến ngày",
+                                 value=datetime.date.today(),
+                                 key="bhxh_bc_den")
 
-    import calendar
-    tu_ngay = datetime.date(nam_chon, thang_chon, 1)
-    den_ngay = datetime.date(nam_chon, thang_chon, calendar.monthrange(nam_chon, thang_chon)[1])
+    loc_tat_ca = st.checkbox("Xuất tất cả NV đang đóng BH (bỏ lọc ngày)", value=True, key="bhxh_bc_all")
 
     if st.button("📥 Xuất báo cáo", type="primary", key="btn_xuat_bc_bhxh"):
         try:
-            with st.spinner("Đang tạo báo cáo..."):
-                excel_bytes, so_nv = xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay, den_ngay)
+            if loc_tat_ca:
+                excel_bytes, so_nv = xuat_bao_cao_trich_nop_bhxh(db_engine, thang_trich_nop=thang_trich_nop)
+            else:
+                excel_bytes, so_nv = xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay, den_ngay,
+                                                                 thang_trich_nop=thang_trich_nop)
 
-                if so_nv == 0:
-                    st.warning("⚠️ Không có NV nào thỏa điều kiện.")
-                else:
-                    ten_file = f"DS_Nop_BH_{nam_chon}{thang_chon:02d}.xlsx"
-                    st.success(f"✅ Đã tạo báo cáo cho {so_nv} NV! Đang tự động tải file...")
-                    _auto_download_excel(excel_bytes, ten_file)
+            if so_nv == 0:
+                st.warning("⚠️ Không có NV nào thỏa điều kiện.")
+            else:
+                ten_file = f"DS_Nop_BH_{thang_trich_nop.strftime('%Y%m')}_{datetime.date.today().strftime('%Y%m%d')}.xlsx"
+                st.download_button(
+                    label=f"⬇️ Tải {ten_file} ({so_nv} người)",
+                    data=excel_bytes,
+                    file_name=ten_file,
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                )
+                st.success(f"✅ Đã tạo báo cáo tháng {thang_trich_nop.strftime('%m/%Y')} cho {so_nv} NV!")
         except Exception as e:
             st.error(f"❌ Lỗi: {e}")
+            
+def lay_dieu_chinh_thang(conn, thang):
+    """{nhan_vien_id: (so_qd, ngay_hieu_luc, luong_cu, luong_moi)} của các điều chỉnh BẮT ĐẦU áp dụng
+    đúng tháng `thang` (nếu có nhiều điều chỉnh trong tháng thì lấy cái hiệu lực muộn nhất)."""
+    thang = date(thang.year, thang.month, 1)
+    c = conn.cursor()
+    try:
+        c.execute("""
+            SELECT nhan_vien_id, so_qd, ngay_hieu_luc, luong_cu, luong_moi
+            FROM lich_su_luong_bh WHERE thang_ap_dung = %s
+            ORDER BY ngay_hieu_luc, id
+        """, (thang,))
+        return {r[0]: (r[1], r[2], r[3], r[4]) for r in c.fetchall()}
+    except Exception:
+        conn.rollback()
+        return {}

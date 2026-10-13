@@ -61,6 +61,7 @@ import cham_cong_thu_cong_honla as cc_honla
 import os
 from datetime import date
 from so_qldld_module import build_so_qldld_excel, render_tab_so_qldld
+import luong_bh_hieu_luc
 import openpyxl
 
 def _auto_download_excel(file_data: bytes, filename: str):
@@ -5061,10 +5062,11 @@ LOAI_QDNS_LABEL = {
     'DIEU_CHUYEN': 'QĐ Điều chuyển công tác',
     'CHUYEN_CHINH_THUC': 'QĐ Chuyển đổi TV → Chính thức',
     'CHAM_DUT_HD': 'QĐ Chấm dứt HĐTV/HĐLĐ',
+    'DIEU_CHINH_LUONG': 'QĐ Điều chỉnh mức lương',
 }
 
 
-def tao_quyet_dinh_nhan_su(nv, so_qd, ngay_qd, tieu_de, dieu1_lines, hieu_luc_text=None):
+def tao_quyet_dinh_nhan_su(nv, so_qd, ngay_qd, tieu_de, dieu1_lines, hieu_luc_text=None, nguoi_thi_hanh=None):
     """Tạo file Word Quyết định nhân sự dùng chung cho các loại: bổ nhiệm, miễn nhiệm,
     thay đổi chức danh, điều chuyển công tác, chấm dứt HĐTV/HĐLĐ."""
     CC = COMPANY_CONFIG
@@ -5141,7 +5143,8 @@ def tao_quyet_dinh_nhan_su(nv, so_qd, ngay_qd, tieu_de, dieu1_lines, hieu_luc_te
     r2 = p.add_run(hieu_luc_text or f'Quyết định này có hiệu lực kể từ ngày {ngay_qd.day}/{ngay_qd.month:02d}/{ngay_qd.year}.')
 
     p = doc.add_paragraph(); r = p.add_run('Điều 3. '); r.bold = True
-    r2 = p.add_run(f"Ông/Bà {nv.get('ho_ten', '')}, Trưởng {phong_to_chuc_ns} và các bộ phận có liên quan chịu trách nhiệm thi hành Quyết định này./.")
+    ten_thi_hanh = nguoi_thi_hanh or f"Ông/Bà {nv.get('ho_ten', '')}"
+    r2 = p.add_run(f"{ten_thi_hanh}, Trưởng {phong_to_chuc_ns} và các bộ phận có liên quan chịu trách nhiệm thi hành Quyết định này./.")
 
     doc.add_paragraph('')
     t2 = doc.add_table(rows=2, cols=2); remove_table_border(t2)
@@ -5158,6 +5161,279 @@ def tao_quyet_dinh_nhan_su(nv, so_qd, ngay_qd, tieu_de, dieu1_lines, hieu_luc_te
     doc.save(tmp.name)
     return tmp.name
 
+# ===================== QĐ ĐIỀU CHỈNH MỨC LƯƠNG =====================
+# False: mức lương mới được kê khai BHXH từ THÁNG của ngày hiệu lực QĐ (mặc định).
+# True : áp dụng quy tắc 14 ngày như báo tăng (tinh_thang_bat_dau_bh).
+DIEU_CHINH_LUONG_DUNG_QUY_TAC_14_NGAY = False
+
+
+def _thang_ap_dung_luong_bh(ngay_hieu_luc):
+    """Ngày 1 của tháng bắt đầu kê khai mức lương BH mới."""
+    d = ngay_hieu_luc
+    if DIEU_CHINH_LUONG_DUNG_QUY_TAC_14_NGAY:
+        d = tinh_thang_bat_dau_bh(ngay_hieu_luc) or ngay_hieu_luc
+    return d.replace(day=1)
+
+
+def _fmt_tien(n):
+    return f"{int(n):,}".replace(",", ".")
+
+
+def ensure_luong_bh_hieu_luc():
+    """Tạo bảng lịch sử lương BH (1 lần/phiên) + áp dụng các QĐ đã đến ngày hiệu lực (1 lần/ngày).
+    Gọi ở đầu menu 'Nhân viên' và menu 'BHXH'."""
+    try:
+        if not st.session_state.get('_da_ensure_lsl'):
+            ensure_qdns_table()
+            _db = st.session_state.db_engine.get_connection()
+            try:
+                luong_bh_hieu_luc.ensure_table(_db)
+            finally:
+                _db.close()
+            st.session_state['_da_ensure_lsl'] = True
+        if st.session_state.get('_lsl_sync_ngay') != date.today():
+            _db = st.session_state.db_engine.get_connection()
+            try:
+                luong_bh_hieu_luc.dong_bo_luong_vao_ho_so(_db)
+            finally:
+                _db.close()
+            st.session_state['_lsl_sync_ngay'] = date.today()
+    except Exception as e:
+        print(f"Lỗi ensure_luong_bh_hieu_luc: {e}")
+
+
+def _insert_qdns_row(c_s, so_qd, loai_qd, nv_id, ngay_qd, ngay_hieu_luc, noi_dung, gia_tri_truoc, gia_tri_sau):
+    """INSERT 1 dòng vào quyet_dinh_nhan_su, trả về id. Tự điền các cột legacy NOT NULL
+    (cùng cách làm với luồng tạo QĐ hiện có)."""
+    cols = ['so_qd', 'loai_qd', 'nhan_vien_id', 'ngay_qd', 'noi_dung', 'gia_tri_truoc', 'gia_tri_sau', 'nguoi_tao',
+            'so_quyet_dinh', 'loai_quyet_dinh', 'ngay_quyet_dinh', 'ngay_hieu_luc', 'nguoi_ky']
+    vals = [so_qd, loai_qd, nv_id, ngay_qd, noi_dung, gia_tri_truoc, gia_tri_sau, st.session_state.username,
+            so_qd, loai_qd, ngay_qd, ngay_hieu_luc, COMPANY_CONFIG.get('dai_dien') or '']
+    c_s.execute("""
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'quyet_dinh_nhan_su' AND is_nullable = 'NO'
+          AND column_default IS NULL AND column_name NOT IN %s
+    """, (tuple(cols),))
+    for (ten_cot,) in c_s.fetchall():
+        tc = ten_cot.lower()
+        if 'ngay' in tc:
+            gt = ngay_qd
+        elif 'loai' in tc:
+            gt = loai_qd
+        elif tc.startswith('so_') or tc == 'so':
+            gt = so_qd
+        elif 'nhan_vien' in tc:
+            gt = nv_id
+        elif 'noi_dung' in tc or 'dieu' in tc or 'trich_yeu' in tc:
+            gt = noi_dung
+        elif 'nguoi' in tc:
+            gt = st.session_state.username
+        elif 'trang_thai' in tc:
+            gt = 'CO_HIEU_LUC'
+        else:
+            continue
+        cols.append(ten_cot)
+        vals.append(gt)
+    c_s.execute(f"""
+        INSERT INTO quyet_dinh_nhan_su ({", ".join(cols)})
+        VALUES ({", ".join(["%s"] * len(cols))}) RETURNING id
+    """, vals)
+    return c_s.fetchone()[0]
+
+
+def _luu_qd_dieu_chinh_luong(db_s, ds_dc, gop, ngay_qd, ngay_hl, ly_do):
+    """Tạo file Word + ghi DB (CHƯA commit). ds_dc: list dict nhân viên có thêm 'luong_cu', 'luong_moi'.
+    gop=True: 1 QĐ chung cho tất cả; gop=False: mỗi nhân viên 1 QĐ riêng.
+    Trả về list[(so_qd, duong_dan_file_word)]."""
+    c_s = db_s.cursor()
+    thang_ap = _thang_ap_dung_luong_bh(ngay_hl)
+    hl_txt = ngay_hl.strftime('%d/%m/%Y')
+    nhom = [ds_dc] if gop else [[x] for x in ds_dc]
+    ket_qua = []
+    for grp in nhom:
+        so_qd = generate_so_cong_van('QUYET_DINH')
+        if len(grp) == 1:
+            x = grp[0]
+            huong = "lên" if x['luong_moi'] >= x['luong_cu'] else "xuống"
+            tieu_de = f"Điều chỉnh mức lương - {x['ho_ten']}"
+            dieu1 = [f"Điều chỉnh mức lương đóng bảo hiểm xã hội của Ông/Bà {x['ho_ten']} ({x['ma_nv']}) "
+                     f"từ {_fmt_tien(x['luong_cu'])} đồng/tháng {huong} {_fmt_tien(x['luong_moi'])} đồng/tháng "
+                     f"kể từ ngày {hl_txt}."]
+            nguoi_thi_hanh = None
+        else:
+            tieu_de = f"Điều chỉnh mức lương đối với {len(grp)} cán bộ, nhân viên"
+            dieu1 = [f"Điều chỉnh mức lương đóng bảo hiểm xã hội đối với {len(grp)} cán bộ, nhân viên "
+                     f"có tên dưới đây kể từ ngày {hl_txt}:"]
+            for i, x in enumerate(grp, 1):
+                huong = "lên" if x['luong_moi'] >= x['luong_cu'] else "xuống"
+                cd = f" - {x['chuc_danh_nghe']}" if x.get('chuc_danh_nghe') else ""
+                dieu1.append(f"{i}. Ông/Bà {x['ho_ten']} ({x['ma_nv']}){cd}: từ {_fmt_tien(x['luong_cu'])} đồng/tháng "
+                             f"{huong} {_fmt_tien(x['luong_moi'])} đồng/tháng.")
+            nguoi_thi_hanh = "Các Ông/Bà có tên tại Điều 1"
+        if (ly_do or '').strip():
+            dieu1.append(f"Căn cứ/lý do: {ly_do.strip()}.")
+        hieu_luc_text = (f"Quyết định này có hiệu lực kể từ ngày {hl_txt}. "
+                         f"Mức lương mới được kê khai đóng BHXH từ tháng {thang_ap.strftime('%m/%Y')}.")
+
+        file_path = tao_quyet_dinh_nhan_su(grp[0], so_qd, ngay_qd, tieu_de, dieu1, hieu_luc_text, nguoi_thi_hanh)
+
+        for x in grp:
+            noi_dung = (f"Điều chỉnh mức lương BH từ {_fmt_tien(x['luong_cu'])} lên {_fmt_tien(x['luong_moi'])} "
+                        f"đồng/tháng, hiệu lực {hl_txt}")
+            qd_id = _insert_qdns_row(c_s, so_qd, 'DIEU_CHINH_LUONG', x['id'], ngay_qd, ngay_hl,
+                                     noi_dung, str(x['luong_cu']), str(x['luong_moi']))
+            c_s.execute("""
+                INSERT INTO lich_su_luong_bh
+                    (nhan_vien_id, qd_id, so_qd, ngay_qd, ngay_hieu_luc, thang_ap_dung,
+                     luong_cu, luong_moi, ly_do, nguoi_tao)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """, (x['id'], qd_id, so_qd, ngay_qd, ngay_hl, thang_ap,
+                  x['luong_cu'], x['luong_moi'], (ly_do or '').strip() or None, st.session_state.username))
+
+        c_s.execute("""
+            INSERT INTO cong_van_di (so_cong_van, phong_phat_hanh, ngay_phat_hanh, tieu_de, trich_yeu, file_url, loai_cong_van, ghi_chu, nguoi_tao)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (so_qd, get_phong_to_chuc_nhan_su(), ngay_qd, f"{LOAI_QDNS_LABEL['DIEU_CHINH_LUONG']}: {tieu_de}",
+              " ".join(dieu1), None, 'QUYET_DINH',
+              f"Quyết định nhân sự - {len(grp)} NV", st.session_state.username))
+        ket_qua.append((so_qd, file_path))
+
+    # QĐ đã đến ngày hiệu lực -> ghi ngay vào hồ sơ NV; QĐ hiệu lực về sau sẽ tự áp dụng khi đến ngày
+    luong_bh_hieu_luc.dong_bo_luong_vao_ho_so(db_s, commit=False)
+    return ket_qua
+
+
+def render_qd_dieu_chinh_luong(nv_list, ds_phong_ban):
+    """Giao diện 'QĐ điều chỉnh mức lương' trong tab QUYẾT ĐỊNH NHÂN SỰ."""
+    import zipfile
+    st.markdown("##### 💰 Quyết định điều chỉnh mức lương")
+    st.caption("Điều chỉnh mức lương đóng BHXH. Báo cáo trích nộp BH sẽ dùng mức lương mới từ đúng THÁNG của ngày hiệu lực.")
+
+    kq = st.session_state.get('qdns_last_dcl')
+    if kq:
+        st.success(kq['msg'])
+        try:
+            with open(kq['path'], 'rb') as f:
+                st.download_button(kq['label'], data=f.read(), file_name=kq['name'], mime=kq['mime'], key="dl_qdns_dcl_last")
+        except Exception:
+            pass
+        if st.button("✖️ Đóng thông báo", key="close_qdns_dcl_notice"):
+            st.session_state.pop('qdns_last_dcl', None)
+            st.rerun()
+        st.divider()
+
+    if not nv_list:
+        st.info("Không có nhân viên đang làm việc.")
+        return
+
+    che_do = st.radio("Hình thức ra quyết định:",
+                      ["👥 Nhiều nhân viên cùng 1 quyết định", "👤 Riêng lẻ từng nhân viên (mỗi người 1 quyết định)"],
+                      key="qdns_dcl_che_do")
+    gop = che_do.startswith("👥")
+
+    pb_loc = st.multiselect("🏢 Lọc theo phòng ban (tuỳ chọn):", ds_phong_ban, key="qdns_dcl_pb")
+    nv_loc = [nv for nv in nv_list if not pb_loc or (nv.get('phong_ban_lam_viec') or '') in pb_loc]
+    opts = {f"{nv['ma_nv']} - {nv['ho_ten']}": nv for nv in nv_loc}
+    chon = st.multiselect("👤 Chọn nhân viên:", list(opts.keys()), key="qdns_dcl_nv",
+                          help="💡 Gõ tên/mã NV để lọc nhanh. Chọn nhiều người nếu muốn ra QĐ cho cả nhóm.")
+
+    col_a, col_b = st.columns(2)
+    ngay_qd = col_a.date_input("📅 Ngày ban hành quyết định:", value=date.today(), key="qdns_dcl_ngay")
+    ngay_hl = col_b.date_input("📅 Ngày hiệu lực:", value=date.today(), key="qdns_dcl_ngay_hl")
+    ly_do = st.text_area("📝 Căn cứ / lý do điều chỉnh:", key="qdns_dcl_lydo", height=70,
+                         placeholder="VD: Điều chỉnh theo hệ thống thang lương, bảng lương mới của Công ty...")
+    if ngay_hl < ngay_qd:
+        st.warning("⚠️ Ngày hiệu lực sớm hơn ngày ban hành (hồi tố) — báo cáo các kỳ trước đã nộp có thể cần điều chỉnh lại.")
+
+    if not chon:
+        st.info("Chọn ít nhất 1 nhân viên để nhập mức lương mới.")
+        return
+
+    df = pd.DataFrame([{
+        "Mã NV": opts[k]['ma_nv'],
+        "Họ tên": opts[k]['ho_ten'],
+        "Chức danh": opts[k].get('chuc_danh_nghe') or '',
+        "Lương BH hiện tại": luong_bh_hieu_luc.parse_luong(opts[k].get('luong_bao_hiem')),
+        "Lương BH mới": luong_bh_hieu_luc.parse_luong(opts[k].get('luong_bao_hiem')),
+    } for k in chon])
+    key_tbl = "qdns_dcl_tbl_" + str(abs(hash(tuple(opts[k]['id'] for k in chon))))
+    st.caption("✏️ Nhập cột **Lương BH mới** (có thể dán từ Excel). Dòng để trống hoặc bằng lương hiện tại sẽ bị bỏ qua.")
+    edited = st.data_editor(
+        df, key=key_tbl, hide_index=True, width='stretch',
+        disabled=["Mã NV", "Họ tên", "Chức danh", "Lương BH hiện tại"],
+        column_config={
+            "Lương BH hiện tại": st.column_config.NumberColumn(format="%d"),
+            "Lương BH mới": st.column_config.NumberColumn(min_value=0, step=1000, format="%d"),
+        })
+
+    nv_theo_ma = {nv['ma_nv']: nv for nv in nv_loc}
+    ds_dc, bo_qua = [], 0
+    for _, r in edited.iterrows():
+        cu = 0 if pd.isna(r["Lương BH hiện tại"]) else int(r["Lương BH hiện tại"])
+        moi = 0 if pd.isna(r["Lương BH mới"]) else int(r["Lương BH mới"])
+        if moi <= 0 or moi == cu:
+            bo_qua += 1
+            continue
+        ds_dc.append({**nv_theo_ma[r["Mã NV"]], 'luong_cu': cu, 'luong_moi': moi})
+    if bo_qua:
+        st.caption(f"ℹ️ {bo_qua} người bị bỏ qua (lương mới để trống hoặc không thay đổi).")
+
+    thang_ap = _thang_ap_dung_luong_bh(ngay_hl)
+    if ds_dc:
+        chenh = sum(x['luong_moi'] - x['luong_cu'] for x in ds_dc)
+        st.info(f"📌 Sẽ ban hành **{1 if gop else len(ds_dc)}** quyết định cho **{len(ds_dc)}** nhân viên · "
+                f"Mức lương mới kê khai BHXH từ tháng **{thang_ap.strftime('%m/%Y')}** · "
+                f"Chênh lệch quỹ lương BH: **{_fmt_tien(chenh)}** đ/tháng")
+        if any(x['luong_moi'] < x['luong_cu'] for x in ds_dc):
+            st.warning("⚠️ Có trường hợp GIẢM mức lương — cần có thỏa thuận với người lao động.")
+
+    chi_admin_hr = st.session_state.role in ("admin", "hr")
+    if not chi_admin_hr:
+        st.caption("🔒 Chỉ có admin & HR được phép sử dụng chức năng này!")
+    st.divider()
+    if not st.button("💾 TẠO QUYẾT ĐỊNH & LƯU", type="primary", width='stretch',
+                     key="qdns_dcl_submit", disabled=not (ds_dc and chi_admin_hr)):
+        return
+
+    db_s = st.session_state.db_engine.get_connection()
+    ket_qua = None
+    try:
+        ket_qua = _luu_qd_dieu_chinh_luong(db_s, ds_dc, gop, ngay_qd, ngay_hl, ly_do)
+        db_s.commit()
+    except Exception as e:
+        try:
+            db_s.rollback()
+        except Exception:
+            pass
+        st.error(f"❌ Lỗi khi tạo quyết định: {e}")
+    finally:
+        try:
+            db_s.close()
+        except Exception:
+            pass
+    if not ket_qua:
+        return
+
+    if len(ket_qua) == 1:
+        so, path = ket_qua[0]
+        info = {'path': path, 'name': f"QDNS_{so.replace('/', '_')}.docx", 'label': "📥 TẢI QUYẾT ĐỊNH (Word)",
+                'mime': "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
+    else:
+        zpath = tempfile.NamedTemporaryFile(delete=False, suffix='.zip').name
+        with zipfile.ZipFile(zpath, 'w', zipfile.ZIP_DEFLATED) as z:
+            for so, path in ket_qua:
+                z.write(path, arcname=f"QDNS_{so.replace('/', '_')}.docx")
+        info = {'path': zpath, 'name': "QDNS_dieu_chinh_luong.zip", 'label': f"📥 TẢI {len(ket_qua)} QUYẾT ĐỊNH (ZIP)",
+                'mime': "application/zip"}
+    info['msg'] = (f"✅ Đã tạo {len(ket_qua)} Quyết định điều chỉnh mức lương "
+                   f"(số {', '.join(so for so, _ in ket_qua[:3])}{'...' if len(ket_qua) > 3 else ''}) cho {len(ds_dc)} nhân viên")
+    st.session_state['qdns_last_dcl'] = info
+    for _k in list(st.session_state.keys()):
+        if _k.startswith('qdns_dcl_'):
+            del st.session_state[_k]
+    st.cache_data.clear()
+    st.rerun()
+# =================== HẾT: QĐ ĐIỀU CHỈNH MỨC LƯƠNG ===================
 
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
@@ -8528,6 +8804,7 @@ elif menu == "✅ Nhân viên":
         ensure_qdns_table()
         ensure_mau_dieu_hop_dong_table()
         st.session_state['_da_ensure_qdns'] = True
+        ensure_luong_bh_hieu_luc()
 
     tab_dang_lam, tab_da_nghi, tab_qtct, tab_qdns, tab_co_cau = st.tabs(["📌 ĐANG LÀM VIỆC", "📋 ĐÃ NGHỈ VIỆC", "📜 LỊCH SỬ CÔNG TÁC", "📜 QUYẾT ĐỊNH NHÂN SỰ", "🏢 CƠ CẤU PHÒNG BAN"])
     
@@ -9989,7 +10266,7 @@ elif menu == "✅ Nhân viên":
             c_qd = db_qd.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             c_qd.execute("""
                 SELECT id, ma_nv, ho_ten, chuc_vu, chuc_danh_nghe, phong_ban_lam_viec, loai_hop_dong, trang_thai,
-                       he_so_luong, noi_lam_viec
+                        he_so_luong, noi_lam_viec, luong_bao_hiem
                 FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY ho_ten
             """)
             nv_qd_list = c_qd.fetchall()
@@ -9998,7 +10275,12 @@ elif menu == "✅ Nhân viên":
             # (cách cũ sẽ tự nhân bản mọi biến thể sai chính tả/viết hoa đã lỡ lưu trong DB).
             ds_phong_ban = get_phong_ban_options()
 
-            if not nv_qd_list:
+            _nhom_qd = st.radio("Nhóm quyết định:",
+                                ["📋 Quyết định thông thường", "💰 Quyết định điều chỉnh mức lương"],
+                                horizontal=True, key="qdns_nhom")
+            if _nhom_qd == "💰 Quyết định điều chỉnh mức lương":
+                render_qd_dieu_chinh_luong(nv_qd_list, ds_phong_ban)
+            elif not nv_qd_list:
                 st.info("Không có nhân viên đang làm việc.")
             else:
                 nv_qd_options = {f"{nv['ma_nv']} - {nv['ho_ten']}": nv for nv in nv_qd_list}
@@ -10015,7 +10297,7 @@ elif menu == "✅ Nhân viên":
                 with col_qd1:
                     loai_qd = st.selectbox(
                         "📋 Loại quyết định:",
-                        list(LOAI_QDNS_LABEL.keys()),
+                        [k for k in LOAI_QDNS_LABEL if k != 'DIEU_CHINH_LUONG'],
                         format_func=lambda k: LOAI_QDNS_LABEL[k],
                         key="qdns_loai"
                     )
@@ -10585,6 +10867,8 @@ elif menu == "✅ Nhân viên":
                                 try:
                                     db_d = st.session_state.db_engine.get_connection()
                                     c_d = db_d.cursor()
+                                    if qd_xoa['loai_qd'] == 'DIEU_CHINH_LUONG':
+                                        luong_bh_hieu_luc.hoan_tac_khi_xoa_qd(db_d, qd_id_xoa)
                                     c_d.execute("DELETE FROM quyet_dinh_nhan_su WHERE id=%s", (qd_id_xoa,))
                                     db_d.commit(); db_d.close()
                                     st.session_state.pop('qdns_dang_xoa', None)

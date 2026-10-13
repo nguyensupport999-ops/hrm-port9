@@ -62,6 +62,7 @@ import os
 from datetime import date
 from so_qldld_module import build_so_qldld_excel, render_tab_so_qldld
 import luong_bh_hieu_luc
+import chuan_hoa_the_thuc
 import openpyxl
 
 def _auto_download_excel(file_data: bytes, filename: str):
@@ -1154,6 +1155,42 @@ def get_chuc_vu_options():
     return list(DANH_SACH_CHUC_VU)
 
 
+MST_UV_DAC_BIET = '0108872052'   # tenant có "Vị trí ứng tuyển" nhập tay + cột Lương BH trong màn Ứng viên
+
+
+def la_tenant_uv_dac_biet():
+    try:
+        mst = str((st.session_state.get('tenant') or {}).get('ma_so_thue') or '').strip()
+        if not mst:
+            mst = str((COMPANY_CONFIG or {}).get('ma_so_thue') or '').strip()
+        return mst == MST_UV_DAC_BIET
+    except Exception:
+        return False
+
+
+def get_trinh_do_options():
+    """Danh sách Trình độ theo danh mục của tenant (Danh mục › Trình độ học vấn); thiếu thì dùng TRINH_DO_LIST."""
+    ds = []
+    db = None
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        try:
+            c.execute("SELECT ten_trinh_do FROM danh_muc_trinh_do_hoc_van ORDER BY thu_tu, id")
+            ds = [r[0] for r in c.fetchall() if r[0] and str(r[0]).strip()]
+        except Exception:
+            db.rollback()
+    except Exception:
+        pass
+    finally:
+        try:
+            if db is not None:
+                db.close()
+        except Exception:
+            pass
+    return ds or list(TRINH_DO_LIST)
+
+
 def get_chuc_danh_options():
     """Danh sách Chức danh cho dropdown (QĐ Bổ nhiệm / Thay đổi chức danh): gộp danh mục chức danh
     (bảng chuc_danh_ung_vien — thêm/xoá ở màn Ứng viên) với các chức danh đang dùng trong hồ sơ nhân viên."""
@@ -1937,6 +1974,8 @@ st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide",
                    initial_sidebar_state="expanded")
 
 # ===== Giao diện: phối màu Terracotta + Beige (đồng bộ với .streamlit/config.toml) =====
+# Nguyên tắc: mỗi thành phần chỉ tô màu/viền Ở 1 LỚP DUY NHẤT (lớp ngoài cùng nhìn thấy được); các lớp con
+# để trong suốt/không viền -> không còn hiện tượng 2 mảng màu, 2 đường viền chồng lên nhau.
 st.markdown("""
 <style>
 :root{
@@ -1947,55 +1986,63 @@ st.markdown("""
 [data-testid="stHeader"]{background:transparent;}
 [data-testid="stSidebar"]{background:var(--beige-mid); border-right:1px solid var(--beige);}
 h1,h2,h3,h4,h5,h6{color:var(--terra-dark) !important;}
-a{color:var(--terra) !important;}
-a:hover{color:var(--terra-dark) !important;}
+[data-testid="stMarkdownContainer"] a{color:var(--terra) !important;}
+[data-testid="stMarkdownContainer"] a:hover{color:var(--terra-dark) !important;}
 hr{border-color:var(--beige) !important;}
 
-/* Nút chính: Terracotta */
-.stButton>button[kind="primary"], .stDownloadButton>button[kind="primary"],
-button[data-testid="stBaseButton-primary"], button[data-testid="stBaseButton-primaryFormSubmit"]{
+/* ── Nút chính: Terracotta ── */
+button[data-testid="stBaseButton-primary"], button[data-testid="stBaseButton-primaryFormSubmit"],
+.stButton>button[kind="primary"], .stDownloadButton>button[kind="primary"]{
   background:var(--terra) !important; border:1px solid var(--terra) !important; color:#fff !important;
 }
-.stButton>button[kind="primary"]:hover, .stDownloadButton>button[kind="primary"]:hover,
-button[data-testid="stBaseButton-primary"]:hover, button[data-testid="stBaseButton-primaryFormSubmit"]:hover{
+button[data-testid="stBaseButton-primary"]:hover, button[data-testid="stBaseButton-primaryFormSubmit"]:hover,
+.stButton>button[kind="primary"]:hover, .stDownloadButton>button[kind="primary"]:hover{
   background:var(--terra-dark) !important; border-color:var(--terra-dark) !important; color:#fff !important;
 }
-/* Nút phụ: Beige viền Terracotta */
-.stButton>button[kind="secondary"], .stDownloadButton>button[kind="secondary"],
-button[data-testid="stBaseButton-secondary"], button[data-testid="stBaseButton-secondaryFormSubmit"]{
+/* ── Nút phụ: Beige viền Terracotta ── */
+button[data-testid="stBaseButton-secondary"], button[data-testid="stBaseButton-secondaryFormSubmit"],
+.stButton>button[kind="secondary"], .stDownloadButton>button[kind="secondary"]{
   background:var(--beige-light) !important; border:1px solid var(--beige) !important; color:var(--terra-dark) !important;
 }
-.stButton>button[kind="secondary"]:hover, .stDownloadButton>button[kind="secondary"]:hover,
-button[data-testid="stBaseButton-secondary"]:hover, button[data-testid="stBaseButton-secondaryFormSubmit"]:hover{
+button[data-testid="stBaseButton-secondary"]:hover, button[data-testid="stBaseButton-secondaryFormSubmit"]:hover,
+.stButton>button[kind="secondary"]:hover, .stDownloadButton>button[kind="secondary"]:hover{
   background:var(--terra-soft) !important; border-color:var(--terra) !important; color:var(--terra) !important;
 }
+/* chữ bên trong nút kế thừa màu của nút (không tô nền riêng) */
+button[data-testid^="stBase"] p, button[data-testid^="stBase"] span{background:transparent !important; color:inherit !important;}
 button:disabled{opacity:.55 !important;}
 
-/* Tabs */
+/* ── Tabs ── */
 button[data-baseweb="tab"][aria-selected="true"]{color:var(--terra) !important;}
 div[data-baseweb="tab-highlight"]{background-color:var(--terra) !important;}
 button[data-baseweb="tab"]:hover{color:var(--terra-dark) !important;}
 
-/* Ô nhập / dropdown */
-div[data-baseweb="input"]>div, div[data-baseweb="select"]>div, div[data-baseweb="textarea"]>div,
-[data-testid="stDateInput"] div[data-baseweb="input"]>div, [data-testid="stNumberInput"] div[data-baseweb="input"]>div{
-  background:#fffaf3 !important; border-color:var(--beige) !important;
-}
-div[data-baseweb="input"]:focus-within>div, div[data-baseweb="select"]:focus-within>div{border-color:var(--terra) !important;}
+/* ── Ô nhập / dropdown / ngày: KHÔNG ghi đè nền (dùng nền theo theme cho mọi lớp) — chỉ đổi màu viền ở lớp ngoài ── */
+div[data-baseweb="input"], div[data-baseweb="textarea"], div[data-baseweb="select"]>div{border-color:var(--beige) !important;}
+div[data-baseweb="input"]:focus-within, div[data-baseweb="textarea"]:focus-within,
+div[data-baseweb="select"]:focus-within>div{border-color:var(--terra) !important; box-shadow:none !important;}
 ul[role="listbox"] li[aria-selected="true"], ul[role="listbox"] li:hover{background:var(--terra-soft) !important;}
 
-/* Khung, expander, bảng */
-[data-testid="stExpander"]{border:1px solid var(--beige) !important; background:#fbf5ec; border-radius:8px;}
-[data-testid="stForm"]{border:1px solid var(--beige) !important; background:#fbf5ec;}
+/* ── Khung: chỉ tô lớp có viền thật ── */
+[data-testid="stExpander"]{background:transparent !important; border:none !important;}
+[data-testid="stExpander"] details{background:#fbf5ec !important; border:1px solid var(--beige) !important; border-radius:8px !important;}
+[data-testid="stExpander"] summary{background:transparent !important;}
+[data-testid="stForm"]{background:transparent !important; border:1px solid var(--beige) !important;}
 [data-testid="stMetric"]{background:#fbf5ec; border:1px solid var(--beige); border-radius:8px; padding:8px 12px;}
 
-/* Thông báo: nền Beige, viền Terracotta (biểu tượng ✅ ⚠️ ❌ trong nội dung vẫn phân biệt mức độ) */
-[data-testid="stAlert"], [data-testid="stAlertContainer"]{
-  background:var(--beige-mid) !important; color:var(--ink) !important; border-left:4px solid var(--terra) !important;
+/* ── Thông báo: vỏ ngoài trong suốt, chỉ lớp [stAlertContainer] có nền + 1 viền trái ── */
+[data-testid="stAlert"]{background:transparent !important; border:none !important; box-shadow:none !important;}
+[data-testid="stAlertContainer"]{
+  background:var(--beige-mid) !important; border:none !important; border-left:4px solid var(--terra) !important;
+  border-radius:6px !important; color:var(--ink) !important;
 }
-[data-testid="stAlert"] *, [data-testid="stAlertContainer"] *{color:var(--ink) !important;}
-[data-testid="stAlert"]:has([data-testid="stAlertContentError"]), [data-testid="stAlertContainer"]:has([data-testid="stAlertContentError"]){
+[data-testid="stAlertContainer"]:has([data-testid="stAlertContentError"]){
   background:var(--terra-soft) !important; border-left-color:var(--terra-dark) !important;
+}
+[data-testid="stAlertContainer"] *{background:transparent !important; color:var(--ink) !important;}
+/* Streamlit bản cũ (không có stAlertContainer): tô trực tiếp lớp stAlert */
+[data-testid="stAlert"]:not(:has([data-testid="stAlertContainer"])){
+  background:var(--beige-mid) !important; border-left:4px solid var(--terra) !important; border-radius:6px !important;
 }
 ::selection{background:var(--beige); color:var(--ink);}
 </style>
@@ -5073,6 +5120,7 @@ def ensure_qdns_columns():
         c.execute("ALTER TABLE nhan_vien ADD COLUMN IF NOT EXISTS so_luong_npt INTEGER DEFAULT 0")
         c.execute("ALTER TABLE nhan_vien ADD COLUMN IF NOT EXISTS han_hop_dong_thang INTEGER")
         c.execute("ALTER TABLE ung_vien ADD COLUMN IF NOT EXISTS ghi_chu TEXT")
+        c.execute("ALTER TABLE ung_vien ADD COLUMN IF NOT EXISTS trinh_do TEXT")
         c.execute("UPDATE nhan_vien SET chuc_vu = 'Nhân viên' WHERE chuc_vu IS NULL OR chuc_vu = ''")
         c.execute("UPDATE nhan_vien SET ngay_qd_ns = ngay_vao_lam WHERE ngay_qd_ns IS NULL")
         c.execute("UPDATE nhan_vien SET so_luong_npt = 0 WHERE so_luong_npt IS NULL")
@@ -5226,7 +5274,10 @@ def nd30_ke_ngang(container, rong_cm, ben_cm):
     pf = p.paragraph_format
     pf.left_indent = Cm(ind); pf.right_indent = Cm(ind)
     pf.space_before = Pt(0); pf.space_after = Pt(0)
-    _nd30_font_run(p.add_run(''), 2)
+    pf.line_spacing = Pt(5)            # chiều cao dòng cố định (exact) -> đường kẻ sát ngay dưới dòng chữ trên
+    _nd30_font_run(p.add_run(''), 1)
+    rpr = OxmlElement('w:rPr'); sz = OxmlElement('w:sz'); sz.set(qn('w:val'), '2')   # dấu đoạn 1pt
+    rpr.append(sz); pPr.append(rpr)
     return p
 
 
@@ -5300,8 +5351,8 @@ def nd30_noi_nhan_chu_ky(doc, noi_nhan, dong_tm, chuc_vu, ten_nguoi_ky):
     t.alignment = WD_TABLE_ALIGNMENT.CENTER; t.autofit = False
     remove_table_border(t)
     cl, cr = t.rows[0].cells
-    cl.width = Cm(7.5); cr.width = Cm(8.5)
-    t.columns[0].width = Cm(7.5); t.columns[1].width = Cm(8.5)
+    cl.width = Cm(5.5); cr.width = Cm(10.5)      # cột phải rộng để dòng "TM. CÔNG TY ..." không bị xuống dòng
+    t.columns[0].width = Cm(5.5); t.columns[1].width = Cm(10.5)
     nd30_p(cl, 'Nơi nhận:', 12, True, True, align='left', indent=False, before=0, after=0, p=cl.paragraphs[0])
     for d in noi_nhan:
         nd30_p(cl, d, 11, align='left', indent=False, before=0, after=0)
@@ -6979,25 +7030,25 @@ if not st.session_state.get('_da_quet_canh_bao_thieu_gio_ra'):
 # (st.session_state.vai_tro_phu, gán tại 🔑 Quản lý MK > Phân quyền hệ thống) — menu cuối
 # cùng là HỢP (union) menu của TẤT CẢ các vai trò đang giữ, giữ đúng thứ tự xuất hiện.
 MENU_THEO_VAI_TRO = {
-    "admin": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📥 Nhập/Xuất Excel","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","🔍 Audit Dashboard","📁 Quản lý hồ sơ Dự án","📘 Hướng dẫn sử dụng"],
+    "admin": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📥 Nhập/Xuất Excel","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","📐 Chuẩn hóa thể thức VB","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","🔍 Audit Dashboard","📁 Quản lý hồ sơ Dự án","📘 Hướng dẫn sử dụng"],
     # "văn thư" (có dấu) — giữ lại vì dữ liệu vai_tro cũ của một số tenant có thể đang lưu giá trị này.
-    "văn thư": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
-    "hr": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
+    "văn thư": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","📐 Chuẩn hóa thể thức VB","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
+    "hr": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","📐 Chuẩn hóa thể thức VB","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
     "kt_luong": ["📊 Dashboard","✅ Nhân viên","📋 BHXH","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
-    "van_thu": ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
+    "van_thu": ["📊 Dashboard","✅ Nhân viên","🕒 Chấm công","📄 Quản lý Công văn & HĐ kinh tế","📐 Chuẩn hóa thể thức VB","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
     "admin_bcc": ["📊 Dashboard","✅ Nhân viên","📋 BHXH","🕒 Chấm công","💰 Tính thu nhập","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
     "viewer": ["📊 Dashboard","✅ Nhân viên","📋 Báo cáo định kỳ","🕒 Chấm công","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
     # "Xem toàn bộ (không chỉnh sửa)": thấy ĐẦY ĐỦ menu & tab giống hệt Admin, nhưng KHÔNG có
     # quyền thay đổi dữ liệu — mọi nút Lưu/Sửa/Xóa/Cập nhật/Save đều bị làm mờ
     # (disabled=not can_edit()/can_delete()).
-    "xem_toan_bo": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","📁 Quản lý hồ sơ Dự án"],
+    "xem_toan_bo": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","⚙️ Danh mục","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","📐 Chuẩn hóa thể thức VB","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🔑 Quản lý MK","📁 Quản lý hồ sơ Dự án"],
     # Vai trò DÀNH RIÊNG cho tài khoản demo công khai: thấy TOÀN BỘ menu như admin (trừ Danh
     # mục/Nhập-Xuất Excel/Audit vốn là công cụ cấu hình hệ thống), nhưng can_edit()/can_delete()/
     # can_export() đều trả về False với role này nên các nút Lưu/Sửa/Xóa/Xuất sẽ bị chặn.
     # LƯU Ý: các nút Lưu/Sửa/Xóa hiện KHÔNG kiểm tra can_edit()/can_delete() ở TẤT CẢ màn hình
     # trong app (chỉ mới có ở một số form) — trước khi phát hành tài khoản demo công khai, cần
     # rà soát thêm các nút còn thiếu để đảm bảo dữ liệu thật sự không đổi được.
-    "demo_readonly": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
+    "demo_readonly": ["📊 Dashboard","👤 Ứng viên","✅ Nhân viên","📁 Upload hồ sơ","📋 BHXH","📋 Báo cáo định kỳ","🕒 Chấm công","💰 Tính thu nhập","📄 Quản lý Công văn & HĐ kinh tế","📐 Chuẩn hóa thể thức VB","💬 Chat nội bộ","🤖 Chatbot Giải đáp","🖼️ Tạo ảnh thẻ NV","📘 Hướng dẫn sử dụng"],
 }
 # Menu tối thiểu an toàn cho 'nhan_vien' thường hoặc vai trò lạ chưa khai báo — TUYỆT ĐỐI
 # không được để menu_options rơi vào trạng thái rỗng (từng gây lỗi NameError crash cả app).
@@ -7023,7 +7074,7 @@ if _tenant.get("loai_hinh") in ("HKD", "HO_KINH_DOANH"):
         "📋 BHXH",
         "🕒 Chấm công",
         "💵 Tính thu nhập",
-        "📄 Quản lý Công văn & HĐ kinh tế",
+        "📄 Quản lý Công văn & HĐ kinh tế","📐 Chuẩn hóa thể thức VB",
         "💬 Chat nội bộ",
         "🤖 Chatbot Giải đáp",
         "⚙️ Cấu hình HKD",
@@ -7060,6 +7111,16 @@ if _tenant.get("loai_hinh") in ("HKD", "HO_KINH_DOANH"):
             menu_options_hkd.append(m)
 
     menu_options = menu_options_hkd if menu_options_hkd else _menu_hkd_full
+# ── Menu "Chuẩn hóa thể thức VB": MỌI vai trò (kể cả nhân viên thường, tenant DN/HKD) đều dùng được ──
+_MENU_CHUAN_HOA = "📐 Chuẩn hóa thể thức VB"
+if _MENU_CHUAN_HOA not in menu_options:
+    menu_options = list(menu_options)
+    if "📄 Quản lý Công văn & HĐ kinh tế" in menu_options:
+        menu_options.insert(menu_options.index("📄 Quản lý Công văn & HĐ kinh tế") + 1, _MENU_CHUAN_HOA)
+    elif "📘 Hướng dẫn sử dụng" in menu_options:
+        menu_options.insert(menu_options.index("📘 Hướng dẫn sử dụng"), _MENU_CHUAN_HOA)
+    else:
+        menu_options.append(_MENU_CHUAN_HOA)
 menu = st.sidebar.radio(i18n.t("📋 Menu"), menu_options, format_func=i18n.t)
 st.sidebar.divider()
 _vtp_hienthi = st.session_state.get('vai_tro_phu') or []
@@ -8413,7 +8474,12 @@ elif menu == "👤 Ứng viên":
                 dan_toc_nv = st.text_input("Dân tộc", value="Kinh")
                 dien_thoai_nv = st.text_input("SĐT", value=uv_data.get('dien_thoai', ''))
                 email_nv = st.text_input("Email")
-                trinh_do_nv = st.selectbox("Trình độ", [""] + TRINH_DO_LIST)
+                _ds_td_chuyen = [""] + list(TRINH_DO_LIST)
+                _td_uv = (uv_data.get('trinh_do') or '').strip()
+                if _td_uv and _td_uv not in _ds_td_chuyen:
+                    _ds_td_chuyen.append(_td_uv)
+                trinh_do_nv = st.selectbox("Trình độ", _ds_td_chuyen,
+                                           index=_ds_td_chuyen.index(_td_uv) if _td_uv else 0)
             with col3:
                 chuc_danh_nv = st.selectbox("Chức danh", [""] + dschucdanh, index=([""] + dschucdanh).index(uv_data.get('vi_tri', '')) if uv_data.get('vi_tri', '') in dschucdanh else 0)
                 phong_ban_nv = st.selectbox("Phòng ban", [""] + dpb_chuyen, key="pb_chuyen_uv")
@@ -8436,7 +8502,7 @@ elif menu == "👤 Ứng viên":
                         _goi_y_nhanh_c = _l_str
                     else:
                         _goi_y_lines_c.append(f"• {_cd_k}: {_l_str}")
-                luong_bh_chuyen = st.text_input("Lương BH",
+                luong_bh_chuyen = st.text_input("Lương BH", value=str(uv_data.get('luong_bao_hiem') or ''),
                                                 help="\n\n".join(_goi_y_lines_c))
                 if _goi_y_nhanh_c:
                     st.caption(f"💡 Gợi ý: {_goi_y_nhanh_c}")
@@ -8518,17 +8584,17 @@ elif menu == "👤 Ứng viên":
                                 ma_cty_hd = st.session_state.tenant.get('ma_cty', 'CHL') if st.session_state.get('tenant') else 'CHL'
 
                                 # Tạo số hợp đồng theo loại + tự tính tháng bắt đầu BH
-                                if lhd == "Thử việc":
+                                if loai_hd_chuyen == "Thử việc":
                                     ttnv = 'THU_VIEC'
                                     ttbh = 'CHUA_DONG'
                                     tbd_val = None
-                                    pa_val_add = lay_ma_phuong_an(pa_add)
+                                    pa_val_add = lay_ma_phuong_an(phuong_an_chuyen)
                                     so_hd = sinh_so_hdld_moi(c, ma_cty_hd, nhl.year, la_thu_viec=True)
                                 else:
                                     ttnv = 'DANG_LAM'
                                     ttbh = 'DANG_DONG'
                                     tbd_val = tinh_thang_bat_dau_bh(nhl)
-                                    pa_val_add = lay_ma_phuong_an(pa_add)
+                                    pa_val_add = lay_ma_phuong_an(phuong_an_chuyen)
                                     so_hd = sinh_so_hdld_moi(c, ma_cty_hd, nhl.year, la_thu_viec=False)
                                 
                                 # Thêm nhân viên mới (đã thêm trường ten_don_vi_thu_huong, trinh_do)
@@ -8556,14 +8622,14 @@ elif menu == "👤 Ứng viên":
                                     nguyen_quan_nv, thuong_tru_nv, (dien_thoai_nv.strip() or None) if dien_thoai_nv else None, email_nv, email_nv, ho_so_chuyen,
                                     luong_bh_chuyen, ma_bhxh_chuyen, nhl, noi_lam_viec_nv,
                                     stk_chuyen, chi_nhanh_nh_chuyen, nhl, loai_hd_chuyen,
-                                    nhom_bhxh_chuyen, tbd_val, tinh_ngay_ket_thuc(loai_hd_chuyen, nhl), trang_thai_nv, trang_thai_bhxh,
+                                    nhom_bhxh_chuyen, tbd_val, tinh_ngay_ket_thuc(loai_hd_chuyen, nhl), ttnv, ttbh,
                                     phong_ban_nv, tinh_ngay_ket_thuc(loai_hd_chuyen, nhl), quoc_tich_nv, dan_toc_nv,
                                     to_float_or_none(he_so_luong_chuyen), to_float_or_none(pc_chuc_vu_chuyen),
                                     to_float_or_none(pc_tnvk_chuyen), to_float_or_none(pc_tnn_chuyen),
                                     muc_huong_bhyt_chuyen, to_float_or_none(ty_le_dong_chuyen), to_float_or_none(mtd),
                                     phuong_thuc_dong_chuyen, tinh_nhan_hs_chuyen, phuong_nhan_hs_chuyen, dia_chi_nhan_hs_chuyen,
                                     tinh_kcb_chuyen, noi_kcb_chuyen, dk_nhan_so_chuyen, ten_don_vi_thu_huong, so_luong_npt_nv, trinh_do_nv,
-                                    pa_val, format_thang_nam(tbd_val)
+                                    pa_val_add, format_thang_nam(tbd_val)
                                 ))
                                 nhan_vien_id_moi = c.fetchone()[0]
 
@@ -8632,7 +8698,7 @@ elif menu == "👤 Ứng viên":
     
     # Chỉ admin mới thấy nút thêm ứng viên
     if st.session_state.role in ("admin", "xem_toan_bo"):
-        with st.expander("➕ THÊM ỨNG VIÊN MỚI", expanded=False):
+        with st.expander("➕ THÊM ỨNG VIÊN", expanded=False):
             with st.form("add_uv_form", clear_on_submit=True):
                 db_f = st.session_state.db_engine.get_connection()
                 c_f = db_f.cursor()
@@ -8640,39 +8706,44 @@ elif menu == "👤 Ứng viên":
                 ds_vt_uv = [row[0] for row in c_f.fetchall()]
                 db_f.close()
                 
+                _dac_biet = la_tenant_uv_dac_biet()
+                ds_td_uv = get_trinh_do_options()
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     ho_ten_uv = st.text_input("Họ và tên *")
-                    vi_tri_uv = st.selectbox("Vị trí dự tuyển", [""] + ds_vt_uv)
-                    dien_thoai_uv = st.text_input("SĐT")
-                with col2:
                     ngay_sinh_uv = st.text_input("Ngày sinh (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
+                with col2:
                     gioi_tinh_uv = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"])
+                    dien_thoai_uv = st.text_input("SĐT")
                 with col3:
-                    ngay_vao_lam_uv = st.text_input("Ngày vào làm (dd/mm/yyyy)", placeholder="dd/mm/yyyy", max_chars=10)
-                    ghi_chu_uv = st.text_area("Ghi chú")
-                
+                    trinh_do_uv = st.selectbox("Trình độ", [""] + ds_td_uv)
+                    if _dac_biet:
+                        vi_tri_uv = st.text_input("Vị trí ứng tuyển")
+                    else:
+                        vi_tri_uv = st.selectbox("Vị trí ứng tuyển", [""] + ds_vt_uv)
+                luong_bh_uv = st.text_input("Lương BH (đồng/tháng)") if _dac_biet else ""
+                ghi_chu_uv = st.text_area("Ghi chú")
+
                 if st.form_submit_button("💾 LƯU", width='stretch', disabled=not can_edit()):
                     if not can_edit():
                         st.error("❌ Bạn không có quyền thực hiện thao tác này!")
                     else:
                         if ho_ten_uv:
                             ngay_loi = []
-                            if ngay_sinh_uv and not parse_date(ngay_sinh_uv): 
+                            if ngay_sinh_uv and not parse_date(ngay_sinh_uv):
                                 ngay_loi.append("Ngày sinh")
-                            if ngay_vao_lam_uv and not parse_date(ngay_vao_lam_uv): 
-                                ngay_loi.append("Ngày vào làm")
                             if ngay_loi:
                                 st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
                             else:
                                 try:
                                     db = st.session_state.db_engine.get_connection()
                                     c = db.cursor()
-                                    c.execute("""INSERT INTO ung_vien (ho_ten, vi_tri_du_tuyen, dien_thoai, 
-                                        ngay_sinh, gioi_tinh, ngay_vao_lam, luong_bao_hiem, trang_thai, ghi_chu)
+                                    c.execute("""INSERT INTO ung_vien (ho_ten, vi_tri_du_tuyen, dien_thoai,
+                                        ngay_sinh, gioi_tinh, trinh_do, luong_bao_hiem, trang_thai, ghi_chu)
                                         VALUES (%s, %s, %s, %s, %s, %s, %s, 'CHO_DUYET', %s) RETURNING id""",
                                         (ho_ten_uv, vi_tri_uv, dien_thoai_uv, parse_date(ngay_sinh_uv),
-                                         gioi_tinh_uv, parse_date(ngay_vao_lam_uv), None, ghi_chu_uv or None))
+                                         gioi_tinh_uv, trinh_do_uv or None,
+                                         (luong_bh_uv.strip() or None) if _dac_biet else None, ghi_chu_uv or None))
                                     new_id = c.fetchone()[0]
                                     ma_uv = f"UV{new_id:04d}"
                                     c.execute("UPDATE ung_vien SET ma_uv = %s WHERE id = %s", (ma_uv, new_id))
@@ -8696,7 +8767,7 @@ elif menu == "👤 Ứng viên":
             tt = tm[tn]
             db = st.session_state.db_engine.get_connection()
             c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            sql = "SELECT id, ma_uv, ho_ten, vi_tri_du_tuyen, dien_thoai, ngay_vao_lam, luong_bao_hiem, ngay_sinh, trang_thai FROM ung_vien WHERE 1=1"
+            sql = "SELECT id, ma_uv, ho_ten, vi_tri_du_tuyen, dien_thoai, trinh_do, ghi_chu, luong_bao_hiem, ngay_sinh, trang_thai FROM ung_vien WHERE 1=1"
             params = []
             if tt:
                 sql += " AND trang_thai = %s"
@@ -8718,31 +8789,30 @@ elif menu == "👤 Ứng viên":
                     if 'ngay' in col.lower():
                         df[col] = df[col].apply(format_date)
                 
-                display_cols = ['ma_uv', 'ho_ten', 'vi_tri_du_tuyen', 'dien_thoai', 'ngay_vao_lam', 'luong_bao_hiem', 'ngay_sinh', 'trang_thai']
-                available_cols = [c for c in display_cols if c in df.columns]
-                df_show = df[available_cols]
-                
+                _dac_biet_tb = la_tenant_uv_dac_biet()
+                # Ghi chú: lấy ghi_chu; dữ liệu cũ (tenant thường) từng lưu ghi chú ở luong_bao_hiem -> dùng làm dự phòng
+                df['ghi_chu'] = df['ghi_chu'].fillna('').astype(str)
+                if not _dac_biet_tb:
+                    df['ghi_chu'] = df.apply(lambda r_: r_['ghi_chu'] or str(r_['luong_bao_hiem'] or ''), axis=1)
+                # Chỉ hiện: Họ tên, Ngày sinh, SĐT, Trình độ, Vị trí ứng tuyển, (Lương BH — chỉ MST 0108872052), Ghi chú, Trạng thái
+                display_cols = ['ho_ten', 'ngay_sinh', 'dien_thoai', 'trinh_do', 'vi_tri_du_tuyen']
+                if _dac_biet_tb:
+                    display_cols.append('luong_bao_hiem')
+                display_cols += ['ghi_chu', 'trang_thai']
                 col_map = {
-                    'ma_uv': 'Mã UV',
-                    'ho_ten': 'Họ tên',
-                    'vi_tri_du_tuyen': 'Vị trí dự tuyển',
-                    'dien_thoai': 'SĐT',
-                    'ngay_vao_lam': 'Ngày vào làm',
-                    'luong_bao_hiem': 'Ghi chú',
-                    'ngay_sinh': 'Ngày sinh',
+                    'ho_ten': 'Họ tên', 'ngay_sinh': 'Ngày sinh', 'dien_thoai': 'SĐT', 'trinh_do': 'Trình độ',
+                    'vi_tri_du_tuyen': 'Vị trí ứng tuyển', 'luong_bao_hiem': 'Lương BH', 'ghi_chu': 'Ghi chú',
                     'trang_thai': 'Trạng thái',
                 }
-                df_show.rename(columns=col_map, inplace=True)
-                
+                df_show = df[display_cols].rename(columns=col_map)
+
                 st.caption(f"📌 {len(ds)} kết quả.")
-                
+
                 if st.session_state.role in ("admin", "xem_toan_bo"):
-                    # Admin: hiển thị bảng có checkbox và nút chức năng
-                    if 'selected' not in df.columns:
-                        df.insert(0, 'selected', False)
-                    df_show_with_checkbox = df[['selected'] + [c for c in df.columns if c in display_cols]]
-                    df_show_with_checkbox.rename(columns={'selected': 'Chọn'}, inplace=True)
-                    
+                    # Admin: bảng có cột Chọn (đứng đầu) và nút chức năng
+                    df_show_with_checkbox = df_show.copy()
+                    df_show_with_checkbox.insert(0, 'Chọn', False)
+
                     edited_df = st.data_editor(
                         df_show_with_checkbox,
                         column_config={"Chọn": st.column_config.CheckboxColumn("Chọn", default=False)},
@@ -8751,7 +8821,7 @@ elif menu == "👤 Ứng viên":
                         height=400,
                         key=f"uv_editor_{tn}"
                     )
-                    
+
                     if edited_df is not None:
                         selected_rows = edited_df[edited_df['Chọn'] == True]
                         if len(selected_rows) > 1:
@@ -8786,7 +8856,9 @@ elif menu == "👤 Ứng viên":
                                                     'ngay_sinh': uv['ngay_sinh'],
                                                     'gioi_tinh': uv['gioi_tinh'],
                                                     'ngay_vao_lam': uv['ngay_vao_lam'] or date.today(),
-                                                    'ghi_chu': uv['luong_bao_hiem']
+                                                    'trinh_do': uv.get('trinh_do'),
+                                                    'ghi_chu': uv.get('ghi_chu') or ('' if la_tenant_uv_dac_biet() else uv.get('luong_bao_hiem')),
+                                                    'luong_bao_hiem': uv.get('luong_bao_hiem') if la_tenant_uv_dac_biet() else None
                                                 }
                                                 st.session_state['show_chuyen_nv_form'] = True
                                                 st.rerun()
@@ -8809,22 +8881,38 @@ elif menu == "👤 Ứng viên":
         db.close()
         if uv_data:
             with st.form(f"edit_uv_direct_{uv_data['id']}", clear_on_submit=True):
+                _dac_biet_e = la_tenant_uv_dac_biet()
+                _ds_td_e = [""] + get_trinh_do_options()
+                _td_cu = (uv_data.get('trinh_do') or '').strip()
+                if _td_cu and _td_cu not in _ds_td_e:
+                    _ds_td_e.append(_td_cu)
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     ho_ten_e = st.text_input("Họ và tên *", value=uv_data['ho_ten'] or '')
-                    vi_tri_e = st.selectbox("Vị trí dự tuyển", [""] + ds_vi_tri,
-                        index=([""] + ds_vi_tri).index(uv_data['vi_tri_du_tuyen']) if uv_data['vi_tri_du_tuyen'] in ds_vi_tri else 0)
-                    dien_thoai_e = st.text_input("SĐT", value=uv_data['dien_thoai'] or '')
-                with col2:
                     ngay_sinh_e = st.text_input("Ngày sinh (dd/mm/yyyy)", value=format_date(uv_data['ngay_sinh']))
+                with col2:
                     gioi_tinh_e = st.selectbox("Giới tính", ["", "Nam", "Nữ", "Khác"],
                         index=["", "Nam", "Nữ", "Khác"].index(uv_data['gioi_tinh']) if uv_data['gioi_tinh'] in ["Nam", "Nữ", "Khác"] else 0)
+                    dien_thoai_e = st.text_input("SĐT", value=uv_data['dien_thoai'] or '')
                 with col3:
-                    ngay_vao_lam_e = st.text_input("Ngày vào làm (dd/mm/yyyy)", value=format_date(uv_data['ngay_vao_lam']))
+                    trinh_do_e = st.selectbox("Trình độ", _ds_td_e, index=_ds_td_e.index(_td_cu) if _td_cu else 0)
+                    if _dac_biet_e:
+                        vi_tri_e = st.text_input("Vị trí ứng tuyển", value=uv_data['vi_tri_du_tuyen'] or '')
+                    else:
+                        _ds_vt_e = [""] + list(ds_vi_tri)
+                        _vt_cu = (uv_data['vi_tri_du_tuyen'] or '').strip()
+                        if _vt_cu and _vt_cu not in _ds_vt_e:
+                            _ds_vt_e.append(_vt_cu)
+                        vi_tri_e = st.selectbox("Vị trí ứng tuyển", _ds_vt_e, index=_ds_vt_e.index(_vt_cu) if _vt_cu else 0)
+                col_a, col_b = st.columns([2, 1])
+                with col_a:
                     ghi_chu_e = st.text_area("Ghi chú", value=uv_data.get('ghi_chu') or '')
+                with col_b:
                     trang_thai_e = st.selectbox("Trạng thái", ["CHO_DUYET", "TU_CHOI", "DA_NHAN_VIEC"],
                         index=["CHO_DUYET", "TU_CHOI", "DA_NHAN_VIEC"].index(uv_data['trang_thai']) if uv_data['trang_thai'] in ["CHO_DUYET", "TU_CHOI", "DA_NHAN_VIEC"] else 0)
-                
+                    if _dac_biet_e:
+                        luong_bh_e = st.text_input("Lương BH (đồng/tháng)", value=str(uv_data.get('luong_bao_hiem') or ''))
+
                 col_save, col_del, col_cancel = st.columns(3)
                 with col_save:
                     if st.form_submit_button("💾 CẬP NHẬT", disabled=not can_edit()):
@@ -8832,20 +8920,21 @@ elif menu == "👤 Ứng viên":
                             st.error("❌ Bạn không có quyền thực hiện thao tác này!")
                         else:
                             ngay_loi = []
-                            if ngay_sinh_e and not parse_date(ngay_sinh_e): 
+                            if ngay_sinh_e and not parse_date(ngay_sinh_e):
                                 ngay_loi.append("Ngày sinh")
-                            if ngay_vao_lam_e and not parse_date(ngay_vao_lam_e): 
-                                ngay_loi.append("Ngày vào làm")
                             if ngay_loi:
                                 st.error(f"Sai định dạng dd/mm/yyyy: {', '.join(ngay_loi)}")
                             else:
                                 db = st.session_state.db_engine.get_connection()
                                 c = db.cursor()
-                                c.execute("""UPDATE ung_vien SET ho_ten=%s, vi_tri_du_tuyen=%s, dien_thoai=%s,
-                                    ngay_sinh=%s, gioi_tinh=%s, ngay_vao_lam=%s, trang_thai=%s, ghi_chu=%s
-                                    WHERE id=%s""",
-                                    (ho_ten_e, vi_tri_e, dien_thoai_e, parse_date(ngay_sinh_e), gioi_tinh_e,
-                                     parse_date(ngay_vao_lam_e), trang_thai_e, ghi_chu_e or None, uv_data['id']))
+                                _sql_up = """UPDATE ung_vien SET ho_ten=%s, vi_tri_du_tuyen=%s, dien_thoai=%s,
+                                    ngay_sinh=%s, gioi_tinh=%s, trinh_do=%s, trang_thai=%s, ghi_chu=%s"""
+                                _par_up = [ho_ten_e, vi_tri_e, dien_thoai_e, parse_date(ngay_sinh_e), gioi_tinh_e,
+                                           trinh_do_e or None, trang_thai_e, ghi_chu_e or None]
+                                if _dac_biet_e:      # Lương BH chỉ cập nhật cho tenant 0108872052
+                                    _sql_up += ", luong_bao_hiem=%s"
+                                    _par_up.append((luong_bh_e or '').strip() or None)
+                                c.execute(_sql_up + " WHERE id=%s", tuple(_par_up + [uv_data['id']]))
                                 db.commit()
                                 db.close()
                                 st.success("✅ Đã cập nhật!")
@@ -10460,10 +10549,11 @@ elif menu == "✅ Nhân viên":
                                                       help="💡 Bấm vào ô rồi gõ tên/mã NV để lọc nhanh — không cần scroll (Ctrl+F trình duyệt không lọc được ô này).")
                         nv_qd = nv_qd_options[chon_nv_label]
 
-                        col_info1, col_info2, col_info3 = st.columns(3)
-                        col_info1.markdown(f"**Chức vụ hiện tại:** {nv_qd.get('chuc_vu') or 'Nhân viên'}")
-                        col_info2.markdown(f"**Chức danh hiện tại:** {nv_qd.get('chuc_danh_nghe') or '-'}")
-                        col_info3.markdown(f"**Phòng ban hiện tại:** {nv_qd.get('phong_ban_lam_viec') or '-'}")
+                        if loai_qd in ('CHUYEN_CHINH_THUC', 'CHAM_DUT_HD'):
+                            col_info1, col_info2, col_info3 = st.columns(3)
+                            col_info1.markdown(f"**Chức vụ hiện tại:** {nv_qd.get('chuc_vu') or 'Nhân viên'}")
+                            col_info2.markdown(f"**Chức danh hiện tại:** {nv_qd.get('chuc_danh_nghe') or '-'}")
+                            col_info3.markdown(f"**Phòng ban hiện tại:** {nv_qd.get('phong_ban_lam_viec') or '-'}")
 
                     with c_qd_detail:
                         dieu1_lines = []
@@ -10478,20 +10568,33 @@ elif menu == "✅ Nhân viên":
                         if loai_qd == 'BO_NHIEM':
                             cv_hien_tai_bn = nv_qd.get('chuc_vu') or 'Nhân viên'
                             ds_cv_bn = [x for x in ds_chuc_vu_tenant if x != cv_hien_tai_bn]
-                            chuc_vu_moi = st.selectbox("🏷️ Chức vụ được bổ nhiệm:", ds_cv_bn, index=None,
-                                                       placeholder="Chọn chức vụ được bổ nhiệm (khác chức vụ hiện tại)",
-                                                       key=f"qdns_cv_bonhiem_{nv_qd['id']}")
+                            _cl, _cr = st.columns(2)
+                            _cl.text_input("🏷️ Chức vụ hiện tại:", value=cv_hien_tai_bn, disabled=True,
+                                           key=f"qdns_cv_ht_{nv_qd['id']}")
+                            with _cr:
+                                chuc_vu_moi = st.selectbox("🏷️ Chức vụ được bổ nhiệm:", ds_cv_bn, index=None,
+                                                           placeholder="Chọn chức vụ được bổ nhiệm (khác chức vụ hiện tại)",
+                                                           key=f"qdns_cv_bonhiem_{nv_qd['id']}")
                             # Bổ nhiệm trong thực tế thường đi kèm luôn Chức danh & Phòng ban mới (VD:
                             # bổ nhiệm Trưởng phòng Kinh doanh = đổi cả chức vụ, chức danh lẫn phòng ban).
                             # Cho phép chỉnh, mặc định giữ nguyên giá trị hiện tại nếu không đổi.
                             cd_hien_tai_bn = nv_qd.get('chuc_danh_nghe') or ''
                             pb_hien_tai_bn = nv_qd.get('phong_ban_lam_viec') or ''
-                            with st.expander("⚙️ Chức danh & Phòng ban kèm theo (tuỳ chọn — để nguyên nếu không đổi)", expanded=False):
+                            with st.expander("⚙️ Chức danh & Phòng ban kèm theo (tuỳ chọn — để nguyên nếu không đổi)", expanded=True):
                                 ds_cd_bn, idx_cd_bn = _ds_dropdown_giu_hien_tai(get_chuc_danh_options(), cd_hien_tai_bn)
-                                chuc_danh_moi_bn = st.selectbox("💼 Chức danh mới:", ds_cd_bn, index=idx_cd_bn,
-                                                                key=f"qdns_cd_bonhiem_{nv_qd['id']}") or ''
+                                _c1, _c2 = st.columns(2)
+                                _c1.text_input("💼 Chức danh hiện tại:", value=cd_hien_tai_bn or '-', disabled=True,
+                                               key=f"qdns_cd_ht_{nv_qd['id']}")
+                                with _c2:
+                                    chuc_danh_moi_bn = st.selectbox("💼 Chức danh mới:", ds_cd_bn, index=idx_cd_bn,
+                                                                    key=f"qdns_cd_bonhiem_{nv_qd['id']}") or ''
                                 idx_pb_bn = ds_phong_ban.index(pb_hien_tai_bn) if pb_hien_tai_bn in ds_phong_ban else 0
-                                phong_ban_moi_bn = st.selectbox("🏢 Phòng ban mới:", ds_phong_ban, index=idx_pb_bn, key=f"qdns_pb_bonhiem_{nv_qd['id']}") if ds_phong_ban else pb_hien_tai_bn
+                                _c3, _c4 = st.columns(2)
+                                _c3.text_input("🏢 Phòng ban hiện tại:", value=pb_hien_tai_bn or '-', disabled=True,
+                                               key=f"qdns_pb_ht_{nv_qd['id']}")
+                                with _c4:
+                                    phong_ban_moi_bn = st.selectbox("🏢 Phòng ban mới:", ds_phong_ban, index=idx_pb_bn,
+                                                                    key=f"qdns_pb_bonhiem_{nv_qd['id']}") if ds_phong_ban else pb_hien_tai_bn
                             tieu_de = f"Bổ nhiệm chức vụ {chuc_vu_moi}"
                             dieu1_lines = [f"Bổ nhiệm Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) giữ chức vụ {chuc_vu_moi} kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
                             chi_tiet_bn = []
@@ -10505,12 +10608,17 @@ elif menu == "✅ Nhân viên":
                             gia_tri_sau = chuc_vu_moi
                             if not chuc_vu_moi:
                                 ok_to_submit = False
-                                st.error("⚠️ Vui lòng chọn chức vụ được bổ nhiệm (phải khác chức vụ hiện tại).")
+                                st.caption("ℹ️ Chọn chức vụ được bổ nhiệm (khác chức vụ hiện tại) để tiếp tục.")
 
                         elif loai_qd == 'MIEN_NHIEM':
                             cv_hien_tai = nv_qd.get('chuc_vu') or 'Nhân viên'
                             idx_mn = ds_chuc_vu_tenant.index(cv_hien_tai) if cv_hien_tai in ds_chuc_vu_tenant else 0
-                            chuc_vu_mien = st.selectbox("🏷️ Chức vụ bị miễn nhiệm:", ds_chuc_vu_tenant, index=idx_mn, key="qdns_cv_miennhiem")
+                            _cl, _cr = st.columns(2)
+                            _cl.text_input("🏷️ Chức vụ hiện tại:", value=cv_hien_tai, disabled=True,
+                                           key=f"qdns_cv_ht_mn_{nv_qd['id']}")
+                            with _cr:
+                                chuc_vu_mien = st.selectbox("🏷️ Chức vụ bị miễn nhiệm:", ds_chuc_vu_tenant, index=idx_mn,
+                                                            key=f"qdns_cv_miennhiem_{nv_qd['id']}")
                             tieu_de = f"Miễn nhiệm chức vụ {chuc_vu_mien}"
                             dieu1_lines = [f"Miễn nhiệm chức vụ {chuc_vu_mien} đối với Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
                             gia_tri_truoc = cv_hien_tai
@@ -10525,9 +10633,13 @@ elif menu == "✅ Nhân viên":
                         elif loai_qd == 'DOI_CHUC_DANH':
                             cd_hien_tai_dc = (nv_qd.get('chuc_danh_nghe') or '').strip()
                             ds_cd_moi = [x for x in get_chuc_danh_options() if x.strip().lower() != cd_hien_tai_dc.lower()]
-                            chuc_danh_moi = st.selectbox("💼 Chức danh mới:", ds_cd_moi, index=None,
-                                                         placeholder="Chọn chức danh mới (khác chức danh hiện tại)",
-                                                         key=f"qdns_cd_moi_{nv_qd['id']}") or ''
+                            _cl, _cr = st.columns(2)
+                            _cl.text_input("💼 Chức danh hiện tại:", value=cd_hien_tai_dc or '-', disabled=True,
+                                           key=f"qdns_cd_ht_dc_{nv_qd['id']}")
+                            with _cr:
+                                chuc_danh_moi = st.selectbox("💼 Chức danh mới:", ds_cd_moi, index=None,
+                                                             placeholder="Chọn chức danh mới (khác chức danh hiện tại)",
+                                                             key=f"qdns_cd_moi_{nv_qd['id']}") or ''
                             if not ds_cd_moi:
                                 st.caption("ℹ️ Chưa có chức danh nào khác trong danh mục — thêm tại Ứng viên › Quản lý danh mục vị trí/chức danh.")
                             tieu_de = f"Thay đổi chức danh - {nv_qd['ho_ten']}"
@@ -10536,21 +10648,24 @@ elif menu == "✅ Nhân viên":
                             gia_tri_sau = chuc_danh_moi
                             if not chuc_danh_moi.strip():
                                 ok_to_submit = False
-                                st.error("⚠️ Vui lòng chọn chức danh mới (phải khác chức danh hiện tại).")
+                                st.caption("ℹ️ Chọn chức danh mới (khác chức danh hiện tại) để tiếp tục.")
                             elif chuc_danh_moi.strip().lower() == cd_hien_tai_dc.lower():
                                 ok_to_submit = False
                                 st.error("⚠️ Chức danh mới phải khác chức danh hiện tại.")
 
                         elif loai_qd == 'DIEU_CHUYEN':
                             phong_hien_tai = nv_qd.get('phong_ban_lam_viec') or ''
-                            st.text_input("🏢 Từ phòng ban:", value=phong_hien_tai, disabled=True, key=f"qdns_pb_tu_{nv_qd['id']}")
                             # Chỉ cho chọn trong danh sách phòng ban CHUẨN — bỏ ô nhập tay tự do để
                             # tránh phát sinh biến thể mới không chuẩn hóa.
                             _pb_hien_chuan = chuan_hoa_ten_phong_ban(phong_hien_tai)
                             ds_pb_den = [x for x in ds_phong_ban if chuan_hoa_ten_phong_ban(x) != _pb_hien_chuan]
-                            phong_moi = st.selectbox("🏢 Đến phòng ban:", ds_pb_den, index=None,
-                                                     placeholder="Chọn phòng ban đến (khác phòng ban hiện tại)",
-                                                     key=f"qdns_pb_den_select_{nv_qd['id']}") or ''
+                            _cl, _cr = st.columns(2)
+                            _cl.text_input("🏢 Phòng ban hiện tại:", value=phong_hien_tai or '-', disabled=True,
+                                           key=f"qdns_pb_tu_{nv_qd['id']}")
+                            with _cr:
+                                phong_moi = st.selectbox("🏢 Đến phòng ban:", ds_pb_den, index=None,
+                                                         placeholder="Chọn phòng ban đến (khác phòng ban hiện tại)",
+                                                         key=f"qdns_pb_den_select_{nv_qd['id']}") or ''
                             if (phong_moi or '').strip() and chuan_hoa_ten_phong_ban(phong_moi) == _pb_hien_chuan:
                                 ok_to_submit = False
                                 st.error("⚠️ Phòng ban đến phải khác phòng ban hiện tại.")
@@ -10560,7 +10675,7 @@ elif menu == "✅ Nhân viên":
                             gia_tri_sau = phong_moi
                             if not (phong_moi or '').strip():
                                 ok_to_submit = False
-                                st.error("⚠️ Vui lòng chọn phòng ban đến (phải khác phòng ban hiện tại).")
+                                st.caption("ℹ️ Chọn phòng ban đến (khác phòng ban hiện tại) để tiếp tục.")
 
                         elif loai_qd == 'CHUYEN_CHINH_THUC':
                             # Chỉ cho phép chuyển đổi NV đang ở trạng thái Thử việc
@@ -10679,7 +10794,11 @@ elif menu == "✅ Nhân viên":
                         luong_bh_cu_qd = luong_bh_hieu_luc.parse_luong(nv_qd.get('luong_bao_hiem'))
                         luong_bh_moi_qd = None
                         if loai_qd in LOAI_QD_CO_LUONG_MOI:
-                            _luong_nhap = st.number_input(
+                            _cl_l, _cl_r = st.columns(2)
+                            _cl_l.text_input("💵 Mức lương BH hiện tại (đồng/tháng):", value=f"{int(luong_bh_cu_qd):,}".replace(",", "."),
+                                             disabled=True, key=f"qdns_luong_bh_ht_{loai_qd}_{nv_qd['id']}")
+                            with _cl_r:
+                                _luong_nhap = st.number_input(
                                 "💵 Mức lương BH mới (đồng/tháng):", min_value=0, value=int(luong_bh_cu_qd), step=100000,
                                 format="%d", key=f"qdns_luong_bh_moi_{loai_qd}_{nv_qd['id']}",
                                 help="Tuỳ chọn. Để nguyên mức hiện tại nếu QĐ này không điều chỉnh lương đóng BHXH. "
@@ -15499,6 +15618,9 @@ elif menu == "🔍 Audit Dashboard":
                 with st.expander(f"👤 Danh sách nhân viên thiếu '{nhan}' ({len(ds_nv_thieu)} người)"):
                     st.dataframe(pd.DataFrame(ds_nv_thieu), width='stretch', hide_index=True)
         db_a.close()
+
+elif menu == "📐 Chuẩn hóa thể thức VB":
+    chuan_hoa_the_thuc.render(COMPANY_CONFIG)
 
 elif menu == "📘 Hướng dẫn sử dụng":
     st.title("📘 Hướng dẫn sử dụng HRM Master")

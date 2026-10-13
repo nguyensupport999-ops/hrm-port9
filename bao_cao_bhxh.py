@@ -22,6 +22,9 @@ def _auto_download_excel(file_data: bytes, filename: str):
     """
     st.components.v1.html(dl_html, height=0, width=0)
 
+# Thông tin chẩn đoán của lần xuất gần nhất (render_xuat_bao_cao_bhxh đọc để hiển thị)
+_LAST_INFO = {'canh_bao': '', 'so_dc_thang': 0, 'so_nv_co_lich_su': 0}
+
 def _safe_float(val):
     """Chuyển giá trị (có thể là str/None) sang float an toàn."""
     if val is None:
@@ -130,15 +133,29 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None, thang_tr
 
     # ── Mức lương có hiệu lực trong tháng trích nộp (theo ngày hiệu lực QĐ điều chỉnh lương) ──
     luong_map, dc_map = {}, {}
+    _LAST_INFO.update({'canh_bao': '', 'so_dc_thang': 0, 'so_nv_co_lich_su': 0})
+    conn2 = None
     try:
         conn2 = db_engine.get_connection()
-        try:
-            luong_map = luong_bh_hieu_luc.lay_luong_hieu_luc(conn2, thang_trich_nop)
+        luong_map = luong_bh_hieu_luc.lay_luong_hieu_luc(conn2, thang_trich_nop, strict=True)
+        _LAST_INFO['so_nv_co_lich_su'] = luong_bh_hieu_luc.dem_nv_co_lich_su(conn2)
+    except Exception as e:
+        luong_map = {}   # lỗi -> dùng lương hiện tại trong hồ sơ, nhưng PHẢI báo rõ
+        _LAST_INFO['canh_bao'] = (f"Không đọc được lịch sử điều chỉnh lương ({e}). "
+                                  f"Báo cáo đang dùng lương HIỆN TẠI trong hồ sơ, không theo tháng.")
+    try:
+        if conn2 is not None:
             dc_map = luong_bh_hieu_luc.lay_dieu_chinh_thang(conn2, thang_trich_nop)
-        finally:
-            conn2.close()
-    except Exception:
-        luong_map, dc_map = {}, {}   # lỗi -> dùng lương hiện tại trong hồ sơ
+            _LAST_INFO['so_dc_thang'] = len(dc_map)
+    except Exception as e:
+        dc_map = {}      # chỉ mất phần ghi chú điều chỉnh, KHÔNG làm mất mức lương theo tháng
+        print(f"Lỗi đọc ghi chú điều chỉnh lương: {e}")
+    finally:
+        if conn2 is not None:
+            try:
+                conn2.close()
+            except Exception:
+                pass
 
     def _fmt(n):
         return f"{int(n or 0):,}".replace(",", ".")
@@ -231,14 +248,17 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None, thang_tr
     ky_label = f"Tháng trích nộp: {thang_trich_nop.strftime('%m/%Y')}"
     if tu_ngay and den_ngay:
         ky_label += f"  |  Lọc tháng bắt đầu nộp BH: từ {tu_ngay.strftime('%d/%m/%Y')} đến {den_ngay.strftime('%d/%m/%Y')}"
-    else:
-        ky_label = f"Kỳ: {datetime.date.today().strftime('%m/%Y')}"
     if ky_label:
         ws.merge_cells("A2:P2")
         ws["A2"] = ky_label
         ws["A2"].font = font_normal
         ws["A2"].alignment = align_center
-
+    
+    if _LAST_INFO['canh_bao']:
+        ws.merge_cells("A3:P3")
+        ws["A3"] = "⚠ " + _LAST_INFO['canh_bao']
+        ws["A3"].font = Font(name="Times New Roman", size=10, bold=True, color="FF0000")
+        
     # Header - THÊM cột KPCĐ 2% và cột Trạng thái
     headers = [
         "STT", "HỌ VÀ TÊN", "THÁNG\nBẮT ĐẦU\nNỘP BH", "TIỀN\nLƯƠNG\nNỘP BH",
@@ -518,21 +538,12 @@ def render_xuat_bao_cao_bhxh(db_engine):
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
                 st.success(f"✅ Đã tạo báo cáo tháng {thang_trich_nop.strftime('%m/%Y')} cho {so_nv} NV!")
+                if _LAST_INFO['canh_bao']:
+                    st.error("⚠️ " + _LAST_INFO['canh_bao'])
+                else:
+                    st.info(f"ℹ️ Lịch sử điều chỉnh lương: {_LAST_INFO['so_nv_co_lich_su']} NV có điều chỉnh · "
+                            f"{_LAST_INFO['so_dc_thang']} NV có mức lương mới bắt đầu áp dụng đúng tháng "
+                            f"{thang_trich_nop.strftime('%m/%Y')} (được ghi chú ở cột GHI CHÚ).")
         except Exception as e:
             st.error(f"❌ Lỗi: {e}")
             
-def lay_dieu_chinh_thang(conn, thang):
-    """{nhan_vien_id: (so_qd, ngay_hieu_luc, luong_cu, luong_moi)} của các điều chỉnh BẮT ĐẦU áp dụng
-    đúng tháng `thang` (nếu có nhiều điều chỉnh trong tháng thì lấy cái hiệu lực muộn nhất)."""
-    thang = date(thang.year, thang.month, 1)
-    c = conn.cursor()
-    try:
-        c.execute("""
-            SELECT nhan_vien_id, so_qd, ngay_hieu_luc, luong_cu, luong_moi
-            FROM lich_su_luong_bh WHERE thang_ap_dung = %s
-            ORDER BY ngay_hieu_luc, id
-        """, (thang,))
-        return {r[0]: (r[1], r[2], r[3], r[4]) for r in c.fetchall()}
-    except Exception:
-        conn.rollback()
-        return {}

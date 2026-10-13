@@ -95,7 +95,10 @@ def lay_luong_hieu_luc(conn, den_ngay, nv_ids=None):
         """, params)
         rows = c.fetchall()
     except Exception:
-        conn.rollback()   # bảng lịch sử chưa có -> dùng lương hiện tại trong hồ sơ
+        conn.rollback()
+        if strict:
+            raise
+        # bảng lịch sử chưa có -> dùng lương hiện tại trong hồ sơ
         c = conn.cursor()
         c.execute("SELECT id, luong_bao_hiem, NULL, NULL FROM nhan_vien nv WHERE 1=1 " + loc, params)
         rows = c.fetchall()
@@ -115,3 +118,26 @@ def lay_dieu_chinh_trong_ky(conn, tu_ngay, den_ngay):
         ORDER BY l.ngay_hieu_luc, nv.ma_nv
     """, (tu_ngay, den_ngay))
     return c.fetchall()
+    
+def lay_dieu_chinh_thang(conn, thang):
+    """{nhan_vien_id: (so_qd, ngay_hieu_luc, luong_cu, luong_moi)} của các điều chỉnh BẮT ĐẦU áp dụng
+    đúng tháng `thang` (nếu có nhiều điều chỉnh trong tháng thì lấy cái hiệu lực muộn nhất)."""
+    thang = date(thang.year, thang.month, 1)
+    c = conn.cursor()
+    try:
+        c.execute("""
+            SELECT nhan_vien_id, so_qd, ngay_hieu_luc, luong_cu, luong_moi
+            FROM lich_su_luong_bh WHERE thang_ap_dung = %s
+            ORDER BY ngay_hieu_luc, id
+        """, (thang,))
+        return {r[0]: (r[1], r[2], r[3], r[4]) for r in c.fetchall()}
+    except Exception:
+        conn.rollback()
+        return {}
+
+
+def dem_nv_co_lich_su(conn):
+    """Số nhân viên đã có ít nhất 1 điều chỉnh trong lich_su_luong_bh (raise nếu bảng chưa có)."""
+    c = conn.cursor()
+    c.execute("SELECT COUNT(DISTINCT nhan_vien_id) FROM lich_su_luong_bh")
+    return c.fetchone()[0]

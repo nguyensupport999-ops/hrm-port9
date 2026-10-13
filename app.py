@@ -6663,7 +6663,7 @@ if not st.session_state.logged_in:
     u = st.sidebar.text_input(i18n.t("Số điện thoại hoặc Tên đăng nhập"), value=_demo_user_default)
     p = st.sidebar.text_input(i18n.t("Mật khẩu"), type="password", value=_demo_pass_default)
     if _is_demo_tenant and _demo_user_default:
-        st.sidebar.info(f"🧪 Tài khoản dùng thử & Mật khẩu đã điền sẵn - bấm Đăng nhập luôn.")    ###: **{_demo_user_default}** / **{_demo_pass_default}**
+        #st.sidebar.info(f"🧪 Tài khoản dùng thử & Mật khẩu đã điền sẵn - bấm Đăng nhập luôn.")    ###: **{_demo_user_default}** / **{_demo_pass_default}**
     else:
         st.sidebar.caption("💡 Mật khẩu mặc định = số điện thoại của bạn. Đổi lại sau khi đăng nhập lần đầu.")
     if st.sidebar.button(i18n.t("Đăng nhập"), width='stretch'):
@@ -13427,6 +13427,7 @@ elif menu == "⚙️ Danh mục" and st.session_state.role in ("admin", "xem_toa
 # ========== BHXH ==========
 elif menu == "📋 BHXH":
     st.markdown(f"# {i18n.tm('📋 Quản lý BHXH')}", unsafe_allow_html=True)
+    ensure_luong_bh_hieu_luc()
     
     t1, t2, t3, t4 = st.tabs([
            "📊 Tổng quan", "📝 Báo cáo tăng/giảm D02-LT",

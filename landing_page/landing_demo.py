@@ -410,7 +410,7 @@ def render():
           <div class="hp-kicker">Portfolio of Impact · AI Thực Chiến</div>
           <h1>
             Nguyễn Văn Tuyến
-            <span class="sub">Từ bài toán quản trị đến sản phẩm công nghệ đang vận hành</span>
+            <span class="sub">Từ bài toán Quản trị đến Niềm đam mê với công nghệ AI</span>
           </h1>
           <p class="hp-tagline">
             Tôi là người làm quản trị nhân sự, chưa từng là lập trình viên. Khi gặp những việc lặp đi lặp lại
@@ -662,28 +662,39 @@ def render():
     </div>
   </section>
 
-  <!-- ================= IMPACT STATEMENT ================= -->
+  <!-- ================= RESULT / IMPACT (REWRITTEN) ================= -->
+  <style>
+    /* CSS để căn đều 2 bên cho các khối text cụ thể */
+    #hrm-portfolio .hp-tagline,
+    #hrm-portfolio .hp-note,
+    #hrm-portfolio .hp-learning,
+    #hrm-portfolio .hp-impact p,
+    #hrm-portfolio .hp-ai-role p,
+    #hrm-portfolio .hp-sys p,
+    #hrm-portfolio .hp-sys ul li,
+    #hrm-portfolio .hp-comp-card p {
+      text-align: justify;
+      text-justify: inter-word;
+    }
+  </style>
+
   <section class="hp-sec">
     <div class="hp-wrap">
+      <div class="hp-kicker">Sẵn sàng cho thử thách tiếp theo</div>
       <div class="hp-impact">
-        <h3>Điều tôi rút ra <em>sau những tháng vừa qua</em></h3>
-        <div class="big-num">≈40%</div>
-        <p>Mức rút ngắn thời gian xử lý một số thủ tục hành chính mà tôi ghi nhận được sau khi đưa HRM Master
-        vào sử dụng tại đơn vị. Đây mới là kết quả ở một nơi, trong một giai đoạn ngắn — tôi coi đây là dấu hiệu
-        cho thấy hướng đi có ích, và là lý do để tiếp tục cải tiến.</p>
-        <p style="margin-top: 16px; color: var(--pine-deep);">
-          AI giúp tôi đi nhanh hơn rất nhiều, nhưng nếu không hiểu rõ nghiệp vụ thì tôi không thể biết kết quả
-          đúng hay sai. Vì vậy phần việc quan trọng nhất của tôi vẫn là đặt đúng bài toán và kiểm tra cẩn thận
-          trước khi đưa vào dùng.
+        <h3>Kiến tạo giá trị từ <em>kinh nghiệm và công nghệ</em></h3>
+        <p class="hp-final-statement">
+          Với nền tảng kiến thức được đào tạo bài bản, cùng hơn 20 năm kinh nghiệm công tác và tư duy hệ thống, tôi không ngừng học hỏi và khai thác sức mạnh của AI Agent để tạo ra kết quả thực chất.
         </p>
-        <div class="hp-learning">
-          <b>Những việc tôi muốn học tiếp</b>
-          <ul>
-            <li>Viết kiểm thử tự động để mỗi lần sửa code đều có cách kiểm tra lại.</li>
-            <li>Hoàn thiện tài liệu hướng dẫn sử dụng và tài liệu kỹ thuật của hệ thống.</li>
-            <li>Nhận góp ý từ những người có kinh nghiệm hơn về kiến trúc và bảo mật dữ liệu.</li>
-          </ul>
-        </div>
+        <p class="hp-final-statement">
+          Tôi đang tìm kiếm những vị trí có nhiều thách thức hơn, nơi tôi có thể biến những khó khăn của doanh nghiệp thành giải pháp dễ dàng, và biến những ý tưởng ấp ủ thành sản phẩm hữu ích.
+        </p>
+        <p class="hp-final-statement" style="font-weight: 600; margin-top: 1.5rem;">
+          Nếu Quý doanh nghiệp cần một mảnh ghép như tôi, hãy cho chúng ta một cơ hội để cùng nhau kiến tạo sự khác biệt.
+        </p>
+        <p style="font-style: normal; font-weight: 500; margin-top: 1rem; color: var(--rust);">
+          Trân trọng cảm ơn!
+        </p>
       </div>
     </div>
   </section>

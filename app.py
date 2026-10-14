@@ -6797,18 +6797,25 @@ def _load_tenant_module_or_demo(folder, prefix, ma_so_thue):
 
 
 def render_landing_page():
-    """Hiển thị Landing Page giới thiệu, ở vùng nội dung chính (bên phải sidebar đăng
-    nhập) khi CHƯA đăng nhập.
-
-    QUYẾT ĐỊNH: mỗi tenant nay có thể có 1 Landing Page RIÊNG — file
-    landing_page/landing_{ma_so_thue}.py (đặt cùng cấp với app.py), tự động được chọn
-    theo đúng khách hàng đang đăng nhập (dò theo ma_so_thue — khoá quản lý tenant hiện
-    tại). Tenant nào CHƯA có file riêng (chưa tuỳ biến) sẽ tự dùng
-    landing_page/landing_demo.py làm mặc định (nội dung y hệt bản gốc trước khi có cơ
-    chế đa-tenant)."""
     tenant = st.session_state.get('tenant') or {}
     ma_so_thue = (tenant.get('ma_so_thue') or '').strip()
+    
+    # === DEBUG TẠM THỜI ===
+    st.write(f"🐛 DEBUG - MST tenant: `{ma_so_thue}`")
+    import os
+    folder_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'landing_page')
+    st.write(f"🐛 DEBUG - Folder landing_page: `{folder_path}`")
+    if os.path.isdir(folder_path):
+        st.write(f"🐛 DEBUG - Files trong folder: `{os.listdir(folder_path)}`")
+    else:
+        st.write("🐛 DEBUG - Folder landing_page KHÔNG TỒN TẠI!")
+    # === HẾT DEBUG ===
+    
     module = _load_tenant_module_or_demo('landing_page', 'landing', ma_so_thue)
+    st.write(f"🐛 DEBUG - Module load được: `{module}`")
+    if module is not None:
+        st.write(f"🐛 DEBUG - Có hàm render? `{hasattr(module, 'render')}`")
+    
     if module is not None and hasattr(module, 'render'):
         module.render()
     else:

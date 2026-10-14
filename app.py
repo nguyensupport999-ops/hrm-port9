@@ -6765,17 +6765,34 @@ def _load_tenant_module(folder, prefix, ma_so_thue):
         return None
 
 
+import os
+
 def _load_tenant_module_or_demo(folder, prefix, ma_so_thue):
     """Trả về module riêng của tenant (nếu có file '{prefix}_{ma_so_thue}.py'),
     hoặc rơi về module mặc định '{prefix}_demo.py' nếu tenant chưa có file riêng."""
     import importlib
-    module = _load_tenant_module(folder, prefix, ma_so_thue)
-    if module is not None:
-        return module
+    
+    # Kiểm tra file riêng của tenant có tồn tại không
+    if ma_so_thue:
+        ten_module_rieng = f"{prefix}_{ma_so_thue}"
+        duong_dan_rieng = os.path.join(folder, f"{ten_module_rieng}.py")
+        if os.path.exists(duong_dan_rieng):
+            try:
+                return importlib.import_module(f"{folder}.{ten_module_rieng}")
+            except Exception as e:
+                print(f"Lỗi import {folder}.{ten_module_rieng}: {e}")
+    
+    # Fallback về file demo
+    ten_module_demo = f"{prefix}_demo"
+    duong_dan_demo = os.path.join(folder, f"{ten_module_demo}.py")
+    if not os.path.exists(duong_dan_demo):
+        print(f"❌ Không tìm thấy file mặc định: {duong_dan_demo}")
+        return None
+    
     try:
-        return importlib.import_module(f"{folder}.{prefix}_demo")
+        return importlib.import_module(f"{folder}.{ten_module_demo}")
     except Exception as e:
-        print(f"Lỗi import {folder}.{prefix}_demo (file mặc định): {e}")
+        print(f"Lỗi import {folder}.{ten_module_demo} (file mặc định): {e}")
         return None
 
 

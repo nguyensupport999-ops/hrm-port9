@@ -629,7 +629,36 @@ def render():
 """
 
     _landing_html = _css + _html_body
-    components.html(_landing_html, height=6000, scrolling=True)
+
+    # Auto-resize: đọc chiều cao thật của nội dung bên trong iframe, rồi gửi về
+    # cho Streamlit cha để tự điều chỉnh chiều cao iframe — thay vì cố định 6000px.
+    # Cách làm: chèn 1 đoạn script vào cuối HTML, đo scrollHeight của document,
+    # rồi dùng window.top.postMessage để báo cho Streamlit.
+    _auto_resize_script = """
+    <script>
+    (function() {
+        function guiChieuCao() {
+            var cao = document.documentElement.scrollHeight;
+            // Gửi chiều cao thật về cho Streamlit cha (dùng window.top theo đúng bài học context.md)
+            window.top.postMessage({ isStreamlitMessage: false, type: 'streamlit:setFrameHeight', height: cao }, '*');
+        }
+        // Chạy sau khi DOM đã render xong + ảnh đã load (để đo đúng chiều cao thật)
+        if (document.readyState === 'complete') {
+            setTimeout(guiChieuCao, 200);
+        } else {
+            window.addEventListener('load', function() { setTimeout(guiChieuCao, 200); });
+        }
+        // Theo dõi nếu layout đổi (VD: font load xong, ảnh load xong sau)
+        const observer = new MutationObserver(function() { setTimeout(guiChieuCao, 100); });
+        observer.observe(document.body, { childList: true, subtree: true });
+        // Fallback: gửi lại vài lần để chắc chắn ăn
+        setTimeout(guiChieuCao, 500);
+        setTimeout(guiChieuCao, 1500);
+    })();
+    </script>
+    """
+
+    components.html(_landing_html + _auto_resize_script, height=800, scrolling=False)
 
 
 if __name__ == "__main__":

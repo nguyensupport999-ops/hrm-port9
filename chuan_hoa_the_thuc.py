@@ -123,7 +123,7 @@ def doc_dong(data, ten_file):
 RE_QH = re.compile(r'cong\s*hoa\s*xa\s*hoi\s*chu\s*nghia\s*viet\s*nam')
 RE_TN = re.compile(r'doc\s*lap\s*[-–—]*\s*tu\s*do\s*[-–—]*\s*hanh\s*phuc')
 RE_SO = re.compile(r'^so\s*[:.]')
-RE_NGAY = re.compile(r'^[^,]{2,60},\s*ngay\s+\S+\s+thang\s+\S+\s+nam\s+\S+')
+RE_NGAY = re.compile(r'^[^,]{2,60},\s*ngay(?:\s+[^\s]+)?\s+thang(?:\s+[^\s]+)?\s+nam(?:\s+[^\s]+)?')
 RE_CAN_CU = re.compile(r'^(can cu|xet de nghi|theo de nghi|xet|sau khi|nhan thay)\b')
 RE_DIEU = re.compile(r'^dieu\s+\d+\s*[\.:]')
 RE_KHOAN = re.compile(r'^\d+\.\s+\S')
@@ -150,11 +150,17 @@ def _la_dong_ky(dong):
     return bool(RE_QUYEN_HAN.match(kd)) or (_la_in_hoa(dong) and len(dong) <= 70)
 
 
+def chuan_vv(t):
+    """'V/v: Đề nghị ... .' -> 'V/v Đề nghị ...' (NĐ 30: không dấu hai chấm, không chấm cuối trích yếu)."""
+    t = re.sub(r'^\s*v\s*/\s*v\s*[:.]?\s*', 'V/v ', t, flags=re.I)
+    return _chuan_dong(t).rstrip(' .')
+
+
 def phan_tich(lines):
     """Nhận diện thành phần thể thức. Trả về dict mô tả cấu trúc + danh sách nhận diện."""
     L = [_chuan_dong(x) for x in lines if _chuan_dong(x)]
     kq = dict(quoc_hieu=False, tieu_ngu=False, co_quan=[], so=None, ngay=None, loai=None, trich_yeu=None,
-              v_v=None, kinh_gui=[], body=[], noi_nhan=[], ky=dict(quyen_han=[], chuc_vu=[], ho_ten=''),
+              v_v=None, kinh_gui=[], kg_items=[], body=[], noi_nhan=[], ky=dict(quyen_han=[], chuc_vu=[], ho_ten=''),
               la_cong_van=False)
     if not L:
         return kq
@@ -179,6 +185,14 @@ def phan_tich(lines):
             kq['ngay'] = L[i]; dung.add(i)
         elif kd[i].startswith('v/v') and kq['v_v'] is None:
             kq['v_v'] = L[i]; kq['la_cong_van'] = True; dung.add(i)
+    # V/v (công văn) có thể bị ngắt thành nhiều dòng: nối các dòng tiếp theo bắt đầu bằng chữ thường
+    if kq['v_v']:
+        i_vv = next(i for i in range(gioi_han) if i in dung and kd[i].startswith('v/v'))
+        j = i_vv + 1
+        while j < gioi_han and j not in dung and L[j][:1].islower() and len(L[j]) < 160 \
+                and not RE_SO.match(kd[j]) and not kd[j].startswith('kinh gui'):
+            kq['v_v'] += ' ' + L[j]; dung.add(j); j += 1
+        kq['v_v'] = chuan_vv(kq['v_v'])
     # tên cơ quan: dòng IN HOA trong vùng đầu chưa được gán, nằm trước tên loại
     i_loai = None
     for i in range(len(L)):
@@ -197,14 +211,22 @@ def phan_tich(lines):
         if pos < len(L) and re.match(r'^(ve viec|v/v|ve\b)', kd[pos]):
             kq['trich_yeu'] = L[pos]
             pos += 1
-    # Kính gửi
+    # Kính gửi: 1 nơi ("Kính gửi: A") hoặc nhiều nơi (dòng "Kính gửi:" + danh sách gạch đầu dòng / kết thúc ; ,)
     if pos < len(L) and kd[pos].startswith('kinh gui'):
-        kq['kinh_gui'].append(L[pos]); pos += 1
-        while pos < len(L) and RE_GACH.match(L[pos]) and kd[pos - 1].startswith(('kinh gui', '-', '–')):
-            kq['kinh_gui'].append(L[pos]); pos += 1
+        dong_kg = L[pos]; pos += 1
+        kq['kinh_gui'].append(dong_kg)
+        phan_dau = re.sub(r'^\s*k[ií]nh\s+g[ửu]i\s*[:：]?\s*', '', dong_kg, flags=re.I).strip()
+        items = [phan_dau] if phan_dau else []
+        while pos < len(L) and len(L[pos]) <= 200:
+            t_ = L[pos]
+            if RE_GACH.match(t_) or (items and items[-1].rstrip()[-1:] in ';,') \
+                    or (not items and len(t_) <= 100 and t_.rstrip()[-1:] not in '.:'
+                        and not RE_CAN_CU.match(khong_dau(t_)) and not khong_dau(t_).startswith(('ngay ', 'thuc hien', 'qua '))):
+                items.append(RE_GACH.sub('', t_).strip()); kq['kinh_gui'].append(t_); pos += 1
+            else:
+                break
+        kq['kg_items'] = [x for x in items if x]
         kq['la_cong_van'] = kq['la_cong_van'] or kq['loai'] is None
-    elif kq['v_v'] and pos < len(L) and kd[pos].startswith('kinh gui'):
-        kq['kinh_gui'].append(L[pos]); pos += 1
 
     rest = L[pos:]
     # --- Nơi nhận + chữ ký ---
@@ -274,7 +296,7 @@ def phan_tich(lines):
         elif _la_in_hoa(t) and k.rstrip().endswith(':') and len(t) <= 40 and k.rstrip(' :') in (
                 'quyet dinh', 'quyet nghi', 'ra quyet dinh', 'quyet dinh nhu sau'):
             loai = 'quyet_dinh_op'; da_den_dieu_hoac_qd = True
-        elif not da_den_dieu_hoac_qd and RE_CAN_CU.match(k):
+        elif not da_den_dieu_hoac_qd and RE_CAN_CU.match(k) and (co_loai or t.rstrip()[-1:] in ';,') and len(t) <= 300:
             loai = 'can_cu'
         elif co_loai and not da_den_dieu_hoac_qd and _la_in_hoa(t) and len(t) <= 120 and not body \
                 and not RE_ROMAN.match(k) and not RE_KHAN.match(k):
@@ -398,7 +420,8 @@ def _thiet_lap_trang(doc, nd):
 
 
 def _khoi_dau(doc, S, co_quan, so, ngay, v_v):
-    L, R = 5.6, 10.4
+    # Quốc hiệu cỡ 13 cần cột phải rộng ~10,4cm; cỡ 12 thì ~9,6cm -> cột trái (Số, V/v) rộng thêm khi có thể
+    L, R = (5.6, 10.4) if S['qh'] >= 13 else (6.4, 9.6)
     ht = doc.add_table(rows=1, cols=2)
     ht.alignment = WD_TABLE_ALIGNMENT.CENTER; ht.autofit = False
     _bo_vien_bang(ht)
@@ -413,12 +436,34 @@ def _khoi_dau(doc, S, co_quan, so, ngay, v_v):
     _ke_ngang(cl, 3.0, L)
     _p(cl, so, S['so'], align='center', indent=False, before=6, after=0)
     if v_v:
-        _p(cl, v_v, S['vv'], align='center', indent=False, before=4, after=0)
+        # Khung V/v: cả khối căn giữa dưới "Số" (lề trái = lề phải), chữ trong khối căn đều 2 bên, không thụt đầu dòng
+        pv = _p(cl, v_v, S['vv'], align='justify', indent=False, before=4, after=0)
+        pv.paragraph_format.left_indent = Cm(0.15); pv.paragraph_format.right_indent = Cm(0.15)
     _p(cr, 'CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM', S['qh'], True, align='center', indent=False, before=0, after=0,
        p=cr.paragraphs[0])
     _p(cr, 'Độc lập - Tự do - Hạnh phúc', S['tn'], True, align='center', indent=False, before=0, after=0)
     _ke_ngang(cr, 5.6, R)
     _p(cr, ngay, S['ngay'], italic=True, align='center', indent=False, before=6, after=0)
+
+
+def _khoi_kinh_gui(doc, S, items):
+    """Khối "Kính gửi": 2 cột (nhãn | danh sách nơi nhận), căn trái, KHÔNG căn giữa.
+    1 nơi: viết liền; nhiều nơi: mỗi nơi 1 dòng gạch đầu dòng."""
+    _p(doc, '', 6, before=6, after=0)
+    t = doc.add_table(rows=1, cols=2)
+    t.alignment = WD_TABLE_ALIGNMENT.CENTER; t.autofit = False
+    _bo_vien_bang(t)
+    c1, c2 = t.rows[0].cells
+    W1, W2 = 4.0, 12.0
+    c1.width = Cm(W1); c2.width = Cm(W2)
+    t.columns[0].width = Cm(W1); t.columns[1].width = Cm(W2)
+    pl = _p(c1, 'Kính gửi:', S['nd'], align='left', indent=False, before=0, after=0, p=c1.paragraphs[0])
+    pl.paragraph_format.left_indent = Cm(1.27)
+    multi = len(items) > 1
+    for idx, x in enumerate(items):
+        _p(c2, ('- ' + x) if multi else x, S['nd'], align='left', indent=False, before=0, after=0,
+           p=c2.paragraphs[0] if idx == 0 else None)
+    _p(doc, '', 6, before=0, after=6)
 
 
 def _khoi_cuoi(doc, S, noi_nhan, ky):
@@ -547,10 +592,10 @@ def dung_docx(cau_truc, co, cfg=None, tu_bo_sung=True):
         if cau_truc['trich_yeu']:
             _p(doc, cau_truc['trich_yeu'], S['ty'], True, align='center', indent=False, before=0, after=0)
             _ke_ngang(doc, 4.0, 16.0)
-    if cau_truc['kinh_gui']:
-        for idx, x in enumerate(cau_truc['kinh_gui']):
-            _p(doc, x, S['nd'], align='center', indent=False, before=18 if idx == 0 else 0, after=0)
-        _p(doc, '', 6, before=0, after=0)
+    if cau_truc.get('kg_items'):
+        _khoi_kinh_gui(doc, S, cau_truc['kg_items'])
+    elif cau_truc['kinh_gui']:
+        _khoi_kinh_gui(doc, S, [re.sub(r'^\s*k[ií]nh\s+g[ửu]i\s*[:：]?\s*', '', cau_truc['kinh_gui'][0], flags=re.I) or '...'])
     _dung_than(doc, S, cau_truc['body'])
 
     noi_nhan = list(cau_truc['noi_nhan'])
@@ -568,12 +613,157 @@ def dung_docx(cau_truc, co, cfg=None, tu_bo_sung=True):
     return bio.getvalue(), bo_sung
 
 
-def chuan_hoa(data, ten_file, cfg=None, che_do='auto', tu_bo_sung=True):
+
+# ───────────────────────── Rà soát chính tả & câu ─────────────────────────
+LOI_CHINH_TA = {
+    # lỗi gõ/chính tả thường gặp trong văn bản hành chính (chỉ liệt kê các cặp sai-đúng chắc chắn)
+    'sử lý': 'xử lý', 'xữ lý': 'xử lý', 'xữ lí': 'xử lí', 'sữ dụng': 'sử dụng', 'chỉnh sữa': 'chỉnh sửa',
+    'sữa chữa': 'sửa chữa', 'kiễm tra': 'kiểm tra', 'quyết đinh': 'quyết định', 'trân thành': 'chân thành',
+    'chân trọng cảm ơn': 'trân trọng cảm ơn', 'giám sác': 'giám sát', 'tăng cuờng': 'tăng cường',
+    'tăng cưỡng': 'tăng cường', 'đẩy mạng': 'đẩy mạnh', 'chủ chương': 'chủ trương', 'triển khải': 'triển khai',
+    'thực hiên': 'thực hiện', 'dưt điểm': 'dứt điểm', 'dứt điễm': 'dứt điểm', 'xin chân thành cảm ơn': 'xin chân thành cảm ơn',
+    'rà xoát': 'rà soát', 'dà soát': 'rà soát', 'giãi quyết': 'giải quyết', 'giãi trình': 'giải trình',
+    'phối hơp': 'phối hợp', 'hổ trợ': 'hỗ trợ', 'hõ trợ': 'hỗ trợ', 'chử ký': 'chữ ký', 'nghĩ việc': 'nghỉ việc',
+    'nghĩ phép': 'nghỉ phép', 'xét duyêt': 'xét duyệt', 'cấp bách bách': 'cấp bách',
+}
+_LOI_CT_THAT = {k: v for k, v in LOI_CHINH_TA.items() if k != v}
+TU_VIET_TAT_CHO_PHEP = {'tp', 'ts', 'gs', 'pgs', 'ths', 'bs', 'ks', 'cn', 'đc', 'v.v', 'tt', 'qđ', 'nđ', 'tb', 'stt'}
+
+
+def sua_dau_cau(t):
+    """Sửa an toàn khoảng trắng/dấu câu: bỏ khoảng trắng trước , ; : ! ? và thêm khoảng trắng sau , ; khi dính chữ.
+    Không động tới số thập phân (1,5), giờ (10:30), dấu ba chấm, đường dẫn. Trả về (văn bản mới, số chỗ đã sửa)."""
+    n = 0
+    t2, k = re.subn(r'(?<=\S)\s+([,;:!?])(?!\d)', r'\1', t); n += k
+    t3, k = re.subn(r'([,;])(?=[A-Za-zÀ-ỹ])', r'\1 ', t2); n += k
+    return t3, n
+
+
+def ra_soat_ngoai_tuyen(lines, ct=None):
+    """Rà soát bằng quy tắc (không cần mạng): trả về danh sách lỗi dict(muc, trich, van_de, de_xuat, nguon)."""
+    from datetime import datetime as _dt
+    loi = []
+
+    def them(muc, trich, van_de, de_xuat=''):
+        loi.append(dict(muc=muc, trich=(trich or '')[:140], van_de=van_de, de_xuat=de_xuat, nguon='Quy tắc'))
+
+    for t in lines:
+        tl = t.lower()
+        # a) lỗi chính tả thường gặp / lặp từ
+        for sai, dung_ in _LOI_CT_THAT.items():
+            if sai in tl:
+                them('Chính tả', t, f"Có thể sai: “{sai}”", f"Nên viết: “{dung_}”")
+        for m in re.finditer(r'(?<![\w/])([^\W\d_]{2,})\s+\1(?![\w/])', t, flags=re.I):
+            them('Chính tả', t, f"Lặp từ: “{m.group(0)}”", f"Nên bỏ bớt: “{m.group(1)}”")
+        # b) dấu câu / ngoặc
+        if re.search(r'([,;:])\1', t) or re.search(r'(?<!\.)\.\.(?!\.)', t):
+            them('Dấu câu', t, "Dấu câu bị lặp (,, ;; :: hoặc '..')", "Kiểm tra lại dấu câu")
+        if t.count('(') != t.count(')'):
+            them('Dấu câu', t, "Ngoặc đơn không khớp cặp “(” “)”", "Bổ sung ngoặc còn thiếu")
+        if t.count('“') != t.count('”') or t.count('"') % 2 == 1:
+            them('Dấu câu', t, "Dấu ngoặc kép không khớp cặp", "Bổ sung dấu ngoặc kép còn thiếu")
+        # c) viết hoa đầu câu
+        for m in re.finditer(r'([^\W\d_]{3,})([.!?])\s+([a-zà-ỹ])', t):
+            if m.group(1).lower() not in TU_VIET_TAT_CHO_PHEP:
+                them('Chính tả', t, f"Đầu câu chưa viết hoa sau dấu “{m.group(2)}”: “…{m.group(1)}{m.group(2)} {m.group(3)}…”",
+                     "Viết hoa chữ cái đầu câu")
+        # d) ngày tháng không tồn tại
+        for m in re.finditer(r'(?<!\d)(\d{1,2})/(\d{1,2})/(\d{4})(?!\d)', t):
+            d_, mo, y = map(int, m.groups())
+            try:
+                _dt(y, mo, d_)
+            except ValueError:
+                them('Logic', t, f"Ngày không tồn tại: {m.group(0)}", "Kiểm tra lại ngày/tháng/năm")
+        for m in re.finditer(r'ngày\s+(\d{1,2})\s+tháng\s+(\d{1,2})\s+năm\s+(\d{4})', t, flags=re.I):
+            d_, mo, y = map(int, m.groups())
+            try:
+                _dt(y, mo, d_)
+            except ValueError:
+                them('Logic', t, f"Ngày không tồn tại: {m.group(0)}", "Kiểm tra lại ngày/tháng/năm")
+        # e) khoảng thời gian đảo ngược
+        for m in re.finditer(r'từ\s+(?:ngày\s+)?(\d{1,2})/(\d{1,2})/(\d{4})\s+(?:đến|tới)\s+(?:ngày\s+)?(\d{1,2})/(\d{1,2})/(\d{4})', t, flags=re.I):
+            try:
+                a_ = _dt(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+                b_ = _dt(int(m.group(6)), int(m.group(5)), int(m.group(4)))
+                if b_ < a_:
+                    them('Logic', t, f"Khoảng thời gian bị ngược: “{m.group(0)}” (ngày kết thúc trước ngày bắt đầu)",
+                         "Đổi lại thứ tự hoặc sửa ngày")
+            except ValueError:
+                pass
+    # f) đoạn dài không kết thúc bằng dấu câu (chỉ xét thân văn bản)
+    if ct:
+        for loai, t in ct.get('body', []):
+            if loai in ('text', 'khoan', 'diem', 'gach') and len(t) > 80 and t.rstrip()[-1:] not in '.;:!?…)”"':
+                them('Câu', t, "Đoạn/câu dài không kết thúc bằng dấu câu", "Thêm dấu chấm (.) hoặc dấu chấm phẩy (;)")
+    # loại trùng
+    seen, kq = set(), []
+    for x in loi:
+        k = (x['muc'], x['van_de'], x['trich'][:60])
+        if k not in seen:
+            seen.add(k); kq.append(x)
+    return kq
+
+
+def ra_soat_ai(lines, ai_call):
+    """Rà soát chính tả, ngữ pháp, câu bất hợp lý bằng AI (dùng hàm gọi Claude sẵn có của app).
+    Trả về (danh_sach_loi, thong_bao_loi). AI chỉ ĐỀ XUẤT — không tự sửa nội dung văn bản."""
+    import json as _json
+    if ai_call is None:
+        return [], "Chưa kết nối dịch vụ AI."
+    van_ban = '\n'.join(f"[{i + 1}] {t}" for i, t in enumerate(lines))
+    cat = len(van_ban) > 14000
+    van_ban = van_ban[:14000]
+    system = (
+        "Bạn là biên tập viên văn bản hành chính tiếng Việt, rất cẩn trọng. Hãy rà soát văn bản người dùng gửi và CHỈ báo cáo các lỗi THẬT SỰ: "
+        "(1) lỗi chính tả, dùng sai dấu, sai từ; (2) lỗi ngữ pháp, câu thiếu chủ ngữ/vị ngữ, câu cụt, câu lặp ý; "
+        "(3) câu hoặc nội dung bất hợp lý, mâu thuẫn (ngày tháng, số liệu, tên cơ quan/người không nhất quán, 'đề nghị' nhưng không nêu đối tượng...). "
+        "KHÔNG nhận xét về văn phong, KHÔNG báo lỗi nếu không chắc, KHÔNG viết lại văn bản, KHÔNG bịa. "
+        "Trả lời DUY NHẤT bằng JSON hợp lệ, không kèm giải thích hay markdown, đúng dạng: "
+        '{"loi":[{"muc":"Chính tả|Ngữ pháp|Logic","dong":<số thứ tự dòng trong ngoặc vuông>,'
+        '"trich":"<trích nguyên văn đoạn có lỗi, tối đa 120 ký tự>","van_de":"<mô tả ngắn lỗi>","de_xuat":"<cách sửa đề xuất>"}]}. '
+        'Nếu không có lỗi trả về {"loi":[]}.')
+    try:
+        kq = ai_call(system, [{"role": "user", "content": van_ban}])
+    except Exception as e:
+        return [], f"Không gọi được AI: {e}"
+    if not isinstance(kq, str):
+        return [], "AI trả về dữ liệu không hợp lệ."
+    if kq.strip().startswith(('⚠️', '❌')):
+        return [], re.sub(r'[*`]', '', kq).strip()
+    txt = re.sub(r'^```(?:json)?|```$', '', kq.strip(), flags=re.M).strip()
+    i, j = txt.find('{'), txt.rfind('}')
+    try:
+        data = _json.loads(txt[i:j + 1])
+    except Exception:
+        return [], "AI trả về kết quả không đọc được (không phải JSON)."
+    out = []
+    for x in data.get('loi', []) if isinstance(data, dict) else []:
+        if isinstance(x, dict) and x.get('van_de'):
+            out.append(dict(muc=str(x.get('muc') or 'Khác'), trich=str(x.get('trich') or '')[:140],
+                            van_de=str(x.get('van_de')), de_xuat=str(x.get('de_xuat') or ''), nguon='AI'))
+    note = "Văn bản dài nên AI chỉ rà soát phần đầu (~14.000 ký tự)." if cat else ""
+    return out, note
+
+
+def chuan_hoa(data, ten_file, cfg=None, che_do='auto', tu_bo_sung=True, ai_call=None, dung_ai=False):
     """Pipeline đầy đủ. che_do: 'auto' | 14 | 13. Trả về dict kết quả."""
     lines = doc_dong(data, ten_file)
     if not lines:
         raise ValueError("Văn bản trống hoặc không đọc được nội dung.")
+    # Bước rà soát 1: tự sửa an toàn khoảng trắng/dấu câu (không đổi nội dung), rồi quét lỗi bằng quy tắc
+    so_cho_sua = 0
+    lines_sach = []
+    for t in lines:
+        t2, k = sua_dau_cau(t)
+        so_cho_sua += k
+        lines_sach.append(t2)
+    lines = lines_sach
     ct = phan_tich(lines)
+    loi = ra_soat_ngoai_tuyen(lines, ct)
+    ai_note = ''
+    if dung_ai:
+        loi_ai, ai_note = ra_soat_ai(lines, ai_call)
+        loi += loi_ai
     ghi_chu_trang = ''
     if che_do in (13, 14):
         co = che_do
@@ -593,7 +783,8 @@ def chuan_hoa(data, ten_file, cfg=None, che_do='auto', tu_bo_sung=True):
             co = 13
             out, bs = dung_docx(ct, 13, cfg, tu_bo_sung)
         ghi_chu_trang = f"Văn bản {'1-2 trang' if co == 14 else 'dài hơn 2 trang'} ({nguon}) → cỡ chữ lớn nhất {co}."
-    return dict(docx=out, co=co, ghi_chu_trang=ghi_chu_trang, bo_sung=bs, cau_truc=ct, so_dong=len(lines))
+    return dict(docx=out, co=co, ghi_chu_trang=ghi_chu_trang, bo_sung=bs, cau_truc=ct, so_dong=len(lines),
+                ra_soat=loi, so_cho_sua=so_cho_sua, ai_note=ai_note, da_dung_ai=bool(dung_ai))
 
 
 # ───────────────────────── 4. Giao diện Streamlit ─────────────────────────
@@ -605,7 +796,7 @@ _NHAN = {
 }
 
 
-def render(cfg=None):
+def render(cfg=None, ai_call=None):
     cfg = cfg or {}
     st.title("📐 Chuẩn hóa thể thức VB")
     st.caption("Tải lên 1 văn bản → bấm **Render** → app nhận diện các thành phần thể thức và xuất file Word đúng "
@@ -618,11 +809,14 @@ def render(cfg=None):
         che_do = st.radio("Cỡ chữ", ["Tự động (theo số trang)", "Ép cỡ 14", "Ép cỡ 13"], horizontal=True, key='cht_che_do')
     with c2:
         tu_bo_sung = st.checkbox("Tự bổ sung thành phần còn thiếu (quốc hiệu, tiêu ngữ, số, nơi nhận...)", value=True, key='cht_bs')
+    dung_ai = st.checkbox("🔎 Rà soát chính tả & câu bất hợp lý bằng AI (chậm hơn vài giây; cần cấu hình ANTHROPIC_API_KEY)",
+                          value=ai_call is not None, disabled=ai_call is None, key='cht_ai')
     if st.button("🔄 Render", type="primary", disabled=up is None, key='cht_btn'):
         try:
             with st.spinner("Đang nhận diện và dựng lại văn bản..."):
                 kq = chuan_hoa(up.getvalue(), up.name, cfg,
-                               che_do={'Ép cỡ 14': 14, 'Ép cỡ 13': 13}.get(che_do, 'auto'), tu_bo_sung=tu_bo_sung)
+                               che_do={'Ép cỡ 14': 14, 'Ép cỡ 13': 13}.get(che_do, 'auto'), tu_bo_sung=tu_bo_sung,
+                               ai_call=ai_call, dung_ai=dung_ai)
             kq['ten_goc'] = up.name
             st.session_state['cht_kq'] = kq
         except Exception as e:
@@ -639,6 +833,21 @@ def render(cfg=None):
                        type="primary", key='cht_dl')
     if kq['bo_sung']:
         st.warning("ℹ️ Văn bản gốc thiếu các thành phần sau, app đã bổ sung/để trống: " + "; ".join(kq['bo_sung']))
+    if kq.get('so_cho_sua'):
+        st.caption(f"🧹 Đã tự chỉnh {kq['so_cho_sua']} chỗ khoảng trắng/dấu câu (không đổi nội dung).")
+    loi = kq.get('ra_soat') or []
+    st.markdown(f"#### 🔎 Rà soát chính tả & câu: {len(loi)} điểm cần xem" if loi else "#### 🔎 Rà soát chính tả & câu: chưa phát hiện lỗi")
+    if loi:
+        import pandas as _pd
+        st.caption("Các mục dưới đây chỉ là ĐỀ XUẤT để anh/chị đối chiếu — app không tự sửa nội dung văn bản gốc. "
+                   "Sửa trong văn bản gốc rồi Render lại nếu cần.")
+        st.dataframe(_pd.DataFrame([{'Loại': x['muc'], 'Nguồn': x['nguon'], 'Đoạn có vấn đề': x['trich'],
+                                     'Vấn đề': x['van_de'], 'Đề xuất': x['de_xuat']} for x in loi]),
+                     hide_index=True, width='stretch')
+    if kq.get('da_dung_ai') and kq.get('ai_note'):
+        st.info(f"ℹ️ AI: {kq['ai_note']}")
+    elif not kq.get('da_dung_ai'):
+        st.caption("Chưa bật rà soát bằng AI — chỉ kiểm tra bằng quy tắc (lỗi thường gặp, lặp từ, ngoặc, ngày tháng...).")
     with st.expander("🔍 Kết quả nhận diện thành phần (kiểm tra trước khi dùng)", expanded=False):
         st.markdown(
             f"- **Quốc hiệu:** {'✔' if ct['quoc_hieu'] else '✘'}  |  **Tiêu ngữ:** {'✔' if ct['tieu_ngu'] else '✘'}\n"
@@ -646,7 +855,7 @@ def render(cfg=None):
             f"- **Số, ký hiệu:** {ct['so'] or '—'}  |  **Địa danh, ngày:** {ct['ngay'] or '—'}\n"
             f"- **Tên loại:** {ct['loai'] or ('Công văn' if ct['la_cong_van'] else '—')}  |  "
             f"**Trích yếu:** {ct['trich_yeu'] or ct['v_v'] or '—'}\n"
-            f"- **Kính gửi:** {'; '.join(ct['kinh_gui']) or '—'}\n"
+            f"- **Kính gửi:** {'; '.join(ct['kg_items']) or '—'}\n"
             f"- **Nơi nhận:** {'; '.join(ct['noi_nhan']) or '—'}\n"
             f"- **Người ký:** {' / '.join(ct['ky']['quyen_han'] + ct['ky']['chuc_vu']) or '—'} — {ct['ky']['ho_ten'] or '—'}")
         thong_ke = {}

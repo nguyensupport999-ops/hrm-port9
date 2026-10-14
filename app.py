@@ -5107,6 +5107,37 @@ def ensure_face_id_table():
     c.close()
     db.close()
 
+def ensure_ung_vien_columns():
+    """Bảo đảm bảng ung_vien có đủ cột trinh_do, ghi_chu (DB tenant tạo trước đây có thể chưa có).
+    Chạy mỗi lần mở màn Ứng viên cho tới khi thành công (cờ theo phiên), độc lập với ensure_qdns_columns()."""
+    mst = str((st.session_state.get('tenant') or {}).get('ma_so_thue') or '')
+    co = f"_uv_cols_ok_{mst}"
+    if st.session_state.get(co):
+        return
+    db = None
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("ALTER TABLE ung_vien ADD COLUMN IF NOT EXISTS ghi_chu TEXT")
+        c.execute("ALTER TABLE ung_vien ADD COLUMN IF NOT EXISTS trinh_do TEXT")
+        db.commit()
+        c.close()
+        st.session_state[co] = True
+    except Exception as e:
+        try:
+            if db is not None:
+                db.rollback()
+        except Exception:
+            pass
+        st.warning(f"⚠️ Không thể cập nhật cấu trúc bảng ứng viên: {e}")
+    finally:
+        try:
+            if db is not None:
+                db.close()
+        except Exception:
+            pass
+
+
 def ensure_qdns_columns():
     """Bổ sung cột 'chuc_vu' và 'ngay_qd_ns' vào bảng nhan_vien nếu chưa có (idempotent).
     - chuc_vu: mặc định 'Nhân viên'
@@ -8682,6 +8713,7 @@ elif menu == "👤 Ứng viên":
         st.divider()
         st.stop()  # Dừng lại để không hiển thị danh sách ứng viên phía dưới
     
+    ensure_ung_vien_columns()   # tránh lỗi UndefinedColumn (trinh_do, ghi_chu) trên DB tenant cũ
     db_f = st.session_state.db_engine.get_connection()
     c_f = db_f.cursor()
     c_f.execute("SELECT ten_chuc_danh FROM chuc_danh_ung_vien ORDER BY ten_chuc_danh")
@@ -15620,7 +15652,7 @@ elif menu == "🔍 Audit Dashboard":
         db_a.close()
 
 elif menu == "📐 Chuẩn hóa thể thức VB":
-    chuan_hoa_the_thuc.render(COMPANY_CONFIG)
+    chuan_hoa_the_thuc.render(COMPANY_CONFIG, ai_call=_chatbot_call_claude_v2)
 
 elif menu == "📘 Hướng dẫn sử dụng":
     st.title("📘 Hướng dẫn sử dụng HRM Master")

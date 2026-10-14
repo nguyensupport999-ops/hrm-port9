@@ -255,6 +255,36 @@ PHUONG_AN_TANG_LAI = [
 ]
 PHUONG_AN_ALL = PHUONG_AN_TANG + PHUONG_AN_GIAM + PHUONG_AN_TANG_LAI
 
+# ===== TỪ KHÓA NHẬN DIỆN NÚT BỊ CẤM VỚI VAI TRÒ "XEM TOÀN BỘ" =====
+# Bất kỳ nút nào có nhãn chứa 1 trong các từ khóa này sẽ bị LÀM MỜ khi người
+# đăng nhập giữ vai trò 'xem_toan_bo' (được xem tất cả menu nhưng KHÔNG được
+# thay đổi DB).
+#
+# LƯU Ý: KHÔNG đưa "thêm" và "sửa" vào đây — 2 nút này chỉ MỞ FORM, chưa ghi DB.
+# Sau khi mở form, người dùng vẫn phải bấm các nút "Lưu / Cập nhật / Xác nhận"
+# bên trong form — và chính các nút đó đã bị chặn bởi danh sách này.
+TU_KHOA_NUT_CAM = [
+    "lưu", "xác nhận", "save", "xóa", "cập nhật", "khôi phục",
+    "tạo quyết định", "upload", "xuất excel",
+    "gửi", "duyệt", "từ chối", "reset", "đặt lại",
+    "backup", "khóa", "mở khoá",
+]
+
+
+def la_vai_tro_chi_xem():
+    """True nếu người đăng nhập CHỈ được xem — mọi nút Lưu/Sửa/Xóa/Upload/Xuất
+    phải bị làm mờ. Áp dụng cho 'xem_toan_bo' và 'demo_readonly'."""
+    return co_vai_tro('xem_toan_bo', 'demo_readonly')
+
+
+def nhan_nut_bi_cam(nhan):
+    """Kiểm tra nhãn nút có chứa từ khóa cấm không (không phân biệt hoa/thường).
+    Dùng cho lớp bảo vệ phía Python (defense-in-depth) — lớp chính là JS quét DOM."""
+    if not nhan:
+        return False
+    t = str(nhan).lower()
+    return any(kw in t for kw in TU_KHOA_NUT_CAM)
+
 def lay_ma_phuong_an(phuong_an_text):
     """Trích mã phương án từ text đầy đủ. VD: 'TD - Tăng đến...' → 'TD'"""
     if not phuong_an_text:
@@ -472,29 +502,33 @@ def co_vai_tro(*vai_tro_can_kiem):
 
 def can_edit():
     """Kiểm tra xem user hiện tại có quyền chỉnh sửa dữ liệu không"""
-    # Admin, HR, Văn thư, Kế toán lương có quyền chỉnh sửa.
-    # LƯU Ý: 'xem_toan_bo' (Xem toàn bộ - không chỉnh sửa) CỐ Ý không có trong danh sách này —
-    # vai trò này được thấy TOÀN BỘ menu/tab như Admin nhưng mọi nút Lưu/Sửa/Xóa/Cập nhật đều
-    # phải bị disabled (xem các nơi dùng disabled=not can_edit()).
+    # Vai trò CHỈ XEM — thấy hết menu/tab nhưng KHÔNG được sửa gì
+    if la_vai_tro_chi_xem():
+        return False
     return co_vai_tro('admin', 'admin_bcc', 'hr', 'van_thu', 'kt_luong')
 
 def can_delete():
     """Kiểm tra xem user hiện tại có quyền xóa dữ liệu không"""
-    # Chỉ Admin mới có quyền xóa ('xem_toan_bo' không có quyền xóa)
+    if la_vai_tro_chi_xem():
+        return False
     return co_vai_tro('admin')
 
 def can_export():
     """Kiểm tra xem user hiện tại có quyền xuất báo cáo không"""
-    # Admin, HR, Văn thư, Kế toán lương có quyền xuất
+    if la_vai_tro_chi_xem():
+        return False
     return co_vai_tro('admin', 'hr', 'van_thu', 'kt_luong')
 
 def can_manage_users():
     """Kiểm tra xem user hiện tại có quyền quản lý người dùng không"""
-    # Chỉ Admin mới có quyền quản lý người dùng ('xem_toan_bo' không có quyền này)
+    if la_vai_tro_chi_xem():
+        return False
     return co_vai_tro('admin')
 
 def can_edit_bcc():
     """Quyền nhập mới/sửa BCC (ô trống) — đọc cấu hình tenant."""
+    if la_vai_tro_chi_xem():
+        return False
     mac_dinh = 'admin,admin_bcc'
     ds_role_str = get_cau_hinh('cc_vai_tro_edit_bcc', mac_dinh)
     ds_role = tuple(r.strip() for r in ds_role_str.split(',') if r.strip())
@@ -502,8 +536,8 @@ def can_edit_bcc():
 
 def can_dieu_chinh_bcc():
     """Quyền điều chỉnh BCC — đọc cấu hình tenant để biết vai trò nào được phép."""
-    # Mặc định: admin + admin_bcc
-    # Tenant có thể cấu hình thêm vai trò khác (VD: 'kt_luong', 'truong_phong')
+    if la_vai_tro_chi_xem():
+        return False
     mac_dinh = 'admin,admin_bcc'
     ds_role_str = get_cau_hinh('cc_vai_tro_dieu_chinh_bcc', mac_dinh)
     ds_role = tuple(r.strip() for r in ds_role_str.split(',') if r.strip())
@@ -511,10 +545,14 @@ def can_dieu_chinh_bcc():
 
 def can_khoa_thang_bcc():
     """Quyền khoá/mở khoá BCC tháng"""
+    if la_vai_tro_chi_xem():
+        return False
     return co_vai_tro('admin')
 
 def can_duyet_ot():
     """Quyền phê duyệt tăng ca"""
+    if la_vai_tro_chi_xem():
+        return False
     return co_vai_tro('admin', 'admin_bcc', 'truong_phong')
     
 def get_chu_ho_info(nhan_vien_id):
@@ -4471,6 +4509,63 @@ st.markdown("""
     </script>
 """, unsafe_allow_html=True)
 
+# ===== LÀM MỜ MỌI NÚT THAY ĐỔI DB KHI VAI TRÒ LÀ "XEM TOÀN BỘ" =====
+# Dùng MutationObserver quét DOM liên tục — bao phủ TẤT CẢ nút Streamlit (kể cả
+# nút mới render sau này như: chuyển tab, mở expander, đổi selectbox...) mà
+# không cần sửa từng chỗ trong app.py. Cách làm đồng nhất với việc ẩn Manage App.
+if st.session_state.get('logged_in') and la_vai_tro_chi_xem():
+    import json as _json_nut_cam
+    _tu_khoa_js = _json_nut_cam.dumps(TU_KHOA_NUT_CAM, ensure_ascii=False)
+    st.markdown(f"""
+    <script>
+    (function() {{
+        const TU_KHOA = {_tu_khoa_js};
+
+        function laNutBiCam(btn) {{
+            // Lấy toàn bộ text hiển thị của nút (bao gồm cả <p>, <span> con)
+            const nhan = (btn.innerText || btn.textContent || '').toLowerCase().trim();
+            if (!nhan) return false;
+            return TU_KHOA.some(kw => nhan.includes(kw.toLowerCase()));
+        }}
+
+        function lamMoNut() {{
+            // Quét mọi nút trong app (kể cả trong sidebar)
+            document.querySelectorAll('button').forEach(btn => {{
+                if (laNutBiCam(btn)) {{
+                    btn.disabled = true;
+                    btn.style.opacity = '0.45';
+                    btn.style.cursor = 'not-allowed';
+                    btn.style.pointerEvents = 'none';
+                    if (!btn.title) {{
+                        btn.title = '🔒 Bạn chỉ có quyền XEM — không thể thay đổi dữ liệu.';
+                    }}
+                }}
+            }});
+
+            // Với bảng data_editor (chấm công, ứng viên...): chặn double-click vào
+            // ô để sửa, và chặn gõ phím (trừ phím điều hướng) — để không sửa được.
+            document.querySelectorAll('[data-testid="stDataEditor"]').forEach(ed => {{
+                if (ed.dataset.locked) return;
+                ed.addEventListener('dblclick', e => e.stopPropagation(), true);
+                ed.addEventListener('keydown', e => {{
+                    const choPhep = ['Tab','ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Escape'];
+                    if (!choPhep.includes(e.key)) {{
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }}
+                }}, true);
+                ed.dataset.locked = '1';
+            }});
+        }}
+
+        // Chạy ngay + theo dõi DOM thay đổi liên tục
+        lamMoNut();
+        const observer = new MutationObserver(lamMoNut);
+        observer.observe(document.body, {{ childList: true, subtree: true }});
+    }})();
+    </script>
+    """, unsafe_allow_html=True)
+
 def to_float_or_none(val):
     """Chuyển đổi giá trị sang float hoặc None, tránh lỗi numeric"""
     if val is None or str(val).strip() == '':
@@ -8371,16 +8466,27 @@ elif menu == "📊 Dashboard":
 
     # ── Thông báo ──
     st.subheader("📌 Thông báo")
+
+    # Mở kết nối CHUNG — dùng cho cả thông báo "hôm nay có thêm" (chỉ 1 tenant)
+    # và cảnh báo thử việc sắp hết hạn (MỌI tenant đều cần).
     db3 = st.session_state.db_engine.get_connection()
     c3 = db3.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    c3.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE")
-    hn = c3.fetchall()
-    c3.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE - INTERVAL '1 day'")
-    hq = c3.fetchall()
-    if hn:
-        st.success(f"🟢 Hôm nay có thêm: **{', '.join([x['ho_ten'] for x in hn])}**")
-    if hq:
-        st.info(f"🔵 Hôm qua có thêm: **{', '.join([x['ho_ten'] for x in hq])}**")
+
+    # ===== THÔNG BÁO "HÔM NAY/HÔM QUA CÓ THÊM" — CHỈ HIỆN CHO TENANT 0108872052 =====
+    # Lý do: thông báo này chỉ có ý nghĩa nghiệp vụ với 1 tenant cụ thể.
+    # Với các tenant khác, nó chỉ gây nhiễu Dashboard — nên tắt đi.
+    _MST_CTY_THONG_BAO = str((st.session_state.get('tenant') or {}).get('ma_so_thue', '')).strip()
+    if _MST_CTY_THONG_BAO == '0108872052':
+        c3.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE")
+        hn = c3.fetchall()
+        c3.execute("SELECT ho_ten FROM nhan_vien WHERE DATE(ngay_vao_lam)=CURRENT_DATE - INTERVAL '1 day'")
+        hq = c3.fetchall()
+        if hn:
+            st.success(f"🟢 Hôm nay có thêm: **{', '.join([x['ho_ten'] for x in hn])}**")
+        if hq:
+            st.info(f"🔵 Hôm qua có thêm: **{', '.join([x['ho_ten'] for x in hq])}**")
+
+    # ===== CẢNH BÁO THỬ VIỆC SẮP HẾT HẠN — HIỂN THỊ CHO MỌI TENANT =====
     if st.session_state.role in ("admin", "xem_toan_bo"):
         c3.execute("""
             SELECT STT, ma_nv, ho_ten, ngay_vao_lam, 
@@ -8402,6 +8508,7 @@ elif menu == "📊 Dashboard":
                 st.error(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** - HÔM NAY LÀ NGÀY CUỐI HỢP ĐỒNG THỬ VIỆC!")
             else:
                 st.warning(f"⚠️ **{x.get('ma_nv','')} {x['ho_ten']}** còn **{ngay_con_lai}** ngày sẽ kết thúc hợp đồng thử việc!")
+
     db3.close()
     
     
@@ -9535,7 +9642,7 @@ elif menu == "✅ Nhân viên":
                                             st.session_state[f'convert_open_{nv_id_key}'] = False
                                     
                                         if not st.session_state[f'convert_open_{nv_id_key}']:
-                                            st.info("💡 Chuyển đổi HĐTV → Chính thức đã chuyển sang tab **📜 QUYẾT ĐỊNH NHÂN SỰ** → chọn loại **'QĐ Chuyển đổi TV → Chính thức'**.")
+                                            st.info("")
                                             if False and st.button(f"🔄 CHUYỂN ĐỔI HĐLĐ - {selected_nv['ho_ten']}", 
                                                         key=f"convert_hdld_btn_{nv_id_key}", 
                                                         width='stretch', type="primary"):

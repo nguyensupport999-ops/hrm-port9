@@ -35,7 +35,7 @@ def render():
     # ========================================================================
     # LINK TẢI CV (PDF) & TẢI BẰNG CẤP/CHỨNG CHỈ — ANH THAY BẰNG LINK THẬT
     # ========================================================================
-    CV_PDF_URL = "https://drive.google.com/file/d/1GbDDNIsG37tsVW4cMwHK8nZ3k8xmNKtY/view?usp=drive_link">⬇ Tải file CV PDF</a>
+    CV_PDF_URL = "https://drive.google.com/file/d/1GbDDNIsG37tsVW4cMwHK8nZ3k8xmNKtY/view?usp=drive_link"
     CERT_URL = ""
     DEMO_URL = ""
     CONTACT_EMAIL = "nguyen.support999@gmail.com"

@@ -4510,6 +4510,19 @@ st.markdown("""
         const observer = new MutationObserver(hideManageApp);
         observer.observe(document.body, { childList: true, subtree: true });
     </script>
+            /* Khử padding của iframe wrapper (components.html) */
+        [data-testid="stIFrame"],
+        iframe[title="streamlit_components.v1.html"] {
+            padding: 0 !important;
+            margin: 0 !important;
+            border: none !important;
+            display: block !important;
+        }
+        /* Element container bọc iframe cũng có thể có margin */
+        [data-testid="element-container"]:has(iframe) {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
+        }
 """, unsafe_allow_html=True)
 
 st.markdown("""

@@ -6752,16 +6752,21 @@ def _load_tenant_module(folder, prefix, ma_so_thue):
     Thử import '{folder}.{prefix}_{ma_so_thue}' trước; nếu module không tồn tại (tenant
     chưa có file riêng) hoặc lỗi import, trả về None để nơi gọi tự rơi về file mặc định
     '{folder}.{prefix}_demo'."""
-    import importlib
+    import importlib, traceback
     if not ma_so_thue:
         return None
     ten_module = f"{prefix}_{ma_so_thue}"
+    full_name = f"{folder}.{ten_module}"
     try:
-        return importlib.import_module(f"{folder}.{ten_module}")
-    except ModuleNotFoundError:
+        return importlib.import_module(full_name)
+    except ModuleNotFoundError as e:
+        st.warning(f"⚠️ Không tìm thấy module `{full_name}`: {e}")
         return None
     except Exception as e:
-        print(f"Lỗi import {folder}.{ten_module}: {e}")
+        # === DEBUG: hiện lỗi THẬT ra UI ===
+        st.error(f"🚨 LỖI IMPORT `{full_name}`: **{type(e).__name__}**: {e}")
+        with st.expander("🔍 Xem chi tiết Traceback"):
+            st.code(traceback.format_exc(), language="python")
         return None
 
 

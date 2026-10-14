@@ -4419,7 +4419,7 @@ if not st.session_state.get('tenant'):
 
 st.markdown("""
     <style>
-        /* ===== ẨN MANAGE APP - dùng mọi selector có thể ===== */
+        /* ===== ẨN MANAGE APP ===== */
         [data-testid="stToolbar"],
         [data-testid="manage-app-button"],
         [data-testid="stAppDeployButton"],
@@ -4430,52 +4430,60 @@ st.markdown("""
         div[class*="viewerBadge"],
         div[class*="manage-app"],
         button[kind="managedApp"],
-        [data-testid="stBottom"] > div:last-child { 
-            display: none !important; 
+        [data-testid="stBottom"] > div:last-child {
+            display: none !important;
             visibility: hidden !important;
             opacity: 0 !important;
             pointer-events: none !important;
         }
         footer[data-testid] { display: none !important; }
 
-        /* ===== PADDING TOP / BOTTOM = 5px ===== */
-        .stApp > div[data-testid="stAppViewContainer"] > section[data-testid="stMain"] > div {
-            padding-top: 5px !important;
-            padding-bottom: 5px !important;
+        /* ===== TRIỆT TIÊU KHOẢNG TRỐNG TRÊN/DƯỚI =====
+           Streamlit bọc nội dung qua nhiều lớp; phải set padding/margin = 0
+           cho TẤT CẢ các lớp có thể sinh khoảng trống, nếu không đoạn CSS cũ
+           chỉ chạm được lớp ngoài mà lớp trong vẫn còn margin/padding mặc định. */
+        .stApp > div[data-testid="stAppViewContainer"] > section[data-testid="stMain"] > div,
+        .stApp > div[data-testid="stAppViewContainer"] > section[data-testid="stMain"] > div > div,
+        .block-container,
+        [data-testid="stMainBlockContainer"],
+        [data-testid="stVerticalBlock"] > div:first-child,
+        [data-testid="stVerticalBlock"] > div:last-child {
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
         }
         .block-container {
             padding-top: 5px !important;
             padding-bottom: 5px !important;
+        }
+        /* Nếu vẫn còn khoảng trống: ép cả khoảng cách giữa các phần tử con */
+        [data-testid="stAppViewContainer"] > section > div:first-child {
+            margin-top: 0 !important;
+            padding-top: 0 !important;
         }
 
         /* ===== LOGO SIDEBAR: hình tròn đổ bóng, căn giữa HOÀN TOÀN ===== */
         [data-testid="stSidebar"] > div:first-child {
             padding-top: 0 !important;
         }
-        
-        /* TẤT CẢ các container chứa ảnh trong sidebar đều phải có width:100% và flex center */
         [data-testid="stSidebar"] [data-testid="element-container"] {
             width: 100% !important;
             display: flex !important;
             justify-content: center !important;
         }
-        
         [data-testid="stSidebar"] [data-testid="element-container"] [data-testid="stImage"] {
             width: 100% !important;
             display: flex !important;
             justify-content: center !important;
             align-items: center !important;
         }
-        
-        /* Bản thân thẻ <img> nằm bên trong div con của stImage */
         [data-testid="stSidebar"] [data-testid="stImage"] > div {
             display: flex !important;
             justify-content: center !important;
             align-items: center !important;
             width: 100% !important;
         }
-        
-        /* QUAN TRỌNG: style cho chính thẻ img */
         [data-testid="stSidebar"] [data-testid="stImage"] img {
             width: 150px !important;
             height: 150px !important;
@@ -4503,7 +4511,6 @@ st.markdown("""
             });
         }
         hideManageApp();
-        // Quan sát DOM liên tục — bắt được dù Streamlit render trễ
         const observer = new MutationObserver(hideManageApp);
         observer.observe(document.body, { childList: true, subtree: true });
     </script>

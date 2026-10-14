@@ -4514,6 +4514,35 @@ st.markdown("""
         const observer = new MutationObserver(hideManageApp);
         observer.observe(document.body, { childList: true, subtree: true });
     </script>
+    st.markdown("""
+    <script>
+    (function() {
+        function xoaKhoangTrongTop() {
+            // Ép trực tiếp mọi lớp có thể sinh padding-top
+            var targets = [
+                document.querySelector('.block-container'),
+                document.querySelector('[data-testid="stMainBlockContainer"]'),
+                document.querySelector('[data-testid="stAppViewContainer"] section > div'),
+                document.querySelector('[data-testid="stAppViewContainer"] section > div > div'),
+                document.querySelector('[data-testid="stVerticalBlock"]')
+            ];
+            targets.forEach(function(el) {
+                if (el) {
+                    el.style.paddingTop = '0';
+                    el.style.marginTop = '0';
+                }
+            });
+        }
+        xoaKhoangTrongTop();
+        // Chạy lại mỗi khi DOM thay đổi (Streamlit render sau)
+        const obs = new MutationObserver(xoaKhoangTrongTop);
+        obs.observe(document.body, { childList: true, subtree: true });
+        // Fallback chạy lại vài lần
+        setTimeout(xoaKhoangTrongTop, 300);
+        setTimeout(xoaKhoangTrongTop, 1000);
+    })();
+    </script>
+    """, unsafe_allow_html=True)
 """, unsafe_allow_html=True)
 
 # ===== LÀM MỜ MỌI NÚT THAY ĐỔI DB KHI VAI TRÒ LÀ "XEM TOÀN BỘ" =====

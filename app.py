@@ -6802,25 +6802,12 @@ def _load_tenant_module_or_demo(folder, prefix, ma_so_thue):
 
 
 def render_landing_page():
+    """Hiển thị Landing Page giới thiệu cho tenant đang đăng nhập.
+    Mỗi tenant có thể có Landing Page riêng: landing_page/landing_{ma_so_thue}.py
+    Tenant nào chưa có file riêng sẽ dùng landing_page/landing_demo.py làm mặc định."""
     tenant = st.session_state.get('tenant') or {}
     ma_so_thue = (tenant.get('ma_so_thue') or '').strip()
-    
-    # === DEBUG TẠM THỜI ===
-    st.write(f"🐛 DEBUG - MST tenant: `{ma_so_thue}`")
-    import os
-    folder_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'landing_page')
-    st.write(f"🐛 DEBUG - Folder landing_page: `{folder_path}`")
-    if os.path.isdir(folder_path):
-        st.write(f"🐛 DEBUG - Files trong folder: `{os.listdir(folder_path)}`")
-    else:
-        st.write("🐛 DEBUG - Folder landing_page KHÔNG TỒN TẠI!")
-    # === HẾT DEBUG ===
-    
     module = _load_tenant_module_or_demo('landing_page', 'landing', ma_so_thue)
-    st.write(f"🐛 DEBUG - Module load được: `{module}`")
-    if module is not None:
-        st.write(f"🐛 DEBUG - Có hàm render? `{hasattr(module, 'render')}`")
-    
     if module is not None and hasattr(module, 'render'):
         module.render()
     else:
@@ -7039,6 +7026,24 @@ if not st.session_state.logged_in:
             Nếu không thấy, bấm vào biểu tượng <b>›</b> (mũi tên) ở góc trên bên trái màn hình để mở ra.
         </div>
     """, unsafe_allow_html=True)
+    # ⬇️⬇️⬇️ THÊM ĐOẠN NÀY ĐỂ GIẢM KHOẢNG TRỐNG TOP ⬇️⬇️⬇️
+    st.markdown("""
+    <style>
+        /* Giảm khoảng trống phía trên cùng của trang đăng nhập */
+        .stApp > div[data-testid="stAppViewContainer"] > section[data-testid="stMain"] > div:first-child {
+            padding-top: 0px !important;
+            margin-top: 0px !important;
+        }
+        .stMain .block-container {
+            padding-top: 0px !important;
+            margin-top: 0px !important;
+        }
+        div[data-testid="stAppViewContainer"] > section[data-testid="stMain"] {
+            top: 0 !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    # ⬆️⬆️⬆️ HẾT ĐOẠN THÊM ⬆️⬆️⬆️
     render_landing_page()
 
     st.stop()

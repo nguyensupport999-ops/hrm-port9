@@ -9641,14 +9641,7 @@ elif menu == "✅ Nhân viên":
                                         if f'convert_open_{nv_id_key}' not in st.session_state:
                                             st.session_state[f'convert_open_{nv_id_key}'] = False
                                     
-                                        if not st.session_state[f'convert_open_{nv_id_key}']:
-                                            st.info("")
-                                            if False and st.button(f"🔄 CHUYỂN ĐỔI HĐLĐ - {selected_nv['ho_ten']}", 
-                                                        key=f"convert_hdld_btn_{nv_id_key}", 
-                                                        width='stretch', type="primary"):
-                                                st.session_state[f'convert_open_{nv_id_key}'] = True
-                                                st.rerun()
-                                        else:
+                                        if st.session_state[f'convert_open_{nv_id_key}']:
                                             st.markdown("---")
                                             st.markdown("### 📝 CHUYỂN ĐỔI HỢP ĐỒNG LAO ĐỘNG")
                                             st.caption("Vui lòng nhập đầy đủ thông tin cho quyết định chuyển đổi")

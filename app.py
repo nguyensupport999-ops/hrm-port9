@@ -8079,43 +8079,21 @@ elif menu == "📊 Dashboard":
                 df_table = pd.DataFrame(table_data)
                 # Dùng bảng HTML nền trong suốt thay cho st.dataframe (st.dataframe tự vẽ nền riêng, không đổi được)
                 html_table = df_table.to_html(index=False, border=0, classes="bang-pb", escape=True)
-                st.markdown(f"""
-                <style>
-                .khung-bang-pb {{
-                    height: 280px;
-                    overflow-y: auto;
-                    background: transparent;
-                }}
-                table.bang-pb {{
-                    width: 100%;
-                    border-collapse: collapse;
-                    background: transparent;
-                    font-size: 13px;
-                    color: #3e221b;
-                }}
-                table.bang-pb thead th {{
-                    position: sticky;
-                    top: 0;
-                    background: #f3ddd5;
-                    color: #552416;
-                    text-align: left;
-                    padding: 6px 8px;
-                    border-bottom: 2px solid #ce6346;
-                }}
-                table.bang-pb tbody td {{
-                    padding: 5px 8px;
-                    border-bottom: 1px solid rgba(85, 36, 22, 0.15);
-                    background: transparent;
-                }}
-                table.bang-pb tbody td:not(:first-child) {{
-                    text-align: center;
-                }}
-                table.bang-pb thead th:not(:first-child) {{
-                    text-align: center;
-                }}
-                </style>
-                <div class="khung-bang-pb">{html_table}</div>
-                """, unsafe_allow_html=True)
+                html_table = html_table.replace("\n", "")
+                css_bang = (
+                    "<style>"
+                    ".khung-bang-pb{height:280px;overflow-y:auto;background:transparent;}"
+                    "table.bang-pb{width:100%;border-collapse:collapse;background:transparent;font-size:13px;color:#3e221b;}"
+                    "table.bang-pb thead th{position:sticky;top:0;background:#f3ddd5;color:#552416;text-align:left;padding:6px 8px;border-bottom:2px solid #ce6346;}"
+                    "table.bang-pb tbody td{padding:5px 8px;border-bottom:1px solid rgba(85,36,22,0.15);background:transparent;}"
+                    "table.bang-pb tbody td:not(:first-child){text-align:center;}"
+                    "table.bang-pb thead th:not(:first-child){text-align:center;}"
+                    "</style>"
+                )
+                st.markdown(
+                    css_bang + '<div class="khung-bang-pb">' + html_table + '</div>',
+                    unsafe_allow_html=True
+                )
             else:
                 st.info("Không có dữ liệu")
 

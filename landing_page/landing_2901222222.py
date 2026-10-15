@@ -449,15 +449,15 @@ def render():
       <div class="hp-metrics-grid">
         <div class="hp-metric-card">
           <div class="hp-metric-num"><small>~</small>24.000</div>
-          <div class="hp-metric-label">Dòng mã nguồn, phần lớn do AI Agent viết theo yêu cầu tôi mô tả</div>
+          <div class="hp-metric-label">Dòng mã nguồn, phần lớn do AI Agent viết theo mô tả của tôi</div>
         </div>
         <div class="hp-metric-card">
           <div class="hp-metric-num"><small>≈</small>40<small>%</small></div>
-          <div class="hp-metric-label">Thời gian xử lý một số thủ tục hành chính được rút ngắn so với làm bằng Excel</div>
+          <div class="hp-metric-label">Thời gian xử lý một số tác nghiệp HCNS được rút ngắn so với làm bằng Excel</div>
         </div>
         <div class="hp-metric-card">
-          <div class="hp-metric-num">80<small>+</small></div>
-          <div class="hp-metric-label">Nhân viên đang dùng hệ thống trong công việc hằng ngày</div>
+          <div class="hp-metric-num">200<small>+</small></div>
+          <div class="hp-metric-label">User đang dùng hệ thống</div>
         </div>
         <div class="hp-metric-card">
           <div class="hp-metric-num">10<small>+</small></div>
@@ -465,7 +465,7 @@ def render():
         </div>
       </div>
       <p class="hp-note">
-        Các con số trên được ghi nhận trong quá trình vận hành tại một đơn vị cụ thể, trong thời gian chưa dài.
+        Các con số trên được ghi nhận trong quá trình vận hành tại các đơn vị cụ thể, trong thời gian chưa dài.
         Tôi xem đó là tín hiệu để tiếp tục cải tiến, chưa phải kết luận chung cho mọi doanh nghiệp.
       </p>
     </div>
@@ -602,12 +602,12 @@ def render():
   <section class="hp-sec">
     <div class="hp-wrap">
       <div class="hp-kicker">Hành trình nghề nghiệp</div>
-      <h2>Mô tả <em>vắn tắt</em> hành trình</h2>
+      <h2>Mô tả <em>tóm tắt</em> hành trình</h2>
       <div class="hp-timeline">
         <div class="hp-tl-item milestone">
-          <div class="hp-tl-date">6 tháng gần đây</div>
-          <h3>Hành chính nhân sự</h3>
-          <p>Đảm nhận chức danh Hành chính nhân sự. Overtime tự học Vibe Coding để code phần mềm.</p>
+          <div class="hp-tl-date">5/2026 đến nay</div>
+          <h3>CV Hành chính nhân sự</h3>
+          <p>Đảm nhận chức danh CV Hành chính nhân sự tại công ty hiện tại. Tự học Vibe Coding vào thời gian ngoài giờ để Build Web app.</p>
         </div>
         <div class="hp-tl-item">
           <div class="hp-tl-date">2023 - 04/2026</div>

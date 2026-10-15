@@ -28,7 +28,7 @@ def render():
     # LINK TẢI CV (PDF) & TẢI BẰNG CẤP/CHỨNG CHỈ — ANH THAY BẰNG LINK THẬT
     # ========================================================================
     CV_PDF_URL = "https://drive.google.com/file/d/1GbDDNIsG37tsVW4cMwHK8nZ3k8xmNKtY/view?usp=drive_link"
-    CERT_URL = ""
+    CERT_URL = "https://drive.google.com/file/d/1iIGPnp_71rhRtX4h_5oys5XdMByygQha/view?usp=drive_link"
     DEMO_URL = ""
     CONTACT_EMAIL = "nguyen.support999@gmail.com"
 
@@ -55,8 +55,8 @@ def render():
         )
 
     _demo_btn = (
-        f'<a class="hp-btn" href="{DEMO_URL}" target="_blank" rel="noopener noreferrer">'
-        f'&#9654; Xem bản DEMO HRM Master</a>'
+        f'<a class="hp-btn" style="cursor: default;">'
+        f'&#9664; Nhấn nút đăng nhập để trải nghiệm App</a>'
     )
 
     # ========================================================================
@@ -597,26 +597,45 @@ def render():
     </div>
   </section>
 
-  <!-- ================= CONTACT / CTA ================= -->
-  <section class="hp-sec" style="text-align: center; padding-bottom: 50px;">
+  <!-- ================= CAREER JOURNEY ================= -->
+     
+  <section class="hp-sec">
     <div class="hp-wrap">
-      <div class="hp-kicker" style="justify-content: center; display: flex;">Liên hệ</div>
-      <h2>Hãy <em>kết nối</em> với tôi</h2>
-      <p style="max-width: 50ch; margin: 10px auto 20px; color: var(--ink-soft); font-size: 15px; text-align: justify;">
-        Tôi luôn sẵn sàng chia sẻ về hành trình này, hoặc thảo luận về cách AI có thể giúp ích cho công việc quản trị của bạn.
-      </p>
-      <div class="hp-cta-row" style="justify-content: center;">
-        {_demo_btn}
-        {_cv_btn}
-        {_cert_btn}
+      <div class="hp-kicker">Hành trình nghề nghiệp</div>
+      <h2>Mô tả <em>vắn tắt</em> hành trình</h2>
+      <div class="hp-timeline">
+        <div class="hp-tl-item milestone">
+          <div class="hp-tl-date">6 tháng gần đây</div>
+          <h3>Hành chính nhân sự</h3>
+          <p>Đảm nhận chức danh Hành chính nhân sự. Overtime tự học Vibe Coding để code phần mềm.</p>
+        </div>
+        <div class="hp-tl-item">
+          <div class="hp-tl-date">2023 - 04/2026</div>
+          <h3>Freelancer</h3>
+          <p>Job chính là tư vấn Du học &amp; XKLĐ.</p>
+        </div>
+        <div class="hp-tl-item">
+          <div class="hp-tl-date">2010 - 2022</div>
+          <h3>Khởi nghiệp và vận hành doanh nghiệp tự doanh</h3>
+          <p>Dịch vụ chính là Thương mại - Dịch vụ (DN bị ngừng kinh doanh sau COVID19).</p>
+        </div>
+        <div class="hp-tl-item">
+          <div class="hp-tl-date">1999 - 2010</div>
+          <h3>Tập Đoàn Bảo Việt</h3>
+          <p>Bắt đầu hành trình nghề nghiệp, được bổ nhiệm Trưởng phòng sau 03 năm công tác và đảm nhận đến lúc tác ra khởi nghiệp riêng.</p>
+        </div>
+        <div class="hp-tl-item">
+          <div class="hp-tl-date">1995 - 1999</div>
+          <h3>Sinh viên Khoa Quản trị KD</h3>
+          <p>Trường Đại học Kinh tế quốc dân (NEU).</p>
+        </div>
       </div>
     </div>
   </section>
-
   <!-- ================= FOOTER ================= -->
   <footer>
     <div class="hp-wrap">
-      <p style="margin: 0; text-align: justify;">© 2024 Nguyễn Văn Tuyến · Portfolio of Impact</p>
+      <p style="margin: 0; text-align: justify;">© 2026 Nguyễn Văn Tuyến · Portfolio of Impact</p>
     </div>
   </footer>
 

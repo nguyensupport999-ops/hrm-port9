@@ -64,7 +64,94 @@ from so_qldld_module import build_so_qldld_excel, render_tab_so_qldld
 import luong_bh_hieu_luc
 import chuan_hoa_the_thuc
 import openpyxl
+import json
+from decimal import Decimal
 
+# Toàn bộ trường hồ sơ nhan_vien có thể bị QĐNS làm thay đổi -> chụp lại TRƯỚC khi áp dụng QĐ
+SNAPSHOT_COLS = [
+    'chuc_vu', 'chuc_danh_nghe', 'phong_ban_lam_viec', 'noi_lam_viec', 'he_so_luong',
+    'loai_hop_dong', 'han_hop_dong_thang', 'so_hdld', 'ngay_ky_hd', 'ngay_chinh_thuc',
+    'trang_thai', 'ngay_ket_thuc', 'ly_do_nghi',
+    'trang_thai_bhxh', 'thang_bat_dau_bh', 'thang_ket_thuc_bh',
+    'phuong_an_dieu_chinh', 'thang_phuong_an',
+    'ngay_qd_ns', 'luong_bao_hiem',
+]
+
+def _json_default(o):
+    if isinstance(o, (date, datetime)):
+        return o.isoformat()
+    return str(o)          # Decimal, v.v.
+
+def dam_bao_cot_snapshot(cur):
+    cur.execute("ALTER TABLE quyet_dinh_nhan_su ADD COLUMN IF NOT EXISTS snapshot_truoc JSONB")
+
+def chup_snapshot_nv(db, nv_id):
+    cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute(f"SELECT {', '.join(SNAPSHOT_COLS)} FROM nhan_vien WHERE id = %s", (nv_id,))
+    row = cur.fetchone()
+    cur.close()
+    return dict(row) if row else {}
+
+def lsct_ghi_nhan(cur, nv_id, log, chi_thu_viec=False):
+    """Ghi nhận các dòng lich_su_cong_tac đang mở sắp bị đóng (để hoàn tác mở lại)."""
+    sql = "SELECT id, so_hop_dong FROM lich_su_cong_tac WHERE nhan_vien_id = %s AND den_ngay IS NULL"
+    if chi_thu_viec:
+        sql += " AND loai_hop_dong = 'Thử việc'"
+    cur.execute(sql, (nv_id,))
+    for r in cur.fetchall():
+        log["da_sua"].append({"id": r[0], "den_ngay": None, "so_hop_dong": r[1]})
+
+def hoan_tac_quyet_dinh(db, qd_id):
+    """Hoàn tác 1 QĐNS: trả hồ sơ NV + lịch sử công tác + lịch sử lương BH về trước QĐ, rồi xóa QĐ.
+    Ném ValueError nếu không hoàn tác được. KHÔNG commit — nơi gọi tự commit/rollback."""
+    cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    dam_bao_cot_snapshot(cur)
+    cur.execute("""SELECT id, so_qd, loai_qd, nhan_vien_id, gia_tri_truoc, snapshot_truoc
+                   FROM quyet_dinh_nhan_su WHERE id = %s""", (qd_id,))
+    qd = cur.fetchone()
+    if not qd:
+        raise ValueError("Không tìm thấy quyết định (có thể đã bị hoàn tác).")
+
+    cur.execute("SELECT so_qd FROM quyet_dinh_nhan_su WHERE nhan_vien_id = %s AND id > %s ORDER BY id",
+                (qd['nhan_vien_id'], qd_id))
+    moi_hon = [r['so_qd'] for r in cur.fetchall()]
+    if moi_hon:
+        raise ValueError("Nhân viên này có QĐ mới hơn: " + ", ".join(moi_hon) +
+                         ". Hãy hoàn tác các QĐ mới hơn trước.")
+
+    nv_id = qd['nhan_vien_id']
+    snap = qd['snapshot_truoc']
+    if isinstance(snap, str):
+        snap = json.loads(snap)
+
+    if snap:
+        cols = [c for c in SNAPSHOT_COLS if c in snap]          # whitelist, không tin key từ JSON
+        cur.execute(f"UPDATE nhan_vien SET {', '.join(c + ' = %s' for c in cols)} WHERE id = %s",
+                    [snap[c] for c in cols] + [nv_id])
+        lsct = snap.get('_lsct') or {}
+        for new_id in lsct.get('da_them', []):
+            cur.execute("DELETE FROM lich_su_cong_tac WHERE id = %s", (new_id,))
+        for r in lsct.get('da_sua', []):
+            cur.execute("UPDATE lich_su_cong_tac SET den_ngay = %s, so_hop_dong = %s WHERE id = %s",
+                        (r.get('den_ngay'), r.get('so_hop_dong'), r['id']))
+    else:
+        # QĐ cũ chưa có snapshot -> chỉ hoàn tác được các loại đơn giản dựa trên gia_tri_truoc
+        loai, gt = qd['loai_qd'], qd['gia_tri_truoc']
+        cot = {'BO_NHIEM': 'chuc_vu', 'MIEN_NHIEM': 'chuc_vu',
+               'DOI_CHUC_DANH': 'chuc_danh_nghe', 'DIEU_CHUYEN': 'phong_ban_lam_viec'}.get(loai)
+        if cot:
+            cur.execute(f"UPDATE nhan_vien SET {cot} = %s WHERE id = %s", (gt, nv_id))
+        elif loai != 'DIEU_CHINH_LUONG':
+            raise ValueError("QĐ này được tạo trước khi có tính năng snapshot nên không thể hoàn tác tự động.")
+
+    # Lương BH (QĐ điều chỉnh lương / QĐ kèm lương mới) — giữ nguyên logic cũ
+    luong_bh_hieu_luc.hoan_tac_khi_xoa_qd(db, qd_id)
+    cur.execute("DELETE FROM quyet_dinh_nhan_su WHERE id = %s", (qd_id,))
+    # (Tuỳ chọn) trả luôn số công văn đi tương ứng:
+    # cur.execute("DELETE FROM cong_van_di WHERE so_cong_van = %s AND loai_cong_van = 'QUYET_DINH'", (qd['so_qd'],))
+    cur.close()
+    return qd
+    
 def _auto_download_excel(file_data: bytes, filename: str):
     """Tự động kích hoạt tải file Excel ngay khi vừa tạo xong — không cần bấm thêm nút Tải."""
     b64 = base64.b64encode(file_data).decode()
@@ -4120,6 +4207,9 @@ def show_quan_ly_cong_van():
                                 try:
                                     db_s = st.session_state.db_engine.get_connection()
                                     c_s = db_s.cursor()
+                                    dam_bao_cot_snapshot(c_s)
+                                    snap = chup_snapshot_nv(db_s, nv_qd['id'])     # trạng thái hồ sơ TRƯỚC khi áp dụng QĐ
+                                    lsct_log = {"da_sua": [], "da_them": []}
                                     c_s.execute("""
                                         UPDATE cong_van_di SET tieu_de=%s, trich_yeu=%s, ma_vach_buu_dien=%s
                                         WHERE id=%s
@@ -4330,6 +4420,9 @@ def show_quan_ly_cong_van():
                                 try:
                                     db_s = st.session_state.db_engine.get_connection()
                                     c_s = db_s.cursor()
+                                    dam_bao_cot_snapshot(c_s)
+                                    snap = chup_snapshot_nv(db_s, nv_qd['id'])     # trạng thái hồ sơ TRƯỚC khi áp dụng QĐ
+                                    lsct_log = {"da_sua": [], "da_them": []}
                                     c_s.execute("""
                                         UPDATE hop_dong_kinh_te SET ten_doi_tac=%s, trich_yeu=%s
                                         WHERE id=%s
@@ -5584,7 +5677,7 @@ def tao_quyet_dinh_nhan_su(nv, so_qd, ngay_qd, tieu_de, dieu1_lines, hieu_luc_te
     for extra_line in dieu1_lines[1:]:
         nd30_p(doc, extra_line, 14)
     _dieu('Điều 2.', hieu_luc_text or f'Quyết định này có hiệu lực kể từ ngày {ngay_qd.day}/{ngay_qd.month:02d}/{ngay_qd.year}.')
-    ten_thi_hanh = nguoi_thi_hanh or f"Ông/Bà {nv.get('ho_ten', '')}"
+    ten_thi_hanh = nguoi_thi_hanh or f"{get_xung_ho_trang_trong(nv.get('gioi_tinh'))} {nv.get('ho_ten', '')}"
     _dieu('Điều 3.', f"{ten_thi_hanh}, Trưởng {phong_to_chuc_ns} và các bộ phận có liên quan chịu trách nhiệm thi hành Quyết định này./.")
 
     nd30_noi_nhan_chu_ky(doc, ['- Như Điều 3;', '- Lưu: VT, HSNV.'],
@@ -5698,6 +5791,9 @@ def _luu_qd_dieu_chinh_luong(db_s, ds_dc, gop, ngay_qd, ngay_hl, ly_do):
     gop=True: 1 QĐ chung cho tất cả; gop=False: mỗi nhân viên 1 QĐ riêng.
     Trả về list[(so_qd, duong_dan_file_word)]."""
     c_s = db_s.cursor()
+    dam_bao_cot_snapshot(c_s)
+    snap = chup_snapshot_nv(db_s, nv_qd['id'])     # trạng thái hồ sơ TRƯỚC khi áp dụng QĐ
+    lsct_log = {"da_sua": [], "da_them": []}
     thang_ap = _thang_ap_dung_luong_bh(ngay_hl)
     hl_txt = ngay_hl.strftime('%d/%m/%Y')
     nhom = [ds_dc] if gop else [[x] for x in ds_dc]
@@ -8161,9 +8257,10 @@ elif menu == "📊 Dashboard":
             st.success(f"📅 Tháng {datetime.now().month} có **{len(sinh_nhat_trong_thang)}** nhân viên có sinh nhật:")
             
             # Hiển thị dạng grid
-            cols = st.columns(3)
+            so_cot_sn = 4 if len(sinh_nhat_trong_thang) > 10 else 3
+            cols = st.columns(so_cot_sn)
             for idx, sn in enumerate(sinh_nhat_trong_thang):
-                with cols[idx % 3]:
+                with cols[idx % so_cot_sn]:
                     ngay_sinh = sn.get('ngay_sinh')
                     if ngay_sinh:
                         # Tính tuổi
@@ -8403,20 +8500,6 @@ elif menu == "📊 Dashboard":
                         st.code(loi_chuc)
                         st.markdown(f"[👉 NHẤN VÀO ĐÂY ĐỂ GỬI QUA ZALO CHO {selected_sn['ho_ten']}](https://zalo.me/{sdt})")
                         st.success(f"✅ Đã sao chép nội dung! Vui lòng nhấn link Zalo để gửi.")
-                        
-                        # Lưu lịch sử
-                        try:
-                            db_log = st.session_state.db_engine.get_connection()
-                            cur_log = db_log.cursor()
-                            cur_log.execute("""
-                                INSERT INTO lich_su_gui_loi_chuc (nhan_vien_id, loai_chuc, noi_dung, kenh_gui, trang_thai)
-                                VALUES (%s, %s, %s, %s, %s)
-                            """, (selected_sn['id'], 'SINH_NHAT', loi_chuc[:500], 'ZALO', 'DA_GUI'))
-                            db_log.commit()
-                            db_log.close()
-                            st.toast("Đã lưu lịch sử gửi!", icon="✅")
-                        except:
-                            pass
                     else:
                         st.error("❌ Nhân viên chưa có số điện thoại! Vui lòng cập nhật SĐT trước.")
             
@@ -8463,16 +8546,6 @@ elif menu == "📊 Dashboard":
                             
                             st.success(f"✅ Đã gửi lời chúc sinh nhật qua email cho {xung_ho} {selected_sn['ho_ten']}!")
                             st.cache_data.clear()
-                            
-                            # Lưu lịch sử
-                            db_log = st.session_state.db_engine.get_connection()
-                            cur_log = db_log.cursor()
-                            cur_log.execute("""
-                                INSERT INTO lich_su_gui_loi_chuc (nhan_vien_id, loai_chuc, noi_dung, kenh_gui, trang_thai)
-                                VALUES (%s, %s, %s, %s, %s)
-                            """, (selected_sn['id'], 'SINH_NHAT', loi_chuc[:500], 'EMAIL', 'DA_GUI'))
-                            db_log.commit()
-                            db_log.close()
                         except Exception as e:
                             st.error(f"❌ Lỗi gửi email: {e}")
                     else:
@@ -10676,7 +10749,7 @@ elif menu == "✅ Nhân viên":
             db_qd = st.session_state.db_engine.get_connection()
             c_qd = db_qd.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             c_qd.execute("""
-                SELECT id, ma_nv, ho_ten, chuc_vu, chuc_danh_nghe, phong_ban_lam_viec, loai_hop_dong, trang_thai,
+                SELECT id, ma_nv, ho_ten, gioi_tinh, chuc_vu, chuc_danh_nghe, phong_ban_lam_viec, loai_hop_dong, trang_thai,
                         he_so_luong, noi_lam_viec, luong_bao_hiem
                 FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY ho_ten
             """)
@@ -10734,7 +10807,7 @@ elif menu == "✅ Nhân viên":
                         chon_nv_label = st.selectbox("👤 Chọn nhân viên:", list(nv_qd_options.keys()), key="qdns_chon_nv",
                                                       help="💡 Bấm vào ô rồi gõ tên/mã NV để lọc nhanh — không cần scroll (Ctrl+F trình duyệt không lọc được ô này).")
                         nv_qd = nv_qd_options[chon_nv_label]
-
+                        xh = get_xung_ho_trang_trong(nv_qd.get('gioi_tinh'))   # "Ông" / "Bà" / "Ông/Bà"
                         if loai_qd in ('CHUYEN_CHINH_THUC', 'CHAM_DUT_HD'):
                             col_info1, col_info2, col_info3 = st.columns(3)
                             col_info1.markdown(f"**Chức vụ hiện tại:** {nv_qd.get('chuc_vu') or 'Nhân viên'}")
@@ -10782,7 +10855,7 @@ elif menu == "✅ Nhân viên":
                                     phong_ban_moi_bn = st.selectbox("🏢 Phòng ban mới:", ds_phong_ban, index=idx_pb_bn,
                                                                     key=f"qdns_pb_bonhiem_{nv_qd['id']}") if ds_phong_ban else pb_hien_tai_bn
                             tieu_de = f"Bổ nhiệm chức vụ {chuc_vu_moi}"
-                            dieu1_lines = [f"Bổ nhiệm Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) giữ chức vụ {chuc_vu_moi} kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
+                            dieu1_lines = [f"Bổ nhiệm {xh} {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) giữ chức vụ {chuc_vu_moi} kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
                             chi_tiet_bn = []
                             if chuc_danh_moi_bn.strip() and chuc_danh_moi_bn.strip() != cd_hien_tai_bn:
                                 chi_tiet_bn.append(f"chức danh {chuc_danh_moi_bn.strip()}")
@@ -10806,7 +10879,7 @@ elif menu == "✅ Nhân viên":
                                 chuc_vu_mien = st.selectbox("🏷️ Chức vụ bị miễn nhiệm:", ds_chuc_vu_tenant, index=idx_mn,
                                                             key=f"qdns_cv_miennhiem_{nv_qd['id']}")
                             tieu_de = f"Miễn nhiệm chức vụ {chuc_vu_mien}"
-                            dieu1_lines = [f"Miễn nhiệm chức vụ {chuc_vu_mien} đối với Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
+                            dieu1_lines = [f"Miễn nhiệm chức vụ {chuc_vu_mien} đối với {xh} {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
                             gia_tri_truoc = cv_hien_tai
                             gia_tri_sau = 'Nhân viên'
                             if cv_hien_tai == 'Nhân viên':
@@ -10829,7 +10902,7 @@ elif menu == "✅ Nhân viên":
                             if not ds_cd_moi:
                                 st.caption("ℹ️ Chưa có chức danh nào khác trong danh mục — thêm tại Ứng viên › Quản lý danh mục vị trí/chức danh.")
                             tieu_de = f"Thay đổi chức danh - {nv_qd['ho_ten']}"
-                            dieu1_lines = [f"Thay đổi chức danh của Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) từ '{nv_qd.get('chuc_danh_nghe') or ''}' thành '{chuc_danh_moi}' kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
+                            dieu1_lines = [f"Thay đổi chức danh của {xh} {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) từ '{nv_qd.get('chuc_danh_nghe') or ''}' thành '{chuc_danh_moi}' kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
                             gia_tri_truoc = nv_qd.get('chuc_danh_nghe') or ''
                             gia_tri_sau = chuc_danh_moi
                             if not chuc_danh_moi.strip():
@@ -10856,7 +10929,7 @@ elif menu == "✅ Nhân viên":
                                 ok_to_submit = False
                                 st.error("⚠️ Phòng ban đến phải khác phòng ban hiện tại.")
                             tieu_de = f"Điều chuyển công tác - {nv_qd['ho_ten']}"
-                            dieu1_lines = [f"Điều chuyển Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) từ {phong_hien_tai or '(chưa xác định)'} sang {phong_moi or '(chưa xác định)'} kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
+                            dieu1_lines = [f"Điều chuyển {xh} {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) từ {phong_hien_tai or '(chưa xác định)'} sang {phong_moi or '(chưa xác định)'} kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."]
                             gia_tri_truoc = phong_hien_tai
                             gia_tri_sau = phong_moi
                             if not (phong_moi or '').strip():
@@ -10929,7 +11002,7 @@ elif menu == "✅ Nhân viên":
                                 so_hd_tv_cu_ct = nv_qd.get('so_hdld', '')
                                 tieu_de = f"Chuyển đổi HĐTV sang HĐLĐ - {nv_qd['ho_ten']}"
                                 dieu1_lines = [
-                                    f"Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) đã hoàn thành thời gian thử việc.",
+                                    f"{xh} {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) đã hoàn thành thời gian thử việc.",
                                     f"Chuyển sang Hợp đồng lao động {loai_hd_moi_lbl.lower()} (số {so_hd_moi_ct}) kể từ ngày {ngay_hieu_luc_ct.strftime('%d/%m/%Y')}."
                                 ]
                                 hieu_luc_text = f"Quyết định có hiệu lực kể từ ngày {ngay_hieu_luc_ct.strftime('%d/%m/%Y')}."
@@ -10968,11 +11041,11 @@ elif menu == "✅ Nhân viên":
                                                       placeholder="VD: Hết hạn hợp đồng, Xin nghỉ theo nguyện vọng cá nhân, Chuyển công tác...")
                             tieu_de = f"Chấm dứt {nhan_hd} - {nv_qd['ho_ten']}"
                             dieu1_lines = [
-                                f"Chấm dứt {nhan_hd} đối với Ông/Bà {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."
+                                f"Chấm dứt {nhan_hd} đối với {xh} {nv_qd['ho_ten']} ({nv_qd['ma_nv']}) kể từ ngày {ngay_qd.strftime('%d/%m/%Y')}."
                             ]
                             if ly_do_cd.strip():
                                 dieu1_lines.append(f"Lý do: {ly_do_cd.strip()}.")
-                            hieu_luc_text = f"Ông/Bà {nv_qd['ho_ten']} có trách nhiệm bàn giao công việc, tài sản (nếu có) trước ngày {ngay_qd.strftime('%d/%m/%Y')}."
+                            hieu_luc_text = f"{xh} {nv_qd['ho_ten']} có trách nhiệm bàn giao công việc, tài sản (nếu có) trước ngày {ngay_qd.strftime('%d/%m/%Y')}."
                             gia_tri_truoc = loai_hd_hien_tai
                             gia_tri_sau = 'NGHI_VIEC'
 
@@ -11025,6 +11098,9 @@ elif menu == "✅ Nhân viên":
 
                             db_s = st.session_state.db_engine.get_connection()
                             c_s = db_s.cursor()
+                            dam_bao_cot_snapshot(c_s)
+                            snap = chup_snapshot_nv(db_s, nv_qd['id'])     # trạng thái hồ sơ TRƯỚC khi áp dụng QĐ
+                            lsct_log = {"da_sua": [], "da_them": []}
 
                             # Bảng quyet_dinh_nhan_su ở một số môi trường có thêm nhiều cột legacy
                             # (NOT NULL, không có default) song song với các cột chuẩn mà code dùng
@@ -11057,7 +11133,6 @@ elif menu == "✅ Nhân viên":
                             elif loai_qd == 'CHUYEN_CHINH_THUC':
                                 loai_hd_moi_final = gia_tri_sau  # loại HĐ mới (Xác định/Không xác định thời hạn)
                             elif loai_qd == 'CHAM_DUT_HD':
-                                loai_hd_moi_final = 'Đã chấm dứt'
                                 loai_hd_moi_final = 'Đã chấm dứt'
 
                             chuc_danh_cu_v = chuc_danh_moi_v = None
@@ -11187,6 +11262,7 @@ elif menu == "✅ Nhân viên":
                                 """, (loai_hop_dong_luu_ct, han_hd_thang_ct, so_hd_moi_ct, ngay_qd, ngay_hieu_luc_ct,
                                       ngay_bat_dau_bh_ct, pa_ct_val, format_thang_nam(ngay_bat_dau_bh_ct), nv_qd['id']))
                                 # Đóng lịch sử công tác cũ (thử việc)
+                                lsct_ghi_nhan(c_s, nv_qd['id'], lsct_log, chi_thu_viec=True)
                                 c_s.execute("""
                                     UPDATE lich_su_cong_tac 
                                     SET den_ngay = %s, so_hop_dong = %s
@@ -11196,7 +11272,7 @@ elif menu == "✅ Nhân viên":
                                 c_s.execute("""
                                     INSERT INTO lich_su_cong_tac (
                                         nhan_vien_id, tu_ngay, chuc_danh, phong_ban, noi_lam_viec, loai_hop_dong, he_so_luong, so_hop_dong
-                                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
                                 """, (
                                     nv_qd['id'], ngay_hieu_luc_ct,
                                     nv_qd.get('chuc_danh_nghe', ''),
@@ -11204,6 +11280,7 @@ elif menu == "✅ Nhân viên":
                                     nv_qd.get('noi_lam_viec') or get_cau_hinh('noi_lam_viec', 'Cảng THQT Hòn La'),
                                     loai_hop_dong_luu_ct, nv_qd.get('he_so_luong', 0), so_hd_moi_ct
                                 ))
+                                lsct_log["da_them"].append(c_s.fetchone()[0])
                                 loai_hd_moi_final = loai_hop_dong_luu_ct
 
                             # Cập nhật thêm Chức danh/Phòng ban vào hồ sơ nếu QĐ này làm thay đổi các
@@ -11229,11 +11306,13 @@ elif menu == "✅ Nhân viên":
                             # là QĐ chấm dứt HĐ, mở thêm 1 dòng mới kể từ ngày QĐ có hiệu lực — để lịch sử
                             # công tác phản ánh đúng mốc thay đổi thay vì chỉ thấy giá trị mới nhất.
                             if loai_qd == 'CHAM_DUT_HD':
+                                lsct_ghi_nhan(c_s, nv_qd['id'], lsct_log)
                                 c_s.execute("""
                                     UPDATE lich_su_cong_tac SET den_ngay = %s
                                     WHERE nhan_vien_id = %s AND den_ngay IS NULL
                                 """, (ngay_qd, nv_qd['id']))
                             elif chuc_danh_cu_v is not None or phong_ban_cu_v is not None or loai_hd_cu_v is not None:
+                                lsct_ghi_nhan(c_s, nv_qd['id'], lsct_log)
                                 c_s.execute("""
                                     UPDATE lich_su_cong_tac SET den_ngay = %s
                                     WHERE nhan_vien_id = %s AND den_ngay IS NULL
@@ -11241,12 +11320,13 @@ elif menu == "✅ Nhân viên":
                                 c_s.execute("""
                                     INSERT INTO lich_su_cong_tac
                                         (nhan_vien_id, tu_ngay, chuc_danh, phong_ban, noi_lam_viec, loai_hop_dong, he_so_luong)
-                                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
                                 """, (
                                     nv_qd['id'], ngay_qd, chuc_danh_nghe_moi_final, phong_ban_moi_final,
                                     nv_qd.get('noi_lam_viec') or get_cau_hinh('noi_lam_viec', 'Cảng THQT Hòn La'),
                                     loai_hd_moi_final, nv_qd.get('he_so_luong', 0)
                                 ))
+                                lsct_log["da_them"].append(c_s.fetchone()[0])
 
                             # Mức lương BH mới kèm QĐ: ghi lịch sử lương theo đúng logic QĐ điều chỉnh mức lương
                             if luong_bh_moi_qd:
@@ -11258,8 +11338,11 @@ elif menu == "✅ Nhân viên":
                                 """, (nv_qd['id'], qd_id_moi, so_qd, ngay_qd, ngay_qd, _thang_ap_dung_luong_bh(ngay_qd),
                                       luong_bh_cu_qd, luong_bh_moi_qd, f"Kèm {LOAI_QDNS_LABEL[loai_qd]}", st.session_state.username))
                                 luong_bh_hieu_luc.dong_bo_luong_vao_ho_so(db_s, commit=False)
-
-                            db_s.commit()
+                                                        snap["_lsct"] = lsct_log
+                            snap["_loai_qd"] = loai_qd
+                            c_s.execute("UPDATE quyet_dinh_nhan_su SET snapshot_truoc = %s::jsonb WHERE id = %s",
+                                        (json.dumps(snap, default=_json_default, ensure_ascii=False), qd_id_moi))
+                           
                             db_s.close()
 
                             if loai_qd == 'DIEU_CHUYEN':
@@ -11329,19 +11412,21 @@ elif menu == "✅ Nhân viên":
                 for h, txt in zip((h1, h2, h3, h4, h5), ("Số QĐ", "Loại QĐ", "Ngày QĐ", "Nhân viên", "Nội dung")):
                     h.markdown(f"**{txt}**")
                 st.divider()
-                for qd in lich_su_qd:
-                    r1, r2, r3, r4, r5, r6, r7 = st.columns([1.2, 1.3, 1, 1.6, 2.2, 0.6, 0.6])
-                    r1.write(qd['so_qd'])
-                    r2.write(LOAI_QDNS_LABEL.get(qd['loai_qd'], qd['loai_qd']))
-                    r3.write(format_date(qd['ngay_qd']))
-                    r4.write(f"{qd['ho_ten']} ({qd['ma_nv']})")
-                    r5.write(qd['noi_dung'] or '')
-                    if r6.button("✏️", key=f"sua_qd_{qd['id']}", help="Sửa Quyết định"):
-                        st.session_state['qdns_dang_sua'] = qd['id']
-                        st.rerun()
-                    if r7.button("🗑️", key=f"xoa_qd_{qd['id']}", help="Xóa Quyết định"):
-                        st.session_state['qdns_dang_xoa'] = qd['id']
-                        st.rerun()
+                # ~6 QĐ hiển thị, còn lại cuộn dọc (chỉnh height nếu muốn nhiều/ít hơn)
+                with st.container(height=650):
+                    for qd in lich_su_qd:
+                        r1, r2, r3, r4, r5, r6, r7 = st.columns([1.2, 1.3, 1, 1.6, 2.2, 0.6, 0.6])
+                        r1.write(qd['so_qd'])
+                        r2.write(LOAI_QDNS_LABEL.get(qd['loai_qd'], qd['loai_qd']))
+                        r3.write(format_date(qd['ngay_qd']))
+                        r4.write(f"{qd['ho_ten']} ({qd['ma_nv']})")
+                        r5.write(qd['noi_dung'] or '')
+                        if r6.button("✏️", key=f"sua_qd_{qd['id']}", help="Sửa Quyết định"):
+                            st.session_state['qdns_dang_sua'] = qd['id']
+                            st.rerun()
+                        if r7.button("↩️", key=f"hoantac_qd_{qd['id']}", help="Hoàn tác Quyết định"):
+                            st.session_state['qdns_dang_hoantac'] = qd['id']
+                            st.rerun()
 
                 # ----- Form SỬA Quyết định -----
                 if st.session_state.get('qdns_dang_sua'):
@@ -11376,36 +11461,43 @@ elif menu == "✅ Nhân viên":
                                     st.session_state.pop('qdns_dang_sua', None)
                                     st.rerun()
 
-                # ----- Xác nhận XÓA Quyết định -----
-                if st.session_state.get('qdns_dang_xoa'):
-                    qd_id_xoa = st.session_state['qdns_dang_xoa']
-                    qd_xoa = next((q for q in lich_su_qd if q['id'] == qd_id_xoa), None)
-                    if qd_xoa:
-                        st.warning(f"⚠️ Xác nhận xóa Quyết định số **{qd_xoa['so_qd']}** ({LOAI_QDNS_LABEL.get(qd_xoa['loai_qd'], qd_xoa['loai_qd'])} — {qd_xoa['ho_ten']})? "
-                                   f"Việc xóa KHÔNG tự động hoàn tác thay đổi đã áp dụng trên hồ sơ nhân viên.")
-                        col_xn_xoa, col_huy_xoa = st.columns(2)
-                        with col_xn_xoa:
-                            if st.button("🗑️ Xác nhận xóa", key=f"btn_xn_xoa_qd_{qd_id_xoa}", type="primary", width='stretch', disabled=not can_edit()):
+                # ----- Xác nhận HOÀN TÁC Quyết định -----
+                if st.session_state.get('qdns_dang_hoantac'):
+                    qd_id_ht = st.session_state['qdns_dang_hoantac']
+                    qd_ht = next((q for q in lich_su_qd if q['id'] == qd_id_ht), None)
+                    if qd_ht:
+                        st.warning(f"⚠️ Xác nhận HOÀN TÁC Quyết định số **{qd_ht['so_qd']}** "
+                                   f"({LOAI_QDNS_LABEL.get(qd_ht['loai_qd'], qd_ht['loai_qd'])} — {qd_ht['ho_ten']})? "
+                                   f"QĐ sẽ bị xóa và hồ sơ nhân viên được trả về trạng thái trước khi ban hành QĐ.")
+                        col_xn_ht, col_huy_ht = st.columns(2)
+                        with col_xn_ht:
+                            if st.button("↩️ Xác nhận hoàn tác", key=f"btn_xn_ht_qd_{qd_id_ht}", type="primary",
+                                         width='stretch', disabled=not can_edit()):
+                                db_d = st.session_state.db_engine.get_connection()
                                 try:
-                                    db_d = st.session_state.db_engine.get_connection()
-                                    c_d = db_d.cursor()
-                                    # QĐ điều chỉnh lương HOẶC QĐ bổ nhiệm/đổi chức danh/điều chuyển có kèm lương mới:
-                                    # trả lương BH về mức trước đó (không có bản ghi lương thì hàm không làm gì)
-                                    luong_bh_hieu_luc.hoan_tac_khi_xoa_qd(db_d, qd_id_xoa)
-                                    c_d.execute("DELETE FROM quyet_dinh_nhan_su WHERE id=%s", (qd_id_xoa,))
-                                    db_d.commit(); db_d.close()
-                                    st.session_state.pop('qdns_dang_xoa', None)
-                                    st.success("✅ Đã xóa Quyết định")
+                                    qd_da_ht = hoan_tac_quyet_dinh(db_d, qd_id_ht)
+                                    db_d.commit()
+                                    if qd_da_ht['loai_qd'] == 'DIEU_CHUYEN':
+                                        try:
+                                            chat_noi_bo.sync_department_rooms()
+                                        except Exception:
+                                            pass
+                                    st.session_state.pop('qdns_dang_hoantac', None)
                                     st.cache_data.clear()
+                                    st.success("✅ Đã hoàn tác Quyết định và khôi phục hồ sơ nhân viên")
                                     st.rerun()
+                                except ValueError as e:
+                                    db_d.rollback()
+                                    st.error(f"⚠️ {e}")
                                 except Exception as e:
-                                    st.error(f"❌ Lỗi: {e}")
-                        with col_huy_xoa:
-                            if st.button("✖️ Hủy", key=f"btn_huy_xoa_qd_{qd_id_xoa}", width='stretch'):
-                                st.session_state.pop('qdns_dang_xoa', None)
+                                    db_d.rollback()
+                                    st.error(f"❌ Lỗi hoàn tác: {e}")
+                                finally:
+                                    db_d.close()
+                        with col_huy_ht:
+                            if st.button("✖️ Hủy", key=f"btn_huy_ht_qd_{qd_id_ht}", width='stretch'):
+                                st.session_state.pop('qdns_dang_hoantac', None)
                                 st.rerun()
-            else:
-                st.info("Chưa có Quyết định nhân sự nào được tạo.")
 
     with tab_co_cau:
         st.subheader("📋 CƠ CẤU NHÂN SỰ THEO PHÒNG BAN")

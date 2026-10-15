@@ -7896,7 +7896,9 @@ elif menu == "📊 Dashboard":
                     height=280,
                     xaxis_title="",
                     yaxis_title="Số lượng",
-                    showlegend=False
+                    showlegend=False,
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)'
                 )
                 fig_edu.update_traces(textposition='outside')
                 st.plotly_chart(fig_edu, use_container_width=True)
@@ -7918,7 +7920,12 @@ elif menu == "📊 Dashboard":
                 # (sort=True), làm mất thứ tự ưu tiên phòng ban đã chuẩn hóa ở dept_data
                 # (sap_xep_phong_ban_rows theo PHONG_BAN_THU_TU). Tắt sort để giữ đúng thứ tự.
                 fig_dept.update_traces(sort=False)
-                fig_dept.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=280)
+                fig_dept.update_layout(
+                    margin=dict(t=0, b=0, l=0, r=0),
+                    height=280,
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)'
+                )
                 st.plotly_chart(fig_dept, use_container_width=True)
             else:
                 st.info("Không có dữ liệu")
@@ -8010,7 +8017,9 @@ elif menu == "📊 Dashboard":
                     height=280,
                     xaxis_title="",
                     yaxis_title="Số lượng",
-                    showlegend=False
+                    showlegend=False,
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)'
                 )
                 fig_trend.update_traces(
                     line=dict(color='#ca5536', width=3),
@@ -8119,7 +8128,7 @@ elif menu == "📊 Dashboard":
     c = db_sn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     # Tạo tabs cho sinh nhật
-    tab_trong_thang, tab_hom_nay, tab_lich_su = st.tabs(["📅 Sinh nhật trong tháng", "🎉 Hôm nay", "📜 Lịch sử đã gửi"])
+    tab_trong_thang, tab_hom_nay = st.tabs(["📅 Sinh nhật trong tháng", "🎉 Hôm nay"])
 
     with tab_trong_thang:
         # Lấy danh sách sinh nhật trong tháng
@@ -8321,41 +8330,6 @@ elif menu == "📊 Dashboard":
                 for sn in sinh_nhat_sap_toi:
                     xung_ho = get_xung_ho(sn.get('gioi_tinh'), sn['ho_ten'])
                     st.info(f"🎂 {xung_ho} **{sn['ho_ten']}** - {format_date(sn['ngay_sinh'])}")
-
-    with tab_lich_su:
-        if st.session_state.role in ("admin", "xem_toan_bo"):
-            st.subheader("📜 Lịch sử đã gửi lời chúc sinh nhật")
-            
-            # Kiểm tra bảng lịch sử tồn tại chưa
-            try:
-                c.execute("""
-                    SELECT ls.*, nv.ho_ten, nv.ma_nv
-                    FROM lich_su_gui_loi_chuc ls
-                    JOIN nhan_vien nv ON ls.nhan_vien_id = nv.id
-                    WHERE ls.loai_chuc = 'SINH_NHAT'
-                    ORDER BY ls.ngay_gui DESC
-                    LIMIT 50
-                """)
-                lich_su = c.fetchall()
-                
-                if lich_su:
-                    ls_data = []
-                    for ls in lich_su:
-                        ls_data.append({
-                            "Ngày gửi": format_date(ls['ngay_gui']),
-                            "Mã NV": ls['ma_nv'],
-                            "Họ tên": ls['ho_ten'],
-                            "Kênh gửi": ls['kenh_gui'],
-                            "Trạng thái": "✅ Đã gửi" if ls['trang_thai'] == 'DA_GUI' else ls['trang_thai']
-                        })
-                    df_ls = pd.DataFrame(ls_data)
-                    st.dataframe(df_ls, width='stretch', hide_index=True)
-                else:
-                    st.info("📭 Chưa có lịch sử gửi lời chúc nào.")
-            except Exception as e:
-                st.info("📭 Chưa có dữ liệu lịch sử. Bảng lịch sử có thể chưa được tạo.")
-        else:
-            st.info("🔒 Chỉ Admin mới xem được lịch sử gửi lời chúc.")
 
     db_sn.close()
 

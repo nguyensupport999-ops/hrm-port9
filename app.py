@@ -11338,7 +11338,7 @@ elif menu == "✅ Nhân viên":
                                 """, (nv_qd['id'], qd_id_moi, so_qd, ngay_qd, ngay_qd, _thang_ap_dung_luong_bh(ngay_qd),
                                       luong_bh_cu_qd, luong_bh_moi_qd, f"Kèm {LOAI_QDNS_LABEL[loai_qd]}", st.session_state.username))
                                 luong_bh_hieu_luc.dong_bo_luong_vao_ho_so(db_s, commit=False)
-                                                        snap["_lsct"] = lsct_log
+                            snap["_lsct"] = lsct_log
                             snap["_loai_qd"] = loai_qd
                             c_s.execute("UPDATE quyet_dinh_nhan_su SET snapshot_truoc = %s::jsonb WHERE id = %s",
                                         (json.dumps(snap, default=_json_default, ensure_ascii=False), qd_id_moi))

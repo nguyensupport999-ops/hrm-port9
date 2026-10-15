@@ -643,7 +643,7 @@ def render():
 """
 
     _landing_html = _css + _html_body
-    components.html(_landing_html, height=4200, scrolling=True)
+    components.html(_landing_html, height=4800, scrolling=True)
 
 
 if __name__ == "__main__":

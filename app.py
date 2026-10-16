@@ -7078,6 +7078,7 @@ if not st.session_state.logged_in:
         except Exception:
             # Link logo hỏng/không truy cập được — bỏ qua, không để sập cả trang đăng nhập.
             pass
+    st.sidebar.caption(f"🔧 Streamlit {st.__version__}")               ###Thông báo tạm
     st.sidebar.success(f"🏢 **{tenant['ten_cty']}**")
 
     st.sidebar.subheader(i18n.t("🔐 Đăng nhập"))
@@ -7222,45 +7223,35 @@ if not st.session_state.logged_in:
             }
         </style>
     """, unsafe_allow_html=True)
-    import streamlit.components.v1 as _comp_dn
-    _comp_dn.html("""
-    <button id="hrm-open-login" style="width:100%;padding:14px;font-size:17px;font-weight:600;
-        border:none;border-radius:10px;background:#d98771;color:#fff;">🔐 Đăng nhập</button>
-    <p id="hrm-open-login-hint" style="margin:6px 0 0;font-size:13px;color:#8e3c26;font-family:sans-serif;">
-        Nếu nút không mở được, bấm mũi tên › ở góc trên bên trái màn hình.</p>
-    <script>
-    (function() {
-        var btn = document.getElementById('hrm-open-login');
-        var hint = document.getElementById('hrm-open-login-hint');
-        var top = window.top;
-        if (top.innerWidth >= 769) {
-            btn.style.display = 'none';
-            hint.style.display = 'none';
-            try {
-                var fr = window.frameElement;
-                if (fr) {
-                    fr.style.display = 'none';
-                    fr.style.height = '0';
-                    if (fr.parentElement) {
-                        fr.parentElement.style.display = 'none';
-                        fr.parentElement.style.height = '0';
-                        fr.parentElement.style.margin = '0';
-                    }
-                }
-            } catch(e) {}
-            return;
-        }
-        btn.onclick = function() {
-            var d = top.document;
-            var el = d.querySelector('[data-testid="stExpandSidebarButton"]')
-                  || d.querySelector('[data-testid="stSidebarCollapsedControl"] button')
-                  || d.querySelector('[data-testid="collapsedControl"] button')
-                  || d.querySelector('[data-testid="baseButton-header"]');
-            if (el) el.click();
-        };
-    })();
-    </script>
-    """, height=90)
+    # ── Form đăng nhập trên MOBILE: nằm trong vùng nội dung chính, ẩn trên desktop ──
+    st.markdown("""
+    <style>
+        @media (min-width: 769px) { .st-key-login_mobile { display: none !important; } }
+    </style>
+    """, unsafe_allow_html=True)
+    with st.container(key="login_mobile"):
+        with st.form("form_dang_nhap_mobile"):
+            st.markdown("#### 🔐 Đăng nhập")
+            u_m = st.text_input(i18n.t("Số điện thoại hoặc Tên đăng nhập"),
+                                value=_demo_user_default, key="mob_user")
+            p_m = st.text_input(i18n.t("Mật khẩu"), type="password",
+                                value=_demo_pass_default, key="mob_pass")
+            bam_m = st.form_submit_button(i18n.t("Đăng nhập"), width='stretch')
+        if bam_m:
+            success_m, role_m, nv_row_m = check_login(u_m, p_m)
+            if success_m:
+                st.session_state.logged_in = True
+                st.session_state.role = role_m
+                st.session_state.vai_tro_phu = (nv_row_m.get('vai_tro_phu') or []) if nv_row_m else []
+                st.session_state.username = u_m
+                st.session_state.nhan_vien_id = nv_row_m['id'] if nv_row_m else None
+                st.session_state.ho_ten_dang_nhap = nv_row_m['ho_ten'] if nv_row_m else u_m
+                st.session_state.phai_doi_mat_khau = bool(nv_row_m and nv_row_m.get('phai_doi_mat_khau'))
+                st.rerun()
+            else:
+                st.error("❌ Sai tài khoản hoặc mật khẩu!")
+                if st.session_state.get('_debug_login_error'):
+                    st.caption(f"🔧 Debug: {st.session_state['_debug_login_error']}")
     # ⬇️⬇️⬇️ THÊM ĐOẠN NÀY ĐỂ GIẢM KHOẢNG TRỐNG TOP ⬇️⬇️⬇️
     st.markdown("""
     <style>

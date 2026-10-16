@@ -651,7 +651,14 @@ def render():
 """
 
     _landing_html = _css + _html_body
-    components.html(_landing_html, height=4800, scrolling=True)
+
+    # Chiều cao khung: desktop giữ 4800, điện thoại 6000 (các khối xếp dọc nên trang dài hơn)
+    try:
+        _ua = (st.context.headers.get("User-Agent") or "").lower()
+    except Exception:
+        _ua = ""
+    _la_mobile = any(k in _ua for k in ("mobi", "iphone", "android"))
+    components.html(_landing_html, height=6000 if _la_mobile else 4800, scrolling=True)
 
 
 if __name__ == "__main__":

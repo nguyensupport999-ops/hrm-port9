@@ -400,7 +400,11 @@ def render():
     #hrm-portfolio .hp-tagline { margin-left: auto; margin-right: auto; }
     #hrm-portfolio .hp-cta-row { justify-content: center; }
     #hrm-portfolio .hp-comp-grid { grid-template-columns: 1fr; }
-    #hrm-portfolio .hp-metrics-grid { grid-template-columns: 1fr 1fr; }
+    #hrm-portfolio .hp-metrics-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  }
+  @media (max-width: 520px) {
+    #hrm-portfolio .hp-metrics-grid { grid-template-columns: minmax(0, 1fr); }
+    #hrm-portfolio .hp-metric-num { font-size: 30px; }
   }
 </style>
 """

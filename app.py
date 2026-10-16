@@ -7078,7 +7078,7 @@ if not st.session_state.logged_in:
         except Exception:
             # Link logo hỏng/không truy cập được — bỏ qua, không để sập cả trang đăng nhập.
             pass
-    st.sidebar.caption(f"🔧 Streamlit {st.__version__}")               ###Thông báo tạm
+    
     st.sidebar.success(f"🏢 **{tenant['ten_cty']}**")
 
     st.sidebar.subheader(i18n.t("🔐 Đăng nhập"))
@@ -7457,7 +7457,30 @@ st.selectbox(i18n.t("📋 Menu"), list(menu_options) + [_MENU_THOAT],
              format_func=i18n.t, key="menu_mob", on_change=_tu_mob_sang_radio,
              label_visibility="collapsed")
 
+import streamlit.components.v1 as _comp_kb
+_comp_kb.html("""
+<script>
+(function() {
+    var t = window.top;
+    var d = t.document;
+    function khoa() {
+        d.querySelectorAll('.st-key-menu_mob input').forEach(function(i) {
+            i.setAttribute('inputmode', 'none');
+            i.setAttribute('readonly', 'readonly');
+        });
+    }
+    khoa();
+    if (t._hrmKhoaBanPhim) t._hrmKhoaBanPhim.disconnect();
+    t._hrmKhoaBanPhim = new t.MutationObserver(khoa);
+    t._hrmKhoaBanPhim.observe(d.body, {childList: true, subtree: true});
+})();
+</script>
+""", height=0)
+
 menu = st.session_state['menu_radio']
+if st.session_state.get('_menu_cuoi') != menu:
+    st.session_state['menu_truoc'] = st.session_state.get('_menu_cuoi')
+    st.session_state['_menu_cuoi'] = menu
 st.sidebar.divider()
 _vtp_hienthi = st.session_state.get('vai_tro_phu') or []
 _role_hienthi = st.session_state.role + (" + " + ", ".join(_vtp_hienthi) if _vtp_hienthi else "")
@@ -9281,7 +9304,8 @@ elif menu == "✅ Nhân viên":
         if st.session_state.pop('_reset_snv_dang_lam', False):
             st.session_state['snv_dang_lam'] = ''
         if st.session_state.role in ("admin", "xem_toan_bo"):
-            _chedo_nv = st.radio("Chọn thao tác:", ["➕ Thêm NV mới", "🔍 Danh sách nhân viên đang làm việc (bao gồm thử việc)"],
+            _chedo_nv = st.radio("Chọn thao tác:", ["🔍 Danh sách nhân viên đang làm việc (bao gồm thử việc)", "➕ Thêm NV mới"],
+                                 horizontal=True, key="nv_dang_lam_thao_tac")
                                  horizontal=True, key="nv_dang_lam_thao_tac")
         else:
             _chedo_nv = "🔍 Danh sách nhân viên đang làm việc (bao gồm thử việc)"
@@ -15933,6 +15957,29 @@ Kênh trao đổi nội bộ ngay trong app — không cần chuyển qua ứng 
 
     st.info("💡 Có thắc mắc trong quá trình sử dụng, hãy dùng ngay mục **🤖 Chatbot Giải đáp** hoặc liên hệ bộ phận Nhân sự / IT để được hỗ trợ.")
 
+# ── Nút cuối trang cho điện thoại: Quay lại / Thoát (ẩn trên desktop) ──
+st.markdown("""
+<style>
+    @media (min-width: 769px) { .st-key-nut_cuoi_trang { display: none !important; } }
+</style>
+""", unsafe_allow_html=True)
+
+def _quay_lai_menu_truoc():
+    _dich = st.session_state.get('menu_truoc')
+    if _dich not in menu_options or _dich == st.session_state.get('menu_radio'):
+        _dich = menu_options[0]
+    st.session_state['menu_radio'] = _dich
+    st.session_state['menu_mob'] = _dich
+
+with st.container(key="nut_cuoi_trang"):
+    st.divider()
+    _c1, _c2 = st.columns(2)
+    with _c1:
+        st.button("⬅️ Quay lại", key="nut_quay_lai", width='stretch',
+                  on_click=_quay_lai_menu_truoc)
+    with _c2:
+        st.button("🚪 Thoát", key="nut_thoat_cuoi_trang", width='stretch',
+                  on_click=_dang_xuat)
 
 #===== Hàm xử lý chính ===== 
 def main():

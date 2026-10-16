@@ -2096,7 +2096,7 @@ def handle_language_change():
 handle_language_change()
 
 st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide",
-                   initial_sidebar_state="expanded")
+                   initial_sidebar_state="auto")
 
 # ===== Giao diện: phối màu Terracotta + Beige (đồng bộ với .streamlit/config.toml) =====
 # Nguyên tắc: mỗi thành phần chỉ tô màu/viền Ở 1 LỚP DUY NHẤT (lớp ngoài cùng nhìn thấy được); các lớp con
@@ -2177,37 +2177,9 @@ ul[role="listbox"] li[aria-selected="true"], ul[role="listbox"] li:hover{backgro
 import streamlit.components.v1 as components
 
 if not st.session_state.get('logged_in', False):
-    # CHƯA LOGIN: ép sidebar full-width, ẩn main content
-    st.markdown("""
-    <style>
-        @media (max-width: 768px) {
-            [data-testid="stSidebar"] {
-                width: 100vw !important;
-                min-width: 100vw !important;
-                transform: none !important;
-                position: relative !important;
-                z-index: 999999 !important;
-            }
-            [data-testid="stSidebar"] > div:first-child {
-                width: 100vw !important;
-            }
-            [data-testid="stSidebar"] button[kind="header"] {
-                display: none !important;
-            }
-            section[data-testid="stMain"] {
-                display: none !important;
-            }
-        }
-    </style>
-    """, unsafe_allow_html=True)
-    components.html("""
-    <script>
-        const sb = window.top.document.querySelector('[data-testid="stSidebar"]');
-        if (sb) sb.setAttribute('aria-expanded', 'true');
-        const btn = window.top.document.querySelector('[data-testid="baseButton-header"]');
-        if (btn && sb && sb.getAttribute('aria-expanded') !== 'true') btn.click();
-    </script>
-    """, height=0)
+    # CHƯA LOGIN: KHÔNG ẩn nội dung chính nữa để mobile thấy Landing Page.
+    # Form đăng nhập vẫn nằm ở sidebar, mở bằng nút "🔐 Đăng nhập" (xem Sửa 3).
+    pass
 else:
     # ĐÃ LOGIN trên mobile: hiện gợi ý vuốt + nút mở sidebar
     st.markdown("""
@@ -2238,7 +2210,21 @@ else:
         }
     </style>
     """, unsafe_allow_html=True)
-
+    if not st.session_state.get('_da_dong_sidebar_mobile'):
+        st.session_state['_da_dong_sidebar_mobile'] = True
+        components.html("""
+        <script>
+        (function() {
+            var t = window.top;
+            if (t.innerWidth < 769) {
+                var d = t.document;
+                var b = d.querySelector('[data-testid="stSidebarCollapseButton"] button')
+                     || d.querySelector('[data-testid="stSidebarCollapseButton"]');
+                if (b) setTimeout(function() { b.click(); }, 300);
+            }
+        })();
+        </script>
+        """, height=0)
 # Gọi định danh tenant
 resolve_tenant()
 
@@ -7236,18 +7222,45 @@ if not st.session_state.logged_in:
             }
         </style>
     """, unsafe_allow_html=True)
-    st.markdown("""
-        <style>
-            @media (min-width: 769px) {
-                .canh-bao-mobile-only { display: none !important; }
-            }
-        </style>
-        <div class="canh-bao-mobile-only" style="background-color:#f9f3ec; border-radius:8px;
-                    padding:0.9rem 1rem; margin-bottom:1rem; border:1px solid #eec8bd; color:#8e3c26;">
-            📱 <b>Đang dùng điện thoại?</b> Form đăng nhập nằm ở thanh bên trái.
-            Nếu không thấy, bấm vào biểu tượng <b>›</b> (mũi tên) ở góc trên bên trái màn hình để mở ra.
-        </div>
-    """, unsafe_allow_html=True)
+    import streamlit.components.v1 as _comp_dn
+    _comp_dn.html("""
+    <button id="hrm-open-login" style="width:100%;padding:14px;font-size:17px;font-weight:600;
+        border:none;border-radius:10px;background:#d98771;color:#fff;">🔐 Đăng nhập</button>
+    <p id="hrm-open-login-hint" style="margin:6px 0 0;font-size:13px;color:#8e3c26;font-family:sans-serif;">
+        Nếu nút không mở được, bấm mũi tên › ở góc trên bên trái màn hình.</p>
+    <script>
+    (function() {
+        var btn = document.getElementById('hrm-open-login');
+        var hint = document.getElementById('hrm-open-login-hint');
+        var top = window.top;
+        if (top.innerWidth >= 769) {
+            btn.style.display = 'none';
+            hint.style.display = 'none';
+            try {
+                var fr = window.frameElement;
+                if (fr) {
+                    fr.style.display = 'none';
+                    fr.style.height = '0';
+                    if (fr.parentElement) {
+                        fr.parentElement.style.display = 'none';
+                        fr.parentElement.style.height = '0';
+                        fr.parentElement.style.margin = '0';
+                    }
+                }
+            } catch(e) {}
+            return;
+        }
+        btn.onclick = function() {
+            var d = top.document;
+            var el = d.querySelector('[data-testid="stExpandSidebarButton"]')
+                  || d.querySelector('[data-testid="stSidebarCollapsedControl"] button')
+                  || d.querySelector('[data-testid="collapsedControl"] button')
+                  || d.querySelector('[data-testid="baseButton-header"]');
+            if (el) el.click();
+        };
+    })();
+    </script>
+    """, height=90)
     # ⬇️⬇️⬇️ THÊM ĐOẠN NÀY ĐỂ GIẢM KHOẢNG TRỐNG TOP ⬇️⬇️⬇️
     st.markdown("""
     <style>
@@ -7408,78 +7421,59 @@ if _MENU_CHUAN_HOA not in menu_options:
         menu_options.insert(menu_options.index("📘 Hướng dẫn sử dụng"), _MENU_CHUAN_HOA)
     else:
         menu_options.append(_MENU_CHUAN_HOA)
-menu = st.sidebar.radio(i18n.t("📋 Menu"), menu_options, format_func=i18n.t)
-st.sidebar.divider()
-_vtp_hienthi = st.session_state.get('vai_tro_phu') or []
-_role_hienthi = st.session_state.role + (" + " + ", ".join(_vtp_hienthi) if _vtp_hienthi else "")
-st.sidebar.caption(f"👤 {st.session_state.get('ho_ten_dang_nhap', st.session_state.username)} ({_role_hienthi})")
+# ── Đăng xuất dùng chung cho nút THOÁT ở sidebar và mục THOÁT trong dropdown mobile ──
+_MENU_THOAT = "🚪 THOÁT"
 
-# Mobile: dropdown menu — HTML native, tự ẩn trên desktop bằng JS
-import json as _json_menu
-_menu_json = _json_menu.dumps(menu_options, ensure_ascii=False)
-_current_idx = menu_options.index(menu) if menu in menu_options else 0
-import streamlit.components.v1 as _comp_menu
-_comp_menu.html(f"""
-<select id="hrm-mob-sel" style="width:100%;padding:8px 12px;font-size:15px;
-    border:1px solid #e3dcd7;border-radius:8px;background:#f8f8f8;" onchange="
-    var idx = this.selectedIndex;
-    var url = new URL(window.top.location.href);
-    url.searchParams.set('hmenu', idx);
-    window.top.location.href = url.toString();
-">
-</select>
-<script>
-(function() {{
-    var opts = {_menu_json};
-    var sel = document.getElementById('hrm-mob-sel');
-    for (var i = 0; i < opts.length; i++) {{
-        var o = document.createElement('option');
-        o.value = i; o.text = opts[i];
-        if (i === {_current_idx}) o.selected = true;
-        sel.appendChild(o);
-    }}
-    // Desktop: ẩn toàn bộ iframe container (không chiếm khoảng trắng)
-    if (window.top.innerWidth >= 769) {{
-        // Ẩn select
-        sel.style.display = 'none';
-        // Ẩn iframe container ở tầng parent (Streamlit tạo div bọc iframe)
-        try {{
-            var fr = window.frameElement;
-            if (fr) {{
-                fr.style.display = 'none';
-                fr.style.height = '0';
-                if (fr.parentElement) {{
-                    fr.parentElement.style.display = 'none';
-                    fr.parentElement.style.height = '0';
-                    fr.parentElement.style.margin = '0';
-                    fr.parentElement.style.padding = '0';
-                    fr.parentElement.style.overflow = 'hidden';
-                }}
-            }}
-        }} catch(e) {{}}
-    }}
-}})();
-</script>
-""", height=40)
-
-# Đọc query param hmenu nếu có (mobile navigation)
-_qp = st.query_params
-if 'hmenu' in _qp:
-    try:
-        _midx = int(_qp['hmenu'])
-        if 0 <= _midx < len(menu_options) and menu_options[_midx] != menu:
-            menu = menu_options[_midx]
-    except (ValueError, IndexError):
-        pass
-# MỚI:
-if st.sidebar.button(i18n.t("🚪 THOÁT"), width='stretch'):
+def _dang_xuat():
     st.session_state.logged_in = False
     st.session_state.role = None
     st.session_state.vai_tro_phu = []
     st.session_state.username = None
     st.session_state.pop('last_birthday_check', None)
     st.session_state.pop('sinh_nhat_hom_nay_list', None)
+    st.session_state.pop('menu_radio', None)
+    st.session_state.pop('menu_mob', None)
+    st.session_state.pop('_da_dong_sidebar_mobile', None)
     st.cache_data.clear()
+
+def _tu_radio_sang_mob():
+    st.session_state['menu_mob'] = st.session_state['menu_radio']
+
+def _tu_mob_sang_radio():
+    _chon = st.session_state.get('menu_mob')
+    if _chon == _MENU_THOAT:
+        _dang_xuat()
+    elif _chon:
+        st.session_state['menu_radio'] = _chon
+
+# Giá trị đang giữ phải nằm trong danh sách menu của vai trò hiện tại
+if st.session_state.get('menu_radio') not in menu_options:
+    st.session_state['menu_radio'] = menu_options[0]
+if st.session_state.get('menu_mob') not in (list(menu_options) + [_MENU_THOAT]):
+    st.session_state['menu_mob'] = st.session_state['menu_radio']
+
+# Sidebar (desktop, và trong ngăn kéo trên mobile)
+st.sidebar.radio(i18n.t("📋 Menu"), menu_options, format_func=i18n.t,
+                 key="menu_radio", on_change=_tu_radio_sang_mob)
+
+# Dropdown ở vùng nội dung chính — chỉ hiện trên mobile (ẩn từ 769px trở lên)
+st.markdown("""
+<style>
+    @media (min-width: 769px) { .st-key-menu_mob { display: none !important; } }
+</style>
+""", unsafe_allow_html=True)
+st.selectbox(i18n.t("📋 Menu"), list(menu_options) + [_MENU_THOAT],
+             format_func=i18n.t, key="menu_mob", on_change=_tu_mob_sang_radio,
+             label_visibility="collapsed")
+
+menu = st.session_state['menu_radio']
+st.sidebar.divider()
+_vtp_hienthi = st.session_state.get('vai_tro_phu') or []
+_role_hienthi = st.session_state.role + (" + " + ", ".join(_vtp_hienthi) if _vtp_hienthi else "")
+st.sidebar.caption(f"👤 {st.session_state.get('ho_ten_dang_nhap', st.session_state.username)} ({_role_hienthi})")
+
+if st.sidebar.button(i18n.t("🚪 THOÁT"), width='stretch'):
+    _dang_xuat()
     st.rerun()
 
 # Đặt caption bản quyền NGAY ĐÂY (thay vì cuối file) để nó luôn hiển thị ngay từ đầu,

@@ -9306,7 +9306,6 @@ elif menu == "✅ Nhân viên":
         if st.session_state.role in ("admin", "xem_toan_bo"):
             _chedo_nv = st.radio("Chọn thao tác:", ["🔍 Danh sách nhân viên đang làm việc (bao gồm thử việc)", "➕ Thêm NV mới"],
                                  horizontal=True, key="nv_dang_lam_thao_tac")
-                                 horizontal=True, key="nv_dang_lam_thao_tac")
         else:
             _chedo_nv = "🔍 Danh sách nhân viên đang làm việc (bao gồm thử việc)"
 

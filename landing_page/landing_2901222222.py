@@ -27,7 +27,7 @@ def render():
     # ========================================================================
     # LINK TẢI CV (PDF) & TẢI BẰNG CẤP/CHỨNG CHỈ — ANH THAY BẰNG LINK THẬT
     # ========================================================================
-    CV_PDF_URL = "https://drive.google.com/file/d/1GbDDNIsG37tsVW4cMwHK8nZ3k8xmNKtY/view?usp=drive_link"
+    CV_PDF_URL = "https://drive.google.com/file/d/1fT9L9wD0B56IBSaatUA3chHESR_qSlfU/view?usp=sharing"
     CERT_URL = "https://drive.google.com/file/d/1iIGPnp_71rhRtX4h_5oys5XdMByygQha/view?usp=drive_link"
     DEMO_URL = ""
     CONTACT_EMAIL = "nguyen.support999@gmail.com"
@@ -647,7 +647,7 @@ def render():
 """
 
     _landing_html = _css + _html_body
-    components.html(_landing_html, height=4500, scrolling=True)
+    components.html(_landing_html, height=4800, scrolling=True)
 
 
 if __name__ == "__main__":

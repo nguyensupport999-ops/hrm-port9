@@ -629,6 +629,10 @@ def render():
           <h3>Sinh viên Khoa Quản trị KD</h3>
           <p>Trường Đại học Kinh tế quốc dân (NEU).</p>
         </div>
+        <div class="hp-cta-row" style="justify-content: center;">
+        {_demo_btn}
+        {_cv_btn}
+        {_cert_btn}
       </div>
     </div>
   </section>

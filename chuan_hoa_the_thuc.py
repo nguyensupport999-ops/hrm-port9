@@ -24,6 +24,189 @@ from docx.enum.text import WD_ALIGN_PARAGRAPH, WD_LINE_SPACING
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt
+import numpy as np
+import cv2
+
+try:
+    import pytesseract
+    from pdf2image import convert_from_bytes
+    _CO_OCR = True
+except ImportError:
+    _CO_OCR = False
+
+
+# ============================================================
+# TIỀN XỬ LÝ ẢNH: LỌC CON DẤU ĐỎ + VÙNG CHỮ KÝ TAY
+# ============================================================
+def _loc_dau_do_va_chu_ky(img_bgr):
+    """
+    Nhận 1 ảnh BGR (numpy array từ OpenCV), trả về ảnh nhị phân đã loại:
+      - Toàn bộ nét mực ĐỎ (con dấu, dấu CÔNG VĂN ĐẾN, dấu MẬT...)
+      - Vùng chữ ký tay (mật độ nét dày, nét cong liên tục)
+    Cách làm:
+      1) Tách kênh HSV, mask vùng đỏ (2 dải hue: 0-10 và 170-180).
+      2) Xoá vùng đỏ khỏi ảnh (tô trắng).
+      3) Chuyển xám -> nhị phân adaptive.
+      4) Loại các "blob" có mật độ nét bất thường (chữ ký tay, hình vẽ).
+    """
+    # --- 1. Lọc đỏ (con dấu, dấu đến, dấu mật) ---
+    hsv = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2HSV)
+    m1 = cv2.inRange(hsv, (0, 60, 60), (10, 255, 255))
+    m2 = cv2.inRange(hsv, (170, 60, 60), (180, 255, 255))
+    mask_do = cv2.bitwise_or(m1, m2)
+    # Nới rộng mask đỏ ra 1 chút để bắt cả viền mờ của con dấu
+    mask_do = cv2.dilate(mask_do, np.ones((3, 3), np.uint8), iterations=1)
+    # Xoá đỏ khỏi ảnh gốc (tô trắng — vì nền giấy vốn trắng)
+    img_sach = img_bgr.copy()
+    img_sach[mask_do > 0] = (255, 255, 255)
+
+    # --- 2. Nhị phân hoá ---
+    gray = cv2.cvtColor(img_sach, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (3, 3), 0)
+    nhi_phan = cv2.adaptiveThreshold(
+        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV,
+        blockSize=25, C=15
+    )
+
+    # --- 3. Loại blob mật độ dày (chữ ký tay) ---
+    # Chữ ký tay: mật độ điểm ảnh foreground trong bounding box rất cao (nét vẽ dày, cong),
+    # diện tích lớn, tỷ lệ khung rộng.
+    h_img, w_img = nhi_phan.shape
+    contours, _ = cv2.findContours(nhi_phan, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    mask_xoa = np.zeros_like(nhi_phan)
+    for cnt in contours:
+        x, y, w, h = cv2.boundingRect(cnt)
+        dien_tich_bb = w * h
+        if dien_tich_bb < 400:                    # bỏ qua đốm nhỏ
+            continue
+        vung = nhi_phan[y:y + h, x:x + w]
+        mat_do = cv2.countNonZero(vung) / max(dien_tich_bb, 1)  # 0..1
+        # Nét chữ in thường có mật độ ~0.15-0.35; chữ ký tay/ hình vẽ > 0.5
+        # Đồng thời kích thước lớn bất thường (>5% diện tích trang) -> nghi chữ ký
+        if mat_do > 0.5 and dien_tich_bb > 0.02 * h_img * w_img:
+            cv2.rectangle(mask_xoa, (x, y), (x + w, y + h), 255, -1)
+        # Chữ ký thường nằm ở góc dưới-phải, cao 80-200px, ngang 200-500px, nét mảnh nhưng cong
+        elif (dien_tich_bb > 0.005 * h_img * w_img and
+              mat_do > 0.35 and
+              y > 0.6 * h_img and x > 0.4 * w_img):
+            cv2.rectangle(mask_xoa, (x, y), (x + w, y + h), 255, -1)
+
+    nhi_phan[mask_xoa > 0] = 0
+    # Trả về ảnh đảo lại nền trắng chữ đen cho OCR
+    return cv2.bitwise_not(nhi_phan)
+
+
+def _ocr_pdf_scan(data):
+    """PDF dạng scan (không có text layer). Render từng trang -> tiền xử lý -> OCR tiếng Việt."""
+    if not _CO_OCR:
+        raise ValueError(
+            "PDF này là bản scan (không có lớp văn bản). Cần thư viện pdf2image + pytesseract "
+            "và gói tesseract-ocr-vie để OCR. Vui lòng cài thêm hoặc gửi file .docx gốc."
+        )
+    pages = convert_from_bytes(data, dpi=300, fmt='jpeg')
+    ket_qua = []
+    for page in pages:
+        img = cv2.cvtColor(np.array(page), cv2.COLOR_RGB2BGR)
+        img_sach = _loc_dau_do_va_chu_ky(img)
+        # OCR tiếng Việt; psm 6 = giả định 1 khối văn bản thống nhất (phù hợp văn bản HC)
+        txt = pytesseract.image_to_string(img_sach, lang='vie', config='--psm 6')
+        ket_qua.append(txt)
+    return '\n'.join(ket_qua)
+
+
+# ============================================================
+# doc_dong() — điểm vào, tự phát hiện PDF có text layer hay scan
+# ============================================================
+def doc_dong(data, ten_file):
+    ten = (ten_file or '').lower()
+    if ten.endswith('.docx'):
+        return doc_dong_tu_docx(data)
+
+    if ten.endswith('.pdf'):
+        txt = ''
+        try:
+            try:
+                from pypdf import PdfReader
+            except Exception:
+                from PyPDF2 import PdfReader
+            rd = PdfReader(io.BytesIO(data))
+            txt = '\n'.join((pg.extract_text() or '') for pg in rd.pages)
+        except Exception:
+            txt = ''
+
+        # Nếu PDF không có text layer (scan ảnh) -> chuyển sang OCR
+        if len(_chuan_dong(txt)) < 30:
+            txt = _ocr_pdf_scan(data)
+    else:
+        txt = ''
+        for enc in ('utf-8-sig', 'utf-16', 'cp1258', 'latin-1'):
+            try:
+                txt = data.decode(enc)
+                break
+            except Exception:
+                continue
+
+    return [x for x in (_chuan_dong(l) for l in txt.splitlines()) if x]
+    
+# ============================================================
+# LỌC HẬU KỲ: các dòng rác sinh ra từ con dấu / chữ ký tay / ghi chú tay
+# ============================================================
+RE_RAC_KY_TU = re.compile(
+    r'^[^A-Za-zÀ-ỹ0-9]+$'                       # chỉ có ký tự lạ, không chữ/số
+)
+RE_RAC_MAT_DO = re.compile(
+    r'[^\w\sÀ-ỹ,.()\[\]{}\-/:;%&"\'+*=]{3,}'    # 3+ ký tự không phải chữ/số/dấu câu thông dụng
+)
+RE_RAC_QUA_NGAN = re.compile(r'^.{1,3}$')       # 1-3 ký tự lẻ loi
+RE_DAU_VP_CHAN = re.compile(
+    r'^(m\.?s\.?d\.?n|mst|số\s*đt|đt|fax)\b',   # các nhãn hay thấy trên con dấu
+    re.I
+)
+RE_CHU_KY_TAY_HINT = re.compile(
+    r'(ký\s*tên|ký,\s*ghi|ghi\s*rõ\s*họ\s*tên|đã\s*ký)',  # gợi ý chữ ký tay
+    re.I
+)
+
+
+def _la_dong_rac(t, tong_chu, tong_so):
+    """True nếu dòng gần như chắc chắn là rác từ con dấu/chữ ký/ghi chú tay."""
+    if not t:
+        return True
+
+    # 1. Dòng toàn ký tự lạ (con dấu bị OCR thành ký tự Unicode lạ)
+    if RE_RAC_KY_TU.match(t) and len(t) >= 2:
+        return True
+
+    # 2. Dòng quá ngắn mà không phải số/ký hiệu hợp lệ
+    if RE_RAC_QUA_NGAN.match(t) and not re.match(r'^\d+[.)]?$', t):
+        return True
+
+    # 3. Tỷ lệ ký tự "chữ + số hợp lệ" quá thấp (< 60%) => rác
+    tong_hop_le = tong_chu + tong_so
+    if len(t) >= 8 and tong_hop_le / max(len(t), 1) < 0.55:
+        return True
+
+    # 4. Chứa cụm ký tự lạ dài (VD "«¥§€…" lẫn vào)
+    if RE_RAC_MAT_DO.search(t):
+        return True
+
+    # 5. Nhãn đặc trưng của con dấu công ty (M.S.D.N, Mã số thuế trên dấu)
+    if RE_DAU_VP_CHAN.match(t) and len(t) < 40:
+        return True
+
+    return False
+
+
+def _loc_dong_rac(lines):
+    """Loại các dòng nghi là rác do con dấu / chữ ký tay / ghi chú tay sinh ra."""
+    ket_qua = []
+    for t in lines:
+        chu = sum(1 for c in t if c.isalpha())
+        so = sum(1 for c in t if c.isdigit())
+        if _la_dong_rac(t, chu, so):
+            continue
+        ket_qua.append(t)
+    return ket_qua
 
 FONT = 'Times New Roman'
 _CAN = {'left': WD_ALIGN_PARAGRAPH.LEFT, 'center': WD_ALIGN_PARAGRAPH.CENTER,
@@ -94,7 +277,19 @@ def doc_dong_tu_docx(data):
                         _tu_paragraph(p)
     return dong
 
-
+def _la_file_scan(data):
+    """True nếu PDF không có text layer (chỉ có ảnh)."""
+    try:
+        try:
+            from pypdf import PdfReader
+        except Exception:
+            from PyPDF2 import PdfReader
+        rd = PdfReader(io.BytesIO(data))
+        tong = sum(len((pg.extract_text() or '').strip()) for pg in rd.pages)
+        return tong < 30
+    except Exception:
+        return False
+        
 def _doc_pdf_co_text(data):
     """Đọc PDF có lớp text sẵn (PDF gốc từ Word/Google Docs xuất ra, không phải scan).
     Trả về chuỗi text; rỗng nếu PDF không có lớp text (PDF scan)."""
@@ -339,15 +534,29 @@ def phan_tich(lines):
         blk = body_lines[k:]
         if blk and any(_la_in_hoa(x) for x in blk) and len(blk) <= 5:
             sig_lines, body_lines = blk, body_lines[:k]
-    # phân tách chữ ký
+    
+    # phân tách chữ ký — KHÔNG lấy họ tên nếu nghi là chữ ký tay (tên bị OCR méo)
     ky = kq['ky']
     if sig_lines:
         sl = list(sig_lines)
-        if len(sl) >= 2 and not (_la_in_hoa(sl[-1]) and any(khong_dau(sl[-1]).startswith(t) for t in CHUC_VU_TU_KHOA)):
-            ten = sl.pop()
-            ky['ho_ten'] = ten.title() if _la_in_hoa(ten) else ten
+        ung_vien_ten = None
+        if len(sl) >= 2 and not (_la_in_hoa(sl[-1]) and
+                                 any(khong_dau(sl[-1]).startswith(t) for t in CHUC_VU_TU_KHOA)):
+            ung_vien_ten = sl.pop()
         elif len(sl) == 1 and not _la_in_hoa(sl[0]):
-            ky['ho_ten'] = sl.pop()
+            ung_vien_ten = sl.pop()
+
+        # Chỉ nhận họ tên khi nó "sạch" (toàn chữ cái, có dấu hợp lệ, 2-5 từ)
+        if ung_vien_ten:
+            tu = ung_vien_ten.split()
+            la_ten_sach = (
+                2 <= len(tu) <= 6
+                and all(re.fullmatch(r"[A-Za-zÀ-ỹ]+", w) for w in tu)
+            )
+            if la_ten_sach:
+                ky['ho_ten'] = ung_vien_ten.title() if _la_in_hoa(ung_vien_ten) else ung_vien_ten
+            else:
+                bo_sung_ten = True   # để trống, người dùng tự ký
         for x in sl:
             (ky['quyen_han'] if RE_QUYEN_HAN.match(khong_dau(x)) else ky['chuc_vu']).append(x.upper())
 
@@ -830,8 +1039,11 @@ def ra_soat_ai(lines, ai_call):
 def chuan_hoa(data, ten_file, cfg=None, che_do='auto', tu_bo_sung=True, ai_call=None, dung_ai=False):
     """Pipeline đầy đủ. che_do: 'auto' | 14 | 13. Trả về dict kết quả."""
     lines = doc_dong(data, ten_file)
+    la_scan = ten_file.lower().endswith('.pdf') and _la_file_scan(data)
     if not lines:
         raise ValueError("Văn bản trống hoặc không đọc được nội dung.")
+    # --- LỌC RÁC do con dấu / chữ ký tay TRƯỚC khi nhận diện thể thức ---
+    lines = _loc_dong_rac(lines)
     # Bước rà soát 1: tự sửa an toàn khoảng trắng/dấu câu (không đổi nội dung), rồi quét lỗi bằng quy tắc
     so_cho_sua = 0
     lines_sach = []
@@ -866,7 +1078,7 @@ def chuan_hoa(data, ten_file, cfg=None, che_do='auto', tu_bo_sung=True, ai_call=
             out, bs = dung_docx(ct, 13, cfg, tu_bo_sung)
         ghi_chu_trang = f"Văn bản {'1-2 trang' if co == 14 else 'dài hơn 2 trang'} ({nguon}) → cỡ chữ lớn nhất {co}."
     return dict(docx=out, co=co, ghi_chu_trang=ghi_chu_trang, bo_sung=bs, cau_truc=ct, so_dong=len(lines),
-                ra_soat=loi, so_cho_sua=so_cho_sua, ai_note=ai_note, da_dung_ai=bool(dung_ai))
+                ra_soat=loi, so_cho_sua=so_cho_sua, la_scan=la_scan, ai_note=ai_note, da_dung_ai=bool(dung_ai))
 
 
 # ───────────────────────── 4. Giao diện Streamlit ─────────────────────────
@@ -907,6 +1119,15 @@ def render(cfg=None, ai_call=None):
     kq = st.session_state.get('cht_kq')
     if not kq:
         return
+        
+    # Cảnh báo nếu file vào là PDF scan (không có text layer)
+    if kq.get('la_scan'):
+        st.warning(
+            "⚠️ File này là **bản scan (ảnh)**, không phải PDF văn bản. Em đã chạy OCR tiếng Việt "
+            "và tự động loại bỏ con dấu đỏ + vùng chữ ký tay. Tuy nhiên, **họ tên người ký tay không "
+            "được lấy tự động** (chữ ký viết ngoáy OCR không chính xác) — anh/chị vui lòng kiểm tra "
+            "và tự ký lại khi in. Nếu có file **.docx gốc**, nên dùng file đó để kết quả chính xác nhất."
+        )
     ct = kq['cau_truc']
     st.success(f"✅ Đã chuẩn hóa. {kq['ghi_chu_trang']}")
     ten_ra = re.sub(r'\.[^.]+$', '', kq['ten_goc']) + '_NĐ30.docx'

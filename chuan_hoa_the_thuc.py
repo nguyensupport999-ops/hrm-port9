@@ -95,27 +95,109 @@ def doc_dong_tu_docx(data):
     return dong
 
 
+def _doc_pdf_co_text(data):
+    """Đọc PDF có lớp text sẵn (PDF gốc từ Word/Google Docs xuất ra, không phải scan).
+    Trả về chuỗi text; rỗng nếu PDF không có lớp text (PDF scan)."""
+    try:
+        from pypdf import PdfReader
+    except Exception:
+        try:
+            from PyPDF2 import PdfReader
+        except Exception:
+            return None  # không có thư viện nào -> báo hiệu để caller xử lý
+    rd = PdfReader(io.BytesIO(data))
+    return '\n'.join((pg.extract_text() or '') for pg in rd.pages)
+
+
+def _doc_pdf_bang_ocr(data, ngon_ngu='vie+eng', dpi=300):
+    """OCR PDF scan (ảnh) bằng pdf2image + pytesseract.
+    ngon_ngu: 'vie+eng' = nhận dạng tiếng Việt + tiếng Anh (Tesseract cần gói tesseract-ocr-vie).
+    dpi: càng cao càng chính xác nhưng chậm hơn; 300 là mức cân bằng tốt.
+    Trả về chuỗi text, hoặc ném ValueError nếu thiếu thư viện/gói hệ thống."""
+    try:
+        from pdf2image import convert_from_bytes
+    except Exception as e:
+        raise ValueError(
+            "Đây là PDF dạng ảnh quét (scan), cần OCR để đọc. "
+            "Nhưng app chưa cài `pdf2image`. Vui lòng thêm `pdf2image` vào requirements.txt."
+        ) from e
+    try:
+        import pytesseract
+    except Exception as e:
+        raise ValueError(
+            "Đây là PDF dạng ảnh quét (scan), cần OCR để đọc. "
+            "Nhưng app chưa cài `pytesseract`. Vui lòng thêm `pytesseract` vào requirements.txt."
+        ) from e
+
+    try:
+        cac_trang = convert_from_bytes(data, dpi=dpi)
+    except Exception as e:
+        msg = str(e).lower()
+        if 'poppler' in msg or 'pdftoppm' in msg or 'page count' in msg:
+            raise ValueError(
+                "Đây là PDF dạng ảnh quét (scan), cần OCR để đọc. "
+                "Nhưng hệ thống thiếu `poppler-utils` (công cụ chuyển PDF sang ảnh). "
+                "Vui lòng thêm `poppler-utils` vào file packages.txt."
+            ) from e
+        raise ValueError(f"Không chuyển được PDF sang ảnh để OCR: {e}") from e
+
+    ds_text = []
+    for i, anh in enumerate(cac_trang, 1):
+        try:
+            t = pytesseract.image_to_string(anh, lang=ngon_ngu)
+            ds_text.append(t)
+        except pytesseract.TesseractError as e:
+            # Gói ngôn ngữ 'vie' chưa cài -> thử lại chỉ với 'eng'
+            if 'vie' in str(e).lower() or 'failed loading language' in str(e).lower():
+                try:
+                    t = pytesseract.image_to_string(anh, lang='eng')
+                    ds_text.append(t)
+                    continue
+                except Exception:
+                    pass
+            raise ValueError(
+                f"Lỗi OCR trang {i}: {e}. "
+                "Kiểm tra đã cài `tesseract-ocr` và `tesseract-ocr-vie` trong packages.txt chưa."
+            ) from e
+    return '\n'.join(ds_text)
+
+
 def doc_dong(data, ten_file):
     ten = (ten_file or '').lower()
     if ten.endswith('.docx'):
         return doc_dong_tu_docx(data)
+
     if ten.endswith('.pdf'):
-        try:
-            try:
-                from pypdf import PdfReader
-            except Exception:
-                from PyPDF2 import PdfReader
-            rd = PdfReader(io.BytesIO(data))
-            txt = '\n'.join((pg.extract_text() or '') for pg in rd.pages)
-        except Exception as e:
-            raise ValueError(f"Không đọc được PDF (cần thư viện pypdf): {e}")
+        # --- Bước 1: thử đọc lớp text sẵn có (PDF gốc từ Word) ---
+        txt = _doc_pdf_co_text(data)
+        if txt is None:
+            raise ValueError(
+                "Không đọc được PDF: thiếu thư viện `pypdf`. "
+                "Vui lòng thêm `pypdf` vào requirements.txt."
+            )
+        # --- Bước 2: nếu PDF không có text (PDF scan) -> tự động OCR ---
+        if len(txt.strip()) < 50:
+            # Rất ít/không có chữ -> gần như chắc chắn là PDF scan, tự động OCR
+            txt = _doc_pdf_bang_ocr(data)
+        # --- Bước 3: nếu text quá ngắn sau cả 2 bước -> báo lỗi rõ ràng ---
+        if len(txt.strip()) < 20:
+            raise ValueError(
+                "Đọc PDF xong nhưng không trích được nội dung. "
+                "File có thể là ảnh scan chất lượng thấp / chữ viết tay / bảng biểu phức tạp. "
+                "Vui lòng kiểm tra lại file gốc hoặc chuyển sang PDF có lớp text (xuất từ Word)."
+            )
     else:
+        # .txt: thử lần lượt các bảng mã phổ biến
+        txt = None
         for enc in ('utf-8-sig', 'utf-16', 'cp1258', 'latin-1'):
             try:
                 txt = data.decode(enc)
                 break
             except Exception:
                 continue
+        if txt is None:
+            raise ValueError("Không đọc được file text: bảng mã không nhận dạng được.")
+
     return [x for x in (_chuan_dong(l) for l in txt.splitlines()) if x]
 
 

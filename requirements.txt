@@ -15,3 +15,4 @@ anthropic>=0.7.0
 streamlit-webrtc
 av
 opencv-python-headless
+pypdf>=4.0.0

@@ -2095,7 +2095,7 @@ def handle_language_change():
 # Gọi hàm xử lý ngôn ngữ trước khi hiển thị landing page
 handle_language_change()
 
-st.set_page_config(page_title="HRM-Port", page_icon="🏗️", layout="wide",
+st.set_page_config(page_title="HRM-Master", page_icon="🏗️", layout="wide",
                    initial_sidebar_state="auto")
 
 # ===== Giao diện: phối màu Terracotta + Beige (đồng bộ với .streamlit/config.toml) =====
@@ -2171,6 +2171,78 @@ ul[role="listbox"] li[aria-selected="true"], ul[role="listbox"] li:hover{backgro
 }
 ::selection{background:var(--beige); color:var(--ink);}
 </style>
+""", unsafe_allow_html=True)
+
+# ===== LÀM NỔI BẬT DÒNG THÔNG BÁO QUAN TRỌNG =====
+# Dùng CSS + JS quét DOM (MutationObserver) để tô nổi bật:
+#  1) Option "Danh sách nhân viên đang làm việc (bao gồm thử việc)" trong st.radio
+#  2) Dòng st.caption có tiền tố "📌" (thông báo số kết quả / hướng dẫn thao tác)
+# Lý do phải dùng JS: st.radio và st.caption render thành DOM động,
+# phải đợi Streamlit render xong mới gắn class/style được.
+st.markdown("""
+<style>
+/* --- Hiệu ứng nhấp nháy viền cam cho khối nổi bật --- */
+@keyframes pulseHighlightBox {
+    0%, 100% { box-shadow: 0 2px 6px rgba(202, 85, 54, 0.25); }
+    50%      { box-shadow: 0 2px 16px rgba(202, 85, 54, 0.60); }
+}
+
+/* --- Kiểu dáng chung cho mọi thứ được gắn class .hrm-highlight --- */
+.hrm-highlight {
+    background: linear-gradient(90deg, #fff4e6 0%, #ffe8cc 100%) !important;
+    border: 2px solid #ca5536 !important;
+    border-radius: 8px !important;
+    padding: 6px 14px !important;
+    font-weight: 700 !important;
+    color: #7e3522 !important;
+    animation: pulseHighlightBox 2s ease-in-out infinite;
+    transition: all 0.3s ease;
+}
+
+/* --- Kiểu dáng riêng cho option radio (không có padding dọc quá lớn) --- */
+div[role="radiogroup"] label.hrm-highlight {
+    margin: 4px 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+}
+</style>
+<script>
+(function() {
+    // Từ khoá nhận diện option radio cần nổi bật
+    const RADIO_KEYWORD = "Danh sách nhân viên đang làm việc";
+
+    function applyHighlight() {
+        // 1) Làm nổi bật option radio có chứa từ khoá
+        document.querySelectorAll('div[role="radiogroup"] label').forEach(function(lbl) {
+            const txt = (lbl.innerText || '').trim();
+            if (txt.includes(RADIO_KEYWORD)) {
+                lbl.classList.add('hrm-highlight');
+            } else {
+                lbl.classList.remove('hrm-highlight');
+            }
+        });
+
+        // 2) Làm nổi bật dòng st.caption có chứa tiền tố "📌"
+        document.querySelectorAll('[data-testid="stCaptionContainer"], [data-testid="stMarkdownContainer"] p').forEach(function(el) {
+            const txt = (el.innerText || '').trim();
+            if (txt.startsWith("📌")) {
+                el.classList.add('hrm-highlight');
+            } else {
+                el.classList.remove('hrm-highlight');
+            }
+        });
+    }
+
+    // Chạy lần đầu + theo dõi DOM thay đổi liên tục
+    applyHighlight();
+    const obs = new MutationObserver(applyHighlight);
+    obs.observe(document.body, { childList: true, subtree: true });
+    // Chạy lại vài lần để chắc ăn sau khi Streamlit render xong
+    setTimeout(applyHighlight, 300);
+    setTimeout(applyHighlight, 1000);
+    setTimeout(applyHighlight, 2000);
+})();
+</script>
 """, unsafe_allow_html=True)
 
 # Mobile UX: sidebar login + nút Menu nổi sau đăng nhập
@@ -9672,9 +9744,9 @@ elif menu == "✅ Nhân viên":
                     df_show.rename(columns=col_map, inplace=True)
                 
                     if len(ds) > 1:
-                        st.caption(f"📌 {len(ds)} kết quả.Tick vào nút Profile chọn 1 nhân viên để thao tác - Sửa thông tin/In Hợp đồng.")
+                        st.caption(f"📌 {len(ds)} kết quả. Tick vào nút Profile chọn 1 nhân viên để thao tác - Sửa thông tin / In Hợp đồng.")
                     else:
-                        st.caption(f"📌 Danh sách đầy đủ ({len(ds)} kết quả).Tick vào nút Profile chọn 1 nhân viên để thao tác - Sửa thông tin/In Hợp đồng.")
+                        st.caption(f"📌 Danh sách đầy đủ ({len(ds)} kết quả). Tick vào nút Profile chọn 1 nhân viên để thao tác - Sửa thông tin / In Hợp đồng.")
                 
                     # Nếu là viewer, hiển thị bảng không có checkbox chọn
                     if st.session_state.role in ("admin", "xem_toan_bo"):

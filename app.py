@@ -9664,9 +9664,9 @@ elif menu == "✅ Nhân viên":
                     df_show.rename(columns=col_map, inplace=True)
                 
                     if len(ds) > 1:
-                        st.caption(f"📌 {len(ds)} kết quả. Tick chọn 1 nhân viên để thao tác.")
+                        st.caption(f"📌 {len(ds)} kết quả.<em>Tick vào nút Profile chọn 1 nhân viên để thao tác - Sửa thông tin/In Hợp đồng.<em>")
                     else:
-                        st.caption(f"📌 Danh sách đầy đủ ({len(ds)} kết quả). Tick chọn 1 nhân viên để thao tác.")
+                        st.caption(f"📌 Danh sách đầy đủ ({len(ds)} kết quả).<em>Tick vào nút Profile chọn 1 nhân viên để thao tác - Sửa thông tin/In Hợp đồng.<em>")
                 
                     # Nếu là viewer, hiển thị bảng không có checkbox chọn
                     if st.session_state.role in ("admin", "xem_toan_bo"):

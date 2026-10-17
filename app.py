@@ -9304,8 +9304,16 @@ elif menu == "✅ Nhân viên":
         if st.session_state.pop('_reset_snv_dang_lam', False):
             st.session_state['snv_dang_lam'] = ''
         if st.session_state.role in ("admin", "xem_toan_bo"):
-            _chedo_nv = st.radio("Chọn thao tác:", ["🔍 Danh sách nhân viên đang làm việc (bao gồm thử việc)", "➕ Thêm NV mới"],
-                                 horizontal=True, key="nv_dang_lam_thao_tac")
+            _chedo_nv = st.radio(
+                "Chọn thao tác:",
+                [
+                    "🔍 Danh sách nhân viên đang làm việc (bao gồm thử việc)",
+                    "➕ Thêm NV mới"
+                ],
+                format_func=lambda x: f"⭐ {x} ⭐" if x.startswith("🔍") else x,
+                horizontal=True,
+                key="nv_dang_lam_thao_tac"
+            )
         else:
             _chedo_nv = "🔍 Danh sách nhân viên đang làm việc (bao gồm thử việc)"
 
@@ -9664,9 +9672,9 @@ elif menu == "✅ Nhân viên":
                     df_show.rename(columns=col_map, inplace=True)
                 
                     if len(ds) > 1:
-                        st.caption(f"📌 {len(ds)} kết quả.<em>Tick vào nút Profile chọn 1 nhân viên để thao tác - Sửa thông tin/In Hợp đồng.<em>")
+                        st.caption(f"📌 {len(ds)} kết quả.Tick vào nút Profile chọn 1 nhân viên để thao tác - Sửa thông tin/In Hợp đồng.")
                     else:
-                        st.caption(f"📌 Danh sách đầy đủ ({len(ds)} kết quả).<em>Tick vào nút Profile chọn 1 nhân viên để thao tác - Sửa thông tin/In Hợp đồng.<em>")
+                        st.caption(f"📌 Danh sách đầy đủ ({len(ds)} kết quả).Tick vào nút Profile chọn 1 nhân viên để thao tác - Sửa thông tin/In Hợp đồng.")
                 
                     # Nếu là viewer, hiển thị bảng không có checkbox chọn
                     if st.session_state.role in ("admin", "xem_toan_bo"):

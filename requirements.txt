@@ -16,3 +16,4 @@ streamlit-webrtc
 av
 opencv-python-headless
 pypdf>=4.0.0
+pdf2image

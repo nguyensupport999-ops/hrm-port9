@@ -20,7 +20,7 @@ def render():
     # ========================================================================
     # LINKS
     # ========================================================================
-    CV_PDF_URL = "https://drive.google.com/file/d/1fT9L9wD0B56IBSaatUA3chHESR_qSlfU/view?usp=sharing"
+    CV_PDF_URL = "https://drive.google.com/file/d/15iYMN3VGBtHF2HHd1kTbb2aNyySs6wEI/view?usp=drive_link"
     CERT_URL = "https://drive.google.com/file/d/1iIGPnp_71rhRtX4h_5oys5XdMByygQha/view?usp=drive_link"
     DEMO_URL = ""
     CONTACT_EMAIL = "nguyen.support999@gmail.com"
@@ -29,7 +29,7 @@ def render():
     _demo_btn = (
         # Nút không gắn link - chỉ hiển thị hướng dẫn đăng nhập bên trái
         f'<span class="hp-btn primary" style="cursor: default;">'
-        f'&#9654; Nhấn Đăng nhập bên trái để Trải nghiệm HRM Master (Demo)</span>'
+        f'Đăng nhập bên trái để trải nghiệm HRM Master</span>'
     )
     _cv_btn = (
         f'<a class="hp-btn ghost" href="{CV_PDF_URL}" target="_blank" rel="noopener noreferrer">'
@@ -302,7 +302,7 @@ def render():
           <div class="hp-metric-label">Dòng code tự tôi<br>chỉ đạo AI viết</div>
         </div>
         <div class="hp-metric-item">
-          <div class="hp-metric-num">85<span>%</span></div>
+          <div class="hp-metric-num">80<span>%</span></div>
           <div class="hp-metric-label">Thời gian xử lý<br>nghiệp vụ được cắt giảm</div>
         </div>
         <div class="hp-metric-item">
@@ -372,7 +372,7 @@ def render():
           <div class="hp-tl-date">05/2026 - Nay</div>
           <h3>CV HCNS kiêm Product Owner HRM</h3>
           <div class="hp-role">Doanh nghiệp hiện tại</div>
-          <p>Chủ động khảo sát quy trình, xác định điểm nghẽn. Tự phân tích nghiệp vụ, thiết kế và phát triển hệ thống HRM Master. Kết quả: App giúp tiết kiệm ~85% thời gian xử lý nghiệp vụ HCNS.</p>
+          <p>Chủ động khảo sát quy trình, xác định điểm nghẽn. Tự phân tích nghiệp vụ, thiết kế và phát triển hệ thống HRM Master. Kết quả: App giúp tiết kiệm ~80% thời gian xử lý nghiệp vụ HCNS.</p>
         </div>
         <div class="hp-tl-item">
           <div class="hp-tl-date">2023 - 04/2026</div>
@@ -420,7 +420,7 @@ def render():
         _ua = ""
     _la_mobile = any(k in _ua for k in ("mobi", "iphone", "android"))
     
-    components.html(_landing_html, height=5500 if _la_mobile else 3400, scrolling=True)
+    components.html(_landing_html, height=5500 if _la_mobile else 4000, scrolling=True)
 
 
 if __name__ == "__main__":

@@ -11430,7 +11430,8 @@ elif menu == "✅ Nhân viên":
                             snap["_loai_qd"] = loai_qd
                             c_s.execute("UPDATE quyet_dinh_nhan_su SET snapshot_truoc = %s::jsonb WHERE id = %s",
                                         (json.dumps(snap, default=_json_default, ensure_ascii=False), qd_id_moi))
-                           
+                            
+                            db_s.commit()
                             db_s.close()
 
                             if loai_qd == 'DIEU_CHUYEN':
@@ -12955,12 +12956,12 @@ elif menu=="📁 Upload hồ sơ" and st.session_state.role=="admin":
     with tab_upload:
         db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        c.execute("SELECT id, ma_nv, ho_ten FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY id DESC")
+        c.execute("SELECT id, ma_nv, ho_ten, trang_thai FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC','NGHI_VIEC') ORDER BY id DESC")
         nvl = c.fetchall()
         db.close()
         
         if nvl:
-            nd = {f"{x['ma_nv']} - {x['ho_ten']}": x['id'] for x in nvl}
+            nd = {f"{x['ma_nv']} - {x['ho_ten']}" + (" (đã nghỉ việc)" if x['trang_thai'] == 'NGHI_VIEC' else ""): x['id'] for x in nvl}
             id_to_hoten = {x['id']: x['ho_ten'] for x in nvl}
             cn = st.selectbox("📌 Chọn nhân viên:", list(nd.keys()))
             

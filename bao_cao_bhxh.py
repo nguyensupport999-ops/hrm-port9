@@ -93,7 +93,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None, thang_tr
         # trang_thai, ma_so_bhxh...) mà phần xử lý bên dưới đang dùng; thiếu cột nào r.get() trả None.
         c.execute("""
             SELECT * FROM nhan_vien
-            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            WHERE trang_thai = 'DANG_LAM'
             ORDER BY phong_ban_lam_viec, ho_ten
         """)
         col_names = [desc[0] for desc in c.description]
@@ -109,7 +109,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None, thang_tr
         c.execute("""
             SELECT id, ho_ten, luong_bao_hiem, chuc_danh_nghe
             FROM nhan_vien
-            WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+            WHERE trang_thai = 'DANG_LAM'
             ORDER BY ho_ten
         """)
         col_names = [desc[0] for desc in c.description]
@@ -185,19 +185,27 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None, thang_tr
     # trở về trước, VÀ (chưa kết thúc BH hoặc kết thúc BH từ kỳ này trở về sau).
     # Dùng CHUNG 2 mốc thang_bat_dau_bh / thang_ket_thuc_bh (fallback ngay_ket_thuc)
     # với báo cáo D02-LT để đảm bảo số NV tăng/giảm giữa 2 báo cáo khớp nhau.
-    if tu_ngay or den_ngay:
-        filtered = []
-        for r in rows:
-            ngay_bd = _to_date(r.get("thang_bat_dau_bh"))
-            if den_ngay and ngay_bd and ngay_bd > den_ngay:
-                continue  # BH bắt đầu sau kỳ báo cáo
+    # Chỉ giữ NV ĐANG ĐÓNG BHXH trong kỳ trích nộp: đang làm chính thức (không thử việc,
+    # không nghỉ việc), đã có tháng bắt đầu BH và tháng đó <= tháng trích nộp, chưa kết thúc BH
+    # trước kỳ. Điều kiện lọc duy nhất là "Tháng trích nộp" — không còn lọc theo khoảng ngày.
+    ky_ht = (thang_trich_nop.year, thang_trich_nop.month)
+    filtered = []
+    for r in rows:
+        if r.get("trang_thai") != "DANG_LAM" or (r.get("loai_hop_dong") or "") == "Thử việc":
+            continue  # loại thử việc và người đã nghỉ việc
 
-            ngay_kt = _to_date(r.get("thang_ket_thuc_bh")) or _to_date(r.get("ngay_ket_thuc"))
-            if tu_ngay and ngay_kt and ngay_kt < tu_ngay:
-                continue  # Đã kết thúc BH trước kỳ báo cáo
+        ngay_bd = _to_date(r.get("thang_bat_dau_bh"))
+        if ngay_bd is None:
+            continue  # chưa có tháng bắt đầu BH = chưa đóng BH
+        if (ngay_bd.year, ngay_bd.month) > ky_ht:
+            continue  # BH bắt đầu sau kỳ trích nộp
 
-            filtered.append(r)
-        rows = filtered
+        ngay_kt = _to_date(r.get("thang_ket_thuc_bh")) or _to_date(r.get("ngay_ket_thuc"))
+        if ngay_kt and (ngay_kt.year, ngay_kt.month) < ky_ht:
+            continue  # đã kết thúc BH trước kỳ trích nộp
+
+        filtered.append(r)
+    rows = filtered
 
     # ── Tạo Excel ──
     wb = openpyxl.Workbook()
@@ -277,8 +285,9 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None, thang_tr
     tong_nv_hop_le = 0  # Đếm số NV có lương > 0 và đang làm
 
     # Lấy tháng/năm hiện tại của kỳ báo cáo
-    ky_thang = tu_ngay.month if tu_ngay else datetime.date.today().month
-    ky_nam = tu_ngay.year if tu_ngay else datetime.date.today().year
+    # Kỳ báo cáo = tháng trích nộp được chọn (không phụ thuộc ngày hôm nay)
+    ky_thang = thang_trich_nop.month
+    ky_nam = thang_trich_nop.year
 
     for idx, r in enumerate(rows, 1):
         # Lấy lương, nếu NULL hoặc rỗng thì = 0
@@ -496,25 +505,9 @@ def render_xuat_bao_cao_bhxh(db_engine):
                                    step=1, key="bhxh_bc_nam")
     thang_trich_nop = datetime.date(int(nam_chon), int(thang_chon), 1)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        tu_ngay = st.date_input("Từ ngày (tháng bắt đầu nộp BH)",
-                                value=datetime.date(datetime.date.today().year, 1, 1),
-                                key="bhxh_bc_tu")
-    with col2:
-        den_ngay = st.date_input("Đến ngày",
-                                 value=datetime.date.today(),
-                                 key="bhxh_bc_den")
-
-    loc_tat_ca = st.checkbox("Xuất tất cả NV đang đóng BH (bỏ lọc ngày)", value=True, key="bhxh_bc_all")
-
     if st.button("📥 Xuất báo cáo", type="primary", key="btn_xuat_bc_bhxh"):
         try:
-            if loc_tat_ca:
-                excel_bytes, so_nv = xuat_bao_cao_trich_nop_bhxh(db_engine, thang_trich_nop=thang_trich_nop)
-            else:
-                excel_bytes, so_nv = xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay, den_ngay,
-                                                                 thang_trich_nop=thang_trich_nop)
+            excel_bytes, so_nv = xuat_bao_cao_trich_nop_bhxh(db_engine, thang_trich_nop=thang_trich_nop)
 
             if so_nv == 0:
                 st.warning("⚠️ Không có NV nào thỏa điều kiện.")

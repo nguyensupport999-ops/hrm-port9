@@ -1209,6 +1209,15 @@ def sap_xep_nhan_vien(ds_nv):
         return (pb_key, cv_key, nv.get('ho_ten') or '')
     return sorted(ds_nv, key=key_fn)
 
+def khoa_sort_so_hdld(nv):
+    """Khoá sắp xếp theo số HĐLĐ/HĐTV tăng dần: năm -> số thứ tự -> số chèn (01-2 đứng sau 01).
+    Dòng không có/không đọc được số HĐ đưa xuống cuối."""
+    so = str(nv.get('so_hdld') or '').strip()
+    m = re.match(r"^(\d+)(?:-(\d+))?/(\d{4})/", so)
+    if not m:
+        return (1, 0, 0, 0, so)
+    return (0, int(m.group(3)), int(m.group(1)), int(m.group(2) or 0), so)
+
 def sap_xep_phong_ban_rows(rows, key_field="Phòng ban"):
     """Sắp xếp list các dict/RealDictRow theo thứ tự phòng ban chuẩn (PHONG_BAN_THU_TU)."""
     def key_fn(row):
@@ -9382,7 +9391,6 @@ elif menu == "✅ Nhân viên":
                     "🔍 Danh sách nhân viên đang làm việc (bao gồm thử việc)",
                     "➕ Thêm NV mới"
                 ],
-                format_func=lambda x: f"⭐ {x} ⭐" if x.startswith("🔍") else x,
                 horizontal=True,
                 key="nv_dang_lam_thao_tac"
             )
@@ -9672,6 +9680,7 @@ elif menu == "✅ Nhân viên":
             c.execute(sql, tuple(params))
             ds = c.fetchall()
             db.close()
+            ds = sorted(ds, key=khoa_sort_so_hdld)   # sắp xếp tăng dần theo số HĐLĐ
         
             if ds:
                 # ===== KIỂM TRA NẾU CHỈ CÓ 1 KẾT QUẢ TÌM KIẾM =====

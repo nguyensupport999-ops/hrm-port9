@@ -304,7 +304,7 @@ def render():
           <div class="hp-metric-label">Năm kinh nghiệm<br>quản trị</div>
         </div>
         <div class="hp-metric-item">
-          <div class="hp-metric-num">15.000<span>+</span></div>
+          <div class="hp-metric-num">25.000<span>+</span></div>
           <div class="hp-metric-label">Dòng code tự tay<br>chỉ đạo AI viết</div>
         </div>
         <div class="hp-metric-item">

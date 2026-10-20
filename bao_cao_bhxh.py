@@ -206,7 +206,20 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None, thang_tr
 
         filtered.append(r)
     rows = filtered
+    
+    # Sắp xếp tăng dần theo số HĐLĐ (năm -> số thứ tự -> số chèn, VD 01-2 đứng sau 01).
+    # Dòng không có/không đọc được số HĐLĐ đưa xuống cuối.
+    import re
 
+    def _khoa_sort_so_hdld(r):
+        so = str(r.get("so_hdld") or "").strip()
+        m = re.match(r"^(\d+)(?:-(\d+))?/(\d{4})/", so)
+        if not m:
+            return (1, 0, 0, 0, so)
+        return (0, int(m.group(3)), int(m.group(1)), int(m.group(2) or 0), so)
+
+    rows = sorted(rows, key=_khoa_sort_so_hdld)
+    
     # ── Tạo Excel ──
     wb = openpyxl.Workbook()
     ws = wb.active

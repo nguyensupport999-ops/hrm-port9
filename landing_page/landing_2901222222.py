@@ -68,6 +68,7 @@ def render():
   
   #hrm-portfolio * { box-sizing: border-box; }
   #hrm-portfolio img { max-width: 100%; display: block; }
+  #hrm-portfolio .hp-comp-grid > *, #hrm-portfolio .hp-hero-grid > * { min-width: 0; }
   #hrm-portfolio .hp-wrap { max-width: 900px; margin: 0 auto; padding: 0 30px; }
   
   #hrm-portfolio h1, #hrm-portfolio h2, #hrm-portfolio h3, #hrm-portfolio h4 {
@@ -244,14 +245,27 @@ def render():
     #hrm-portfolio .hp-hero-grid { flex-direction: column; text-align: center; gap: 30px; }
     #hrm-portfolio .hp-hero h1 { font-size: 32px; }
     #hrm-portfolio .hp-cta-row { justify-content: center; }
-    #hrm-portfolio .hp-metrics-grid { grid-template-columns: repeat(2, 1fr); }
-    #hrm-portfolio .hp-metric-item { border-right: none; border-bottom: 1px solid var(--border); padding: 15px; }
+    #hrm-portfolio .hp-metrics-sec { padding: 24px 0; }
+    #hrm-portfolio .hp-metrics-sec .hp-wrap { padding: 0 14px; }
+    /* minmax(0,1fr): cho phép cột co lại, không bị chữ số đẩy tràn khung */
+    #hrm-portfolio .hp-metrics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    #hrm-portfolio .hp-metric-item { border-right: none; border-bottom: 1px solid var(--border); padding: 14px 6px; min-width: 0; }
     #hrm-portfolio .hp-metric-item:nth-child(3), #hrm-portfolio .hp-metric-item:nth-child(4) { border-bottom: none; }
+    #hrm-portfolio .hp-metric-num { font-size: 30px; margin-bottom: 6px; white-space: nowrap; }
+    #hrm-portfolio .hp-metric-num span { font-size: 18px; }
+    #hrm-portfolio .hp-metric-label { font-size: 11px; letter-spacing: 0.02em; line-height: 1.45; }
+    /* Bỏ <br> cứng để chữ tự xuống dòng theo bề ngang, tránh mỗi từ một dòng */
+    #hrm-portfolio .hp-metric-label br { display: none; }
     #hrm-portfolio .hp-comp-grid { grid-template-columns: 1fr; }
     
     #hrm-portfolio .hp-timeline::before { left: 20px; }
     #hrm-portfolio .hp-tl-item { width: 100%; left: 0 !important; text-align: left !important; padding-left: 50px; padding-right: 0; }
     #hrm-portfolio .hp-tl-item::before { left: 12px !important; right: auto !important; }
+  }
+  @media (max-width: 400px) {
+    #hrm-portfolio .hp-metric-num { font-size: 26px; }
+    #hrm-portfolio .hp-metric-num span { font-size: 16px; }
+    #hrm-portfolio .hp-metric-label { font-size: 10.5px; }
   }
 </style>
 """
@@ -420,7 +434,7 @@ def render():
         _ua = ""
     _la_mobile = any(k in _ua for k in ("mobi", "iphone", "android"))
     
-    components.html(_landing_html, height=5600 if _la_mobile else 3680, scrolling=True)
+    components.html(_landing_html, height=5600 if _la_mobile else 3500, scrolling=True)
 
 
 if __name__ == "__main__":

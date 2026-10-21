@@ -8845,7 +8845,7 @@ elif menu == "👤 Ứng viên":
             col4, col5, col6 = st.columns(3)
             la_thu_viec_chuyen = loai_hd_chuyen == "Thử việc"
             with col4:
-                ma_bhxh_chuyen = st.text_input("Mã BHXH", disabled=la_thu_viec_chuyen)
+                ma_bhxh_chuyen = st.text_input("Mã BHXH")
                 _cd_chuyen = st.session_state.get("chuc_danh_nv", "") if "chuc_danh_nv" in st.session_state else ""
                 _goi_y_lines_c = ["── Gợi ý lương BH ──"]
                 _goi_y_nhanh_c = ""
@@ -8880,7 +8880,7 @@ elif menu == "👤 Ứng viên":
                                     help=f"= {_lbh_val:,} × 10,5% (tự tính từ Lương BH)" if _mtd_auto > 0 else "Nhập Lương BH trước")
                 phuong_thuc_dong_chuyen = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"])
                 nhom_bhxh_chuyen = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"])
-                phuong_an_chuyen = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_chuyen", disabled=la_thu_viec_chuyen)
+                phuong_an_chuyen = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_chuyen")
             
             st.divider()
             st.caption("🏦 Ngân hàng & KCB")
@@ -8983,7 +8983,7 @@ elif menu == "👤 Ứng viên":
                                     muc_huong_bhyt_chuyen, to_float_or_none(ty_le_dong_chuyen), to_float_or_none(mtd),
                                     phuong_thuc_dong_chuyen, tinh_nhan_hs_chuyen, phuong_nhan_hs_chuyen, dia_chi_nhan_hs_chuyen,
                                     tinh_kcb_chuyen, noi_kcb_chuyen, dk_nhan_so_chuyen, ten_don_vi_thu_huong, so_luong_npt_nv, trinh_do_nv,
-                                    pa_val_add, format_thang_nam(tbd_val)
+                                    pa_val_add, (format_thang_nam(tbd_val) if tbd_val else None)
                                 ))
                                 nhan_vien_id_moi = c.fetchone()[0]
 
@@ -8997,11 +8997,11 @@ elif menu == "👤 Ứng viên":
                                 c.execute("UPDATE ung_vien SET trang_thai='DA_NHAN_VIEC', ma_nv=%s WHERE id=%s", 
                                          (ma_nv, st.session_state['chuyen_uv_id']))
                                 
-                                # Thêm lịch sử công tác
+                                # Thêm lịch sử công tác (tu_ngay phải là kiểu date = nhl, không dùng chuỗi dd/mm/yyyy)
                                 c.execute("""
                                     INSERT INTO lich_su_cong_tac (nhan_vien_id, tu_ngay, chuc_danh, phong_ban, noi_lam_viec, loai_hop_dong, he_so_luong, so_hop_dong)
                                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                                """, (nhan_vien_id_moi, ngay_vao_lam_chuyen, chuc_danh_nv, phong_ban_nv, noi_lam_viec_nv, loai_hd_chuyen, 
+                                """, (nhan_vien_id_moi, nhl, chuc_danh_nv, phong_ban_nv, noi_lam_viec_nv, loai_hd_chuyen, 
                                       to_float_or_none(he_so_luong_chuyen), so_hd))
                                 
                                 db.commit()
@@ -9563,7 +9563,7 @@ elif menu == "✅ Nhân viên":
                                                  to_float_or_none(hsl), to_float_or_none(pcv), to_float_or_none(ptv), to_float_or_none(ptn),
                                                  mhb, to_float_or_none(tld), to_float_or_none(mtd), ptd, ths, phs, dhs, tkb, nkb, dks,
                                                  ten_don_vi_thu_huong, trinh_do_moi, so_luong_npt,
-                                                 pa_val_add, format_thang_nam(tbd_val)))
+                                                 pa_val_add, (format_thang_nam(tbd_val) if tbd_val else None)))
                                             new_nv_id = c.fetchone()[0]
                                             
                                             if anh_ho_so_moi is not None:

@@ -420,7 +420,7 @@ def render():
         _ua = ""
     _la_mobile = any(k in _ua for k in ("mobi", "iphone", "android"))
     
-    components.html(_landing_html, height=5500 if _la_mobile else 4000, scrolling=True)
+    components.html(_landing_html, height=5600 if _la_mobile else 3680, scrolling=True)
 
 
 if __name__ == "__main__":

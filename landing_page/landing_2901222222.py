@@ -309,19 +309,19 @@ def render():
       <div class="hp-metrics-grid">
         <div class="hp-metric-item">
           <div class="hp-metric-num">20<span>+</span></div>
-          <div class="hp-metric-label">Năm kinh nghiệm<br>quản trị</div>
+          <div class="hp-metric-label">Năm kinh nghiệm<br> quản trị</div>
         </div>
         <div class="hp-metric-item">
           <div class="hp-metric-num">25.000<span>+</span></div>
-          <div class="hp-metric-label">Dòng code tự tôi<br>chỉ đạo AI viết</div>
+          <div class="hp-metric-label">Dòng code tự tôi<br> chỉ đạo AI viết</div>
         </div>
         <div class="hp-metric-item">
           <div class="hp-metric-num">80<span>%</span></div>
-          <div class="hp-metric-label">Thời gian xử lý<br>nghiệp vụ được cắt giảm</div>
+          <div class="hp-metric-label">Thời gian xử lý<br> nghiệp vụ được cắt giảm</div>
         </div>
         <div class="hp-metric-item">
           <div class="hp-metric-num">300<span>+</span></div>
-          <div class="hp-metric-label">Nhân sự đã quản lý<br>trực tiếp (Bảo Việt)</div>
+          <div class="hp-metric-label">Nhân sự đã quản lý<br> trực tiếp (Tập đoàn BẢOVIỆT)</div>
         </div>
       </div>
     </div>

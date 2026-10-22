@@ -10338,10 +10338,14 @@ elif menu == "✅ Nhân viên":
                                     dtnv = st.text_input("Dân tộc", value=nd.get('dan_toc', 'Kinh'))
                                     dtnv2 = st.text_input("SĐT", value=nd.get('dien_thoai', ''))
                                     trinh_do_v = st.selectbox("Trình độ", [""] + TRINH_DO_LIST, index=([""] + TRINH_DO_LIST).index(nd.get('trinh_do', '')) if nd.get('trinh_do') in TRINH_DO_LIST else 0)
-                                    cdnv = st.selectbox("Chức danh", [""] + dcv_edit, index=([""] + dcv_edit).index(nd.get('chuc_danh_nghe', '')) if nd.get('chuc_danh_nghe') in dcv_edit else 0)
+                                    # Nếu chức danh hiện tại chưa có trong danh mục: vẫn đưa vào danh sách chọn để KHÔNG bị xóa trắng khi lưu
+                                    _cd_hien_tai = (nd.get('chuc_danh_nghe') or '').strip()
+                                    _ds_cd_edit = [""] + dcv_edit + ([_cd_hien_tai] if _cd_hien_tai and _cd_hien_tai not in dcv_edit else [])
+                                    cdnv = st.selectbox("Chức danh", _ds_cd_edit, index=_ds_cd_edit.index(_cd_hien_tai) if _cd_hien_tai in _ds_cd_edit else 0)
                                 with col3:
                                     pb_hien_tai_chuan = chuan_hoa_ten_phong_ban(nd.get('phong_ban_lam_viec'))
-                                    pbnv = st.selectbox("Phòng ban", [""] + dpb_edit, index=([""] + dpb_edit).index(pb_hien_tai_chuan) if pb_hien_tai_chuan in dpb_edit else 0)
+                                    _ds_pb_edit = [""] + dpb_edit + ([pb_hien_tai_chuan] if pb_hien_tai_chuan and pb_hien_tai_chuan not in dpb_edit else [])
+                                    pbnv = st.selectbox("Phòng ban", _ds_pb_edit, index=_ds_pb_edit.index(pb_hien_tai_chuan) if pb_hien_tai_chuan in _ds_pb_edit else 0)
                                     nlv2 = nd.get('noi_lam_viec', 'Cảng THQT Hòn La')
                                     emnv = st.text_input("Email", value=nd.get('email_lien_he', ''))
                                     anh_hien_tai = nd.get('anh_ho_so')
@@ -11030,15 +11034,26 @@ elif menu == "✅ Nhân viên":
                 loai_hd_dung = nv_current['loai_hop_dong']
                 if nv_current['trang_thai'] == 'THU_VIEC':
                     loai_hd_dung = 'Thử việc'
-                c.execute("""
-                    INSERT INTO lich_su_cong_tac (nhan_vien_id, tu_ngay, chuc_danh, phong_ban, noi_lam_viec, loai_hop_dong, he_so_luong)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """, (nv_id_history, nv_current['ngay_vao_lam'], nv_current['chuc_danh_nghe'], 
-                      nv_current['phong_ban_lam_viec'], nv_current['noi_lam_viec'], 
-                      loai_hd_dung, nv_current['he_so_luong']))
-                db.commit()
-                st.cache_data.clear()
-                st.rerun()
+                if not nv_current['ngay_vao_lam']:
+                    st.warning("⚠️ Nhân viên này chưa có Ngày vào làm nên chưa tạo được lịch sử công tác. "
+                               "Vào 'Sửa nhân viên' để bổ sung Ngày vào làm.")
+                else:
+                    _ok_ls = False
+                    try:
+                        c.execute("""
+                            INSERT INTO lich_su_cong_tac (nhan_vien_id, tu_ngay, chuc_danh, phong_ban, noi_lam_viec, loai_hop_dong, he_so_luong)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        """, (nv_id_history, nv_current['ngay_vao_lam'], nv_current['chuc_danh_nghe'],
+                              nv_current['phong_ban_lam_viec'], nv_current['noi_lam_viec'],
+                              loai_hd_dung, nv_current['he_so_luong']))
+                        db.commit()
+                        _ok_ls = True
+                    except Exception as e:
+                        db.rollback()
+                        st.error(f"❌ Không tạo được lịch sử công tác: {e}")
+                    if _ok_ls:
+                        st.cache_data.clear()
+                        st.rerun()
             db.close()
         else:
             st.info("⚠️ Chưa có nhân viên nào trong hệ thống!")

@@ -168,6 +168,11 @@ CAU_HINH_MAC_DINH = {
     "bhxh_nld": 0.08,
     "bhyt_nld": 0.015,
     "bhtn_nld": 0.01,
+    # Phần Doanh nghiệp đóng (21,5%) — chỉ dùng khi DN chọn trả thêm bằng tiền cho NV đóng BHXH tại DN khác
+    "bhxh_dn": 0.175,
+    "bhyt_dn": 0.03,
+    "bhtn_dn": 0.01,
+    "tra_them_bh_dn_khac": False,
     "doan_phi_nld": 0.01,          # Đoàn phí công đoàn (tuỳ chọn, mặc định 1%)
     "ap_dung_doan_phi": False,
     # Trần đóng bảo hiểm
@@ -620,19 +625,39 @@ def tinh_luong_nhan_vien(nv: dict, thang: int, nam: int, cfg: dict = None,
     so_nam_tinh = min(so_nam, cfg.get("phu_cap_tham_nien_toi_da_nam", 10))
     phu_cap_tham_nien = so_nam_tinh * cfg.get("phu_cap_tham_nien_nam", 0)
 
-    tong_thu_nhap = p1 + p2 + p3 + phu_cap_chuc_vu + phu_cap_tham_nien + phu_cap_trach_nhiem + phu_cap_khac
-
-    # ----- Khấu trừ BHXH/BHYT/BHTN -----
+    # ----- Cơ sở đóng BH -----
     luong_dong_bh = float(nv.get("luong_bao_hiem") or p1 or 0)
     tran_bhxh_bhyt = 20 * cfg.get("luong_co_so", 2_340_000)
     tran_bhtn = 20 * cfg.get("luong_toi_thieu_vung", 4_960_000)
     bh_xh_bhyt_base = min(luong_dong_bh, tran_bhxh_bhyt)
     bh_tn_base = min(luong_dong_bh, tran_bhtn)
 
-    bhxh_nld = round(bh_xh_bhyt_base * cfg.get("bhxh_nld", 0.08))
-    bhyt_nld = round(bh_xh_bhyt_base * cfg.get("bhyt_nld", 0.015))
-    bhtn_nld = round(bh_tn_base * cfg.get("bhtn_nld", 0.01))
-    doan_phi = round(tong_thu_nhap * cfg.get("doan_phi_nld", 0.01)) if cfg.get("ap_dung_doan_phi") else 0
+    # NV đóng BHXH tại DN khác = CHUA_DONG nhưng không phải Thử việc
+    dong_bh_dn_khac = (nv.get("trang_thai_bhxh") == "CHUA_DONG"
+                       and (nv.get("loai_hop_dong") or "") != "Thử việc")
+
+    # ----- Khoản DN trả thêm thay phần BH DN đáng lẽ đóng (21,5%) — chỉ khi bật trong cấu hình -----
+    ho_tro_bh_dn_khac = 0
+    if dong_bh_dn_khac and cfg.get("tra_them_bh_dn_khac"):
+        ho_tro_bh_dn_khac = (round(bh_xh_bhyt_base * cfg.get("bhxh_dn", 0.175))
+                             + round(bh_xh_bhyt_base * cfg.get("bhyt_dn", 0.03))
+                             + round(bh_tn_base * cfg.get("bhtn_dn", 0.01)))
+        phu_cap_khac = phu_cap_khac + ho_tro_bh_dn_khac
+        ghi_chu = (ghi_chu + " | " if ghi_chu else "") + \
+                  f"Gồm {ho_tro_bh_dn_khac:,} đ DN trả thêm thay phần BH DN đóng (NV đóng BHXH tại DN khác)"
+
+    tong_thu_nhap = p1 + p2 + p3 + phu_cap_chuc_vu + phu_cap_tham_nien + phu_cap_trach_nhiem + phu_cap_khac
+
+    # ----- Khấu trừ BHXH/BHYT/BHTN (phần NLĐ) -----
+    if dong_bh_dn_khac:
+        # Đóng BHXH tại DN khác: DN này không khấu trừ 10,5%
+        bhxh_nld = bhyt_nld = bhtn_nld = 0
+    else:
+        bhxh_nld = round(bh_xh_bhyt_base * cfg.get("bhxh_nld", 0.08))
+        bhyt_nld = round(bh_xh_bhyt_base * cfg.get("bhyt_nld", 0.015))
+        bhtn_nld = round(bh_tn_base * cfg.get("bhtn_nld", 0.01))
+    # Đoàn phí tính trên thu nhập CHƯA gồm khoản DN trả thêm (giữ nguyên kết quả cũ)
+    doan_phi = round((tong_thu_nhap - ho_tro_bh_dn_khac) * cfg.get("doan_phi_nld", 0.01)) if cfg.get("ap_dung_doan_phi") else 0
     tong_khau_tru_bh = bhxh_nld + bhyt_nld + bhtn_nld + doan_phi
 
     # ----- Thuế TNCN -----
@@ -664,6 +689,7 @@ def tinh_luong_nhan_vien(nv: dict, thang: int, nam: int, cfg: dict = None,
         "chi_tiet_thue": chi_tiet_thue,
         "tong_khau_tru": round(tong_khau_tru), "thuc_nhan": round(thuc_nhan),
         "ghi_chu": ghi_chu,
+        "dong_bh_dn_khac": dong_bh_dn_khac, "ho_tro_bh_dn_khac": ho_tro_bh_dn_khac,
     }
 
 
@@ -941,11 +967,13 @@ def _lay_ds_nhan_vien(active_only=True):
     try:
         if active_only:
             c.execute("""SELECT id, ma_nv, ho_ten, phong_ban_lam_viec, chuc_vu, chuc_danh_nghe,
-                                he_so_luong, luong_bao_hiem, phu_cap_chuc_vu, ngay_vao_lam, trang_thai
+                                he_so_luong, luong_bao_hiem, phu_cap_chuc_vu, ngay_vao_lam, trang_thai,
+                                trang_thai_bhxh, loai_hop_dong
                          FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY ho_ten""")
         else:
             c.execute("""SELECT id, ma_nv, ho_ten, phong_ban_lam_viec, chuc_vu, chuc_danh_nghe,
-                                he_so_luong, luong_bao_hiem, phu_cap_chuc_vu, ngay_vao_lam, trang_thai
+                                he_so_luong, luong_bao_hiem, phu_cap_chuc_vu, ngay_vao_lam, trang_thai,
+                                trang_thai_bhxh, loai_hop_dong
                          FROM nhan_vien ORDER BY ho_ten""")
         return c.fetchall()
     finally:
@@ -1424,6 +1452,15 @@ def _ui_payroll_config():
         luong_vung = c7.number_input("Lương tối thiểu vùng (VNĐ) — trần BHTN = 20 lần", min_value=0,
                                       value=int(cfg["luong_toi_thieu_vung"]), step=10_000)
 
+        st.markdown("**NV đóng BHXH tại doanh nghiệp khác**")
+        st.caption("NV này không bị khấu trừ BHXH/BHYT/BHTN phần NLĐ. DN có thể trả thêm bằng tiền khoản "
+                   "tương đương phần DN đáng lẽ đóng (khoản này vào thu nhập chịu thuế TNCN).")
+        tra_them_bh_dn_khac = st.checkbox("DN trả thêm bằng tiền phần BH DN đóng (21,5%) cho NV đóng BHXH tại DN khác",
+                                          value=bool(cfg.get("tra_them_bh_dn_khac", False)))
+        cd1, cd2, cd3 = st.columns(3)
+        bhxh_dn = cd1.number_input("BHXH DN đóng (%)", 0.0, 30.0, cfg["bhxh_dn"] * 100, step=0.5) / 100
+        bhyt_dn = cd2.number_input("BHYT DN đóng (%)", 0.0, 10.0, cfg["bhyt_dn"] * 100, step=0.5) / 100
+        bhtn_dn = cd3.number_input("BHTN DN đóng (%)", 0.0, 5.0, cfg["bhtn_dn"] * 100, step=0.5) / 100
         st.markdown("**Giảm trừ gia cảnh (Thuế TNCN)**")
         c8, c9 = st.columns(2)
         gt_ban_than = c8.number_input("Giảm trừ bản thân (VNĐ/tháng)", min_value=0,
@@ -1452,6 +1489,8 @@ def _ui_payroll_config():
             cfg_moi.update({
                 "bhxh_nld": bhxh, "bhyt_nld": bhyt, "bhtn_nld": bhtn,
                 "ap_dung_doan_phi": ap_dung_doan_phi, "doan_phi_nld": doan_phi,
+                "tra_them_bh_dn_khac": tra_them_bh_dn_khac,
+                "bhxh_dn": bhxh_dn, "bhyt_dn": bhyt_dn, "bhtn_dn": bhtn_dn,
                 "luong_co_so": luong_co_so, "luong_toi_thieu_vung": luong_vung,
                 "giam_tru_ban_than": gt_ban_than, "giam_tru_nguoi_phu_thuoc": gt_phu_thuoc,
                 "ty_le_quy_p2": ty_le_p2, "ty_le_quy_p3": ty_le_p3,
@@ -1616,10 +1655,9 @@ def _ui_tinh_luong_thang():
 
     chinh_sach = chinh_sach_da_xuat_ban()
     if not chinh_sach:
-        st.error("⛔ Chưa có chính sách lương 3P nào được **Xuất bản**. Vui lòng liên hệ Admin để hoàn thiện "
-                  "và xuất bản chính sách 3P trước khi tính thu nhập.")
+        st.error("⛔ Phần mềm sẽ thiết kế 'đo ni đóng giày' phù hợp với chính sách và quy chế lương thưởng của Quý Công ty")
         return
-    st.caption(f"Đang áp dụng chính sách 3P — Phiên bản {chinh_sach['phien_ban']} "
+    st.caption(f"Đang áp dụng chính sách lương — Phiên bản {chinh_sach['phien_ban']} "
                f"(xuất bản {chinh_sach['ngay_xuat_ban'].strftime('%d/%m/%Y')}).")
 
     cfg = lay_cau_hinh_luong()
@@ -1753,9 +1791,8 @@ def _ui_tinh_luong_thang():
 
 def show_tinh_thu_nhap():
     ensure_3p_tables()
-    st.markdown("# 💰 Tính thu nhập (Chính sách lương 3P)")
-    st.caption("Pay for Position (P1) • Pay for Person (P2) • Pay for Performance (P3)")
-
+    st.markdown("# 💰 Tính thu nhập")
+    
     role = st.session_state.get("role")
     if role == "admin":
         tab1, tab2, tab3, tab4 = st.tabs([

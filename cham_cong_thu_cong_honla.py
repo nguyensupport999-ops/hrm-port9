@@ -363,7 +363,7 @@ def lay_danh_sach_nhan_vien_theo_phong(ten_phong_ban: str):
     db = _get_conn()
     c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     c.execute(
-        """SELECT id, ma_nv, ho_ten, chuc_danh_nghe FROM nhan_vien
+        """SELECT id, ma_nv, ho_ten, chuc_danh_nghe, trang_thai_bhxh FROM nhan_vien
            WHERE trang_thai IN ('DANG_LAM','THU_VIEC')
              AND phong_ban_lam_viec = %s
              AND so_hdld IS NOT NULL
@@ -703,7 +703,10 @@ def render_tab_thu_cong(nhan_vien_hien_tai: dict, ma_so_thue_hien_tai: str):
         cidx += 1
 
         # ---- Cảnh báo báo giảm BHXH ----
-        if ma_chon in NHOM_CANH_BAO_14_NGAY:
+        # NV không đóng BHXH tại DN này (đóng tại DN khác / thử việc): không cảnh báo báo giảm
+        if nv.get('trang_thai_bhxh') == 'CHUA_DONG':
+            pass
+        elif ma_chon in NHOM_CANH_BAO_14_NGAY:
             so_ngay = tinh_so_ngay_nghi_lien_tuc(nv_id, ma_chon, ngay_cham)
             if so_ngay >= NGUONG_NGAY_CANH_BAO:
                 ds_canh_bao.append(

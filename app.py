@@ -5449,6 +5449,135 @@ def ensure_qdns_columns():
         print(f"Lỗi ensure_qdns_columns: {e}")
         return False
 
+def ensure_note_calendar_table():
+    """Tạo bảng note_calendar (lịch nhắc hẹn cá nhân) — chỉ chạy 1 lần/phiên."""
+    if st.session_state.get('_da_ensure_note_cal'):
+        return
+    db = None
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("""
+            CREATE TABLE IF NOT EXISTS note_calendar (
+                id SERIAL PRIMARY KEY,
+                nhan_vien_id INTEGER NOT NULL REFERENCES nhan_vien(id) ON DELETE CASCADE,
+                ngay_nhac DATE NOT NULL,
+                noi_dung TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        c.execute("CREATE INDEX IF NOT EXISTS idx_note_calendar_nv_ngay ON note_calendar (nhan_vien_id, ngay_nhac)")
+        db.commit()
+        c.close()
+        st.session_state['_da_ensure_note_cal'] = True
+    except Exception as e:
+        print(f"Lỗi ensure_note_calendar_table: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
+def hien_thi_note_calendar():
+    """Lịch nhắc hẹn CÁ NHÂN: chỉ chủ sở hữu (tài khoản đăng nhập) thấy và xóa được note của mình.
+    Note có ngay_nhac <= hôm nay (giờ VN) hiện ở đầu Dashboard cho tới khi người đó tự xóa."""
+    nv_id = st.session_state.get('nhan_vien_id')
+    if not nv_id:
+        return
+    ensure_note_calendar_table()
+    hom_nay = (datetime.utcnow() + timedelta(hours=7)).date()   # giờ Việt Nam (server chạy UTC)
+    duoc_ghi = not la_vai_tro_chi_xem()
+
+    try:
+        db_n = st.session_state.db_engine.get_connection()
+        c_n = db_n.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        c_n.execute("""SELECT id, ngay_nhac, noi_dung FROM note_calendar
+                       WHERE nhan_vien_id = %s ORDER BY ngay_nhac ASC, id ASC""", (int(nv_id),))
+        ds_note = c_n.fetchall()
+        db_n.close()
+    except Exception as e:
+        st.caption(f"⚠️ Không tải được lịch nhắc hẹn: {e}")
+        return
+
+    def _xoa_note(note_id):
+        db_x = st.session_state.db_engine.get_connection()
+        try:
+            c_x = db_x.cursor()
+            c_x.execute("DELETE FROM note_calendar WHERE id = %s AND nhan_vien_id = %s",
+                        (int(note_id), int(nv_id)))
+            db_x.commit()
+            return True
+        except Exception as e:
+            db_x.rollback()
+            st.error(f"❌ Lỗi: {e}")
+            return False
+        finally:
+            db_x.close()
+
+    den_han = [n for n in ds_note if n['ngay_nhac'] <= hom_nay]
+    chua_den = [n for n in ds_note if n['ngay_nhac'] > hom_nay]
+
+    if den_han:
+        st.markdown("### 🔔 Việc cần làm của tôi")
+        for n in den_han:
+            so_ngay_tre = (hom_nay - n['ngay_nhac']).days
+            c_txt, c_btn = st.columns([9, 2])
+            with c_txt:
+                if so_ngay_tre == 0:
+                    st.warning(f"📌 **Hôm nay** — {n['noi_dung']}")
+                else:
+                    st.error(f"⏰ **Quá hạn {so_ngay_tre} ngày** (nhắc từ {n['ngay_nhac'].strftime('%d/%m/%Y')}) — {n['noi_dung']}")
+            with c_btn:
+                if st.button("✅ Xong, xóa", key=f"note_xoa_{n['id']}", disabled=not duoc_ghi):
+                    if _xoa_note(n['id']):
+                        st.rerun()
+
+    with st.expander(f"📅 Lịch nhắc hẹn của tôi ({len(ds_note)})", expanded=False):
+        if chua_den:
+            for n in chua_den:
+                c_ngay, c_nd, c_x = st.columns([2, 8, 1])
+                c_ngay.write(f"**{n['ngay_nhac'].strftime('%d/%m/%Y')}**")
+                c_nd.write(n['noi_dung'])
+                if c_x.button("🗑️", key=f"note_xoa_cd_{n['id']}", help="Xóa nhắc hẹn", disabled=not duoc_ghi):
+                    if _xoa_note(n['id']):
+                        st.rerun()
+        else:
+            st.caption("Chưa có nhắc hẹn nào sắp tới.")
+
+        st.divider()
+        with st.form("note_calendar_form", clear_on_submit=True):
+            col_a, col_b = st.columns([1, 3])
+            with col_a:
+                ngay_nhac_moi = st.date_input("Ngày nhắc", value=hom_nay + timedelta(days=1),
+                                              min_value=hom_nay, format="DD/MM/YYYY")
+            with col_b:
+                noi_dung_moi = st.text_input("Nội dung công việc", max_chars=500,
+                                             placeholder="VD: Gia hạn hợp đồng với nhà cung cấp A")
+            if st.form_submit_button("➕ Thêm nhắc hẹn", disabled=not duoc_ghi):
+                if not noi_dung_moi.strip():
+                    st.error("Vui lòng nhập nội dung công việc.")
+                else:
+                    db_i = st.session_state.db_engine.get_connection()
+                    ok_i = False
+                    try:
+                        c_i = db_i.cursor()
+                        c_i.execute("INSERT INTO note_calendar (nhan_vien_id, ngay_nhac, noi_dung) VALUES (%s, %s, %s)",
+                                    (int(nv_id), ngay_nhac_moi, noi_dung_moi.strip()))
+                        db_i.commit()
+                        ok_i = True
+                    except Exception as e:
+                        db_i.rollback()
+                        st.error(f"❌ Lỗi: {e}")
+                    finally:
+                        db_i.close()
+                    if ok_i:
+                        st.toast("✅ Đã thêm nhắc hẹn")
+                        st.rerun()
 
 def ensure_qdns_table():
     """Tạo bảng quyet_dinh_nhan_su lưu lịch sử các Quyết định nhân sự đã ban hành."""
@@ -5538,6 +5667,100 @@ LOAI_QDNS_LABEL = {
     'DIEU_CHINH_LUONG': 'QĐ Điều chỉnh mức lương',
 }
 
+LOAI_BHXH_DN_KHAC_LABEL = {
+    'DUNG_DONG_BHXH_TAI_DN': 'Chuyển sang đóng BHXH tại DN khác',
+    'DONG_BHXH_TAI_DN': 'Đóng BHXH tại DN này',
+}
+# Chỉ dùng để HIỂN THỊ nhãn trong các danh sách lịch sử QĐ. KHÔNG đưa vào LOAI_QDNS_LABEL,
+# vì dropdown "Tạo QĐNS mới" lấy danh sách loại QĐ từ chính LOAI_QDNS_LABEL.
+LOAI_QDNS_LABEL_ALL = {**LOAI_QDNS_LABEL, **LOAI_BHXH_DN_KHAC_LABEL}
+
+
+def ghi_doi_trang_thai_bhxh_dn_khac(db_s, nv, sang_dn_khac, ngay_hieu_luc, ghi_chu, nguoi_tao):
+    """Đổi cờ BHXH 'đóng tại DN khác' và ghi lịch sử vào quyet_dinh_nhan_su (có snapshot để hoàn tác).
+    sang_dn_khac=True : DANG_DONG -> CHUA_DONG (NV chưa từng báo tăng tại DN này)
+    sang_dn_khac=False: CHUA_DONG -> DANG_DONG (báo tăng tại DN này)
+    KHÔNG commit — nơi gọi tự commit/rollback. Trả về id của dòng lịch sử."""
+    nv_id = int(nv['id'])
+    c = db_s.cursor()
+    dam_bao_cot_snapshot(c)
+    snap = chup_snapshot_nv(db_s, nv_id)          # chụp TRƯỚC khi đổi, để hoàn tác được
+    ngay_txt = ngay_hieu_luc.strftime('%d/%m/%Y')
+
+    if sang_dn_khac:
+        loai_qd = 'DUNG_DONG_BHXH_TAI_DN'
+        gia_tri_truoc, gia_tri_sau = 'DANG_DONG', 'CHUA_DONG'
+        noi_dung = (f"Chuyển trạng thái BHXH: Đang đóng → Chưa đóng (NV đóng BHXH tại doanh nghiệp khác). "
+                    f"Hiệu lực {ngay_txt}.")
+        c.execute("""
+            UPDATE nhan_vien
+            SET trang_thai_bhxh = 'CHUA_DONG', thang_bat_dau_bh = NULL, thang_ket_thuc_bh = NULL,
+                phuong_an_dieu_chinh = NULL, thang_phuong_an = NULL
+            WHERE id = %s
+        """, (nv_id,))
+    else:
+        loai_qd = 'DONG_BHXH_TAI_DN'
+        gia_tri_truoc, gia_tri_sau = 'CHUA_DONG', 'DANG_DONG'
+        tbd = tinh_thang_bat_dau_bh(ngay_hieu_luc)
+        noi_dung = (f"Chuyển trạng thái BHXH: Chưa đóng → Đang đóng tại DN này. "
+                    f"Hiệu lực {ngay_txt}; tháng bắt đầu BH {format_thang_nam(tbd)}.")
+        # phuong_an = NULL để báo cáo D02-LT tự xác định TD/TM theo số sổ BHXH (giống luồng Chuyển chính thức)
+        c.execute("""
+            UPDATE nhan_vien
+            SET trang_thai_bhxh = 'DANG_DONG', thang_bat_dau_bh = %s, thang_ket_thuc_bh = NULL,
+                phuong_an_dieu_chinh = NULL, thang_phuong_an = %s
+            WHERE id = %s
+        """, (tbd, format_thang_nam(tbd), nv_id))
+
+    if (ghi_chu or '').strip():
+        noi_dung += f" Ghi chú: {ghi_chu.strip()}"
+
+    # Số "QĐ" nội bộ (không phải văn bản thật, không đăng ký vào công văn đi)
+    c.execute("""SELECT COUNT(*) FROM quyet_dinh_nhan_su
+                 WHERE nhan_vien_id = %s AND loai_qd IN ('DUNG_DONG_BHXH_TAI_DN', 'DONG_BHXH_TAI_DN')""", (nv_id,))
+    so_thu_tu = c.fetchone()[0] + 1
+    so_qd = f"BHXH/{nv.get('ma_nv') or nv_id}/{ngay_hieu_luc.strftime('%Y%m%d')}/{so_thu_tu}"
+
+    cols = ['so_qd', 'loai_qd', 'nhan_vien_id', 'ngay_qd', 'noi_dung', 'gia_tri_truoc', 'gia_tri_sau', 'nguoi_tao',
+            'so_quyet_dinh', 'loai_quyet_dinh', 'ngay_quyet_dinh', 'ngay_hieu_luc']
+    vals = [so_qd, loai_qd, nv_id, ngay_hieu_luc, noi_dung, gia_tri_truoc, gia_tri_sau, nguoi_tao,
+            so_qd, loai_qd, ngay_hieu_luc, ngay_hieu_luc]
+
+    # Tenant có schema cũ có thể còn cột NOT NULL khác -> điền theo cùng quy tắc luồng Tạo QĐNS
+    c.execute("""
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'quyet_dinh_nhan_su' AND is_nullable = 'NO'
+          AND column_default IS NULL AND column_name NOT IN %s
+    """, (tuple(cols),))
+    for (ten_cot,) in c.fetchall():
+        tc = ten_cot.lower()
+        if 'ngay' in tc:
+            gia_tri = ngay_hieu_luc
+        elif 'loai' in tc:
+            gia_tri = loai_qd
+        elif tc.startswith('so_') or tc == 'so':
+            gia_tri = so_qd
+        elif 'nhan_vien' in tc:
+            gia_tri = nv_id
+        elif 'noi_dung' in tc or 'dieu' in tc or 'trich_yeu' in tc:
+            gia_tri = noi_dung
+        elif 'nguoi' in tc:
+            gia_tri = nguoi_tao
+        elif 'trang_thai' in tc:
+            gia_tri = 'CO_HIEU_LUC'
+        else:
+            continue
+        cols.append(ten_cot)
+        vals.append(gia_tri)
+
+    c.execute(f"INSERT INTO quyet_dinh_nhan_su ({', '.join(cols)}) VALUES ({', '.join(['%s'] * len(cols))}) RETURNING id", vals)
+    qd_id = c.fetchone()[0]
+
+    snap["_loai_qd"] = loai_qd
+    c.execute("UPDATE quyet_dinh_nhan_su SET snapshot_truoc = %s::jsonb WHERE id = %s",
+              (json.dumps(snap, default=_json_default, ensure_ascii=False), qd_id))
+    c.close()
+    return qd_id
 
 # ===================== THỂ THỨC VĂN BẢN — NGHỊ ĐỊNH 30/2020/NĐ-CP =====================
 # Khổ A4; lề trên 2cm, dưới 2cm, trái 3cm, phải 2cm; Times New Roman cỡ 14; giãn đoạn trước/sau 6pt,
@@ -7810,6 +8033,9 @@ elif menu == "📊 Dashboard":
     # Lấy dữ liệu từ cache
     stats = get_dashboard_stats()
 
+    # ===== NOTE CALENDAR: nhắc hẹn cá nhân (chỉ chủ sở hữu thấy) =====
+    hien_thi_note_calendar()
+
     # ===== CẢNH BÁO 1: Chuẩn bị 6 Báo cáo định kỳ (30/06-05/07 và 31/12-05/01) =====
     hom_nay = date.today()
     md_hien_tai = (hom_nay.month, hom_nay.day)
@@ -7848,6 +8074,7 @@ elif menu == "📊 Dashboard":
             WHERE q.loai_quyet_dinh = 'CHAM_DUT_HD'
               AND nv.trang_thai = 'NGHI_VIEC'
               AND nv.loai_hop_dong IS DISTINCT FROM 'Thử việc'
+              AND NOT (nv.trang_thai_bhxh = 'CHUA_DONG' AND nv.thang_bat_dau_bh IS NULL)  -- chưa từng báo tăng -> không chốt sổ
               AND (CURRENT_DATE - q.ngay_quyet_dinh::date) BETWEEN 7 AND 12
             ORDER BY q.ngay_quyet_dinh ASC
         """)
@@ -8262,9 +8489,24 @@ elif menu == "📊 Dashboard":
             st.markdown("**📋 Trạng thái nhân sự các phòng ban**")
             if table_data:
                 df_table = pd.DataFrame(table_data)
+                # Thêm dòng TỔNG CỘNG ở cuối bảng
+                _dong_total = {
+                    "Phòng ban": "TỔNG CỘNG",
+                    "Tổng số": int(df_table["Tổng số"].sum()),
+                    "Đang làm": int(df_table["Đang làm"].sum()),
+                    "Thử việc": int(df_table["Thử việc"].sum()),
+                }
+                df_table = pd.concat([df_table, pd.DataFrame([_dong_total])], ignore_index=True)
                 # Dùng bảng HTML nền trong suốt thay cho st.dataframe (st.dataframe tự vẽ nền riêng, không đổi được)
                 html_table = df_table.to_html(index=False, border=0, classes="bang-pb", escape=True)
                 html_table = html_table.replace("\n", "")
+                # Tô đậm dòng cuối (TỔNG CỘNG) và ghim cố định ở đáy khung để luôn nhìn thấy
+                _vi_tri_tr_cuoi = html_table.rfind("<tr>")
+                html_table = (
+                    html_table[:_vi_tri_tr_cuoi]
+                    + '<tr class="dong-total">'
+                    + html_table[_vi_tri_tr_cuoi + len("<tr>"):]
+                )
                 css_bang = (
                     "<style>"
                     ".khung-bang-pb{height:280px;overflow-y:auto;background:transparent;}"
@@ -8273,6 +8515,7 @@ elif menu == "📊 Dashboard":
                     "table.bang-pb tbody td{padding:5px 8px;border-bottom:1px solid rgba(85,36,22,0.15);background:transparent;}"
                     "table.bang-pb tbody td:not(:first-child){text-align:center;}"
                     "table.bang-pb thead th:not(:first-child){text-align:center;}"
+                    "table.bang-pb tbody tr.dong-total td{position:sticky;bottom:0;background:#f3ddd5;color:#552416;font-weight:bold;border-top:2px solid #ce6346;}"
                     "</style>"
                 )
                 st.markdown(
@@ -8881,6 +9124,8 @@ elif menu == "👤 Ứng viên":
                 phuong_thuc_dong_chuyen = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"])
                 nhom_bhxh_chuyen = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"])
                 phuong_an_chuyen = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_chuyen")
+                dn_khac_chuyen = st.checkbox("Đóng BHXH tại DN khác", key="dn_khac_chuyen_uv",
+                                             help="Chỉ áp dụng với HĐLĐ chính thức. DN này sẽ không báo tăng/giảm BHXH cho NV.")
             
             st.divider()
             st.caption("🏦 Ngân hàng & KCB")
@@ -8946,9 +9191,15 @@ elif menu == "👤 Ứng viên":
                                     so_hd = sinh_so_hdld_moi(c, ma_cty_hd, nhl.year, la_thu_viec=True)
                                 else:
                                     ttnv = 'DANG_LAM'
-                                    ttbh = 'DANG_DONG'
-                                    tbd_val = tinh_thang_bat_dau_bh(nhl)
-                                    pa_val_add = lay_ma_phuong_an(phuong_an_chuyen)
+                                    if dn_khac_chuyen:
+                                        # NV đóng BHXH tại DN khác: không có tháng bắt đầu BH, không báo tăng
+                                        ttbh = 'CHUA_DONG'
+                                        tbd_val = None
+                                        pa_val_add = None
+                                    else:
+                                        ttbh = 'DANG_DONG'
+                                        tbd_val = tinh_thang_bat_dau_bh(nhl)
+                                        pa_val_add = lay_ma_phuong_an(phuong_an_chuyen)
                                     so_hd = sinh_so_hdld_moi(c, ma_cty_hd, nhl.year, la_thu_viec=False)
                                 
                                 # Thêm nhân viên mới (đã thêm trường ten_don_vi_thu_huong, trinh_do)
@@ -9478,6 +9729,8 @@ elif menu == "✅ Nhân viên":
                         ptd = st.selectbox("PT đóng", ["Hàng tháng", "3 tháng", "6 tháng", "12 tháng"], key="ptd")
                         nbh = st.selectbox("Nhóm BHXH", ["", "Văn phòng", "Lao động trực tiếp"], key="nbh")
                         pa_add = st.selectbox("Phương án điều chỉnh", [""] + PHUONG_AN_TANG, key="pa_add")
+                        dn_khac_add = st.checkbox("Đóng BHXH tại DN khác", key="dn_khac_add",
+                                                  help="Chỉ áp dụng với HĐLĐ chính thức. DN này sẽ không báo tăng/giảm BHXH cho NV.")
                     st.divider()
                     st.caption("🏦 Ngân hàng & Hồ sơ")
                     c7, c8 = st.columns(2)
@@ -9535,9 +9788,14 @@ elif menu == "✅ Nhân viên":
                                                 so_hd = sinh_so_hdld_moi(c, ma_cty_hd, nhl.year, la_thu_viec=True)
                                             else:
                                                 ttnv = 'DANG_LAM'
-                                                ttbh = 'DANG_DONG'
-                                                tbd_val = tinh_thang_bat_dau_bh(nhl)
-                                                pa_val_add = lay_ma_phuong_an(pa_add)
+                                                if dn_khac_add:
+                                                    ttbh = 'CHUA_DONG'
+                                                    tbd_val = None
+                                                    pa_val_add = None
+                                                else:
+                                                    ttbh = 'DANG_DONG'
+                                                    tbd_val = tinh_thang_bat_dau_bh(nhl)
+                                                    pa_val_add = lay_ma_phuong_an(pa_add)
                                                 so_hd = sinh_so_hdld_moi(c, ma_cty_hd, nhl.year, la_thu_viec=False)
                                             
                                             # Chuẩn hóa tên phòng ban
@@ -10201,8 +10459,14 @@ elif menu == "✅ Nhân viên":
                                                         db_upd = st.session_state.db_engine.get_connection()
                                                         c_upd = db_upd.cursor()
                                                         nhl = parse_date(nvlv) or date.today()
+                                                        # NV đang "đóng BHXH tại DN khác" = CHUA_DONG nhưng KHÔNG phải thử việc
+                                                        _la_dn_khac_hien_tai = (nd.get('trang_thai_bhxh') == 'CHUA_DONG'
+                                                                                and (nd.get('loai_hop_dong') or '') != 'Thử việc')
                                                         if lhdv == "Thử việc":
                                                             tt_nv, tt_bh, tbd_val = 'THU_VIEC', 'CHUA_DONG', None
+                                                        elif _la_dn_khac_hien_tai:
+                                                            # Giữ nguyên trạng thái đóng tại DN khác, không ép về DANG_DONG
+                                                            tt_nv, tt_bh, tbd_val = 'DANG_LAM', 'CHUA_DONG', None
                                                         else:
                                                             tt_nv, tt_bh = 'DANG_LAM', 'DANG_DONG'
                                                             # Giữ nguyên tháng BH đã lưu; nếu chưa có thì tự tính
@@ -10257,7 +10521,58 @@ elif menu == "✅ Nhân viên":
                                             del st.session_state['selected_nv_id']
                                         st.success("✅ Đã hủy sửa nhân viên")
                                         st.rerun()
-            
+                                
+                            # ===== TRẠNG THÁI BHXH: "ĐÓNG TẠI DN KHÁC" (đặt NGOÀI form sửa ở trên) =====
+                            _lhd_bh = nd.get('loai_hop_dong') or ''
+                            _ttbh_bh = nd.get('trang_thai_bhxh') or ''
+                            if nd.get('trang_thai') == 'DANG_LAM' and _lhd_bh != 'Thử việc' and _ttbh_bh in ('DANG_DONG', 'CHUA_DONG'):
+                                _la_dn_khac = (_ttbh_bh == 'CHUA_DONG')
+                                with st.expander("🏢 Trạng thái BHXH: đóng tại doanh nghiệp khác", expanded=_la_dn_khac):
+                                    if _la_dn_khac:
+                                        st.info("Hiện tại: ⏳ CHƯA ĐÓNG BHXH tại DN này (NV đóng tại doanh nghiệp khác).")
+                                    else:
+                                        st.info(f"Hiện tại: ✅ ĐANG ĐÓNG BHXH tại DN này "
+                                                f"(tháng bắt đầu: {format_thang_nam(nd.get('thang_bat_dau_bh')) or 'chưa có'}).")
+                                    _key_chk = f"bh_dnk_chk_{nid}_{_edit_nv_ctr}"
+                                    _chk_dnk = st.checkbox("Nhân viên đóng BHXH tại doanh nghiệp khác",
+                                                           value=_la_dn_khac, key=_key_chk)
+                                    if _chk_dnk != _la_dn_khac:
+                                        _ngay_hl_bh = st.date_input("Ngày hiệu lực", value=date.today(),
+                                                                    key=f"bh_dnk_ngay_{nid}_{_edit_nv_ctr}")
+                                        _ghi_chu_bh = st.text_input("Ghi chú (tuỳ chọn)",
+                                                                    key=f"bh_dnk_gc_{nid}_{_edit_nv_ctr}",
+                                                                    placeholder="VD: NV đang đóng BHXH tại Công ty ABC")
+                                        _xn_bh = True
+                                        if _chk_dnk:
+                                            st.warning("Chỉ dùng khi NV CHƯA từng được báo tăng BHXH tại DN này. "
+                                                       "Nếu đã nộp báo tăng (D02-LT) thì chức năng này KHÔNG tự báo giảm.")
+                                            _xn_bh = st.checkbox("Tôi xác nhận NV này chưa được báo tăng BHXH tại DN",
+                                                                 key=f"bh_dnk_xn_{nid}_{_edit_nv_ctr}")
+                                            _nhan_nut_bh = "💾 Chuyển sang: ĐÓNG TẠI DN KHÁC"
+                                        else:
+                                            st.info("Sẽ báo TĂNG BHXH tại DN này, tháng bắt đầu dự kiến: "
+                                                    f"{format_thang_nam(tinh_thang_bat_dau_bh(_ngay_hl_bh))}")
+                                            _nhan_nut_bh = "💾 Chuyển sang: ĐÓNG BHXH TẠI DN NÀY"
+                                        if st.button(_nhan_nut_bh, key=f"bh_dnk_btn_{nid}_{_edit_nv_ctr}", type="primary",
+                                                     disabled=(not can_edit()) or (not _xn_bh)):
+                                            db_s = st.session_state.db_engine.get_connection()
+                                            _ok_bh = False
+                                            try:
+                                                ghi_doi_trang_thai_bhxh_dn_khac(
+                                                    db_s, nd, _chk_dnk, _ngay_hl_bh, _ghi_chu_bh, st.session_state.username)
+                                                db_s.commit()
+                                                _ok_bh = True
+                                            except Exception as e:
+                                                db_s.rollback()
+                                                st.error(f"❌ Lỗi: {e}")
+                                            finally:
+                                                db_s.close()
+                                            if _ok_bh:
+                                                st.cache_data.clear()
+                                                st.session_state.pop(_key_chk, None)
+                                                st.success("✅ Đã đổi trạng thái BHXH và ghi lịch sử.")
+                                                st.rerun()
+                                
                     except Exception as e:
                         st.error(f"Lỗi khi tải thông tin nhân viên: {e}")
                         st.session_state.selected_nv_id = None
@@ -10629,7 +10944,9 @@ elif menu == "✅ Nhân viên":
                     'DOI_CHUC_DANH': '🔁 Quyết định đổi chức danh',
                     'CHAM_DUT_HD': '📄 Quyết định chấm dứt HĐ',
                     'TANG_LUONG': '💰 Quyết định tăng lương',
-                    'NGHI_VIEC': '🚫 Quyết định nghỉ việc'
+                    'NGHI_VIEC': '🚫 Quyết định nghỉ việc',
+                    'DUNG_DONG_BHXH_TAI_DN': '🏢 Chuyển sang đóng BHXH tại DN khác',
+                    'DONG_BHXH_TAI_DN': '✅ Đóng BHXH tại DN này'
                 }
 
                 # Bảng ghi cũ được tạo qua 2 luồng khác nhau với 2 bộ tên cột khác nhau
@@ -10847,7 +11164,7 @@ elif menu == "✅ Nhân viên":
             c_qd = db_qd.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             c_qd.execute("""
                 SELECT id, ma_nv, ho_ten, gioi_tinh, chuc_vu, chuc_danh_nghe, phong_ban_lam_viec, loai_hop_dong, trang_thai,
-                        he_so_luong, noi_lam_viec, luong_bao_hiem
+                        he_so_luong, noi_lam_viec, luong_bao_hiem, trang_thai_bhxh
                 FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC') ORDER BY ho_ten
             """)
             nv_qd_list = c_qd.fetchall()
@@ -11115,10 +11432,15 @@ elif menu == "✅ Nhân viên":
                                 nhan_hd = "Hợp đồng lao động (HĐLĐ)"
                             st.info(f"🔎 Loại hợp đồng hiện tại: **{loai_hd_hien_tai or 'Chưa xác định'}** → Sẽ ban hành: **QĐ Chấm dứt {nhan_hd}**")
 
-                            if la_thu_viec_cd_ui:
-                                # NV thử việc chưa từng tham gia BHXH -> không cần/không được chọn lý do báo giảm
+                            # NV đóng BHXH tại DN khác: CHUA_DONG nhưng không phải Thử việc -> DN không báo giảm
+                            la_dn_khac_cd_ui = (not la_thu_viec_cd_ui) and (nv_qd.get('trang_thai_bhxh') == 'CHUA_DONG')
+                            if la_thu_viec_cd_ui or la_dn_khac_cd_ui:
+                                # Chưa từng tham gia BHXH tại DN này -> không cần/không được chọn lý do báo giảm
                                 ly_do_giam_bhxh = ""
-                                st.caption("ℹ️ NV thử việc chưa tham gia BHXH nên không cần chọn lý do báo giảm BHXH.")
+                                if la_dn_khac_cd_ui:
+                                    st.caption("ℹ️ NV này đóng BHXH tại doanh nghiệp khác nên DN không báo giảm BHXH.")
+                                else:
+                                    st.caption("ℹ️ NV thử việc chưa tham gia BHXH nên không cần chọn lý do báo giảm BHXH.")
                             else:
                                 LY_DO_GIAM_BHXH = {
                                     "GH1 - Giảm hẳn (chấm dứt HĐLĐ/chuyển công tác)": "GH1",
@@ -11313,6 +11635,9 @@ elif menu == "✅ Nhân viên":
                                 # Chỉ set GH nếu HĐLĐ không phải Thử việc
                                 loai_hd_hien_tai = nv_qd.get('loai_hop_dong', '')
                                 la_thu_viec_cd = (loai_hd_hien_tai == 'Thử việc')
+                                # NV đóng BHXH tại DN khác (CHUA_DONG, không phải Thử việc) xử lý như Thử việc:
+                                # không đặt DA_BAO_GIAM, không ghi thang_ket_thuc_bh, không ghi phương án GH
+                                la_thu_viec_cd = la_thu_viec_cd or (nv_qd.get('trang_thai_bhxh') == 'CHUA_DONG')
 
                                 # Lấy đúng mã GH1/GH2/GH3/GH4 người dùng đã chọn ở dropdown "Lý do báo
                                 # giảm BHXH" phía trên; fallback GH1 nếu vì lý do gì đó biến rỗng.
@@ -11515,7 +11840,7 @@ elif menu == "✅ Nhân viên":
                     for qd in lich_su_qd:
                         r1, r2, r3, r4, r5, r6, r7 = st.columns([1.2, 1.3, 1, 1.6, 2.2, 0.6, 0.6])
                         r1.write(qd['so_qd'])
-                        r2.write(LOAI_QDNS_LABEL.get(qd['loai_qd'], qd['loai_qd']))
+                        r2.write(LOAI_QDNS_LABEL_ALL.get(qd['loai_qd'], qd['loai_qd']))
                         r3.write(format_date(qd['ngay_qd']))
                         r4.write(f"{qd['ho_ten']} ({qd['ma_nv']})")
                         r5.write(qd['noi_dung'] or '')
@@ -11565,7 +11890,7 @@ elif menu == "✅ Nhân viên":
                     qd_ht = next((q for q in lich_su_qd if q['id'] == qd_id_ht), None)
                     if qd_ht:
                         st.warning(f"⚠️ Xác nhận HOÀN TÁC Quyết định số **{qd_ht['so_qd']}** "
-                                   f"({LOAI_QDNS_LABEL.get(qd_ht['loai_qd'], qd_ht['loai_qd'])} — {qd_ht['ho_ten']})? "
+                                   f"({LOAI_QDNS_LABEL_ALL.get(qd_ht['loai_qd'], qd_ht['loai_qd'])} — {qd_ht['ho_ten']})? "
                                    f"QĐ sẽ bị xóa và hồ sơ nhân viên được trả về trạng thái trước khi ban hành QĐ.")
                         col_xn_ht, col_huy_ht = st.columns(2)
                         with col_xn_ht:
@@ -14154,6 +14479,8 @@ elif menu == "📋 BHXH":
         # (đang làm hoặc thử việc) VÀ đã có số hợp đồng lao động (so_hdld) — để số liệu
         # giữa trang BHXH và Dashboard luôn khớp nhau.
         DK_CHUAN_NV = "trang_thai IN ('DANG_LAM', 'THU_VIEC') AND so_hdld IS NOT NULL AND so_hdld != ''"
+        # NV đóng BHXH tại DN khác = CHUA_DONG nhưng không phải Thử việc
+        DK_DN_KHAC = "(trang_thai_bhxh = 'CHUA_DONG' AND loai_hop_dong IS DISTINCT FROM 'Thử việc')"
 
         db = st.session_state.db_engine.get_connection()
         c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -14170,12 +14497,15 @@ elif menu == "📋 BHXH":
         """)
         dang_dong = c.fetchone()['dang_dong']
         c.execute(f"""
-            SELECT COUNT(*) as chua_dong 
-            FROM nhan_vien 
+            SELECT COUNT(*) as chua_dong
+            FROM nhan_vien
             WHERE {DK_CHUAN_NV}
             AND thang_bat_dau_bh IS NULL  -- CHƯA CÓ NGÀY BẮT ĐẦU = CHƯA THAM GIA
+            AND NOT {DK_DN_KHAC}
         """)
         chua_dong = c.fetchone()['chua_dong']
+        c.execute(f"SELECT COUNT(*) as dn_khac FROM nhan_vien WHERE {DK_CHUAN_NV} AND {DK_DN_KHAC}")
+        dn_khac = c.fetchone()['dn_khac']
         
         # Đã nghỉ việc: giữ nguyên logic riêng (không thuộc DK_CHUAN_NV vì đây là
         # nhóm trang_thai = 'NGHI_VIEC', trái với điều kiện DANG_LAM/THU_VIEC)
@@ -14184,11 +14514,12 @@ elif menu == "📋 BHXH":
         
         db.close()
         
-        col1, col2, col3, col4 = st.columns(4)
+        col1, col2, col3, col4, col5 = st.columns(5)
         col1.metric("👥 Tổng lao động", tong_ld)
         col2.metric("✅ Đang đóng BHXH", dang_dong, delta=f"{dang_dong/tong_ld*100:.0f}%" if tong_ld > 0 else None)
         col3.metric("⏳ Chưa đóng BHXH", chua_dong, delta=f"-{chua_dong}" if chua_dong > 0 else None, delta_color="inverse")
-        col4.metric("📋 Đã nghỉ việc", da_nghi)
+        col4.metric("🏢 Đóng tại DN khác", dn_khac)
+        col5.metric("📋 Đã nghỉ việc", da_nghi)
         
         st.divider()
         
@@ -14203,6 +14534,7 @@ elif menu == "📋 BHXH":
             FROM nhan_vien 
             WHERE {DK_CHUAN_NV}
             AND thang_bat_dau_bh IS NULL
+            AND NOT {DK_DN_KHAC}
             ORDER BY ngay_vao_lam ASC
         """)
         chua_dong_list = c.fetchall()
@@ -14307,6 +14639,7 @@ elif menu == "📋 BHXH":
             FROM nhan_vien nv
             WHERE nv.trang_thai = 'NGHI_VIEC'
             AND nv.loai_hop_dong IS DISTINCT FROM 'Thử việc'
+            AND NOT (nv.trang_thai_bhxh = 'CHUA_DONG' AND nv.thang_bat_dau_bh IS NULL)  -- chưa từng báo tăng -> không báo giảm
             AND COALESCE(nv.thang_ket_thuc_bh, nv.ngay_ket_thuc) BETWEEN %s AND %s
             ORDER BY COALESCE(nv.thang_ket_thuc_bh, nv.ngay_ket_thuc) ASC
         """, (tu_ngay, den_ngay))

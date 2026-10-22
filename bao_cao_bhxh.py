@@ -93,7 +93,7 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None, thang_tr
         # trang_thai, ma_so_bhxh...) mà phần xử lý bên dưới đang dùng; thiếu cột nào r.get() trả None.
         c.execute("""
             SELECT * FROM nhan_vien
-            WHERE trang_thai = 'DANG_LAM'
+            WHERE trang_thai IN ('DANG_LAM', 'NGHI_VIEC')
             ORDER BY phong_ban_lam_viec, ho_ten
         """)
         col_names = [desc[0] for desc in c.description]
@@ -191,16 +191,25 @@ def xuat_bao_cao_trich_nop_bhxh(db_engine, tu_ngay=None, den_ngay=None, thang_tr
     ky_ht = (thang_trich_nop.year, thang_trich_nop.month)
     filtered = []
     for r in rows:
-        if r.get("trang_thai") != "DANG_LAM" or (r.get("loai_hop_dong") or "") == "Thử việc":
-            continue  # loại thử việc và người đã nghỉ việc
+        if (r.get("loai_hop_dong") or "") == "Thử việc":
+            continue  # loại thử việc
+        if r.get("trang_thai") not in ("DANG_LAM", "NGHI_VIEC"):
+            continue
 
         ngay_bd = _to_date(r.get("thang_bat_dau_bh"))
         if ngay_bd is None:
-            continue  # chưa có tháng bắt đầu BH = chưa đóng BH
+            continue  # chưa có tháng bắt đầu BH = chưa đóng BH (gồm NV đóng BHXH tại DN khác)
         if (ngay_bd.year, ngay_bd.month) > ky_ht:
             continue  # BH bắt đầu sau kỳ trích nộp
 
         ngay_kt = _to_date(r.get("thang_ket_thuc_bh")) or _to_date(r.get("ngay_ket_thuc"))
+        if r.get("trang_thai") == "NGHI_VIEC":
+            # NV đã nghỉ việc vẫn phải nằm trong các kỳ họ còn đóng BH
+            # (VD: nghỉ 08/2026 thì vẫn có trong báo cáo 05, 06, 07/2026)
+            if ngay_kt is None:
+                continue  # không rõ tháng kết thúc BH -> không đưa vào
+            if (ngay_bd.year, ngay_bd.month) == (ngay_kt.year, ngay_kt.month):
+                continue  # vào rồi nghỉ cùng tháng: không báo tăng/giảm nên cũng không trích nộp (khớp D02-LT)
         if ngay_kt and (ngay_kt.year, ngay_kt.month) < ky_ht:
             continue  # đã kết thúc BH trước kỳ trích nộp
 

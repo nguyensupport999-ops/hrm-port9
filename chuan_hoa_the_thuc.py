@@ -172,8 +172,12 @@ def _la_dong_rac(t, tong_chu, tong_so):
     """True nếu dòng gần như chắc chắn là rác từ con dấu/chữ ký/ghi chú tay."""
     if not t:
         return True
+    if RE_BANG.match(t):      # chỗ giữ vị trí của bảng dữ liệu — không phải rác
+        return False
+    if re.match(r'^[-–—•+]?\s*lưu\s*:', t, re.I):   # dòng "- Lưu: VT." của Nơi nhận ít chữ nên dễ bị tính nhầm là rác
+        return False
 
-    # 1. Dòng toàn ký tự lạ (con dấu bị OCR thành ký tự Unicode lạ)
+    # 1. Dòng toàn ký tự lạ
     if RE_RAC_KY_TU.match(t) and len(t) >= 2:
         return True
 
@@ -276,6 +280,79 @@ def doc_dong_tu_docx(data):
                     for p in cell.paragraphs:
                         _tu_paragraph(p)
     return dong
+
+def _la_bang_bo_cuc(tb):
+    """True nếu bảng chỉ dùng để bố cục (quốc hiệu | tên cơ quan, nơi nhận | chữ ký, kính gửi...) — khi đó
+    app đọc phẳng như cũ. Bảng còn lại là BẢNG DỮ LIỆU -> giữ lưới."""
+    try:
+        so_hang, so_cot = len(tb.rows), len(tb.columns)
+        for r in tb.rows:
+            for c in r.cells:
+                k = khong_dau(c.text.strip())
+                if RE_QH.search(k) or RE_NOI_NHAN.match(k) or k.startswith('kinh gui'):
+                    return True
+        return so_hang == 1 and so_cot <= 2
+    except Exception:
+        return False
+
+
+def _doc_luoi_bang(tb):
+    """Đọc bảng Word thành lưới: list các hàng; mỗi ô = dict(t=chữ, span=số cột gộp, vm=None|'restart'|'cont')."""
+    from docx.text.paragraph import Paragraph
+    rows = []
+    for tr in tb._tbl.tr_lst:
+        hang = []
+        for tc in tr.tc_lst:
+            span, vm = 1, None
+            tcPr = tc.tcPr
+            if tcPr is not None:
+                gs = tcPr.find(qn('w:gridSpan'))
+                if gs is not None:
+                    span = int(gs.get(qn('w:val')) or 1)
+                v = tcPr.find(qn('w:vMerge'))
+                if v is not None:
+                    vm = 'restart' if v.get(qn('w:val')) == 'restart' else 'cont'
+            parts = [_chuan_dong(Paragraph(p, tb).text) for p in tc.p_lst]
+            hang.append(dict(t='\n'.join(x for x in parts if x), span=max(span, 1), vm=vm))
+        rows.append(hang)
+    return rows
+
+
+def doc_dong_va_bang(data, ten_file):
+    """Giống doc_dong, nhưng với .docx thì GIỮ LẠI bảng dữ liệu để dựng lại lưới.
+    Trả về (lines, bang): bảng dữ liệu thứ n được đại diện trong lines bằng dòng '[[#n]]'."""
+    if not (ten_file or '').lower().endswith('.docx'):
+        return doc_dong(data, ten_file), []
+    from docx.table import Table
+    from docx.text.paragraph import Paragraph
+    d = Document(io.BytesIO(data))
+    dong, bang = [], []
+
+    def _them(p):
+        t = _chuan_dong(p.text)
+        if t:
+            dong.append(t)
+
+    for child in d.element.body.iterchildren():
+        if child.tag == qn('w:p'):
+            _them(Paragraph(child, d))
+        elif child.tag == qn('w:tbl'):
+            tb = Table(child, d)
+            if _la_bang_bo_cuc(tb):
+                for row in tb.rows:
+                    da_xet = set()
+                    for cell in row.cells:
+                        if cell._tc in da_xet:
+                            continue
+                        da_xet.add(cell._tc)
+                        for p in cell.paragraphs:
+                            _them(p)
+            else:
+                rows = _doc_luoi_bang(tb)
+                if any(c['t'] for h in rows for c in h):
+                    dong.append(f'[[#{len(bang)}]]')
+                    bang.append(rows)
+    return dong, bang
 
 def _la_file_scan(data):
     """True nếu PDF không có text layer (chỉ có ảnh)."""
@@ -415,6 +492,10 @@ RE_KHAN = re.compile(r'^(hoa toc|thuong khan|khan|hoa toc hen gio)$')
 RE_QUYEN_HAN = re.compile(r'^(tm|kt|tl|tuq|q)\.\s*')
 RE_NOI_NHAN = re.compile(r'^noi nhan\s*:?')
 RE_GACH = re.compile(r'^[-–—•+]\s*')
+RE_BANG = re.compile(r'^\[\[#(\d+)\]\]$')   # chỗ giữ vị trí của 1 bảng dữ liệu trong danh sách dòng
+RE_DINH_KEM = re.compile(r'^(phu\s*luc|danh\s*sach|bang\s*ke|bieu\s*mau|bang\s*(cham|luong|tong|tinh)|mau\s*so\b|bieu\s*so\b)')
+RE_TIEUDE_PL = re.compile(r'^phu\s*luc(\s+([ivxlc]+|\d+|[a-z]))?\s*[:.\-–]?\s*$')
+RE_DIEN_GIAI = re.compile(r'^\(?\s*(ban hanh kem theo|kem theo|ban hanh|dinh kem)\b')
 
 
 def _la_loai_vb(dong):
@@ -433,12 +514,127 @@ def chuan_vv(t):
     return _chuan_dong(t).rstrip(' .')
 
 
-def phan_tich(lines):
-    """Nhận diện thành phần thể thức. Trả về dict mô tả cấu trúc + danh sách nhận diện."""
+def _la_bang(t):
+    return bool(RE_BANG.match(t or ''))
+
+
+def _la_tieu_de_phu_luc(t):
+    k = khong_dau(t)
+    if not RE_PHULUC.match(k) or len(t) > 80:
+        return False
+    return (_la_in_hoa(t) or bool(RE_TIEUDE_PL.match(k))
+            or bool(re.match(r'^phu\s*luc\s+([ivxlc]+|\d+|[a-z])\s*[:.\-–]', k)))
+
+
+def _la_dau_dinh_kem(t, chat=False):
+    """Dòng mở đầu phần đính kèm (Phụ lục / Danh sách / Bảng kê / 1 bảng dữ liệu) nằm SAU phần chữ ký.
+    chat=True (không có mốc 'Nơi nhận' để định vị): chỉ nhận dòng 'Phụ lục ...' cho an toàn."""
+    if chat:
+        return _la_tieu_de_phu_luc(t)
+    if _la_bang(t) or _la_tieu_de_phu_luc(t):
+        return True
+    return bool(RE_DINH_KEM.match(khong_dau(t))) and len(t) <= 80
+
+
+def _vi_tri_dinh_kem(lines, chat=False, tu=0):
+    for i in range(tu, len(lines)):
+        if _la_dau_dinh_kem(lines[i], chat):
+            return i
+    return None
+
+
+def _phan_than(body_lines, co_loai):
+    """Phân loại từng dòng thân văn bản (Căn cứ/Điều/Khoản/Điểm/bảng...). Trả về list [loai, text]."""
+    body = []
+    da_den_dieu_hoac_qd = False
+    n = len(body_lines)
+    i = 0
+    while i < n:
+        t = body_lines[i]
+        k = khong_dau(t)
+        loai = 'text'
+        if _la_bang(t):
+            loai = 'bang'
+        elif RE_KHAN.match(k) and _la_in_hoa(t):
+            loai = 'khan'
+        elif RE_PHULUC.match(k):
+            loai = 'phu_luc'
+        elif RE_PHAN.match(k) and len(t) <= 40:
+            loai = 'cap_tieu_de'
+        elif RE_CHUONG.match(k) and len(t) <= 40:
+            loai = 'cap_tieu_de'
+        elif RE_TIEUMUC.match(k) and len(t) <= 40:
+            loai = 'cap_tieu_de'
+        elif RE_MUC.match(k) and len(t) <= 40:
+            loai = 'cap_tieu_de'
+        elif RE_DIEU.match(k):
+            loai = 'dieu'; da_den_dieu_hoac_qd = True
+        elif _la_in_hoa(t) and k.rstrip().endswith(':') and len(t) <= 40 and k.rstrip(' :') in (
+                'quyet dinh', 'quyet nghi', 'ra quyet dinh', 'quyet dinh nhu sau'):
+            loai = 'quyet_dinh_op'; da_den_dieu_hoac_qd = True
+        elif not da_den_dieu_hoac_qd and RE_CAN_CU.match(k) and (co_loai or t.rstrip()[-1:] in ';,') and len(t) <= 300:
+            loai = 'can_cu'
+        elif co_loai and not da_den_dieu_hoac_qd and _la_in_hoa(t) and len(t) <= 120 and not body \
+                and not RE_ROMAN.match(k) and not RE_KHAN.match(k):
+            loai = 'tham_quyen'
+        elif RE_ROMAN.match(k) and _la_in_hoa(t.split('.', 1)[1].strip() if '.' in t else t):
+            loai = 'roman'
+        elif RE_KHOAN.match(k):
+            phan_sau = re.sub(r'^\d+\.\s+', '', t)
+            loai = 'khoan_tieu_de' if (len(phan_sau) <= 90 and not re.search(r'[.;:,]$', phan_sau)) else 'khoan'
+        elif RE_DIEM.match(k):
+            loai = 'diem'
+        elif RE_GACH.match(t):
+            loai = 'gach'
+        body.append([loai, t])
+        # dòng tiêu đề đi kèm Phần/Chương/Mục/Phụ lục: dòng IN HOA kế tiếp
+        if loai in ('cap_tieu_de', 'phu_luc') and i + 1 < n and _la_in_hoa(body_lines[i + 1]) \
+                and len(body_lines[i + 1]) <= 120 and not RE_KHAN.match(khong_dau(body_lines[i + 1])):
+            body.append(['tieu_de_in_hoa', body_lines[i + 1]])
+            i += 1
+        i += 1
+    return body
+
+
+def _doc_nhom_phu_luc(g):
+    """1 phụ lục/danh sách -> dict(tieu_de=[...], dien_giai=[...], noi_dung=[[loai, text], ...])."""
+    tieu_de, dien_giai = [], []
+    i, n = 0, len(g)
+    if g and not _la_bang(g[0]):
+        tieu_de.append(g[0]); i = 1
+        # tiêu đề có thể có thêm 1-2 dòng IN HOA kế tiếp (VD: "PHỤ LỤC I" + "DANH SÁCH ...")
+        while i < n and len(tieu_de) < 3 and not _la_bang(g[i]) and _la_in_hoa(g[i]) and len(g[i]) <= 120 \
+                and not RE_DIEN_GIAI.match(khong_dau(g[i])):
+            tieu_de.append(g[i]); i += 1
+    # diễn giải: "(Ban hành kèm theo ...)" — có thể ngắt thành nhiều dòng
+    while i < n and not _la_bang(g[i]) and (RE_DIEN_GIAI.match(khong_dau(g[i])) or g[i].startswith('(')):
+        t = g[i]; i += 1
+        dem = 0
+        while t.count('(') > t.count(')') and i < n and dem < 3 and not _la_bang(g[i]):
+            t += ' ' + g[i]; i += 1; dem += 1
+        dien_giai.append(t)
+    return dict(tieu_de=tieu_de, dien_giai=dien_giai, noi_dung=_phan_than(g[i:], False))
+
+
+def _tach_phu_luc(lines):
+    """Phần sau chữ ký -> list các phụ lục (mỗi dòng 'Phụ lục ...' mở một phụ lục mới)."""
+    nhom, cur = [], []
+    for t in lines:
+        if cur and _la_tieu_de_phu_luc(t):
+            nhom.append(cur); cur = []
+        cur.append(t)
+    if cur:
+        nhom.append(cur)
+    return [_doc_nhom_phu_luc(g) for g in nhom]
+
+
+def phan_tich(lines, bang=None):
+    """Nhận diện thành phần thể thức. Trả về dict mô tả cấu trúc + danh sách nhận diện.
+    bang: danh sách bảng dữ liệu (từ doc_dong_va_bang) — các dòng '[[#n]]' trong lines trỏ tới nó."""
     L = [_chuan_dong(x) for x in lines if _chuan_dong(x)]
     kq = dict(quoc_hieu=False, tieu_ngu=False, co_quan=[], so=None, ngay=None, loai=None, trich_yeu=None,
               v_v=None, kinh_gui=[], kg_items=[], body=[], noi_nhan=[], ky=dict(quyen_han=[], chuc_vu=[], ho_ten=''),
-              la_cong_van=False)
+              la_cong_van=False, dinh_kem=[], bang=list(bang or []))
     if not L:
         return kq
     kd = [khong_dau(x) for x in L]
@@ -506,10 +702,10 @@ def phan_tich(lines):
         kq['la_cong_van'] = kq['la_cong_van'] or kq['loai'] is None
 
     rest = L[pos:]
-    # --- Nơi nhận + chữ ký ---
+    # --- Nơi nhận + chữ ký + PHẦN ĐÍNH KÈM (Phụ lục/Danh sách...) ---
     krest = [khong_dau(x) for x in rest]
     i_nn = next((i for i, k in enumerate(krest) if RE_NOI_NHAN.match(k)), None)
-    body_lines, sig_lines = rest, []
+    body_lines, sig_lines, dk_lines = rest, [], []
     if i_nn is not None:
         body_lines = rest[:i_nn]
         tail = rest[i_nn + 1:]
@@ -517,24 +713,34 @@ def phan_tich(lines):
         while j < len(tail) and (RE_GACH.match(tail[j]) or khong_dau(tail[j]).startswith('luu')):
             kq['noi_nhan'].append(RE_GACH.sub('', tail[j]).strip()); j += 1
         sig_lines = tail[j:]
+        c = _vi_tri_dinh_kem(sig_lines)                  # mọi thứ từ đây trở đi là phụ lục/danh sách đính kèm
+        if c is not None:
+            dk_lines, sig_lines = sig_lines[c:], sig_lines[:c]
+    else:
+        c = _vi_tri_dinh_kem(body_lines, chat=True, tu=1)
+        if c is not None:
+            dk_lines, body_lines = body_lines[c:], body_lines[:c]
+    # chữ ký không bao giờ nằm trước 1 bảng dữ liệu -> chặn dò ngược ở dòng bảng cuối cùng
+    san = max([i for i, x in enumerate(body_lines) if _la_bang(x)] + [-1]) + 1
+    if i_nn is not None:
         if not sig_lines:          # chữ ký nằm TRƯỚC "Nơi nhận" (cuối thân văn bản)
             k = len(body_lines)
-            while k > 0 and (len(body_lines) - k) < 6 and len(body_lines[k - 1]) <= 70 and _la_dong_ky(body_lines[k - 1]) \
-                    or (k > 0 and (len(body_lines) - k) < 6 and len(body_lines[k - 1]) <= 40
-                        and not re.search(r'[.;:,]$', body_lines[k - 1])):
+            while k > san and (len(body_lines) - k) < 6 and (
+                    (len(body_lines[k - 1]) <= 70 and _la_dong_ky(body_lines[k - 1]))
+                    or (len(body_lines[k - 1]) <= 40 and not re.search(r'[.;:,]$', body_lines[k - 1]))):
                 k -= 1
             blk = body_lines[k:]
             if blk and any(_la_in_hoa(x) or RE_QUYEN_HAN.match(khong_dau(x)) for x in blk):
                 sig_lines, body_lines = blk, body_lines[:k]
     else:
         k = len(body_lines)
-        while k > 0 and (len(body_lines) - k) < 6 and len(body_lines[k - 1]) <= 70 \
+        while k > san and (len(body_lines) - k) < 6 and len(body_lines[k - 1]) <= 70 \
                 and not re.search(r'[.;:,]$', body_lines[k - 1]) and not RE_GACH.match(body_lines[k - 1]):
             k -= 1
         blk = body_lines[k:]
         if blk and any(_la_in_hoa(x) for x in blk) and len(blk) <= 5:
             sig_lines, body_lines = blk, body_lines[:k]
-    
+
     # phân tách chữ ký — KHÔNG lấy họ tên nếu nghi là chữ ký tay (tên bị OCR méo)
     ky = kq['ky']
     if sig_lines:
@@ -555,61 +761,11 @@ def phan_tich(lines):
             )
             if la_ten_sach:
                 ky['ho_ten'] = ung_vien_ten.title() if _la_in_hoa(ung_vien_ten) else ung_vien_ten
-            else:
-                bo_sung_ten = True   # để trống, người dùng tự ký
         for x in sl:
             (ky['quyen_han'] if RE_QUYEN_HAN.match(khong_dau(x)) else ky['chuc_vu']).append(x.upper())
 
-    # --- Thân văn bản ---
-    body = []
-    da_den_dieu_hoac_qd = False
-    n = len(body_lines)
-    i = 0
-    co_loai = kq['loai'] is not None
-    while i < n:
-        t = body_lines[i]
-        k = khong_dau(t)
-        loai = 'text'
-        if RE_KHAN.match(k) and _la_in_hoa(t):
-            loai = 'khan'
-        elif RE_PHULUC.match(k):
-            loai = 'phu_luc'
-        elif RE_PHAN.match(k) and len(t) <= 40:
-            loai = 'cap_tieu_de'
-        elif RE_CHUONG.match(k) and len(t) <= 40:
-            loai = 'cap_tieu_de'
-        elif RE_TIEUMUC.match(k) and len(t) <= 40:
-            loai = 'cap_tieu_de'
-        elif RE_MUC.match(k) and len(t) <= 40:
-            loai = 'cap_tieu_de'
-        elif RE_DIEU.match(k):
-            loai = 'dieu'; da_den_dieu_hoac_qd = True
-        elif _la_in_hoa(t) and k.rstrip().endswith(':') and len(t) <= 40 and k.rstrip(' :') in (
-                'quyet dinh', 'quyet nghi', 'ra quyet dinh', 'quyet dinh nhu sau'):
-            loai = 'quyet_dinh_op'; da_den_dieu_hoac_qd = True
-        elif not da_den_dieu_hoac_qd and RE_CAN_CU.match(k) and (co_loai or t.rstrip()[-1:] in ';,') and len(t) <= 300:
-            loai = 'can_cu'
-        elif co_loai and not da_den_dieu_hoac_qd and _la_in_hoa(t) and len(t) <= 120 and not body \
-                and not RE_ROMAN.match(k) and not RE_KHAN.match(k):
-            loai = 'tham_quyen'
-        elif RE_ROMAN.match(k) and _la_in_hoa(t.split('.', 1)[1].strip() if '.' in t else t):
-            loai = 'roman'
-        elif RE_KHOAN.match(k):
-            phan_sau = re.sub(r'^\d+\.\s+', '', t)
-            loai = 'khoan_tieu_de' if (len(phan_sau) <= 90 and not re.search(r'[.;:,]$', phan_sau)) else 'khoan'
-        elif RE_DIEM.match(k):
-            loai = 'diem'
-        elif RE_GACH.match(t):
-            loai = 'gach'
-        body.append([loai, t])
-        # dòng tiêu đề đi kèm Phần/Chương/Mục/Phụ lục: dòng IN HOA kế tiếp
-        if loai in ('cap_tieu_de', 'phu_luc') and i + 1 < n and _la_in_hoa(body_lines[i + 1]) \
-                and len(body_lines[i + 1]) <= 120 and not RE_KHAN.match(khong_dau(body_lines[i + 1])):
-            body.append(['tieu_de_in_hoa', body_lines[i + 1]])
-            i += 1
-        i += 1
-    # "Điều N." — chỉ in đậm cả dòng khi là tiêu đề ngắn; còn lại in đậm nhãn "Điều N."
-    kq['body'] = body
+    kq['body'] = _phan_than(body_lines, kq['loai'] is not None)
+    kq['dinh_kem'] = _tach_phu_luc(dk_lines) if dk_lines else []
     return kq
 
 
@@ -680,6 +836,76 @@ def _bo_vien_bang(tbl):
             if b is not None:
                 tcPr.remove(b)
 
+def _ghi_o(cell, text, size, la_tieu_de=False):
+    """Ghi chữ vào 1 ô bảng: hàng tiêu đề căn giữa + đậm; ô số/STT căn giữa; còn lại căn trái."""
+    for idx, x in enumerate(text.split('\n') if text else ['']):
+        so = len(x) <= 12 and bool(re.fullmatch(r'[\d\s.,/%()+\-–:]*', x))
+        _p(cell, x, size, bold=la_tieu_de, align='center' if (la_tieu_de or so) else 'left', indent=False,
+           before=2, after=2, p=cell.paragraphs[0] if idx == 0 else None)
+
+
+def _dung_bang(doc, rows, size):
+    """Dựng lại bảng dữ liệu dạng lưới (có viền, gộp ô ngang/dọc nếu có).
+    rows = [[dict(t, span, vm), ...], ...] — lấy từ _doc_luoi_bang()."""
+    rows = [h for h in rows if h]
+    if not rows:
+        return
+    n_cot = max(1, max(sum(c['span'] for c in h) for h in rows))
+    # độ rộng cột theo độ dài chữ, tổng = 16 cm (bề rộng vùng in)
+    trong = [3] * n_cot
+    for h in rows:
+        c0 = 0
+        for c in h:
+            if c['span'] == 1 and c0 < n_cot:
+                dai = max((len(x) for x in c['t'].split('\n')), default=0)
+                trong[c0] = max(trong[c0], min(dai, 40))
+            c0 += c['span']
+    rong = [max(1.2, 16.0 * x / float(sum(trong))) for x in trong]
+    k = 16.0 / sum(rong)
+    rong = [x * k for x in rong]
+
+    tb = doc.add_table(rows=len(rows), cols=n_cot)
+    tb.style = 'Table Grid'
+    tb.alignment = WD_TABLE_ALIGNMENT.CENTER
+    tb.autofit = False
+    for ci, w in enumerate(rong):
+        tb.columns[ci].width = Cm(w)
+    for row in tb.rows:
+        for ci, cell in enumerate(row.cells):
+            cell.width = Cm(rong[ci])
+
+    # hàng đầu là tiêu đề nếu không có ô nào là số thuần (STT, số tiền...)
+    co_tieu_de = len(rows) > 1 and not any(re.fullmatch(r'\d+([.,]\d+)*', c['t'].strip()) for c in rows[0] if c['t'])
+    goc = {}                                   # cột -> hàng bắt đầu của ô gộp dọc
+    for ri, h in enumerate(rows):
+        c0 = 0
+        for c in h:
+            if c0 >= n_cot:
+                break
+            c1 = min(c0 + c['span'], n_cot) - 1
+            if c['vm'] == 'cont' and c0 in goc:
+                try:
+                    tb.cell(goc[c0], c0).merge(tb.cell(ri, c1))
+                except Exception:
+                    pass
+                c0 += c['span']
+                continue
+            if c['vm'] == 'restart':
+                goc[c0] = ri
+            else:
+                goc.pop(c0, None)
+            cell = tb.cell(ri, c0)
+            if c1 > c0:
+                try:
+                    cell = cell.merge(tb.cell(ri, c1))
+                except Exception:
+                    pass
+            _ghi_o(cell, c['t'], size, la_tieu_de=(co_tieu_de and ri == 0))
+            c0 += c['span']
+    if co_tieu_de:                             # lặp lại hàng tiêu đề khi bảng tràn sang trang sau
+        trPr = tb.rows[0]._tr.get_or_add_trPr()
+        th = OxmlElement('w:tblHeader'); th.set(qn('w:val'), 'true'); trPr.append(th)
+    _p(doc, '', 4, before=0, after=0)          # đoạn đệm nhỏ để 2 bảng liền nhau không bị Word dính làm một
 
 def _so_trang(sec, size):
     sec.different_first_page_header_footer = True
@@ -721,8 +947,7 @@ def _khoi_dau(doc, S, co_quan, so, ngay, v_v):
     ht.columns[0].width = Cm(L); ht.columns[1].width = Cm(R)
     # trái: (cơ quan chủ quản đứng) + cơ quan ban hành đứng đậm + kẻ + số + V/v
     for idx, ten in enumerate(co_quan):
-        la_cuoi = idx == len(co_quan) - 1
-        _p(cl, ten.upper(), S['cq'], bold=la_cuoi, align='center', indent=False, before=0, after=0,
+        _p(cl, ten.upper(), S['cq'], bold=True, italic=False, align='center', indent=False, before=0, after=0,
            p=cl.paragraphs[0] if idx == 0 else None)
     _ke_ngang(cl, 3.0, L)
     _p(cl, so, S['so'], align='center', indent=False, before=6, after=0)
@@ -734,7 +959,7 @@ def _khoi_dau(doc, S, co_quan, so, ngay, v_v):
        p=cr.paragraphs[0])
     _p(cr, 'Độc lập - Tự do - Hạnh phúc', S['tn'], True, align='center', indent=False, before=0, after=0)
     _ke_ngang(cr, 5.6, R)
-    _p(cr, ngay, S['ngay'], italic=True, align='center', indent=False, before=6, after=0)
+    _p(cr, ngay, S['ngay'], italic=True, align='right', indent=False, before=6, after=0)
 
 
 def _khoi_kinh_gui(doc, S, items):
@@ -771,15 +996,20 @@ def _khoi_cuoi(doc, S, noi_nhan, ky):
     dong = list(ky.get('quyen_han', [])) + list(ky.get('chuc_vu', []))
     for idx, x in enumerate(dong):
         _p(cr, x, S['ky'], True, align='center', indent=False, before=0, after=0, p=cr.paragraphs[0] if idx == 0 else None)
-    _p(cr, ky.get('ho_ten', ''), S['ky'], True, align='center', indent=False, before=60 if dong else 0, after=0,
+    _p(cr, ky.get('ho_ten', ''), S['ky'], True, align='center', indent=False, before=72 if dong else 0, after=0,
        p=cr.paragraphs[0] if not dong else None)
 
 
-def _dung_than(doc, S, body):
+def _dung_than(doc, S, body, bang=None):
     nd = S['nd']
     n = len(body)
     for i, (loai, t) in enumerate(body):
         tiep_la_can_cu = i + 1 < n and body[i + 1][0] == 'can_cu'
+        if loai == 'bang':
+            m = RE_BANG.match(t)
+            if m and bang and int(m.group(1)) < len(bang):
+                _dung_bang(doc, bang[int(m.group(1))], max(nd - 1, 12))
+            continue
         if loai == 'khan':
             p = _p(doc, t.upper(), S['ky'], True, align='right', indent=False, before=6, after=6)
             _khung(p)
@@ -810,21 +1040,51 @@ def _dung_than(doc, S, body):
         elif loai in ('khoan', 'diem', 'gach', 'text'):
             _p(doc, t, nd)
 
+def _dung_dinh_kem(doc, S, dinh_kem, bang):
+    """Phần đính kèm sau chữ ký (Phụ lục / Danh sách / Bảng kê...): mỗi mục sang TRANG MỚI;
+    tiêu đề căn giữa, đậm, đứng; dòng diễn giải (Ban hành kèm theo...) căn giữa, nghiêng; bảng dựng lại lưới."""
+    nd = S['nd']
+    for pl in dinh_kem:
+        ds = [(t, True, False) for t in pl['tieu_de']] + [(t, False, True) for t in pl['dien_giai']]
+        if not ds:
+            ds = [('', False, False)]
+        for idx, (t, dam, nghieng) in enumerate(ds):
+            p = _p(doc, t, nd, bold=dam, italic=nghieng, align='center', indent=False,
+                   before=0, after=6 if idx == len(ds) - 1 else 0)
+            if idx == 0:
+                p.paragraph_format.page_break_before = True
+        _dung_than(doc, S, pl['noi_dung'], bang)
 
 def uoc_luong_chieu_cao(cau_truc, co=14):
-    """Ước tính chiều cao (cm) nội dung khi dàn theo bộ cỡ chữ `co` (dùng khi không có LibreOffice để đếm trang thật)."""
+    """Ước tính chiều cao (cm) nội dung khi dàn theo bộ cỡ chữ `co` (dùng khi không có LibreOffice để đếm trang thật).
+    Phần đính kèm (Phụ lục...) luôn sang trang mới nên được cộng theo số trang riêng."""
     cpl = 76 if co == 14 else 82
     dong_cm = 0.57 if co == 14 else 0.53
     cach_doan = 0.42
+    bang = cau_truc.get('bang') or []
+
+    def _cao(ds):
+        h_ = 0.0
+        for loai, t in ds:
+            m = RE_BANG.match(t) if loai == 'bang' else None
+            if m:
+                h_ += (len(bang[int(m.group(1))]) * 0.9) if int(m.group(1)) < len(bang) else 0
+            else:
+                h_ += max(1, math.ceil(len(t) / cpl)) * dong_cm + cach_doan
+        return h_
+
     h = 5.0                                # khối đầu
     if cau_truc['loai']:
         h += 1.4
     if cau_truc['trich_yeu']:
         h += 0.9
-    for loai, t in cau_truc['body']:
-        h += max(1, math.ceil(len(t) / cpl)) * dong_cm + cach_doan
-    h += 5.5                               # nơi nhận + chữ ký
-    return h
+    h += _cao(cau_truc['body'])
+    h += 6.7                               # nơi nhận + chữ ký (đã tính khoảng ký cao thêm 20%)
+    cm = math.ceil(h / 25.7) * 25.7
+    for pl in cau_truc.get('dinh_kem', []):
+        hp = 2.5 + _cao(pl['noi_dung'])
+        cm += math.ceil(hp / 25.7) * 25.7
+    return cm
 
 
 def _dem_trang_bang_libreoffice(docx_bytes):
@@ -887,7 +1147,7 @@ def dung_docx(cau_truc, co, cfg=None, tu_bo_sung=True):
         _khoi_kinh_gui(doc, S, cau_truc['kg_items'])
     elif cau_truc['kinh_gui']:
         _khoi_kinh_gui(doc, S, [re.sub(r'^\s*k[ií]nh\s+g[ửu]i\s*[:：]?\s*', '', cau_truc['kinh_gui'][0], flags=re.I) or '...'])
-    _dung_than(doc, S, cau_truc['body'])
+    _dung_than(doc, S, cau_truc['body'], cau_truc.get('bang'))
 
     noi_nhan = list(cau_truc['noi_nhan'])
     if not noi_nhan and tu_bo_sung:
@@ -900,6 +1160,7 @@ def dung_docx(cau_truc, co, cfg=None, tu_bo_sung=True):
         ky['chuc_vu'] = [(cfg.get('chuc_vu') or 'GIÁM ĐỐC').upper()]
         bo_sung.append("Chức vụ người ký (lấy từ cấu hình công ty; họ tên để trống ký tay)")
     _khoi_cuoi(doc, S, noi_nhan, ky)
+    _dung_dinh_kem(doc, S, cau_truc.get('dinh_kem', []), cau_truc.get('bang'))
     bio = io.BytesIO(); doc.save(bio)
     return bio.getvalue(), bo_sung
 
@@ -1036,10 +1297,119 @@ def ra_soat_ai(lines, ai_call):
     return out, note
 
 
-def chuan_hoa(data, ten_file, cfg=None, che_do='auto', tu_bo_sung=True, ai_call=None, dung_ai=False):
-    """Pipeline đầy đủ. che_do: 'auto' | 14 | 13. Trả về dict kết quả."""
-    lines = doc_dong(data, ten_file)
-    la_scan = ten_file.lower().endswith('.pdf') and _la_file_scan(data)
+# ───────────────────────── PDF -> Word bằng AI (BƯỚC 1) ─────────────────────────
+LENH_PDF_SANG_WORD = (
+    "Hãy trích xuất toàn bộ nội dung từ file PDF tôi đính kèm và tạo thành một file Microsoft Word (.docx).\n"
+    "Yêu cầu định dạng file Word nghiêm ngặt theo chuẩn Nghị định 30/2020/NĐ-CP như sau:\n"
+    "Font chữ: Times New Roman.\n"
+    "Cỡ chữ: 14 cho phần nội dung (các tiêu đề có thể tùy chỉnh to/nhỏ hoặc in đậm/in nghiêng tương ứng theo cấu trúc văn bản gốc).\n"
+    "Căn lề trang giấy (Page Setup - khổ A4): Lề trên 2 cm; Lề dưới 2 cm; Lề trái 3 cm; Lề phải 2 cm.\n"
+    "Định dạng đoạn văn (Paragraph):\n"
+    "Thụt đầu dòng (First line indent): 1.27 cm.\n"
+    "Khoảng cách giữa các đoạn (Spacing Before/After): 6pt.\n"
+    "Căn lề văn bản (Alignment): Căn đều hai bên (Justify).\n"
+    "Bố cục: Giữ nguyên tối đa cấu trúc phân chương, phân mục, các đoạn văn, danh sách (bullet/numbering) và vị trí của "
+    "các tiêu đề (căn giữa, căn phải) giống như văn bản gốc.\n"
+    "Đối với bảng biểu, hãy cố gắng tái tạo lại cấu trúc lưới (grid) và điền dữ liệu tương ứng.")
+
+QUY_UOC_TRA_KET_QUA = (
+    "\n\nQUY ƯỚC TRẢ KẾT QUẢ (bắt buộc — vì app sẽ tự dựng file Word đúng các yêu cầu định dạng ở trên từ nội dung bạn trả):\n"
+    "- Mỗi đoạn văn / mỗi dòng của văn bản gốc = 1 dòng. Giữ đúng thứ tự đọc (trên xuống dưới, trái sang phải), kể cả khối đầu "
+    "(quốc hiệu, tiêu ngữ, tên cơ quan, số, địa danh ngày tháng), nơi nhận, chức vụ và họ tên người ký, các phụ lục/danh sách đính kèm.\n"
+    "- Có thể thêm tiền tố ở đầu dòng để giữ vị trí/kiểu chữ gốc: [C] căn giữa, [R] căn phải, [L] căn trái, [B] in đậm, "
+    "[I] in nghiêng (ghép được, VD [C][B]). Không có tiền tố = căn đều hai bên.\n"
+    "- Bảng biểu: mở đầu bằng dòng [[BANG]], mỗi hàng của bảng 1 dòng, các ô cách nhau bằng dấu |, ô trống để trống, "
+    "ô gộp thì ghi nội dung ở ô đầu rồi để trống các ô còn lại; kết thúc bằng dòng [[/BANG]]. Số ô các hàng phải bằng nhau.\n"
+    "- Bỏ qua con dấu, chữ ký tay, số trang, tiêu đề/chân trang lặp lại. Chỉ ghi họ tên người ký nếu được đánh máy rõ ràng.\n"
+    "- Không thêm lời dẫn, chú thích hay markdown nào ngoài nội dung văn bản.")
+
+
+def _parse_khoi_ai(txt):
+    """Kết quả AI -> list khối: ('p', (text, tags)) | ('bang', [[ô, ô, ...], ...])."""
+    khoi, cur = [], None
+    txt = re.sub(r'^```[a-z]*\s*$', '', txt or '', flags=re.M)
+    for raw in txt.splitlines():
+        l = raw.strip()
+        if re.fullmatch(r'\[\[BANG\]\]', l, flags=re.I):
+            cur = []
+            continue
+        if re.fullmatch(r'\[\[/BANG\]\]', l, flags=re.I):
+            if cur:
+                khoi.append(('bang', cur))
+            cur = None
+            continue
+        if cur is not None:
+            if not l:
+                continue
+            if l.startswith('|'):
+                l = l[1:]
+            if l.endswith('|'):
+                l = l[:-1]
+            cells = [_chuan_dong(c) for c in l.split('|')]
+            if any(cells) and all(re.fullmatch(r':?-{2,}:?', c) for c in cells if c):
+                continue                         # dòng ngăn kiểu markdown |---|---|
+            cur.append(cells)
+            continue
+        m = re.match(r'^((?:\[[CRLBI]\])+)\s*(.*)$', l)
+        tags = set(re.findall(r'\[([CRLBI])\]', m.group(1))) if m else set()
+        text = _chuan_dong(m.group(2) if m else l)
+        if text:
+            khoi.append(('p', (text, tags)))
+    if cur:
+        khoi.append(('bang', cur))               # AI quên đóng [[/BANG]]
+    return khoi
+
+
+def _dung_docx_trung_gian(khoi):
+    """Dựng file Word trung gian đúng yêu cầu ở LENH_PDF_SANG_WORD (TNR 14; lề 2/2/3/2; thụt 1,27; giãn 6pt; căn đều)."""
+    doc = Document()
+    _thiet_lap_trang(doc, 14)
+    for loai, nd in khoi:
+        if loai == 'bang':
+            _dung_bang(doc, [[dict(t=c, span=1, vm=None) for c in h] for h in nd], 13)
+            continue
+        text, tags = nd
+        align = 'center' if 'C' in tags else 'right' if 'R' in tags else 'left' if 'L' in tags else 'justify'
+        _p(doc, text, 14, bold='B' in tags, italic='I' in tags, align=align, indent=(align == 'justify'))
+    bio = io.BytesIO(); doc.save(bio)
+    return bio.getvalue()
+
+
+def pdf_sang_docx_bang_ai(data, ai_call):
+    """BƯỚC 1 với file PDF: gửi PDF cho AI kèm lệnh trích xuất (LENH_PDF_SANG_WORD) -> dựng file Word trung gian."""
+    import base64
+    b64 = base64.standard_b64encode(data).decode('ascii')
+    system = ("Bạn là công cụ trích xuất nội dung văn bản từ PDF. Chỉ trả về nội dung văn bản theo đúng quy ước được nêu, "
+              "không giải thích, không tóm tắt, không bỏ sót.")
+    noi_dung = [{"type": "document", "source": {"type": "base64", "media_type": "application/pdf", "data": b64}},
+                {"type": "text", "text": LENH_PDF_SANG_WORD + QUY_UOC_TRA_KET_QUA}]
+    kq = ai_call(system, [{"role": "user", "content": noi_dung}])
+    if not isinstance(kq, str):
+        raise ValueError("AI trả về dữ liệu không hợp lệ.")
+    if kq.strip().startswith(('⚠️', '❌')):
+        raise ValueError(re.sub(r'[*`]', '', kq).strip())
+    khoi = _parse_khoi_ai(kq)
+    if sum(len(x[1][0]) for x in khoi if x[0] == 'p') < 30:
+        raise ValueError("AI không trích được nội dung từ PDF.")
+    return _dung_docx_trung_gian(khoi)
+
+
+def chuan_hoa(data, ten_file, cfg=None, che_do='auto', tu_bo_sung=True, ai_call=None, dung_ai=False, pdf_qua_ai=True):
+    """Pipeline đầy đủ. che_do: 'auto' | 14 | 13. Trả về dict kết quả.
+    File PDF (khi pdf_qua_ai và có ai_call): BƯỚC 1 = AI trích xuất PDF -> Word trung gian;
+    BƯỚC 2 = chuẩn hóa thể thức file Word đó theo logic chung của app."""
+    ghi_chu_pdf, docx_tg = '', None
+    la_pdf = (ten_file or '').lower().endswith('.pdf')
+    if la_pdf and pdf_qua_ai and ai_call is not None:
+        try:
+            docx_tg = pdf_sang_docx_bang_ai(data, ai_call)                      # BƯỚC 1
+            data, ten_file = docx_tg, 'trich_xuat_tu_pdf.docx'
+            ghi_chu_pdf = "Đã trích xuất PDF → Word bằng AI (bước 1), rồi chuẩn hóa thể thức (bước 2)."
+        except Exception as e:
+            docx_tg = None
+            ghi_chu_pdf = f"Không trích xuất PDF bằng AI được ({e}) → dùng cách đọc PDF thông thường/OCR."
+    lines, bang = doc_dong_va_bang(data, ten_file)                              # BƯỚC 2 bắt đầu
+    la_scan = la_pdf and docx_tg is None and _la_file_scan(data)
     if not lines:
         raise ValueError("Văn bản trống hoặc không đọc được nội dung.")
     # --- LỌC RÁC do con dấu / chữ ký tay TRƯỚC khi nhận diện thể thức ---
@@ -1052,7 +1422,7 @@ def chuan_hoa(data, ten_file, cfg=None, che_do='auto', tu_bo_sung=True, ai_call=
         so_cho_sua += k
         lines_sach.append(t2)
     lines = lines_sach
-    ct = phan_tich(lines)
+    ct = phan_tich(lines, bang)
     loi = ra_soat_ngoai_tuyen(lines, ct)
     ai_note = ''
     if dung_ai:
@@ -1078,7 +1448,8 @@ def chuan_hoa(data, ten_file, cfg=None, che_do='auto', tu_bo_sung=True, ai_call=
             out, bs = dung_docx(ct, 13, cfg, tu_bo_sung)
         ghi_chu_trang = f"Văn bản {'1-2 trang' if co == 14 else 'dài hơn 2 trang'} ({nguon}) → cỡ chữ lớn nhất {co}."
     return dict(docx=out, co=co, ghi_chu_trang=ghi_chu_trang, bo_sung=bs, cau_truc=ct, so_dong=len(lines),
-                ra_soat=loi, so_cho_sua=so_cho_sua, la_scan=la_scan, ai_note=ai_note, da_dung_ai=bool(dung_ai))
+                ra_soat=loi, so_cho_sua=so_cho_sua, la_scan=la_scan, ai_note=ai_note, da_dung_ai=bool(dung_ai),
+                ghi_chu_pdf=ghi_chu_pdf, docx_trung_gian=docx_tg)
 
 
 # ───────────────────────── 4. Giao diện Streamlit ─────────────────────────
@@ -1105,12 +1476,14 @@ def render(cfg=None, ai_call=None):
         tu_bo_sung = st.checkbox("Tự bổ sung thành phần còn thiếu (quốc hiệu, tiêu ngữ, số, nơi nhận...)", value=True, key='cht_bs')
     dung_ai = st.checkbox("🔎 Rà soát chính tả & câu bất hợp lý bằng AI (chậm hơn vài giây; cần cấu hình ANTHROPIC_API_KEY)",
                           value=ai_call is not None, disabled=ai_call is None, key='cht_ai')
+    pdf_ai = st.checkbox("📄 File PDF: nhờ AI trích xuất sang Word trước (bước 1), rồi mới chuẩn hóa thể thức (bước 2) — "
+                         "khuyên dùng, giữ được bảng biểu", value=ai_call is not None, disabled=ai_call is None, key='cht_pdf_ai')
     if st.button("🔄 Render", type="primary", disabled=up is None, key='cht_btn'):
         try:
             with st.spinner("Đang nhận diện và dựng lại văn bản..."):
                 kq = chuan_hoa(up.getvalue(), up.name, cfg,
                                che_do={'Ép cỡ 14': 14, 'Ép cỡ 13': 13}.get(che_do, 'auto'), tu_bo_sung=tu_bo_sung,
-                               ai_call=ai_call, dung_ai=dung_ai)
+                               ai_call=ai_call, dung_ai=dung_ai, pdf_qua_ai=pdf_ai)
             kq['ten_goc'] = up.name
             st.session_state['cht_kq'] = kq
         except Exception as e:
@@ -1134,6 +1507,12 @@ def render(cfg=None, ai_call=None):
     st.download_button("📥 Tải văn bản đã chuẩn hóa (Word)", data=kq['docx'], file_name=ten_ra,
                        mime='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                        type="primary", key='cht_dl')
+    if kq.get('ghi_chu_pdf'):
+        st.info("📄 " + kq['ghi_chu_pdf'])
+    if kq.get('docx_trung_gian'):
+        st.download_button("📥 Tải file Word trung gian (kết quả bước 1 từ PDF)", data=kq['docx_trung_gian'],
+                           file_name=re.sub(r'\.[^.]+$', '', kq['ten_goc']) + '_buoc1.docx',
+                           mime='application/vnd.openxmlformats-officedocument.wordprocessingml.document', key='cht_dl_tg')
     if kq['bo_sung']:
         st.warning("ℹ️ Văn bản gốc thiếu các thành phần sau, app đã bổ sung/để trống: " + "; ".join(kq['bo_sung']))
     if kq.get('so_cho_sua'):

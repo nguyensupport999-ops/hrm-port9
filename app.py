@@ -14504,13 +14504,23 @@ elif menu == "📋 BHXH":
         c.execute(f"SELECT COUNT(*) as tong FROM nhan_vien WHERE {DK_CHUAN_NV}")
         tong_ld = c.fetchone()['tong']
         
+        # Tháng hiện tại theo giờ Việt Nam (server chạy giờ UTC)
+        hom_nay_vn = (datetime.utcnow() + timedelta(hours=7)).date()
+        dau_thang_nay = hom_nay_vn.replace(day=1)
+        dau_thang_sau = (dau_thang_nay + timedelta(days=32)).replace(day=1)
+
         c.execute(f"""
-            SELECT COUNT(*) as dang_dong 
-            FROM nhan_vien 
+            SELECT
+                COUNT(*) FILTER (WHERE thang_bat_dau_bh <  %s) AS dang_dong_thang_nay,
+                COUNT(*) FILTER (WHERE thang_bat_dau_bh >= %s) AS sap_dong
+            FROM nhan_vien
             WHERE {DK_CHUAN_NV}
-            AND thang_bat_dau_bh IS NOT NULL  -- ĐÃ CÓ NGÀY BẮT ĐẦU = ĐANG THAM GIA
-        """)
-        dang_dong = c.fetchone()['dang_dong']
+            AND thang_bat_dau_bh IS NOT NULL  -- ĐÃ CÓ THÁNG BẮT ĐẦU = ĐANG/SẮP THAM GIA
+        """, (dau_thang_sau, dau_thang_sau))
+        _r_dd = c.fetchone()
+        dang_dong_thang_nay = _r_dd['dang_dong_thang_nay']
+        sap_dong = _r_dd['sap_dong']
+        dang_dong = dang_dong_thang_nay + sap_dong   # tổng người đã có tháng bắt đầu BH (khớp con số 72)
         c.execute(f"""
             SELECT COUNT(*) as chua_dong
             FROM nhan_vien
@@ -14531,7 +14541,14 @@ elif menu == "📋 BHXH":
         
         col1, col2, col3, col4, col5 = st.columns(5)
         col1.metric("👥 Tổng lao động", tong_ld)
-        col2.metric("✅ Đang đóng BHXH", dang_dong, delta=f"{dang_dong/tong_ld*100:.0f}%" if tong_ld > 0 else None)
+        col2.metric("✅ Đang đóng BHXH", dang_dong,
+                    delta=f"{dang_dong/tong_ld*100:.0f}%" if tong_ld > 0 else None,
+                    help="Gồm người đang đóng trong tháng này và người đã có tháng bắt đầu BH là tháng sau "
+                         "(sắp đóng, chưa phải nộp trong kỳ này).")
+        _ct_dd = f"({dang_dong_thang_nay} tháng {dau_thang_nay.month}"
+        if sap_dong > 0:
+            _ct_dd += f" + {sap_dong} tháng {dau_thang_sau.month}"
+        col2.caption(_ct_dd + ")")
         col3.metric("⏳ Chưa đóng BHXH", chua_dong, delta=f"-{chua_dong}" if chua_dong > 0 else None, delta_color="inverse")
         col4.metric("🏢 Đóng tại DN khác", dn_khac)
         col5.metric("📋 Đã nghỉ việc", da_nghi)
@@ -14562,8 +14579,6 @@ elif menu == "📋 BHXH":
                     df_chua_dong[col] = df_chua_dong[col].apply(format_date)
             st.dataframe(df_chua_dong, width='stretch', hide_index=True)
             
-            if st.session_state.role in ("admin", "xem_toan_bo"):
-                st.warning("💡 Hướng dẫn: Vào menu '✅ Nhân viên' -> chọn nhân viên -> sửa thông tin -> cập nhật 'Bắt đầu BH' và chuyển trạng thái BHXH thành 'ĐANG ĐÓNG'")
         else:
             st.success("✅ Tất cả lao động đã được đăng ký đóng BHXH!")
             st.cache_data.clear()

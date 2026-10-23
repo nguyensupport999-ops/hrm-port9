@@ -5977,6 +5977,90 @@ def tao_quyet_dinh_nhan_su(nv, so_qd, ngay_qd, tieu_de, dieu1_lines, hieu_luc_te
     doc.save(tmp.name)
     return tmp.name
 
+def la_tenant_hon_la():
+    """True nếu tenant đang đăng nhập là Cảng Hòn La (nhận diện theo mã số thuế)."""
+    try:
+        return str(cc_honla.lay_ma_so_thue_hien_tai() or '').strip() == cc_honla.HON_LA_MA_SO_THUE
+    except Exception:
+        return False
+
+
+def tao_quyet_dinh_cham_dut_hd(nv, so_qd, ngay_qd, ly_do='', la_thu_viec=False):
+    """Tạo file Word Quyết định chấm dứt HĐLĐ/HĐTV theo mẫu riêng.
+    - Chức danh người ký (TỔNG GIÁM ĐỐC / GIÁM ĐỐC...) lấy từ cấu hình tenant (COMPANY_CONFIG['chuc_vu']).
+    - Câu 'Theo đề nghị của...' và Điều 3 khác nhau giữa tenant Cảng Hòn La và các tenant còn lại."""
+    CC = COMPANY_CONFIG
+    doc = Document()
+    nd30_thiet_lap_trang(doc)
+
+    ten_ty = CC.get('ten_cong_ty', 'CÔNG TY')
+    ten_ty_lower = ten_ty.lower()
+    ten_doan1, ten_doan2 = _nd30_tach_ten_don_vi(ten_ty)
+
+    dia_diem = CC.get('dia_diem') or get_cau_hinh('dia_diem', 'Quảng Trị')
+    ns = (f'{dia_diem}, ngày {ngay_qd.day} tháng {ngay_qd.month:02d} năm {ngay_qd.year}'
+          if hasattr(ngay_qd, 'day') else f'{dia_diem}, ngày ... tháng ... năm ......')
+    nd30_the_thuc_dau(doc, ten_doan1, ten_doan2, f'Số: {so_qd}', ns)
+
+    ten_hd = 'Hợp đồng thử việc' if la_thu_viec else 'Hợp đồng lao động'
+    xh = get_xung_ho_trang_trong(nv.get('gioi_tinh'))        # Ông / Bà / Ông/Bà
+    xh_thuong = xh[:1].lower() + xh[1:]                       # ông / bà / ông/Bà
+    ho_ten = nv.get('ho_ten', '')
+    ngay_txt = ngay_qd.strftime('%d/%m/%Y') if hasattr(ngay_qd, 'strftime') else '...'
+    la_hon_la = la_tenant_hon_la()
+    chuc_vu_ky = CC.get('chuc_vu', 'GIÁM ĐỐC').upper()        # Tổng Giám đốc hay Giám đốc: theo tenant
+
+    # Tên loại văn bản + trích yếu
+    nd30_p(doc, 'QUYẾT ĐỊNH', 14, True, align='center', indent=False, before=18, after=0)
+    nd30_p(doc, f'Về việc chấm dứt {ten_hd} với {xh_thuong} {ho_ten}', 14, True,
+           align='center', indent=False, before=0, after=0)
+    nd30_ke_ngang(doc, 4.0, 16.0)
+
+    # Thẩm quyền ban hành
+    nd30_p(doc, f"{chuc_vu_ky} {ten_doan1} {ten_doan2}".strip(), 14, True,
+           align='center', indent=False, before=12, after=6)
+
+    # Căn cứ (nghiêng)
+    nd30_p(doc, '- Căn cứ Luật Lao động số 45/2019/QH14 của Quốc Hội Nước Cộng Hòa Xã hội Chủ nghĩa '
+                'Việt Nam ban hành ngày 20 tháng 11 năm 2019;', 14, italic=True, before=0, after=0)
+    if 'hộ kinh doanh' in ten_ty_lower:
+        nd30_p(doc, '- Căn cứ Giấy chứng nhận đăng ký hộ kinh doanh;', 14, italic=True, before=0, after=0)
+    else:
+        nd30_p(doc, f'- Căn cứ Điều lệ tổ chức và hoạt động của {ten_ty};', 14, italic=True, before=0, after=0)
+    nd30_p(doc, f'- Xét đơn xin chấm dứt {ten_hd} của {xh_thuong} {ho_ten};', 14, italic=True, before=0, after=0)
+    de_nghi = 'Phó Chánh Văn phòng' if la_hon_la else 'Trưởng phòng Hành chính nhân sự'
+    nd30_p(doc, f'- Theo đề nghị của ông {de_nghi}.', 14, italic=True, before=0, after=6)
+
+    nd30_p(doc, 'QUYẾT ĐỊNH:', 14, True, align='center', indent=False, before=12, after=6)
+
+    def _dieu(nhan, noi_dung):
+        p = nd30_p(doc, '', 14)
+        _nd30_font_run(p.add_run(nhan + ' '), 14, True)
+        _nd30_font_run(p.add_run(noi_dung), 14, False)
+        return p
+
+    chuc_danh = (nv.get('chuc_danh_nghe') or '').strip()
+    chuc_danh_txt = f", {chuc_danh[:1].lower() + chuc_danh[1:]}" if chuc_danh else ''
+    _dieu('Điều 1.', f'Chấm dứt {ten_hd} đối với {xh_thuong} {ho_ten}{chuc_danh_txt} kể từ ngày {ngay_txt}.')
+    ly_do_sach = (ly_do or '').strip().rstrip('.')
+    if ly_do_sach:
+        nd30_p(doc, f'Lý do chấm dứt {ten_hd.lower()}: {ly_do_sach}.', 14)
+    _dieu('Điều 2.', f'{xh} {ho_ten} có trách nhiệm bàn giao lại toàn bộ công việc, tài liệu có liên quan, '
+                     f'đồng thời hoàn tất các nghĩa vụ tài chính (nếu có) với Công ty trước ngày {ngay_txt}.')
+    if la_hon_la:
+        dieu3 = f'Các PTGĐ, Thủ trưởng các phòng, ban và {xh_thuong} {ho_ten} chịu trách nhiệm thi hành Quyết định này./.'
+    else:
+        dieu3 = f'Trưởng các phòng, ban trong Công ty và {xh_thuong} {ho_ten} chịu trách nhiệm thi hành Quyết định này./.'
+    _dieu('Điều 3.', dieu3)
+
+    # Khối ký: KHÔNG có dòng "TM. ..." — chỉ chức danh người ký và họ tên
+    nd30_noi_nhan_chu_ky(doc, ['- Như Điều 3;', '- Lưu: VT, HSNV.'],
+                         None, chuc_vu_ky, CC.get('dai_dien', ''))
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix='.docx')
+    doc.save(tmp.name)
+    return tmp.name
+
 # ===================== QĐ ĐIỀU CHỈNH MỨC LƯƠNG =====================
 # False: mức lương mới được kê khai BHXH từ THÁNG của ngày hiệu lực QĐ (mặc định).
 # True : áp dụng quy tắc 14 ngày như báo tăng (tinh_thang_bat_dau_bh).
@@ -9910,14 +9994,25 @@ elif menu == "✅ Nhân viên":
             ds_bang_cap = [row[0] for row in c_f.fetchall()]
             db_f.close()
         
-            col_f1, col_f2, col_f3 = st.columns(3)
+            # Nơi đóng BHXH: KHÔNG phải một cột trong DB, mà suy ra từ trạng thái BHXH
+            # (cùng cách phân loại với tab BHXH → Tổng quan, để số liệu khớp nhau)
+            DK_NOI_DONG_BHXH = {
+                "Đóng tại DN này": "thang_bat_dau_bh IS NOT NULL",
+                "Đóng tại DN khác": "(trang_thai_bhxh = 'CHUA_DONG' AND loai_hop_dong IS DISTINCT FROM 'Thử việc')",
+                "Chưa đóng BHXH": "(thang_bat_dau_bh IS NULL AND NOT (trang_thai_bhxh = 'CHUA_DONG' AND loai_hop_dong IS DISTINCT FROM 'Thử việc'))",
+            }
+            ds_noi_dong_bhxh = list(DK_NOI_DONG_BHXH.keys())
+
+            col_f1, col_f2, col_f3, col_f4 = st.columns(4)
             with col_f1:
                 filter_chuc_danh = st.selectbox("🔍 Lọc Chức danh:", ["Tất cả"] + ds_chuc_danh, key="filter_cd_danglam")
             with col_f2:
                 filter_loai_hd = st.selectbox("🔍 Lọc Loại HĐ:", ["Tất cả"] + ds_loai_hd, key="filter_lhd_danglam")
             with col_f3:
                 filter_bang_cap = st.selectbox("🔍 Lọc theo Bằng cấp:", ["Tất cả"] + ds_bang_cap, key="filter_bc_danglam")
-        
+            with col_f4:
+                filter_noi_dong_bhxh = st.selectbox("🔍 Lọc theo Nơi đóng BHXH:", ["Tất cả"] + ds_noi_dong_bhxh, key="filter_ndbhxh_danglam")
+
             db = st.session_state.db_engine.get_connection()
             c = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
             sql = "SELECT * FROM nhan_vien WHERE trang_thai IN ('DANG_LAM','THU_VIEC')"
@@ -9934,12 +10029,15 @@ elif menu == "✅ Nhân viên":
             if filter_bang_cap != "Tất cả":
                 sql += " AND trinh_do = %s"
                 params.append(filter_bang_cap)
+            if filter_noi_dong_bhxh != "Tất cả":
+                # Điều kiện lấy từ bảng ánh xạ cố định ở trên, không có tham số %s nên không cần params
+                sql += " AND " + DK_NOI_DONG_BHXH[filter_noi_dong_bhxh]
             sql += " ORDER BY id DESC"
             c.execute(sql, tuple(params))
             ds = c.fetchall()
             db.close()
             ds = sorted(ds, key=khoa_sort_so_hdld)   # sắp xếp tăng dần theo số HĐLĐ
-        
+            
             if ds:
                 # ===== KIỂM TRA NẾU CHỈ CÓ 1 KẾT QUẢ TÌM KIẾM =====
                 if len(ds) == 1:
@@ -10857,9 +10955,10 @@ elif menu == "✅ Nhân viên":
                     st.write(f"- **Ngày sinh:** {format_date(nv_nghi_detail.get('ngay_sinh'))}")
                     st.write(f"- **Giới tính:** {nv_nghi_detail.get('gioi_tinh', '')}")
                     st.write(f"- **CCCD:** {nv_nghi_detail.get('so_cccd', '')}")
+                    st.write(f"- **Ngày cấp CCCD:** {nv_nghi_detail.get('ngay_cap_cccd', '')}")
                     st.write(f"- **SĐT:** {nv_nghi_detail.get('dien_thoai', '')}")
                     st.write(f"- **Chức danh:** {nv_nghi_detail.get('chuc_danh_nghe', '')}")
-                    st.write(f"- **Tên đơn vị thụ hưởng:** {nv_nghi_detail.get('ten_don_vi_thu_huong', '')}")
+                    st.write(f"- **Địa chỉ:** {nv_nghi_detail.get('thuong_tru', '')}")
                 
                 with col_detail2:
                     st.markdown("**📅 Thông tin hợp đồng & nghỉ việc**")
@@ -11526,7 +11625,12 @@ elif menu == "✅ Nhân viên":
                                 nv_qd_in['so_hdld'] = so_hd_moi_ct
                                 nv_qd_in['loai_hop_dong'] = loai_hop_dong_luu_ct
 
-                            file_path = tao_quyet_dinh_nhan_su(nv_qd_in, so_qd, ngay_qd, tieu_de, dieu1_lines, hieu_luc_text)
+                            if loai_qd == 'CHAM_DUT_HD':
+                                # QĐ chấm dứt HĐ dùng mẫu riêng (lý do lấy từ ô "Lý do chấm dứt")
+                                file_path = tao_quyet_dinh_cham_dut_hd(
+                                    nv_qd_in, so_qd, ngay_qd, ly_do=ly_do_cd, la_thu_viec=la_thu_viec_cd_ui)
+                            else:
+                                file_path = tao_quyet_dinh_nhan_su(nv_qd_in, so_qd, ngay_qd, tieu_de, dieu1_lines, hieu_luc_text)
                             file_url = None
                             # (File Word được tạo để tải về ngay lập tức; bản ghi vẫn được lưu để tra cứu)
 

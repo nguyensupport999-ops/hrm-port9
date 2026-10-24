@@ -1047,14 +1047,14 @@ def _dialog_tao_phong(nv):
                 key="cnb_select_1v1"
             )
             
-            # Nút bấm thông thường (an toàn vì dialog được mở từ ngoài fragment)
-            if st.button("💬 Bắt đầu trò chuyện", type="primary", use_container_width=True, key="btn_start_1v1"):
-                if chon_nguoi:
+            # Sử dụng form để đảm bảo callback được kích hoạt ổn định nhất
+            with st.form(key="form_start_1v1"):
+                submitted = st.form_submit_button("💬 Bắt đầu trò chuyện", type="primary", use_container_width=True)
+                if submitted and chon_nguoi:
                     rid = create_private_room(nv["id"], options_1v1[chon_nguoi])
                     if rid:
+                        # Lưu trạng thái và dùng st.rerun() để đóng dialog
                         st.session_state["cnb_room_id"] = rid
-                        st.session_state["_show_dialog"] = False
-                        st.session_state["_close_dialog"] = True
                         st.rerun()
 
     # ─── Tab 2: Tạo nhóm (chỉ hiện nếu có quyền) ───
@@ -1097,15 +1097,16 @@ def _dialog_tao_phong(nv):
             with c1:
                 st.metric("Đã chọn", f"{len(chon)} người")
             with c2:
-                if st.button("🚀 Tạo nhóm chat", type="primary",
-                             disabled=not (ten_nhom.strip() and chon),
-                             use_container_width=True, key="btn_create_group"):
-                    member_ids = [options[k] for k in chon]
-                    rid = create_group_room(ten_nhom.strip(), nv["id"], member_ids)
-                    if rid:
-                        st.session_state["cnb_room_id"] = rid
-                        st.session_state["_show_dialog"] = False
-                        st.rerun()
+                with st.form(key="form_create_group"):
+                    submitted_gr = st.form_submit_button("🚀 Tạo nhóm chat", type="primary",
+                                 disabled=not (ten_nhom.strip() and chon),
+                                 use_container_width=True)
+                    if submitted_gr and ten_nhom.strip() and chon:
+                        member_ids = [options[k] for k in chon]
+                        rid = create_group_room(ten_nhom.strip(), nv["id"], member_ids)
+                        if rid:
+                            st.session_state["cnb_room_id"] = rid
+                            st.rerun()
 
 
 # ---------- Dialog: Quản lý nhóm ----------
@@ -1716,9 +1717,10 @@ def render():
         # Nút Tạo phòng mới đặt ở đây (NGOÀI fragment)
         c_left, c_right = st.columns([0.7, 0.3])
         with c_right:
-            # GỌI TRỰC TIẾP DIALOG KHI BẤM NÚT - Không dùng cờ session_state, không dùng st.rerun()
             if st.button("➕ Tạo phòng mới", key="btn_create_room_main", 
                          use_container_width=True, type="primary"):
+                # Gọi trực tiếp dialog. Việc đóng dialog sẽ được Streamlit tự xử lý
+                # khi ta gán lại st.session_state["cnb_room_id"] bên trong.
                 _dialog_tao_phong(nv)
 
         if active_room:

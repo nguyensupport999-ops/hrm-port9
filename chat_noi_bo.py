@@ -216,12 +216,27 @@ def init_chat_tables():
                     PRIMARY KEY (room_id, user_id)
                 )
             """)
-            try:
-                c.execute("ALTER TABLE chat_participants "
-                          "ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMP DEFAULT NOW()")
-            except Exception as e_alter:
-                print(f"[chat_noi_bo] Bỏ qua ALTER chat_participants: {e_alter}")
+                            try:
+                    c.execute(stmt)
+                except Exception as e_alter:
+                    print(f"[chat_noi_bo] Bỏ qua ALTER chat_rooms: {e_alter}")
 
+            # Bảng cũ (phiên bản chat đời đầu) có cột ten_phong NOT NULL → gỡ ràng buộc
+            # Dùng DO block để không lỗi nếu cột không tồn tại (tránh làm hỏng transaction)
+            try:
+                c.execute("""
+                    DO $$
+                    BEGIN
+                        IF EXISTS (SELECT 1 FROM information_schema.columns
+                                   WHERE table_name = 'chat_rooms'
+                                     AND column_name = 'ten_phong') THEN
+                            ALTER TABLE chat_rooms ALTER COLUMN ten_phong DROP NOT NULL;
+                        END IF;
+                    END $$;
+                """)
+            except Exception as e_alter2:
+                print(f"[chat_noi_bo] Bỏ qua gỡ NOT NULL ten_phong: {e_alter2}")
+            
             # ---------- chat_messages ----------
             c.execute("""
                 CREATE TABLE IF NOT EXISTS chat_messages (

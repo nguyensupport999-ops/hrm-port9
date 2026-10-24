@@ -1052,10 +1052,10 @@ def _dialog_tao_phong(nv):
                 if chon_nguoi:
                     rid = create_private_room(nv["id"], options_1v1[chon_nguoi])
                     if rid:
+                        # ✅ Key fix: only set flag, do not immediately st.rerun()
                         st.session_state["cnb_room_id"] = rid
-                        # Đóng dialog thành công
-                        st.session_state["_show_dialog"] = False
-                        st.rerun()
+                        st.session_state["_close_dialog"] = True
+                        # Remove immediate st.rerun(), let the dialog close naturally on the next run
 
     # ─── Tab 2: Tạo nhóm (chỉ hiện nếu có quyền) ───
     if co_the_tao_nhom:
@@ -1104,8 +1104,8 @@ def _dialog_tao_phong(nv):
                     rid = create_group_room(ten_nhom.strip(), nv["id"], member_ids)
                     if rid:
                         st.session_state["cnb_room_id"] = rid
-                        st.session_state["_show_dialog"] = False
-                        st.rerun()
+                        st.session_state["_close_dialog"] = True
+                        # Also remove immediate st.rerun()
 
 
 # ---------- Dialog: Quản lý nhóm ----------
@@ -1250,7 +1250,7 @@ def _render_sidebar(nv, rooms, active_room_id):
             st.rerun()
             
     # Xử lý mở Dialog (Chỉ gọi 1 lần duy nhất khi cờ bật)
-    if st.session_state.get("_show_dialog"):
+    if st.session_state.get("_show_dialog") and not st.session_state.get("_close_dialog"):
         # GỌI DIALOG (Không set False ở đây, chỉ set False khi bấm nút thành công bên trong Dialog)
         _dialog_tao_phong(nv)
 
@@ -1666,10 +1666,8 @@ def render():
     # Xử lý đóng dialog tạo phòng (nếu có cờ)
     if st.session_state.get("_close_dialog"):
         st.session_state["_close_dialog"] = False
-        # Streamlit không có API đóng dialog trực tiếp, 
-        # nhưng khi flag này được reset, dialog sẽ không tự mở lại 
-        # nếu ta kiểm soát được nút bấm mở dialog.
-        # Tuy nhiên, cách tốt nhất là xóa key kích hoạt dialog (nếu có).
+        st.session_state["_show_dialog"] = False
+        st.rerun()  # Here, outside the dialog, calling st.rerun is safe
 
     user_id = st.session_state.get("nhan_vien_id")
     if not user_id:

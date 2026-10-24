@@ -629,6 +629,7 @@ def send_message(room_id, sender_id, content, message_type="text",
         return True
     except Exception as e:
         print(f"[chat_noi_bo] Lỗi gửi tin nhắn: {e}")
+        st.session_state["_cnb_loi_cuoi"] = str(e)
         return False
 
 
@@ -1494,7 +1495,10 @@ def _render_chat_window(nv, room):
             else:
                 st.error("❌ Tải file lên thất bại. Vui lòng thử lại.")
         elif noi_dung:
-            send_message(room["id"], nv["id"], noi_dung)
+            if not send_message(room["id"], nv["id"], noi_dung):
+                st.error("❌ Gửi tin nhắn thất bại. Chi tiết lỗi: "
+                         + str(st.session_state.get("_cnb_loi_cuoi", "không rõ")))
+                return
 
         st.rerun()
 
@@ -1668,6 +1672,47 @@ def _render_tai_khoan_he_thong():
 # 8) ENTRY POINT
 # ============================================================================
 
+def _phat_chuong_bao():
+    """Phát tiếng 'ting-ting' bằng Web Audio API (không cần file âm thanh)."""
+    import streamlit.components.v1 as components
+    components.html("""
+    <script>
+    (function () {
+        try {
+            var AC = window.AudioContext || window.webkitAudioContext;
+            var ctx = new AC();
+            function beep(t, f) {
+                var o = ctx.createOscillator();
+                var g = ctx.createGain();
+                o.type = 'sine';
+                o.frequency.value = f;
+                o.connect(g);
+                g.connect(ctx.destination);
+                g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
+                g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + t + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.35);
+                o.start(ctx.currentTime + t);
+                o.stop(ctx.currentTime + t + 0.4);
+            }
+            ctx.resume();
+            beep(0, 880);
+            beep(0.18, 1175);
+        } catch (e) {}
+    })();
+    </script>
+    """, height=0)
+
+
+@st.fragment(run_every=5)
+def _theo_doi_tin_moi(nv_id):
+    """Cứ 5 giây kiểm tra tin chưa đọc; nếu tăng → báo chuông + tải lại màn hình."""
+    so_chua_doc = get_total_unread_count(nv_id)
+    truoc = st.session_state.get("_cnb_unread_prev")
+    st.session_state["_cnb_unread_prev"] = so_chua_doc
+    if truoc is not None and so_chua_doc > truoc:
+        st.session_state["_cnb_can_chuong"] = True
+        st.rerun()
+
 def render():
     """Entry point — gọi từ app.py"""
     if not st.session_state.get("logged_in"):
@@ -1715,6 +1760,12 @@ def render():
     st.caption(f"Xin chào **{nv['ho_ten']}** · {nv.get('phong_ban_lam_viec', '')} · "
                f"{nv.get('chuc_vu', '')}")
     _css()
+
+    # Chuông báo + tự làm mới khi có tin mới
+    if st.session_state.pop("_cnb_can_chuong", False):
+        _phat_chuong_bao()
+        st.toast("Bạn có tin nhắn mới", icon="🔔")
+    _theo_doi_tin_moi(nv["id"])
 
     rooms = get_user_chat_rooms(user_id)
     active_room_id = st.session_state.get("cnb_room_id")

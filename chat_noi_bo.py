@@ -192,8 +192,12 @@ def init_chat_tables():
                 )
             """)
             for stmt in [
+                "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS room_name  VARCHAR(150)",
+                "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS room_type  VARCHAR(20) NOT NULL DEFAULT 'private'",
                 "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS phong_ban  VARCHAR(100)",
                 "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS is_locked  BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS created_by INTEGER",
+                "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()",
                 "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()",
                 "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP",
             ]:

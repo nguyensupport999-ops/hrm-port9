@@ -5579,6 +5579,36 @@ def hien_thi_note_calendar():
                         st.toast("✅ Đã thêm nhắc hẹn")
                         st.rerun()
 
+def ensure_cot_thang_phuong_an_text():
+    """Đảm bảo nhan_vien.thang_phuong_an là chữ 'MM/YYYY' (app ghi theo định dạng này).
+    DB dựng từ schema cũ có thể để kiểu DATE -> lỗi 'invalid input syntax for type date'."""
+    if st.session_state.get('_da_ensure_tpa_text'):
+        return
+    db = None
+    try:
+        db = st.session_state.db_engine.get_connection()
+        c = db.cursor()
+        c.execute("""SELECT data_type FROM information_schema.columns
+                     WHERE table_name = 'nhan_vien' AND column_name = 'thang_phuong_an'""")
+        row = c.fetchone()
+        if row and str(row[0]).lower() in ('date', 'timestamp without time zone', 'timestamp with time zone'):
+            c.execute("""ALTER TABLE nhan_vien ALTER COLUMN thang_phuong_an
+                         TYPE VARCHAR(10) USING to_char(thang_phuong_an, 'MM/YYYY')""")
+            db.commit()
+        c.close()
+        st.session_state['_da_ensure_tpa_text'] = True
+    except Exception as e:
+        print(f"Lỗi ensure_cot_thang_phuong_an_text: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
 def ensure_qdns_table():
     """Tạo bảng quyet_dinh_nhan_su lưu lịch sử các Quyết định nhân sự đã ban hành."""
     try:
@@ -9707,6 +9737,7 @@ elif menu == "✅ Nhân viên":
     if not st.session_state.get('_da_ensure_qdns'):
         ensure_qdns_columns()
         ensure_qdns_table()
+        ensure_cot_thang_phuong_an_text()
         ensure_mau_dieu_hop_dong_table()
         st.session_state['_da_ensure_qdns'] = True
         ensure_luong_bh_hieu_luc()

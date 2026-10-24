@@ -611,10 +611,53 @@ def get_total_unread_count(user_id):
         print(f"[chat_noi_bo] Lỗi đếm tổng chưa đọc: {e}")
         return 0
 
+def get_sidebar_summary(user_id):
+    """Gom tin cuối / số tin chưa đọc / tên người đối diện của TẤT CẢ phòng
+    chỉ bằng 3 truy vấn (thay cho 3–4 truy vấn mỗi phòng)."""
+    kq = {"last": {}, "unread": {}, "partner": {}}
+    try:
+        with _db_cursor() as (_, c):
+            c.execute("""
+                SELECT DISTINCT ON (m.room_id) m.*, nv.ho_ten AS sender_name
+                FROM chat_messages m
+                JOIN chat_participants p ON p.room_id = m.room_id AND p.user_id = %s
+                JOIN chat_rooms r ON r.id = m.room_id AND r.deleted_at IS NULL
+                LEFT JOIN nhan_vien nv ON m.sender_id = nv.id
+                ORDER BY m.room_id, m.sent_at DESC
+            """, (user_id,))
+            for r in c.fetchall():
+                kq["last"][r["room_id"]] = r
+
+            c.execute("""
+                SELECT m.room_id, COUNT(*) AS n
+                FROM chat_messages m
+                JOIN chat_participants p ON p.room_id = m.room_id AND p.user_id = %s
+                JOIN chat_rooms r ON r.id = m.room_id AND r.deleted_at IS NULL
+                WHERE m.sender_id != %s
+                  AND m.sent_at > COALESCE(p.last_read_at, '1970-01-01')
+                GROUP BY m.room_id
+            """, (user_id, user_id))
+            for r in c.fetchall():
+                kq["unread"][r["room_id"]] = r["n"]
+
+            c.execute("""
+                SELECT p.room_id, nv.ho_ten
+                FROM chat_participants p
+                JOIN chat_rooms r ON r.id = p.room_id
+                     AND r.room_type = 'private' AND r.deleted_at IS NULL
+                JOIN nhan_vien nv ON nv.id = p.user_id
+                WHERE p.user_id != %s
+                  AND p.room_id IN (SELECT room_id FROM chat_participants WHERE user_id = %s)
+            """, (user_id, user_id))
+            for r in c.fetchall():
+                kq["partner"][r["room_id"]] = r["ho_ten"]
+    except Exception as e:
+        print(f"[chat_noi_bo] Lỗi tóm tắt sidebar: {e}")
+    return kq
 
 # ---------- Tin nhắn ----------
 
-def get_room_messages(room_id, limit=300):
+def get_room_messages(room_id, limit=100):
     """Lấy lịch sử tin nhắn của 1 phòng (ASC theo thời gian)."""
     try:
         with _db_cursor() as (_, c):
@@ -705,6 +748,50 @@ Thực nhận:          {salary_data.get('thuc_nhan', 0):>13,.0f} VNĐ
 📅 Ngày xuất: {datetime.now().strftime('%d/%m/%Y %H:%M')}"""
     return send_message(room_id, sender_id, content, "payslip")
 
+def xoa_tin_nhan(msg_id, user_id):
+    """Xóa 1 tin nhắn do CHÍNH người dùng gửi (kèm file đính kèm trong kho nếu có)."""
+    try:
+        with _db_cursor(dict_cursor=False) as (db, c):
+            c.execute("""
+                DELETE FROM chat_messages
+                WHERE id = %s AND sender_id = %s
+                  AND COALESCE(message_type, 'text') <> 'system'
+                RETURNING file_url
+            """, (msg_id, user_id))
+            row = c.fetchone()
+        if row is None:
+            return False
+        if row[0]:
+            try:
+                sb = _get_supabase_client()
+                if sb:
+                    sb.storage.from_("ho-so-nhan-vien").remove([row[0]])
+            except Exception as e_file:
+                print(f"[chat_noi_bo] Không xóa được file đính kèm: {e_file}")
+        return True
+    except Exception as e:
+        print(f"[chat_noi_bo] Lỗi xóa tin nhắn: {e}")
+        st.session_state["_cnb_loi_cuoi"] = str(e)
+        return False
+
+
+def xoa_phong_rieng(room_id, user_id):
+    """Xóa cuộc trò chuyện 1:1 (ẩn ở cả hai phía). Chỉ thành viên của phòng mới xóa được.
+    Dùng xóa mềm (deleted_at) — dữ liệu vẫn còn trong DB để admin xử lý nếu cần."""
+    try:
+        with _db_cursor(dict_cursor=False) as (db, c):
+            c.execute("""
+                UPDATE chat_rooms SET deleted_at = NOW()
+                WHERE id = %s AND room_type = 'private' AND deleted_at IS NULL
+                  AND EXISTS (SELECT 1 FROM chat_participants
+                              WHERE room_id = %s AND user_id = %s)
+                RETURNING id
+            """, (room_id, room_id, user_id))
+            return c.fetchone() is not None
+    except Exception as e:
+        print(f"[chat_noi_bo] Lỗi xóa phòng riêng: {e}")
+        st.session_state["_cnb_loi_cuoi"] = str(e)
+        return False
 
 # ---------- Phòng — tạo / sửa / xóa ----------
 
@@ -891,6 +978,11 @@ def sanitize_filename(filename):
     safe = re.sub(r"[^A-Za-z0-9_.\-]", "", no_accent)
     return safe or "file"
 
+@st.cache_resource(show_spinner=False)
+def _supabase_client_cached(url, key):
+    """Dùng lại 1 kết nối Supabase thay vì tạo mới mỗi lần."""
+    from supabase import create_client
+    return create_client(url, key)
 
 def _get_supabase_client():
     from supabase import create_client
@@ -906,7 +998,7 @@ def _get_supabase_client():
         key = os.getenv("SUPABASE_KEY")
     if not url or not key:
         return None
-    return create_client(url, key)
+    return _supabase_client_cached(url, key)
 
 
 def upload_chat_file(file_bytes, filename, content_type):
@@ -940,6 +1032,91 @@ def get_chat_file_bytes(file_url):
         print(f"[chat_noi_bo] Lỗi tải file: {e}")
         return None
 
+def _ma_tenant():
+    """Khoá nhận diện tenant (dùng làm khoá cache)."""
+    tenant = st.session_state.get("tenant") or {}
+    return str(tenant.get("ma_so_thue") or tenant.get("supabase_url") or "default")
+
+
+@st.cache_data(ttl=3000, max_entries=500, show_spinner=False)
+def _url_file_chat(file_url, ten_tai_ve, tenant_key):
+    """Tạo link ký (hiệu lực 1 giờ) để trình duyệt tải thẳng từ Supabase,
+    KHÔNG tải file về server Streamlit.
+    ten_tai_ve=None → xem trực tiếp; có tên → ép tải xuống (attachment)."""
+    sb = _get_supabase_client()
+    if not sb or not file_url:
+        raise ValueError("Thiếu kết nối hoặc đường dẫn file")
+    kho = sb.storage.from_("ho-so-nhan-vien")
+    try:
+        if ten_tai_ve:
+            res = kho.create_signed_url(file_url, 3600, {"download": ten_tai_ve})
+        else:
+            res = kho.create_signed_url(file_url, 3600)
+    except TypeError:
+        res = kho.create_signed_url(file_url, 3600)
+    u = ""
+    if isinstance(res, dict):
+        u = res.get("signedURL") or res.get("signedUrl") or ""
+    if not u:
+        raise ValueError("Không tạo được link file")
+    if not u.startswith("http"):
+        import os
+        tenant = st.session_state.get("tenant") or {}
+        base = (tenant.get("supabase_url") or os.getenv("SUPABASE_URL") or "").rstrip("/")
+        if not u.startswith("/"):
+            u = "/" + u
+        if not u.startswith("/storage/v1"):
+            u = "/storage/v1" + u
+        u = base + u
+    return u
+
+
+def _lay_url_file(file_url, ten_tai_ve=None):
+    try:
+        return _url_file_chat(file_url, ten_tai_ve, _ma_tenant())
+    except Exception as e:
+        print(f"[chat_noi_bo] Lỗi tạo link file: {e}")
+        return None
+
+
+def _nut_luu_anh(url, ten_file):
+    """Nút lưu ảnh: điện thoại → mở bảng chia sẻ (chọn 'Lưu hình ảnh' để vào Ảnh);
+    máy tính → tải file xuống."""
+    import json
+    ma = """
+    <style>
+      body { margin: 0; }
+      button { border: 1px solid #d9cbb8; background: #fff; border-radius: 8px;
+               padding: 3px 9px; cursor: pointer; font-size: 15px; }
+    </style>
+    <button id="b" title="Lưu ảnh">⬇️</button>
+    <script>
+      var URL_ANH = __URL__;
+      var TEN = __TEN__;
+      var la_mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+          || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
+      document.getElementById('b').onclick = async function () {
+        try {
+          var r = await fetch(URL_ANH);
+          var blob = await r.blob();
+          var file = new File([blob], TEN, {type: blob.type || 'image/jpeg'});
+          if (la_mobile && navigator.canShare && navigator.canShare({files: [file]})) {
+            await navigator.share({files: [file]});
+          } else {
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = TEN;
+            document.body.appendChild(a); a.click(); a.remove();
+          }
+        } catch (e) {
+          if (e && e.name === 'AbortError') { return; }
+          window.open(URL_ANH, '_blank');
+        }
+      };
+    </script>
+    """
+    ma = ma.replace("__URL__", json.dumps(url)).replace("__TEN__", json.dumps(ten_file or "anh.jpg"))
+    components.html(ma, height=38, width=56)
 
 # ============================================================================
 # 7) GIAO DIỆN (Streamlit UI)
@@ -1079,6 +1256,31 @@ def _css():
         padding: 8px 10px; border-radius: 10px; margin-bottom: 2px;
     }
     .cnb-room-card:hover { background: #f1f5f9; }
+    /* ---- Tin nhắn dạng 1 hàng gọn ---- */
+    [class*="st-key-cnbrow_"] {
+        border-radius: 10px; padding: 4px 8px; margin-bottom: 2px;
+    }
+    [class*="st-key-cnbrow_me_"]    { background: rgba(217,119,6,0.10); }
+    [class*="st-key-cnbrow_other_"] { background: rgba(0,0,0,0.04); }
+    [class*="st-key-cnbrow_"] [data-testid="stHorizontalBlock"] {
+        flex-wrap: nowrap !important; gap: 0.3rem !important; align-items: center !important;
+    }
+    [class*="st-key-cnbrow_"] [data-testid="stColumn"],
+    [class*="st-key-cnbrow_"] [data-testid="column"] {
+        min-width: 0 !important; width: auto !important; flex: 0 0 auto !important;
+    }
+    [class*="st-key-cnbrow_"] [data-testid="stColumn"]:first-child,
+    [class*="st-key-cnbrow_"] [data-testid="column"]:first-child {
+        flex: 1 1 auto !important;
+    }
+    [class*="st-key-cnbrow_"] p { margin: 0 !important; }
+    [class*="st-key-cnbrow_"] [data-testid="stCaptionContainer"] {
+        text-align: right; white-space: nowrap;
+    }
+    [class*="st-key-cnbrow_"] button {
+        padding: 0.05rem 0.45rem !important; min-height: 1.7rem !important;
+    }
+    .st-key-cnb_msgs [data-testid="stVerticalBlock"] { gap: 0.3rem !important; }
     /* ---- Ẩn label mặc định của một số widget ---- */
     div[data-testid="stFileUploader"] > label { display: none; }
     </style>
@@ -1182,6 +1384,24 @@ def _dialog_tao_phong(nv):
 
 
 # ---------- Dialog: Quản lý nhóm ----------
+@st.dialog("🗑 Xóa cuộc trò chuyện")
+def _dialog_xoa_phong_rieng(nv, room):
+    ten = get_room_display_name(room, nv["id"])
+    st.warning(f"Xóa toàn bộ cuộc trò chuyện với **{ten}**? "
+               "Cuộc trò chuyện sẽ biến mất ở **cả hai phía**.")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("✔ Xác nhận xóa", type="primary", use_container_width=True,
+                     key="cnb_confirm_del_room"):
+            if xoa_phong_rieng(room["id"], nv["id"]):
+                st.session_state["cnb_room_id"] = None
+                st.rerun()
+            else:
+                st.error("❌ Không xóa được. Chi tiết: "
+                         + str(st.session_state.get("_cnb_loi_cuoi", "không rõ")))
+    with c2:
+        if st.button("Hủy", use_container_width=True, key="cnb_cancel_del_room"):
+            st.rerun()
 
 @st.dialog("⚙️ Quản lý nhóm", width="large")
 def _dialog_quan_ly_nhom(nv, room):
@@ -1321,8 +1541,9 @@ def _render_sidebar(nv, rooms, active_room_id):
                         label_visibility="collapsed",
                         placeholder="🔎 Tìm phòng chat...")
 
-    # Tổng tin chưa đọc
-    total_unread = get_total_unread_count(nv["id"])
+    # Tóm tắt toàn bộ phòng bằng vài truy vấn (thay vì 3–4 truy vấn mỗi phòng)
+    tom_tat = get_sidebar_summary(nv["id"])
+    total_unread = sum(tom_tat["unread"].values())
     if total_unread:
         st.markdown(f'<div style="text-align:center;padding:4px 0;">'
                     f'<span class="cnb-badge" style="font-size:12px;padding:2px 10px;">'
@@ -1343,14 +1564,17 @@ def _render_sidebar(nv, rooms, active_room_id):
 
     def _render_room_btn(room):
         """Render 1 dòng phòng chat trong sidebar."""
-        display = get_room_display_name(room, nv["id"])
+        if room.get("room_type") == "private" and room["id"] in tom_tat["partner"]:
+            display = tom_tat["partner"][room["id"]]
+        else:
+            display = get_room_display_name(room, nv["id"])
         # Lọc theo từ khóa tìm kiếm
         if tim and tim.strip().lower() not in display.lower():
             return False  # bị lọc, không hiển thị
 
-        last = get_room_last_message(room["id"])
+        last = tom_tat["last"].get(room["id"])
         preview = _last_msg_preview(last, nv["id"])
-        unread = get_room_unread_count(room["id"], nv["id"])
+        unread = tom_tat["unread"].get(room["id"], 0)
         ts = _thoi_gian(last["sent_at"]) if last else ""
         is_active = (room["id"] == active_room_id)
 
@@ -1413,47 +1637,79 @@ def _render_sidebar(nv, rooms, active_room_id):
 # ---------- Khung tin nhắn (với auto-refresh) ----------
 
 def _render_message_bubble(msg, is_self, nv_id):
-    """Render 1 tin nhắn duy nhất."""
+    """Render 1 tin nhắn trên 1 hàng: [nội dung | giờ | tải/lưu | xóa]."""
     mtype = msg.get("message_type", "text")
     sender = msg.get("sender_name") or "Hệ thống"
     time_str = _thoi_gian(msg["sent_at"])
+    mid = msg["id"]
 
-    # System message — căn giữa, không avatar
+    # System message — căn giữa, không viền
     if mtype == "system":
         st.markdown(f'<div class="cnb-system-msg">{msg.get("content", "")}</div>',
                     unsafe_allow_html=True)
         return
 
-    # Tin nhắn thường — dùng st.chat_message
-    avatar_char = "👤" if is_self else "🙂"
-    role = "user" if is_self else "assistant"
+    cho_xoa = (st.session_state.get("_cnb_xoa_cho") == mid)
+    kieu = "me" if is_self else "other"
+    ten = "" if is_self else f"**{sender}** · "
+    noi_dung = msg.get("content") or ""
+    ten_file = msg.get("file_name") or "file"
 
-    with st.chat_message(role, avatar=avatar_char):
-        if not is_self:
-            st.caption(f"**{sender}**")
+    with st.container(key=f"cnbrow_{kieu}_{mid}"):
+        c_nd, c_tg, c_tai, c_xoa = st.columns([0.58, 0.17, 0.125, 0.125],
+                                              vertical_alignment="center")
 
-        if mtype == "image" and msg.get("file_url"):
-            file_bytes = get_chat_file_bytes(msg["file_url"])
-            if file_bytes:
-                st.image(file_bytes, width=280)
-            if msg.get("content"):
-                st.write(msg["content"])
-        elif mtype == "file" and msg.get("file_url"):
-            st.markdown(f'<div class="cnb-file">📎 <b>{msg.get("file_name", "")}</b></div>',
-                        unsafe_allow_html=True)
-            file_bytes = get_chat_file_bytes(msg["file_url"])
-            if file_bytes:
-                st.download_button("⬇️ Tải xuống", file_bytes,
-                                   file_name=msg.get("file_name", "file"),
-                                   key=f"dl_{msg['id']}")
-        elif mtype == "payslip":
-            st.markdown(f'<div class="cnb-payslip">{msg.get("content", "")}</div>',
-                        unsafe_allow_html=True)
-        else:
-            st.write(msg.get("content", ""))
+        # ── Cột 1: nội dung ──
+        with c_nd:
+            if mtype == "image" and msg.get("file_url"):
+                if not is_self:
+                    st.caption(sender)
+                url_xem = _lay_url_file(msg["file_url"])
+                if url_xem:
+                    st.image(url_xem, width=220)
+                else:
+                    st.caption("⚠️ Không tải được ảnh")
+                if noi_dung:
+                    st.markdown(noi_dung)
+            elif mtype == "file":
+                st.markdown(f"{ten}📎 **{ten_file}**")
+            elif mtype == "payslip":
+                st.markdown(f'<div class="cnb-payslip">{noi_dung}</div>',
+                            unsafe_allow_html=True)
+            else:
+                st.markdown(f"{ten}{noi_dung}")
 
-        st.caption(time_str)
+        # ── Cột 2: giờ (sát bên phải) ──
+        with c_tg:
+            st.caption(time_str)
 
+        # ── Cột 3: tải xuống / lưu ảnh (hoặc nút xác nhận xóa) ──
+        with c_tai:
+            if cho_xoa:
+                if st.button("✔", key=f"yes_{mid}", help="Xác nhận xóa"):
+                    if not xoa_tin_nhan(mid, nv_id):
+                        st.session_state["_cnb_thong_bao"] = "❌ Không xóa được tin nhắn này."
+                    st.session_state.pop("_cnb_xoa_cho", None)
+                    st.rerun()
+            elif mtype == "file" and msg.get("file_url"):
+                url_tai = _lay_url_file(msg["file_url"], ten_file)
+                if url_tai:
+                    st.link_button("⬇️", url_tai, help="Tải xuống (lưu vào Tệp)")
+            elif mtype == "image" and msg.get("file_url"):
+                url_luu = _lay_url_file(msg["file_url"])
+                if url_luu:
+                    _nut_luu_anh(url_luu, ten_file)
+
+        # ── Cột 4: xóa (chỉ tin của mình) ──
+        with c_xoa:
+            if cho_xoa:
+                if st.button("✖", key=f"no_{mid}", help="Không xóa"):
+                    st.session_state.pop("_cnb_xoa_cho", None)
+                    st.rerun()
+            elif is_self:
+                if st.button("🗑", key=f"del_{mid}", help="Xóa tin nhắn"):
+                    st.session_state["_cnb_xoa_cho"] = mid
+                    st.rerun()
 
 def _render_messages_fragment(room_id, nv_id):
     """Hiển thị danh sách tin nhắn trong container cuộn, tự làm mới mỗi 5 giây."""
@@ -1476,27 +1732,28 @@ def _render_chat_window(nv, room):
     rt = room.get("room_type", "private")
 
     # ─── Header ───
-    h1, h2, h3 = st.columns([0.55, 0.22, 0.23])
+    h1, h3 = st.columns([0.70, 0.30])
     with h1:
         st.markdown(f"### {display}")
         lock_txt = "  ·  🔒 Không thể rời" if room.get("is_locked") else ""
         st.caption(f"{len(participants)} thành viên{lock_txt}")
-    with h2:
-        transcript = export_room_transcript(room["id"], display)
-        st.download_button(
-            "💾 Lưu hội thoại", transcript.encode("utf-8"),
-            file_name=f"chat_{datetime.now().strftime('%Y%m%d')}_{room['id']}.txt",
-            key=f"export_{room['id']}", use_container_width=True,
-        )
     with h3:
-        if st.button("⚙️ Tùy chọn", key=f"opts_{room['id']}",
-                     use_container_width=True):
-            _dialog_quan_ly_nhom(nv, room)
+        if rt == "private":
+            if st.button("🗑 Xóa phòng", key=f"delroom_{room['id']}",
+                         use_container_width=True):
+                _dialog_xoa_phong_rieng(nv, room)
+        else:
+            if st.button("⚙️ Tùy chọn", key=f"opts_{room['id']}",
+                         use_container_width=True):
+                _dialog_quan_ly_nhom(nv, room)
 
     st.divider()
 
     # ─── Khung tin nhắn (container cuộn cố định) ───
-    with st.container(height=420):
+    if st.session_state.get("_cnb_thong_bao"):
+        st.error(st.session_state.pop("_cnb_thong_bao"))
+
+    with st.container(height=420, key="cnb_msgs"):
         _render_messages_fragment(room["id"], nv["id"])
 
     # ─── Nút rời nhóm (cho group mở) ───

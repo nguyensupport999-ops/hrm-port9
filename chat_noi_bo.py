@@ -1035,20 +1035,27 @@ def _dialog_tao_phong(nv):
             st.info("Không tìm thấy nhân viên nào.")
         else:
             st.caption(f"Hiển thị {min(len(emps), 25)}/{len(emps)} kết quả")
-            for e in emps[:25]:
-                c1, c2 = st.columns([0.75, 0.25])
-                with c1:
-                    pb = e.get("phong_ban_lam_viec") or ""
-                    cv = e.get("chuc_vu") or ""
-                    sub = f"{pb}" + (f" · {cv}" if cv else "")
-                    st.markdown(f"**{e['ho_ten']}**  \n{sub}")
-                with c2:
-                    if st.button("💬 Nhắn tin", key=f"priv_{e['id']}",
-                                 use_container_width=True):
-                        rid = create_private_room(nv["id"], e["id"])
-                        if rid:
-                            st.session_state["cnb_room_id"] = rid
-                            st.rerun()
+            
+            # Dùng container để tránh lỗi click trong dialog
+            with st.container(height=400):
+                for e in emps[:25]:
+                    c1, c2 = st.columns([0.75, 0.25])
+                    with c1:
+                        pb = e.get("phong_ban_lam_viec") or ""
+                        cv = e.get("chuc_vu") or ""
+                        sub = f"{pb}" + (f" · {cv}" if cv else "")
+                        st.markdown(f"**{e['ho_ten']}**  \n{sub}")
+                    with c2:
+                        if st.button("💬 Nhắn tin", key=f"priv_{e['id']}",
+                                     use_container_width=True):
+                            rid = create_private_room(nv["id"], e["id"])
+                            if rid:
+                                # 1. Lưu ID phòng vào session_state
+                                st.session_state["cnb_room_id"] = rid
+                                # 2. Báo hiệu cần đóng dialog (dùng cờ)
+                                st.session_state["_close_dialog"] = True
+                                # 3. Rerun để áp dụng
+                                st.rerun()
 
     # ─── Tab 2: Tạo nhóm (chỉ hiện nếu có quyền) ───
     if co_the_tao_nhom:
@@ -1061,7 +1068,6 @@ def _dialog_tao_phong(nv):
             ten_nhom = st.text_input("Tên nhóm", key="cnb_group_name",
                                      placeholder="VD: Dự án cảng Hòn La 2026")
 
-            # Chọn theo phòng ban trước (tiện hơn khi nhiều nhân viên)
             loc_pb = st.multiselect(
                 "Lọc theo phòng ban", PHONG_BAN_THU_TU,
                 key="cnb_group_filter_pb",
@@ -1073,7 +1079,6 @@ def _dialog_tao_phong(nv):
             emps2 = (search_employees(kw2, exclude_id=nv["id"]) if kw2
                      else get_all_employees(exclude_id=nv["id"]))
 
-            # Lọc theo phòng ban nếu có chọn
             if loc_pb:
                 emps2 = [e for e in emps2
                          if e.get("phong_ban_lam_viec") in loc_pb]
@@ -1098,6 +1103,7 @@ def _dialog_tao_phong(nv):
                     rid = create_group_room(ten_nhom.strip(), nv["id"], member_ids)
                     if rid:
                         st.session_state["cnb_room_id"] = rid
+                        st.session_state["_close_dialog"] = True
                         st.success("✅ Đã tạo nhóm thành công!")
                         st.rerun()
 
@@ -1235,6 +1241,10 @@ def _render_sidebar(nv, rooms, active_room_id):
     top1, top2 = st.columns([0.75, 0.25])
     with top1:
         if st.button("➕ Tạo phòng mới", use_container_width=True, type="primary"):
+            st.session_state["_show_dialog"] = True
+        
+        if st.session_state.get("_show_dialog"):
+            st.session_state["_show_dialog"] = False 
             _dialog_tao_phong(nv)
     with top2:
         if st.button("🔄", use_container_width=True, help="Làm mới"):
@@ -1645,16 +1655,18 @@ def _render_tai_khoan_he_thong():
 # ============================================================================
 
 def render():
-    """Entry point — gọi từ app.py:
-
-        import chat_noi_bo
-
-        elif menu == "💬 Chat nội bộ":
-            chat_noi_bo.render()
-    """
+    """Entry point — gọi từ app.py"""
     if not st.session_state.get("logged_in"):
         st.warning("⚠️ Vui lòng đăng nhập để sử dụng Chat nội bộ.")
         return
+
+    # Xử lý đóng dialog tạo phòng (nếu có cờ)
+    if st.session_state.get("_close_dialog"):
+        st.session_state["_close_dialog"] = False
+        # Streamlit không có API đóng dialog trực tiếp, 
+        # nhưng khi flag này được reset, dialog sẽ không tự mở lại 
+        # nếu ta kiểm soát được nút bấm mở dialog.
+        # Tuy nhiên, cách tốt nhất là xóa key kích hoạt dialog (nếu có).
 
     user_id = st.session_state.get("nhan_vien_id")
     if not user_id:

@@ -1713,17 +1713,13 @@ def render():
         _render_sidebar(nv, rooms, active_room_id)
 
     with col_main:
-        # Nút Tạo phòng mới đặt ở đây (NGOÀI fragment) để né lỗi mất callback của Streamlit
+        # Nút Tạo phòng mới đặt ở đây (NGOÀI fragment)
         c_left, c_right = st.columns([0.7, 0.3])
         with c_right:
+            # GỌI TRỰC TIẾP DIALOG KHI BẤM NÚT - Không dùng cờ session_state, không dùng st.rerun()
             if st.button("➕ Tạo phòng mới", key="btn_create_room_main", 
                          use_container_width=True, type="primary"):
-                st.session_state["_show_dialog"] = True
-                st.rerun()
-
-        # Mở dialog nếu cờ được bật (gọi ở đây cũng an toàn vì nằm ngoài fragment)
-        if st.session_state.get("_show_dialog") and not st.session_state.get("_close_dialog"):
-            _dialog_tao_phong(nv)
+                _dialog_tao_phong(nv)
 
         if active_room:
             _render_chat_window(nv, active_room)

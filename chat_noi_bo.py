@@ -191,7 +191,7 @@ def init_chat_tables():
                     deleted_at  TIMESTAMP
                 )
             """)
-                        for stmt in [
+            for stmt in [
                 "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS room_name  VARCHAR(150)",
                 "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS room_type  VARCHAR(20) NOT NULL DEFAULT 'private'",
                 "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS phong_ban  VARCHAR(100)",

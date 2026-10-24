@@ -39,7 +39,7 @@ import re
 import hashlib
 import unicodedata
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 import psycopg2
 import psycopg2.extras
@@ -857,11 +857,11 @@ def export_room_transcript(room_id, room_display_name):
     msgs = get_room_messages(room_id, limit=5000)
     lines = [
         f"LỊCH SỬ CHAT — {room_display_name}",
-        f"Xuất lúc: {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+        f"Xuất lúc: {_gio_vn_hien_tai().strftime('%d/%m/%Y %H:%M')}",
         "=" * 60, "",
     ]
     for m in msgs:
-        ts = m["sent_at"].strftime("%d/%m/%Y %H:%M") if m.get("sent_at") else ""
+        ts = _sang_gio_vn(m["sent_at"]).strftime("%d/%m/%Y %H:%M") if m.get("sent_at") else ""
         ten = m.get("sender_name") or "Hệ thống"
         mt = m.get("message_type", "text")
         noi_dung = m.get("content") or ""
@@ -967,11 +967,24 @@ def _avatar_html(ten, size=38):
     )
 
 
+def _gio_vn_hien_tai():
+    """Giờ hiện tại theo múi giờ Việt Nam (UTC+7), dạng naive."""
+    return datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=7)
+
+
+def _sang_gio_vn(dt):
+    """Đổi mốc thời gian lưu trong DB (UTC) sang giờ Việt Nam để hiển thị."""
+    if not dt:
+        return dt
+    return dt + timedelta(hours=7)
+
+
 def _thoi_gian(dt):
     """Định dạng thời gian thân thiện (Hôm nay → HH:MM, tuần này → Thứ HH:MM, ...)."""
     if not dt:
         return ""
-    now = datetime.now()
+    dt = _sang_gio_vn(dt)
+    now = _gio_vn_hien_tai()
     if dt.date() == now.date():
         return dt.strftime("%H:%M")
     if (now.date() - dt.date()).days < 7:
@@ -1499,44 +1512,58 @@ def _render_chat_window(nv, room):
     # ─── Ô nhập tin nhắn + đính kèm file ───
     st.divider()
 
-    # File uploader ĐẶT NGOÀI form (tránh bug Streamlit file_uploader trong form)
+    # ─── Đính kèm file: chọn file → xem trước → bấm "Gửi file" mới gửi ───
+    ver_up = st.session_state.get("_cnb_up_ver", 0)
     file_dinh_kem = st.file_uploader(
-        "📎 Đính kèm file", key=f"file_{room['id']}",
+        "📎 Đính kèm file", key=f"file_{room['id']}_{ver_up}",
         label_visibility="collapsed",
-        help="Chọn file ảnh hoặc tài liệu để gửi kèm",
+        help="Chọn file ảnh hoặc tài liệu, sau đó bấm nút Gửi file",
     )
     if file_dinh_kem:
+        ct = file_dinh_kem.type or "application/octet-stream"
         st.caption(f"📎 Đã chọn: {file_dinh_kem.name} "
-                   f"({file_dinh_kem.size / 1024:.0f} KB)")
+                   f"({file_dinh_kem.size / 1024:.0f} KB) — chưa gửi")
+        if ct.startswith("image/"):
+            st.image(file_dinh_kem, width=160)
 
-    # Chat input (pinned to bottom)
-    noi_dung = st.chat_input("Nhập tin nhắn...", key=f"chat_input_{room['id']}")
+        b1, b2 = st.columns(2)
+        with b1:
+            bam_gui_file = st.button("📤 Gửi file", key=f"send_file_{room['id']}",
+                                     type="primary", use_container_width=True)
+        with b2:
+            bam_huy_file = st.button("✖ Bỏ chọn", key=f"cancel_file_{room['id']}",
+                                     use_container_width=True)
 
-    if noi_dung or file_dinh_kem:
-        # Xử lý gửi file (nếu có)
-        if file_dinh_kem:
-            file_bytes = file_dinh_kem.read()
-            content_type = file_dinh_kem.type or "application/octet-stream"
-            path = upload_chat_file(file_bytes, file_dinh_kem.name, content_type)
-            if path:
-                if content_type.startswith("image/"):
-                    send_image_message(room["id"], nv["id"], path,
-                                       file_dinh_kem.name,
-                                       noi_dung or "")
-                else:
-                    send_file_message(room["id"], nv["id"], path,
-                                      file_dinh_kem.name, len(file_bytes))
-                # Nếu có cả text lẫn file (không phải ảnh), gửi text riêng
-                if noi_dung and not content_type.startswith("image/"):
-                    send_message(room["id"], nv["id"], noi_dung)
-            else:
+        if bam_huy_file:
+            st.session_state["_cnb_up_ver"] = ver_up + 1
+            st.rerun()
+
+        if bam_gui_file:
+            file_bytes = file_dinh_kem.getvalue()
+            path = upload_chat_file(file_bytes, file_dinh_kem.name, ct)
+            if not path:
                 st.error("❌ Tải file lên thất bại. Vui lòng thử lại.")
-        elif noi_dung:
-            if not send_message(room["id"], nv["id"], noi_dung):
-                st.error("❌ Gửi tin nhắn thất bại. Chi tiết lỗi: "
-                         + str(st.session_state.get("_cnb_loi_cuoi", "không rõ")))
-                return
+            else:
+                if ct.startswith("image/"):
+                    ok_gui = send_image_message(room["id"], nv["id"], path,
+                                                file_dinh_kem.name, "")
+                else:
+                    ok_gui = send_file_message(room["id"], nv["id"], path,
+                                               file_dinh_kem.name, len(file_bytes))
+                if ok_gui:
+                    st.session_state["_cnb_up_ver"] = ver_up + 1
+                    st.rerun()
+                else:
+                    st.error("❌ Gửi file thất bại. Chi tiết lỗi: "
+                             + str(st.session_state.get("_cnb_loi_cuoi", "không rõ")))
 
+    # ─── Ô nhập tin nhắn văn bản (Enter để gửi) ───
+    noi_dung = st.chat_input("Nhập tin nhắn...", key=f"chat_input_{room['id']}")
+    if noi_dung:
+        if not send_message(room["id"], nv["id"], noi_dung):
+            st.error("❌ Gửi tin nhắn thất bại. Chi tiết lỗi: "
+                     + str(st.session_state.get("_cnb_loi_cuoi", "không rõ")))
+            return
         st.rerun()
 
 
@@ -1709,15 +1736,47 @@ def _render_tai_khoan_he_thong():
 # 8) ENTRY POINT
 # ============================================================================
 
-def _phat_chuong_bao():
-    """Phát tiếng 'ting-ting' bằng Web Audio API (không cần file âm thanh)."""
-    import streamlit.components.v1 as components
+def _cai_chuong_bao():
+    """Cài sẵn bộ 'mở khoá âm thanh' vào trang cha: lần click/gõ phím đầu tiên
+    sẽ được trình duyệt cho phép phát tiếng. Chỉ cài 1 lần mỗi phiên."""
     components.html("""
     <script>
     (function () {
         try {
-            var AC = window.AudioContext || window.webkitAudioContext;
-            var ctx = new AC();
+            var P;
+            try { P = window.parent; P.document; } catch (e) { P = window; }
+            if (!P.__cnb) { P.__cnb = {ctx: null, installed: false}; }
+            if (P.__cnb.installed) { return; }
+            P.__cnb.installed = true;
+            function unlock() {
+                try {
+                    var AC = P.AudioContext || P.webkitAudioContext;
+                    if (!P.__cnb.ctx) { P.__cnb.ctx = new AC(); }
+                    if (P.__cnb.ctx.state === 'suspended') { P.__cnb.ctx.resume(); }
+                } catch (e) {}
+            }
+            ['click', 'keydown', 'touchstart'].forEach(function (ev) {
+                P.document.addEventListener(ev, unlock, true);
+            });
+            unlock();
+        } catch (e) {}
+    })();
+    </script>
+    """, height=0)
+
+
+def _phat_chuong_bao():
+    """Phát tiếng 'ting-ting' bằng bộ phát âm đã mở khoá ở trang cha."""
+    components.html("""
+    <script>
+    (function () {
+        try {
+            var P;
+            try { P = window.parent; P.document; } catch (e) { P = window; }
+            var AC = P.AudioContext || P.webkitAudioContext;
+            if (!P.__cnb) { P.__cnb = {ctx: null, installed: false}; }
+            if (!P.__cnb.ctx) { P.__cnb.ctx = new AC(); }
+            var ctx = P.__cnb.ctx;
             function beep(t, f) {
                 var o = ctx.createOscillator();
                 var g = ctx.createGain();
@@ -1725,15 +1784,19 @@ def _phat_chuong_bao():
                 o.frequency.value = f;
                 o.connect(g);
                 g.connect(ctx.destination);
-                g.gain.setValueAtTime(0.0001, ctx.currentTime + t);
-                g.gain.exponentialRampToValueAtTime(0.3, ctx.currentTime + t + 0.02);
-                g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.35);
-                o.start(ctx.currentTime + t);
-                o.stop(ctx.currentTime + t + 0.4);
+                var s = ctx.currentTime + t;
+                g.gain.setValueAtTime(0.0001, s);
+                g.gain.exponentialRampToValueAtTime(0.35, s + 0.02);
+                g.gain.exponentialRampToValueAtTime(0.0001, s + 0.35);
+                o.start(s);
+                o.stop(s + 0.4);
             }
-            ctx.resume();
-            beep(0, 880);
-            beep(0.18, 1175);
+            function play() { beep(0, 880); beep(0.18, 1175); }
+            if (ctx.state === 'suspended') {
+                ctx.resume().then(play).catch(function () {});
+            } else {
+                play();
+            }
         } catch (e) {}
     })();
     </script>
@@ -1799,6 +1862,7 @@ def render():
     _css()
 
     # Chuông báo + tự làm mới khi có tin mới
+    _cai_chuong_bao()
     if st.session_state.pop("_cnb_can_chuong", False):
         _phat_chuong_bao()
         st.toast("Bạn có tin nhắn mới", icon="🔔")

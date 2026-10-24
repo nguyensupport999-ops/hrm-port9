@@ -5,19 +5,3 @@ backgroundColor = "#F6EEE3"         # Beige nhạt (nền trang)
 secondaryBackgroundColor = "#EBDCC9" # Beige (sidebar, khung, ô nhập)
 textColor = "#3A2A22"               # Nâu đậm
 font = "sans serif"
-
-[theme]
-base = "light"
-
-[server]
-headless = true
-
-[client]
-toolbarMode = "minimal"
-showSidebarNavigation = false
-
-# ===== QUAN TRỌNG: ép padding-top của block-container =====
-# Đây là tuỳ chọn CHÍNH THỨC của Streamlit để điều khiển khoảng cách trên cùng.
-# Nếu file config.toml chưa có section [ui] này thì thêm vào.
-[ui]
-hideTopPadding = true

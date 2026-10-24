@@ -36,6 +36,7 @@ QUY TẮC NGHIỆP VỤ (theo đúng yêu cầu)
 """
 
 import re
+import time
 import hashlib
 import unicodedata
 from contextlib import contextmanager
@@ -131,6 +132,14 @@ def co_quyen_quan_ly_nhom(nv, room):
 # 3) KẾT NỐI DB — context manager tránh rò rỉ connection
 # ============================================================================
 @contextmanager
+def _do_gio(ten):
+    """Đo thời gian 1 bước và in vào log (tạm thời, để tìm chỗ chậm)."""
+    t0 = time.perf_counter()
+    try:
+        yield
+    finally:
+        print(f"[chat_perf] {ten}: {(time.perf_counter() - t0) * 1000:.0f} ms", flush=True)
+@contextmanager
 def _db_cursor(dict_cursor=True):
     """Context manager đảm bảo transaction được commit/rollback đúng cách.
 
@@ -140,7 +149,9 @@ def _db_cursor(dict_cursor=True):
         đã hỏng → mọi query fail.
       - Pool tự quản lý vòng đời connection; ta chỉ cần commit/rollback.
     """
+    _t0 = time.perf_counter()
     db = st.session_state.db_engine.get_connection()
+    print(f"[chat_perf] get_connection: {(time.perf_counter() - _t0) * 1000:.0f} ms", flush=True)
     cur = None
     try:
         if dict_cursor:
@@ -1116,7 +1127,7 @@ def _nut_luu_anh(url, ten_file):
     </script>
     """
     ma = ma.replace("__URL__", json.dumps(url)).replace("__TEN__", json.dumps(ten_file or "anh.jpg"))
-    components.html(ma, height=38, width=56)
+    st.iframe(ma, width=56, height=38)
 
 # ============================================================================
 # 7) GIAO DIỆN (Streamlit UI)
@@ -2019,7 +2030,7 @@ def _cai_chuong_bao():
         } catch (e) {}
     })();
     </script>
-    """, height=0)
+    """, width=1, height=1)
 
 
 def _phat_chuong_bao():
@@ -2118,14 +2129,14 @@ def render():
                f"{nv.get('chuc_vu', '')}")
     _css()
 
-    # Chuông báo + tự làm mới khi có tin mới
+    # Chuông báo khi có tin mới
     _cai_chuong_bao()
     if st.session_state.pop("_cnb_can_chuong", False):
         _phat_chuong_bao()
         st.toast("Bạn có tin nhắn mới", icon="🔔")
-    _theo_doi_tin_moi(nv["id"])
 
-    rooms = get_user_chat_rooms(user_id)
+    with _do_gio("get_user_chat_rooms"):
+        rooms = get_user_chat_rooms(user_id)
     active_room_id = st.session_state.get("cnb_room_id")
 
     # Kiểm tra phòng đang mở vẫn còn tồn tại
@@ -2141,7 +2152,8 @@ def render():
     col_side, col_main = st.columns([0.32, 0.68], gap="medium")
 
     with col_side:
-        _render_sidebar(nv, rooms, active_room_id)
+        with _do_gio("sidebar"):
+            _render_sidebar(nv, rooms, active_room_id)
 
     with col_main:
         # Nút Tạo phòng mới đặt ở đây (NGOÀI fragment)
@@ -2154,6 +2166,10 @@ def render():
                 _dialog_tao_phong(nv)
 
         if active_room:
-            _render_chat_window(nv, active_room)
+            with _do_gio("chat_window"):
+                _render_chat_window(nv, active_room)
         else:
             _render_empty_state()
+
+    # Theo dõi tin mới — đặt CUỐI để số tin chưa đọc được tính sau khi đã đánh dấu đọc
+    _theo_doi_tin_moi(nv["id"])

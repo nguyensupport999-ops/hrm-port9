@@ -191,7 +191,7 @@ def init_chat_tables():
                     deleted_at  TIMESTAMP
                 )
             """)
-            for stmt in [
+                        for stmt in [
                 "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS room_name  VARCHAR(150)",
                 "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS room_type  VARCHAR(20) NOT NULL DEFAULT 'private'",
                 "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS phong_ban  VARCHAR(100)",
@@ -202,21 +202,6 @@ def init_chat_tables():
                 "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP",
             ]:
                 try:
-                    c.execute(stmt)
-                except Exception as e_alter:
-                    print(f"[chat_noi_bo] Bỏ qua ALTER chat_rooms: {e_alter}")
-
-            # ---------- chat_participants ----------
-            c.execute("""
-                CREATE TABLE IF NOT EXISTS chat_participants (
-                    room_id      INTEGER NOT NULL,
-                    user_id      INTEGER NOT NULL,
-                    joined_at    TIMESTAMP DEFAULT NOW(),
-                    last_read_at TIMESTAMP DEFAULT NOW(),
-                    PRIMARY KEY (room_id, user_id)
-                )
-            """)
-                            try:
                     c.execute(stmt)
                 except Exception as e_alter:
                     print(f"[chat_noi_bo] Bỏ qua ALTER chat_rooms: {e_alter}")
@@ -236,7 +221,23 @@ def init_chat_tables():
                 """)
             except Exception as e_alter2:
                 print(f"[chat_noi_bo] Bỏ qua gỡ NOT NULL ten_phong: {e_alter2}")
-            
+
+            # ---------- chat_participants ----------
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS chat_participants (
+                    room_id      INTEGER NOT NULL,
+                    user_id      INTEGER NOT NULL,
+                    joined_at    TIMESTAMP DEFAULT NOW(),
+                    last_read_at TIMESTAMP DEFAULT NOW(),
+                    PRIMARY KEY (room_id, user_id)
+                )
+            """)
+            try:
+                c.execute("ALTER TABLE chat_participants "
+                          "ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMP DEFAULT NOW()")
+            except Exception as e_alter:
+                print(f"[chat_noi_bo] Bỏ qua ALTER chat_participants: {e_alter}")
+
             # ---------- chat_messages ----------
             c.execute("""
                 CREATE TABLE IF NOT EXISTS chat_messages (

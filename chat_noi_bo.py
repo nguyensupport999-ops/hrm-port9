@@ -1244,22 +1244,19 @@ def _render_sidebar(nv, rooms, active_room_id):
     # Nút hành động trên cùng
     top1, top2 = st.columns([0.75, 0.25])
     with top1:
-        if st.button("➕ Tạo phòng mới", use_container_width=True, type="primary"):
+        if st.button("➕ Tạo phòng mới", key="btn_create_room_sidebar", 
+                     use_container_width=True, type="primary"):
             st.session_state["_show_dialog"] = True
     with top2:
-        if st.button("🔄", use_container_width=True, help="Làm mới"):
+        if st.button("🔄", key="btn_refresh_sidebar", 
+                     use_container_width=True, help="Làm mới"):
             sync_department_rooms()
             st.rerun()
             
-    # Xử lý mở Dialog (Đặt ở đây để tránh bị reset khi bấm nút nhắn tin)
+    # Xử lý mở Dialog
     if st.session_state.get("_show_dialog"):
         st.session_state["_show_dialog"] = False  # Tắt cờ ngay lập tức
         _dialog_tao_phong(nv)
-    with top2:
-        if st.button("🔄", use_container_width=True, help="Làm mới"):
-            # Đồng bộ lại group phòng ban khi bấm refresh
-            sync_department_rooms()
-            st.rerun()
 
     # Ô tìm kiếm
     tim = st.text_input("🔎 Tìm phòng chat...", key="cnb_search_room",
@@ -1306,6 +1303,7 @@ def _render_sidebar(nv, rooms, active_room_id):
             st.markdown(_avatar_html(name_for_avatar, 34), unsafe_allow_html=True)
         with cols[1]:
             btn_type = "primary" if is_active else "secondary"
+            # Thêm key duy nhất cho từng nút phòng chat
             if st.button(display, key=f"room_btn_{room['id']}",
                          use_container_width=True, type=btn_type):
                 st.session_state["cnb_room_id"] = room["id"]

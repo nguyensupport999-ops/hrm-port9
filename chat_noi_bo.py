@@ -679,6 +679,7 @@ def create_private_room(user1_id, user2_id):
             return room_id
     except Exception as e:
         print(f"[chat_noi_bo] Lỗi tạo phòng 1:1: {e}")
+        st.session_state["_cnb_loi_cuoi"] = str(e)
         return None
 
 
@@ -1047,15 +1048,15 @@ def _dialog_tao_phong(nv):
                 key="cnb_select_1v1"
             )
             
-            # Sử dụng form để đảm bảo callback được kích hoạt ổn định nhất
-            with st.form(key="form_start_1v1"):
-                submitted = st.form_submit_button("💬 Bắt đầu trò chuyện", type="primary", use_container_width=True)
-                if submitted and chon_nguoi:
-                    rid = create_private_room(nv["id"], options_1v1[chon_nguoi])
-                    if rid:
-                        # Lưu trạng thái và dùng st.rerun() để đóng dialog
-                        st.session_state["cnb_room_id"] = rid
-                        st.rerun()
+            if st.button("💬 Bắt đầu trò chuyện", key="cnb_btn_start_1v1",
+                         type="primary", use_container_width=True):
+                rid = create_private_room(nv["id"], options_1v1[chon_nguoi])
+                if rid:
+                    st.session_state["cnb_room_id"] = rid
+                    st.rerun()
+                else:
+                    st.error("❌ Không tạo được phòng chat. Chi tiết lỗi: "
+                             + str(st.session_state.get("_cnb_loi_cuoi", "không rõ")))
 
     # ─── Tab 2: Tạo nhóm (chỉ hiện nếu có quyền) ───
     if co_the_tao_nhom:

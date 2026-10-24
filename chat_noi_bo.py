@@ -1036,26 +1036,27 @@ def _dialog_tao_phong(nv):
         else:
             st.caption(f"Hiển thị {min(len(emps), 25)}/{len(emps)} kết quả")
             
-            # Dùng container để tránh lỗi click trong dialog
-            with st.container(height=400):
-                for e in emps[:25]:
-                    c1, c2 = st.columns([0.75, 0.25])
-                    with c1:
-                        pb = e.get("phong_ban_lam_viec") or ""
-                        cv = e.get("chuc_vu") or ""
-                        sub = f"{pb}" + (f" · {cv}" if cv else "")
-                        st.markdown(f"**{e['ho_ten']}**  \n{sub}")
-                    with c2:
-                        if st.button("💬 Nhắn tin", key=f"priv_{e['id']}",
-                                     use_container_width=True):
-                            rid = create_private_room(nv["id"], e["id"])
-                            if rid:
-                                # 1. Lưu ID phòng vào session_state
-                                st.session_state["cnb_room_id"] = rid
-                                # 2. Báo hiệu cần đóng dialog (dùng cờ)
-                                st.session_state["_close_dialog"] = True
-                                # 3. Rerun để áp dụng
-                                st.rerun()
+            # Dùng radio để chọn 1 người thay vì render 25 nút bấm (gây lag)
+            options_1v1 = {
+                f"{e['ho_ten']} — {e.get('phong_ban_lam_viec') or ''} ({e.get('chuc_vu', '')})": e["id"]
+                for e in emps[:25]
+            }
+            
+            # Sử dụng st.selectbox thay vì 25 nút bấm
+            chon_nguoi = st.selectbox(
+                "Chọn nhân viên để nhắn tin 1:1",
+                list(options_1v1.keys()),
+                key="cnb_select_1v1"
+            )
+            
+            if st.button("💬 Bắt đầu trò chuyện", type="primary", use_container_width=True):
+                if chon_nguoi:
+                    rid = create_private_room(nv["id"], options_1v1[chon_nguoi])
+                    if rid:
+                        st.session_state["cnb_room_id"] = rid
+                        # Cờ báo hiệu đã tạo xong để đóng dialog
+                        st.session_state["_close_dialog"] = True
+                        st.rerun()
 
     # ─── Tab 2: Tạo nhóm (chỉ hiện nếu có quyền) ───
     if co_the_tao_nhom:
@@ -1079,6 +1080,7 @@ def _dialog_tao_phong(nv):
             emps2 = (search_employees(kw2, exclude_id=nv["id"]) if kw2
                      else get_all_employees(exclude_id=nv["id"]))
 
+            # Lọc theo phòng ban nếu có chọn
             if loc_pb:
                 emps2 = [e for e in emps2
                          if e.get("phong_ban_lam_viec") in loc_pb]
@@ -1089,14 +1091,16 @@ def _dialog_tao_phong(nv):
                 e["id"]
                 for e in emps2
             }
-            chon = st.multiselect("Thành viên", list(options.keys()),
+            
+            # Anh muốn click chọn 1 hoặc nhiều nhân viên -> dùng multiselect
+            chon = st.multiselect("Chọn thành viên vào nhóm", list(options.keys()),
                                   key="cnb_group_members")
 
             c1, c2 = st.columns(2)
             with c1:
                 st.metric("Đã chọn", f"{len(chon)} người")
             with c2:
-                if st.button("🚀 Tạo nhóm", type="primary",
+                if st.button("🚀 Tạo nhóm chat", type="primary",
                              disabled=not (ten_nhom.strip() and chon),
                              use_container_width=True):
                     member_ids = [options[k] for k in chon]
@@ -1242,10 +1246,15 @@ def _render_sidebar(nv, rooms, active_room_id):
     with top1:
         if st.button("➕ Tạo phòng mới", use_container_width=True, type="primary"):
             st.session_state["_show_dialog"] = True
-        
-        if st.session_state.get("_show_dialog"):
-            st.session_state["_show_dialog"] = False 
-            _dialog_tao_phong(nv)
+    with top2:
+        if st.button("🔄", use_container_width=True, help="Làm mới"):
+            sync_department_rooms()
+            st.rerun()
+            
+    # Xử lý mở Dialog (Đặt ở đây để tránh bị reset khi bấm nút nhắn tin)
+    if st.session_state.get("_show_dialog"):
+        st.session_state["_show_dialog"] = False  # Tắt cờ ngay lập tức
+        _dialog_tao_phong(nv)
     with top2:
         if st.button("🔄", use_container_width=True, help="Làm mới"):
             # Đồng bộ lại group phòng ban khi bấm refresh

@@ -1036,26 +1036,25 @@ def _dialog_tao_phong(nv):
         else:
             st.caption(f"Hiển thị {min(len(emps), 25)}/{len(emps)} kết quả")
             
-            # Dùng radio để chọn 1 người thay vì render 25 nút bấm (gây lag)
             options_1v1 = {
                 f"{e['ho_ten']} — {e.get('phong_ban_lam_viec') or ''} ({e.get('chuc_vu', '')})": e["id"]
                 for e in emps[:25]
             }
             
-            # Sử dụng st.selectbox thay vì 25 nút bấm
             chon_nguoi = st.selectbox(
                 "Chọn nhân viên để nhắn tin 1:1",
                 list(options_1v1.keys()),
                 key="cnb_select_1v1"
             )
             
-            if st.button("💬 Bắt đầu trò chuyện", type="primary", use_container_width=True):
+            # Thêm key cho nút
+            if st.button("💬 Bắt đầu trò chuyện", type="primary", use_container_width=True, key="btn_start_1v1"):
                 if chon_nguoi:
                     rid = create_private_room(nv["id"], options_1v1[chon_nguoi])
                     if rid:
                         st.session_state["cnb_room_id"] = rid
-                        # Cờ báo hiệu đã tạo xong để đóng dialog
-                        st.session_state["_close_dialog"] = True
+                        # Đóng dialog thành công
+                        st.session_state["_show_dialog"] = False
                         st.rerun()
 
     # ─── Tab 2: Tạo nhóm (chỉ hiện nếu có quyền) ───
@@ -1080,7 +1079,6 @@ def _dialog_tao_phong(nv):
             emps2 = (search_employees(kw2, exclude_id=nv["id"]) if kw2
                      else get_all_employees(exclude_id=nv["id"]))
 
-            # Lọc theo phòng ban nếu có chọn
             if loc_pb:
                 emps2 = [e for e in emps2
                          if e.get("phong_ban_lam_viec") in loc_pb]
@@ -1092,7 +1090,6 @@ def _dialog_tao_phong(nv):
                 for e in emps2
             }
             
-            # Anh muốn click chọn 1 hoặc nhiều nhân viên -> dùng multiselect
             chon = st.multiselect("Chọn thành viên vào nhóm", list(options.keys()),
                                   key="cnb_group_members")
 
@@ -1102,13 +1099,12 @@ def _dialog_tao_phong(nv):
             with c2:
                 if st.button("🚀 Tạo nhóm chat", type="primary",
                              disabled=not (ten_nhom.strip() and chon),
-                             use_container_width=True):
+                             use_container_width=True, key="btn_create_group"):
                     member_ids = [options[k] for k in chon]
                     rid = create_group_room(ten_nhom.strip(), nv["id"], member_ids)
                     if rid:
                         st.session_state["cnb_room_id"] = rid
-                        st.session_state["_close_dialog"] = True
-                        st.success("✅ Đã tạo nhóm thành công!")
+                        st.session_state["_show_dialog"] = False
                         st.rerun()
 
 
@@ -1253,9 +1249,9 @@ def _render_sidebar(nv, rooms, active_room_id):
             sync_department_rooms()
             st.rerun()
             
-    # Xử lý mở Dialog
+    # Xử lý mở Dialog (Chỉ gọi 1 lần duy nhất khi cờ bật)
     if st.session_state.get("_show_dialog"):
-        st.session_state["_show_dialog"] = False  # Tắt cờ ngay lập tức
+        # GỌI DIALOG (Không set False ở đây, chỉ set False khi bấm nút thành công bên trong Dialog)
         _dialog_tao_phong(nv)
 
     # Ô tìm kiếm

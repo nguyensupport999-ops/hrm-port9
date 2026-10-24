@@ -1047,18 +1047,15 @@ def _dialog_tao_phong(nv):
                 key="cnb_select_1v1"
             )
             
-            # Thêm key cho nút
-            # Dùng form để né lỗi mất callback của button trong dialog
-            with st.form(key="form_start_1v1", clear_on_submit=False):
-                # Nút submit form hoạt động ổn định hơn trong dialog lồng fragment
-                submitted = st.form_submit_button("💬 Bắt đầu trò chuyện", type="primary", use_container_width=True)
-                if submitted and chon_nguoi:
+            # Nút bấm thông thường (an toàn vì dialog được mở từ ngoài fragment)
+            if st.button("💬 Bắt đầu trò chuyện", type="primary", use_container_width=True, key="btn_start_1v1"):
+                if chon_nguoi:
                     rid = create_private_room(nv["id"], options_1v1[chon_nguoi])
                     if rid:
                         st.session_state["cnb_room_id"] = rid
                         st.session_state["_show_dialog"] = False
-                        st.session_state["_close_dialog"] = True # Cờ báo đóng dialog
-                        st.rerun() # Lệnh rerun này nằm trong form submit, an toàn hơn
+                        st.session_state["_close_dialog"] = True
+                        st.rerun()
 
     # ─── Tab 2: Tạo nhóm (chỉ hiện nếu có quyền) ───
     if co_the_tao_nhom:
@@ -1240,22 +1237,11 @@ def _dialog_quan_ly_nhom(nv, room):
 
 def _render_sidebar(nv, rooms, active_room_id):
     """Cột bên trái: nút tạo phòng, ô tìm kiếm, danh sách phòng."""
-    # Nút hành động trên cùng
-    top1, top2 = st.columns([0.75, 0.25])
-    with top1:
-        if st.button("➕ Tạo phòng mới", key="btn_create_room_sidebar", 
-                     use_container_width=True, type="primary"):
-            st.session_state["_show_dialog"] = True
-    with top2:
-        if st.button("🔄", key="btn_refresh_sidebar", 
-                     use_container_width=True, help="Làm mới"):
-            sync_department_rooms()
-            st.rerun()
-            
-    # Xử lý mở Dialog (Chỉ gọi 1 lần duy nhất khi cờ bật)
-    if st.session_state.get("_show_dialog") and not st.session_state.get("_close_dialog"):
-        # GỌI DIALOG (Không set False ở đây, chỉ set False khi bấm nút thành công bên trong Dialog)
-        _dialog_tao_phong(nv)
+    # Nút làm mới
+    if st.button("🔄 Làm mới danh sách", key="btn_refresh_sidebar", 
+                 use_container_width=True, help="Đồng bộ lại danh sách phòng"):
+        sync_department_rooms()
+        st.rerun()
 
     # Ô tìm kiếm
     tim = st.text_input("🔎 Tìm phòng chat...", key="cnb_search_room",
@@ -1727,6 +1713,18 @@ def render():
         _render_sidebar(nv, rooms, active_room_id)
 
     with col_main:
+        # Nút Tạo phòng mới đặt ở đây (NGOÀI fragment) để né lỗi mất callback của Streamlit
+        c_left, c_right = st.columns([0.7, 0.3])
+        with c_right:
+            if st.button("➕ Tạo phòng mới", key="btn_create_room_main", 
+                         use_container_width=True, type="primary"):
+                st.session_state["_show_dialog"] = True
+                st.rerun()
+
+        # Mở dialog nếu cờ được bật (gọi ở đây cũng an toàn vì nằm ngoài fragment)
+        if st.session_state.get("_show_dialog") and not st.session_state.get("_close_dialog"):
+            _dialog_tao_phong(nv)
+
         if active_room:
             _render_chat_window(nv, active_room)
         else:

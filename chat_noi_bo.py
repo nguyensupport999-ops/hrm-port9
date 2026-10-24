@@ -238,6 +238,20 @@ def init_chat_tables():
             except Exception as e_alter:
                 print(f"[chat_noi_bo] Bỏ qua ALTER chat_participants: {e_alter}")
 
+            # Bảng cũ thiếu ràng buộc duy nhất → xoá dòng trùng rồi tạo, để ON CONFLICT hoạt động
+            try:
+                c.execute("""
+                    DELETE FROM chat_participants a USING chat_participants b
+                    WHERE a.ctid > b.ctid
+                      AND a.room_id = b.room_id AND a.user_id = b.user_id
+                """)
+                c.execute("""
+                    CREATE UNIQUE INDEX IF NOT EXISTS uq_chat_participants_room_user
+                    ON chat_participants (room_id, user_id)
+                """)
+            except Exception as e_alter:
+                print(f"[chat_noi_bo] Bỏ qua ràng buộc chat_participants: {e_alter}")
+                
             # ---------- chat_messages ----------
             c.execute("""
                 CREATE TABLE IF NOT EXISTS chat_messages (
@@ -255,15 +269,38 @@ def init_chat_tables():
                 )
             """)
             for stmt in [
+                "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS sender_id    INTEGER",
+                "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS content      TEXT",
                 "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS message_type VARCHAR(20) DEFAULT 'text'",
-                "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS file_url    TEXT",
-                "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS file_name   TEXT",
-                "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS file_size   INTEGER",
+                "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS file_url     TEXT",
+                "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS file_name    TEXT",
+                "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS file_size    INTEGER",
+                "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_read      BOOLEAN DEFAULT FALSE",
+                "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS sent_at      TIMESTAMP DEFAULT NOW()",
             ]:
                 try:
                     c.execute(stmt)
                 except Exception as e_alter:
                     print(f"[chat_noi_bo] Bỏ qua ALTER chat_messages: {e_alter}")
+
+            # Bảng cũ (đời đầu) dùng nhan_vien_id / noi_dung / created_at → chuyển sang cột mới
+            try:
+                c.execute("""
+                    DO $$
+                    BEGIN
+                        IF EXISTS (SELECT 1 FROM information_schema.columns
+                                   WHERE table_name = 'chat_messages'
+                                     AND column_name = 'nhan_vien_id') THEN
+                            UPDATE chat_messages
+                            SET sender_id = nhan_vien_id,
+                                content   = noi_dung,
+                                sent_at   = COALESCE(created_at, sent_at)
+                            WHERE sender_id IS NULL AND nhan_vien_id IS NOT NULL;
+                        END IF;
+                    END $$;
+                """)
+            except Exception as e_alter:
+                print(f"[chat_noi_bo] Bỏ qua chuyển dữ liệu chat_messages: {e_alter}")
 
             # 3 bảng chính đã sẵn sàng — từ đây các bước phụ chỉ best-effort
             chinh_ok = True
@@ -1375,7 +1412,7 @@ def _render_message_bubble(msg, is_self, nv_id):
         return
 
     # Tin nhắn thường — dùng st.chat_message
-    avatar_char = "👤" if is_self else _initials(sender)
+    avatar_char = "👤" if is_self else "🙂"
     role = "user" if is_self else "assistant"
 
     with st.chat_message(role, avatar=avatar_char):
@@ -1648,7 +1685,7 @@ def _render_tai_khoan_he_thong():
                                 unsafe_allow_html=True)
                     continue
 
-                with st.chat_message("assistant", avatar=_initials(sender)):
+                with st.chat_message("assistant", avatar="🙂"):
                     st.caption(f"**{sender}** · {time_str}")
                     if mtype == "payslip":
                         st.markdown(f'<div class="cnb-payslip">{m.get("content", "")}</div>',

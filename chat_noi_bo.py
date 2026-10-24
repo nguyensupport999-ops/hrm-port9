@@ -1048,14 +1048,17 @@ def _dialog_tao_phong(nv):
             )
             
             # Thêm key cho nút
-            if st.button("💬 Bắt đầu trò chuyện", type="primary", use_container_width=True, key="btn_start_1v1"):
-                if chon_nguoi:
+            # Dùng form để né lỗi mất callback của button trong dialog
+            with st.form(key="form_start_1v1", clear_on_submit=False):
+                # Nút submit form hoạt động ổn định hơn trong dialog lồng fragment
+                submitted = st.form_submit_button("💬 Bắt đầu trò chuyện", type="primary", use_container_width=True)
+                if submitted and chon_nguoi:
                     rid = create_private_room(nv["id"], options_1v1[chon_nguoi])
                     if rid:
-                        # ✅ Key fix: only set flag, do not immediately st.rerun()
                         st.session_state["cnb_room_id"] = rid
-                        st.session_state["_close_dialog"] = True
-                        # Remove immediate st.rerun(), let the dialog close naturally on the next run
+                        st.session_state["_show_dialog"] = False
+                        st.session_state["_close_dialog"] = True # Cờ báo đóng dialog
+                        st.rerun() # Lệnh rerun này nằm trong form submit, an toàn hơn
 
     # ─── Tab 2: Tạo nhóm (chỉ hiện nếu có quyền) ───
     if co_the_tao_nhom:
@@ -1104,8 +1107,8 @@ def _dialog_tao_phong(nv):
                     rid = create_group_room(ten_nhom.strip(), nv["id"], member_ids)
                     if rid:
                         st.session_state["cnb_room_id"] = rid
-                        st.session_state["_close_dialog"] = True
-                        # Also remove immediate st.rerun()
+                        st.session_state["_show_dialog"] = False
+                        st.rerun()
 
 
 # ---------- Dialog: Quản lý nhóm ----------

@@ -132,26 +132,48 @@ def co_quyen_quan_ly_nhom(nv, room):
 # ============================================================================
 @contextmanager
 def _db_cursor(dict_cursor=True):
-    """Context manager đảm bảo connection luôn được đóng, kể cả khi exception."""
+    """Context manager đảm bảo transaction được commit/rollback đúng cách.
+
+    ⚠️ KHÔNG gọi db.close() ở đây:
+      - Nếu get_connection() trả về connection từ POOL, close() sẽ làm chết
+        connection trong pool → lần get_connection() sau trả về connection
+        đã hỏng → mọi query fail.
+      - Pool tự quản lý vòng đời connection; ta chỉ cần commit/rollback.
+    """
     db = st.session_state.db_engine.get_connection()
+    cur = None
     try:
         if dict_cursor:
             cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         else:
             cur = db.cursor()
         yield db, cur
+        db.commit()
     except Exception:
-        db.rollback()
+        try:
+            db.rollback()
+        except Exception:
+            pass
         raise
     finally:
-        db.close()
+        try:
+            if cur is not None:
+                cur.close()
+        except Exception:
+            pass
 
 
 # ============================================================================
 # 4) SCHEMA — tạo bảng & đồng bộ group phòng ban mặc định
 # ============================================================================
 def init_chat_tables():
-    """Tạo bảng chat nếu chưa có (an toàn khi gọi lại nhiều lần)."""
+    """Tạo bảng chat nếu chưa có (an toàn khi gọi lại nhiều lần).
+
+    Trả về True nếu 3 bảng CHÍNH (chat_rooms, chat_participants, chat_messages)
+    đã sẵn sàng — kể cả khi các bước phụ (index, ALTER, seed broadcast) fail.
+    Nhờ vậy module không bị chặn bởi lỗi không nghiêm trọng.
+    """
+    chinh_ok = False
     try:
         with _db_cursor(dict_cursor=False) as (db, c):
             # ---------- chat_rooms ----------
@@ -169,14 +191,16 @@ def init_chat_tables():
                     deleted_at  TIMESTAMP
                 )
             """)
-            # Đảm bảo các cột bổ sung (cho DB cũ đã có bảng nhưng thiếu cột)
             for stmt in [
                 "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS phong_ban  VARCHAR(100)",
                 "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS is_locked  BOOLEAN DEFAULT FALSE",
                 "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW()",
                 "ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP",
             ]:
-                c.execute(stmt)
+                try:
+                    c.execute(stmt)
+                except Exception as e_alter:
+                    print(f"[chat_noi_bo] Bỏ qua ALTER chat_rooms: {e_alter}")
 
             # ---------- chat_participants ----------
             c.execute("""
@@ -188,8 +212,11 @@ def init_chat_tables():
                     PRIMARY KEY (room_id, user_id)
                 )
             """)
-            c.execute("ALTER TABLE chat_participants "
-                      "ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMP DEFAULT NOW()")
+            try:
+                c.execute("ALTER TABLE chat_participants "
+                          "ADD COLUMN IF NOT EXISTS last_read_at TIMESTAMP DEFAULT NOW()")
+            except Exception as e_alter:
+                print(f"[chat_noi_bo] Bỏ qua ALTER chat_participants: {e_alter}")
 
             # ---------- chat_messages ----------
             c.execute("""
@@ -213,49 +240,59 @@ def init_chat_tables():
                 "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS file_name   TEXT",
                 "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS file_size   INTEGER",
             ]:
-                c.execute(stmt)
+                try:
+                    c.execute(stmt)
+                except Exception as e_alter:
+                    print(f"[chat_noi_bo] Bỏ qua ALTER chat_messages: {e_alter}")
 
-            # ---------- Indexes cho hiệu năng ----------
-            c.execute("""
-                CREATE INDEX IF NOT EXISTS idx_chat_messages_room_sent
-                ON chat_messages (room_id, sent_at)
-            """)
-            c.execute("""
-                CREATE INDEX IF NOT EXISTS idx_chat_participants_user
-                ON chat_participants (user_id)
-            """)
+            # 3 bảng chính đã sẵn sàng — từ đây các bước phụ chỉ best-effort
+            chinh_ok = True
 
-            # ---------- Kênh "📢 Thông báo chung" (broadcast, khóa) ----------
-            c.execute("""
-                INSERT INTO chat_rooms
-                    (room_name, room_type, is_locked, created_by, created_at, updated_at)
-                SELECT '📢 Thông báo chung', 'broadcast', TRUE, 0, NOW(), NOW()
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM chat_rooms
-                    WHERE room_type = 'broadcast' AND deleted_at IS NULL
-                )
-            """)
-            c.execute("""
-                SELECT id FROM chat_rooms
-                WHERE room_type = 'broadcast' AND deleted_at IS NULL
-                LIMIT 1
-            """)
-            row = c.fetchone()
-            broadcast_id = row[0] if row else None
-            if broadcast_id:
+            # ---------- Indexes (không bắt buộc) ----------
+            for stmt in [
+                "CREATE INDEX IF NOT EXISTS idx_chat_messages_room_sent "
+                "ON chat_messages (room_id, sent_at)",
+                "CREATE INDEX IF NOT EXISTS idx_chat_participants_user "
+                "ON chat_participants (user_id)",
+            ]:
+                try:
+                    c.execute(stmt)
+                except Exception as e_idx:
+                    print(f"[chat_noi_bo] Bỏ qua index: {e_idx}")
+
+            # ---------- Kênh "📢 Thông báo chung" (không bắt buộc) ----------
+            try:
                 c.execute("""
-                    INSERT INTO chat_participants (room_id, user_id, joined_at, last_read_at)
-                    SELECT %s, nv.id, NOW(), NOW()
-                    FROM nhan_vien nv
-                    WHERE nv.trang_thai IN ('DANG_LAM', 'THU_VIEC')
-                      AND NOT EXISTS (
-                        SELECT 1 FROM chat_participants cp
-                        WHERE cp.room_id = %s AND cp.user_id = nv.id
+                    INSERT INTO chat_rooms
+                        (room_name, room_type, is_locked, created_by, created_at, updated_at)
+                    SELECT '📢 Thông báo chung', 'broadcast', TRUE, 0, NOW(), NOW()
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM chat_rooms
+                        WHERE room_type = 'broadcast' AND deleted_at IS NULL
                     )
-                """, (broadcast_id, broadcast_id))
+                """)
+                c.execute("""
+                    SELECT id FROM chat_rooms
+                    WHERE room_type = 'broadcast' AND deleted_at IS NULL
+                    LIMIT 1
+                """)
+                row = c.fetchone()
+                broadcast_id = row[0] if row else None
+                if broadcast_id:
+                    c.execute("""
+                        INSERT INTO chat_participants (room_id, user_id, joined_at, last_read_at)
+                        SELECT %s, nv.id, NOW(), NOW()
+                        FROM nhan_vien nv
+                        WHERE nv.trang_thai IN ('DANG_LAM', 'THU_VIEC')
+                          AND NOT EXISTS (
+                            SELECT 1 FROM chat_participants cp
+                            WHERE cp.room_id = %s AND cp.user_id = nv.id
+                          )
+                    """, (broadcast_id, broadcast_id))
+            except Exception as e_bc:
+                print(f"[chat_noi_bo] Bỏ qua seed broadcast: {e_bc}")
 
-            db.commit()
-        return True
+        return chinh_ok
     except Exception as e:
         print(f"[chat_noi_bo] Lỗi khởi tạo bảng chat: {e}")
         return False
@@ -265,56 +302,60 @@ def sync_department_rooms():
     """Đảm bảo mỗi phòng ban trong PHONG_BAN_THU_TU có đúng 1 group mặc định,
     và thành viên của group đó luôn khớp với nhan_vien.phong_ban_lam_viec hiện tại.
 
-    An toàn khi gọi nhiều lần (idempotent).  Nên gọi lại ngay sau khi 1 Quyết định
-    điều chuyển phòng ban được lưu, để group chat cập nhật tức thì."""
+    An toàn khi gọi nhiều lần (idempotent). Lỗi ở 1 phòng ban không chặn các
+    phòng ban khác. Nên gọi lại ngay sau khi 1 Quyết định điều chuyển phòng
+    ban được lưu, để group chat cập nhật tức thì."""
     try:
         with _db_cursor() as (db, c):
             for ten_pb in PHONG_BAN_THU_TU:
-                # Tìm hoặc tạo room cho phòng ban
-                c.execute("""
-                    SELECT id FROM chat_rooms
-                    WHERE room_type = 'department' AND phong_ban = %s AND deleted_at IS NULL
-                """, (ten_pb,))
-                row = c.fetchone()
-                if row:
-                    room_id = row["id"]
-                else:
+                try:
+                    # Tìm hoặc tạo room cho phòng ban
                     c.execute("""
-                        INSERT INTO chat_rooms
-                            (room_name, room_type, phong_ban, is_locked, created_by, updated_at)
-                        VALUES (%s, 'department', %s, TRUE, 0, NOW())
-                        RETURNING id
-                    """, (ten_pb, ten_pb))
-                    room_id = c.fetchone()["id"]
+                        SELECT id FROM chat_rooms
+                        WHERE room_type = 'department' AND phong_ban = %s
+                          AND deleted_at IS NULL
+                    """, (ten_pb,))
+                    row = c.fetchone()
+                    if row:
+                        room_id = row["id"]
+                    else:
+                        c.execute("""
+                            INSERT INTO chat_rooms
+                                (room_name, room_type, phong_ban, is_locked, created_by, updated_at)
+                            VALUES (%s, 'department', %s, TRUE, 0, NOW())
+                            RETURNING id
+                        """, (ten_pb, ten_pb))
+                        room_id = c.fetchone()["id"]
 
-                # Nhân viên ĐÚNG RA phải ở trong room này
-                c.execute("""
-                    SELECT id FROM nhan_vien
-                    WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
-                      AND phong_ban_lam_viec = %s
-                """, (ten_pb,))
-                dung_id = {r["id"] for r in c.fetchall()}
-
-                # Nhân viên HIỆN ĐANG ở trong room
-                c.execute("SELECT user_id FROM chat_participants WHERE room_id = %s",
-                          (room_id,))
-                hien_co_id = {r["user_id"] for r in c.fetchall()}
-
-                # Thêm mới
-                for uid in (dung_id - hien_co_id):
+                    # Nhân viên ĐÚNG RA phải ở trong room này
                     c.execute("""
-                        INSERT INTO chat_participants (room_id, user_id, joined_at, last_read_at)
-                        VALUES (%s, %s, NOW(), NOW())
-                        ON CONFLICT (room_id, user_id) DO NOTHING
-                    """, (room_id, uid))
+                        SELECT id FROM nhan_vien
+                        WHERE trang_thai IN ('DANG_LAM', 'THU_VIEC')
+                          AND phong_ban_lam_viec = %s
+                    """, (ten_pb,))
+                    dung_id = {r["id"] for r in c.fetchall()}
 
-                # Xóa người không còn thuộc phòng ban
-                for uid in (hien_co_id - dung_id):
-                    c.execute("DELETE FROM chat_participants "
-                              "WHERE room_id = %s AND user_id = %s",
-                              (room_id, uid))
+                    # Nhân viên HIỆN ĐANG ở trong room
+                    c.execute("SELECT user_id FROM chat_participants WHERE room_id = %s",
+                              (room_id,))
+                    hien_co_id = {r["user_id"] for r in c.fetchall()}
 
-            db.commit()
+                    # Thêm mới
+                    for uid in (dung_id - hien_co_id):
+                        c.execute("""
+                            INSERT INTO chat_participants (room_id, user_id, joined_at, last_read_at)
+                            VALUES (%s, %s, NOW(), NOW())
+                            ON CONFLICT (room_id, user_id) DO NOTHING
+                        """, (room_id, uid))
+
+                    # Xóa người không còn thuộc phòng ban
+                    for uid in (hien_co_id - dung_id):
+                        c.execute("DELETE FROM chat_participants "
+                                  "WHERE room_id = %s AND user_id = %s",
+                                  (room_id, uid))
+                except Exception as e_pb:
+                    print(f"[chat_noi_bo] Bỏ qua phòng ban '{ten_pb}': {e_pb}")
+                    continue
         return True
     except Exception as e:
         print(f"[chat_noi_bo] Lỗi đồng bộ group phòng ban: {e}")
@@ -545,7 +586,6 @@ def mark_messages_as_read(room_id, user_id):
                 UPDATE chat_participants SET last_read_at = NOW()
                 WHERE room_id = %s AND user_id = %s
             """, (room_id, user_id))
-            db.commit()
         return True
     except Exception as e:
         print(f"[chat_noi_bo] Lỗi đánh dấu đã đọc: {e}")
@@ -566,7 +606,6 @@ def send_message(room_id, sender_id, content, message_type="text",
                   file_url, file_name, file_size))
             c.execute("UPDATE chat_rooms SET updated_at = NOW() WHERE id = %s",
                       (room_id,))
-            db.commit()
         return True
     except Exception as e:
         print(f"[chat_noi_bo] Lỗi gửi tin nhắn: {e}")
@@ -637,7 +676,6 @@ def create_private_room(user1_id, user2_id):
                 INSERT INTO chat_participants (room_id, user_id)
                 VALUES (%s, %s), (%s, %s)
             """, (room_id, user1_id, room_id, user2_id))
-            db.commit()
             return room_id
     except Exception as e:
         print(f"[chat_noi_bo] Lỗi tạo phòng 1:1: {e}")
@@ -660,9 +698,8 @@ def create_group_room(room_name, creator_id, member_ids):
                     INSERT INTO chat_participants (room_id, user_id)
                     VALUES (%s, %s) ON CONFLICT (room_id, user_id) DO NOTHING
                 """, (room_id, uid))
-            db.commit()
 
-            # System message
+            # System message — gọi sau khi commit room để đảm bảo FK (nếu có)
             send_system_message(room_id, f"🎉 Nhóm \"{room_name}\" đã được tạo "
                                 f"với {len(all_ids)} thành viên.")
             return room_id
@@ -678,7 +715,6 @@ def rename_room(room_id, new_name):
             c.execute("UPDATE chat_rooms SET room_name = %s, updated_at = NOW() "
                       "WHERE id = %s AND room_type = 'group'",
                       (new_name, room_id))
-            db.commit()
         send_system_message(room_id, f"✏️ Nhóm đã được đổi tên thành \"{new_name}\".")
         return True
     except Exception as e:
@@ -689,8 +725,8 @@ def rename_room(room_id, new_name):
 def add_participants_to_room(room_id, user_ids, added_by_name=""):
     """Thêm thành viên vào phòng chat (với system message)."""
     try:
+        added_names = []
         with _db_cursor(dict_cursor=False) as (db, c):
-            added_names = []
             for uid in user_ids:
                 c.execute("""
                     INSERT INTO chat_participants (room_id, user_id, joined_at, last_read_at)
@@ -702,7 +738,6 @@ def add_participants_to_room(room_id, user_ids, added_by_name=""):
                 r = c.fetchone()
                 if r:
                     added_names.append(r[0])
-            db.commit()
 
         if added_names:
             ten_ds = ", ".join(added_names)
@@ -720,7 +755,6 @@ def remove_participant_from_room(room_id, user_id, removed_by_name="", removed_n
         with _db_cursor(dict_cursor=False) as (db, c):
             c.execute("DELETE FROM chat_participants WHERE room_id = %s AND user_id = %s",
                       (room_id, user_id))
-            db.commit()
         if removed_name:
             if removed_by_name and removed_by_name != removed_name:
                 send_system_message(room_id,
@@ -751,7 +785,6 @@ def delete_room(room_id, deleted_by_name=""):
         with _db_cursor(dict_cursor=False) as (db, c):
             c.execute("UPDATE chat_rooms SET deleted_at = NOW() WHERE id = %s",
                       (room_id,))
-            db.commit()
         return True
     except Exception as e:
         print(f"[chat_noi_bo] Lỗi xóa phòng: {e}")
@@ -1629,13 +1662,23 @@ def render():
         _render_tai_khoan_he_thong()
         return
 
-    # Khởi tạo & đồng bộ 1 LẦN / phiên (tránh query lặp mỗi rerun)
+    # Khởi tạo & đồng bộ 1 LẦN / phiên.
+    # KHÔNG return khi init fail — có thể bảng đã tồn tại từ trước, chỉ bước
+    # phụ (index / ALTER / seed) fail; vẫn cố gắng render bình thường.
     if not st.session_state.get("_cnb_da_khoi_tao"):
         ok1 = init_chat_tables()
+        if not ok1:
+            st.error(
+                "❌ Không thể khởi tạo bảng chat. Kiểm tra quyền DB (CREATE TABLE) "
+                "và xem log server để biết chi tiết. Hệ thống sẽ thử render với "
+                "các bảng hiện có."
+            )
         ok2 = sync_department_rooms()
-        if not ok1 or not ok2:
-            st.error("❌ Không thể khởi tạo hệ thống chat. Kiểm tra kết nối DB.")
-            return
+        if not ok2:
+            st.warning(
+                "⚠️ Không đồng bộ được group phòng ban. Chat vẫn dùng được với "
+                "các phòng hiện có."
+            )
         st.session_state["_cnb_da_khoi_tao"] = True
 
     nv = get_current_nv(user_id)

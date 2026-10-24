@@ -140,18 +140,37 @@ def _do_gio(ten):
     finally:
         print(f"[chat_perf] {ten}: {(time.perf_counter() - t0) * 1000:.0f} ms", flush=True)
 @contextmanager
+def _lay_ket_noi():
+    """Dùng lại 1 kết nối DB cho cả phiên làm việc.
+    (Mở kết nối mới tốn ~0,6 giây mỗi lần — đo được từ log [chat_perf].)"""
+    db = st.session_state.get("_cnb_db")
+    bay_gio = time.time()
+    if db is not None:
+        try:
+            if db.closed == 0:
+                # Kết nối nằm im quá 30 giây → kiểm tra còn sống không
+                if bay_gio - st.session_state.get("_cnb_db_used", 0) > 30:
+                    with db.cursor() as _c:
+                        _c.execute("SELECT 1")
+                    db.commit()
+                st.session_state["_cnb_db_used"] = bay_gio
+                return db
+        except Exception:
+            st.session_state.pop("_cnb_db", None)
+
+    t0 = time.perf_counter()
+    db = st.session_state.db_engine.get_connection()
+    print(f"[chat_perf] get_connection (mở mới): {(time.perf_counter() - t0) * 1000:.0f} ms",
+          flush=True)
+    st.session_state["_cnb_db"] = db
+    st.session_state["_cnb_db_used"] = bay_gio
+    return db
+
+
 def _db_cursor(dict_cursor=True):
     """Context manager đảm bảo transaction được commit/rollback đúng cách.
-
-    ⚠️ KHÔNG gọi db.close() ở đây:
-      - Nếu get_connection() trả về connection từ POOL, close() sẽ làm chết
-        connection trong pool → lần get_connection() sau trả về connection
-        đã hỏng → mọi query fail.
-      - Pool tự quản lý vòng đời connection; ta chỉ cần commit/rollback.
-    """
-    _t0 = time.perf_counter()
-    db = st.session_state.db_engine.get_connection()
-    print(f"[chat_perf] get_connection: {(time.perf_counter() - _t0) * 1000:.0f} ms", flush=True)
+    Dùng lại kết nối của phiên (xem _lay_ket_noi). KHÔNG gọi db.close() ở đây."""
+    db = _lay_ket_noi()
     cur = None
     try:
         if dict_cursor:
@@ -160,11 +179,14 @@ def _db_cursor(dict_cursor=True):
             cur = db.cursor()
         yield db, cur
         db.commit()
-    except Exception:
+    except Exception as e:
         try:
             db.rollback()
         except Exception:
             pass
+        # Lỗi do mất kết nối → bỏ kết nối cũ để lần sau tự mở lại
+        if isinstance(e, (psycopg2.OperationalError, psycopg2.InterfaceError)):
+            st.session_state.pop("_cnb_db", None)
         raise
     finally:
         try:
@@ -2071,7 +2093,7 @@ def _phat_chuong_bao():
     """, height=0)
 
 
-@st.fragment(run_every=5)
+@st.fragment(run_every=10)
 def _theo_doi_tin_moi(nv_id):
     """Cứ 5 giây kiểm tra tin chưa đọc; nếu tăng → báo chuông + tải lại màn hình."""
     so_chua_doc = get_total_unread_count(nv_id)

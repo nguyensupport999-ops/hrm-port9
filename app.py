@@ -9437,10 +9437,7 @@ elif menu == "👤 Ứng viên":
                     dien_thoai_uv = st.text_input("SĐT")
                 with col3:
                     trinh_do_uv = st.selectbox("Trình độ", [""] + ds_td_uv)
-                    if _dac_biet:
-                        vi_tri_uv = st.text_input("Vị trí ứng tuyển")
-                    else:
-                        vi_tri_uv = st.selectbox("Vị trí ứng tuyển", [""] + ds_vt_uv)
+                    vi_tri_uv = st.selectbox("Vị trí ứng tuyển", [""] + ds_vi_tri)
                 luong_bh_uv = st.text_input("Lương BH (đồng/tháng)") if _dac_biet else ""
                 ghi_chu_uv = st.text_area("Ghi chú")
 
@@ -10012,7 +10009,11 @@ elif menu == "✅ Nhân viên":
 
 
         if _chedo_nv == "🔍 Danh sách nhân viên đang làm việc (bao gồm thử việc)":
-            sn = st.text_input("🔍 Tìm kiếm", key="snv_dang_lam")
+            col_s1, col_s2 = st.columns(2)
+            with col_s1:
+                sn = st.text_input("🔍 Tìm kiếm", key="snv_dang_lam")
+            with col_s2:
+                filter_ho_so = st.selectbox("🔍 Lọc Hồ sơ:", ["Tất cả", "Chưa có"], key="filter_hs_danglam")
 
         
             db_f = st.session_state.db_engine.get_connection()
@@ -10051,6 +10052,9 @@ elif menu == "✅ Nhân viên":
             if sn:
                 sql += " AND (ho_ten LIKE %s OR dien_thoai LIKE %s OR so_cccd LIKE %s OR ma_nv LIKE %s)"
                 params.extend([f'%{sn}%'] * 4)
+            if filter_ho_so == "Chưa có":
+                sql += " AND ho_so = %s"
+                params.append("Chưa có")
             if filter_chuc_danh != "Tất cả":
                 sql += " AND chuc_danh_nghe = %s"
                 params.append(filter_chuc_danh)
